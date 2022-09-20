@@ -28,18 +28,24 @@ begin
 	using ProgressLogging
 	using Latexify
 	using PlutoUI
-	TableOfContents()
+	
 end
+
+# ╔═╡ 5053a4a4-312c-4a33-9c4f-79eb7bda2019
+TableOfContents()
+
+# ╔═╡ f715731e-7d18-423f-8ddf-75ae6b084e2c
+ChooseDisplayMode()
 
 # ╔═╡ d2dcd687-3623-433d-b591-cc8c2b8403eb
 md"""
 # Ray Theory and The Eikonal Equation
 
-This notebook discusses the governing equations of the ray theoretical methods. For simplicity, we shall consider two dimensions $(x, z)$, but the ideas can easily be extended to 3D. 
+This notebook presents the Eikonal equation under the high-frequency approximation. The governing equations of the ray theoretical methods are derived and numerically solved to trace seismic rays in heterogeneous Earth models. For simplicity, we shall consider two dimensions $(x, z)$, but the ideas can easily be extended to 3D. 
 
 
 Introduction of Seismology
-ES218; August 2022;
+ES218; August 2022
 
 Instructor: Pawan Bharadwaj, Indian Institute of Science, Bengaluru, India
 """
@@ -47,6 +53,7 @@ Instructor: Pawan Bharadwaj, Indian Institute of Science, Bengaluru, India
 # ╔═╡ 30c867cd-58cc-4276-ba04-4ff4a63a5da7
 md"""
 ## Lets Trace Rays!
+Choose the Earth model and the source parameters to plot ray paths.
 """
 
 # ╔═╡ 27b845b9-b653-4458-9225-036f9f5141b6
@@ -55,21 +62,14 @@ tip(md"This plot should get updated each time you submit a source input using th
 # ╔═╡ 15d8f9d0-aa5f-4c62-868a-2486127e5800
 md"""
 ## Ansatz 
-We shall denote the travel time using $T$, and amplitude using $A$.
+We shall assume a solution of the form 
 """
+
+# ╔═╡ 7ae51402-9b74-462d-9603-2344a9766dd5
+md"...with variables"
 
 # ╔═╡ b949b16b-aad7-43ce-9ddf-769e92cd2eb3
 @syms x::Real z::Real t::Real ω::Real α::Real
-
-# ╔═╡ f234fd11-93ba-4cbd-ab43-19997408be00
-begin
-	Dx=Differential(x)
-	Dz=Differential(z)
-	Dt=Differential(t)
-end
-
-# ╔═╡ 6b82596f-3d05-427d-83cc-f893f533458a
-L(ϕ, α)=Dt(Dt(ϕ))/α^2 - (Dx(Dx(ϕ)) + Dz(Dz(ϕ)))
 
 # ╔═╡ b3aa15cf-6baa-4209-9352-cebcb84dc3c5
 @syms T(x,z) A(x,z)
@@ -77,13 +77,25 @@ L(ϕ, α)=Dt(Dt(ϕ))/α^2 - (Dx(Dx(ϕ)) + Dz(Dz(ϕ)))
 # ╔═╡ 946772f8-3229-41cd-9a56-feae400ad11b
 ϕ = A(x,z)*sin(ω*(t-T(x,z)))
 
+# ╔═╡ ff0a4ccf-7518-4662-9203-ff639cb2bce2
+md"...and the following operators."
+
+# ╔═╡ f234fd11-93ba-4cbd-ab43-19997408be00
+Dx=Differential(x); Dz=Differential(z); Dt=Differential(t)
+
+# ╔═╡ 6b82596f-3d05-427d-83cc-f893f533458a
+L(ϕ, α)=Dt(Dt(ϕ))/α^2 - (Dx(Dx(ϕ)) + Dz(Dz(ϕ)))
+
+# ╔═╡ 2a131f55-a6fd-489b-b4d5-205f19de5ce4
+md"Here, T denotes the travel time and $A$ denotes the amplitude. Now, let's check the terms after substituting the solution $\phi$ into the scalar homogeneous wave-equation."
+
 # ╔═╡ 0f457a47-4342-4582-b5e6-fe6fad263f2e
 args_Lϕ=arguments(expand_derivatives(L(ϕ, α)))
 
 # ╔═╡ 28b95ced-5252-403b-8ff2-c92ab743103d
 md"""
-## High-frequency approximation
-This approximation ignores the terms that are sufficiently small in the far-field, i.e. when the frequencies are high. For example, we will divide the arguments obtained after substituting ϕ₂ in the 2-D wave equation with $ω^2$, and ignore terms decaying with either $\frac{1}{ω}$ or $\frac{1}{ω^2}$.
+## High-frequency Approximation
+This approximation ignores the terms that are sufficiently small in the far-field, i.e. when the high frequencies are considered. For example, we will divide the arguments obtained after substituting ϕ₂ in the 2-D wave equation with $ω^2$, and ignore terms decaying with either $\frac{1}{ω}$ or $\frac{1}{ω^2}$.
 """
 
 # ╔═╡ 8ef1a5e5-aaad-41e0-bcc7-299822554714
@@ -91,20 +103,19 @@ map(simplify, args_Lϕ ./ ω^2)
 
 # ╔═╡ 43d09ae6-5e46-4961-8c0a-d9f8ad0addba
 md"""
-This results in the Eikonal equation in 2D.
+This results in the 2D Eikonal equation.
 """
 
 # ╔═╡ 78dcaf9d-84fc-49d6-b6ba-9c6f7b2bf688
 Dx(T(x,z))^2+Dz(T(x,z))^2 ~ 1/α^2
 
+# ╔═╡ aba0fd7b-3cb6-49f3-9257-eb610d7a47dc
+tip(md"""
+Note the similarity of the above Eikonal equation to the dispersion relation we derived using a plane-wave solution of the homogeneous scalar wave equation.  The magnitude of the wavenumber vector $\vec{k}$ should be equal to $ω^2/α^2$, which also constrains the magnitude of the slowness vector $\vec{s}$ to $1/α^2$.""")
+
 # ╔═╡ 2e1cec4b-11ff-4811-862f-1dea2c52efa6
-md"""
-* Note the similarity of the above equation to the dispersion relation we derived for a given planewave. 
-* Earlier, we saw that the magnitude of the wavenumber vector $\hat{k}$ should be equal to $ω^2/α^2$. This should indeed constrain the magnitude of the slowness vector $\vec{s}$ to $1/α^2$. 
-* Here, we are considering a *local planewave* at $(x,z)$ with a slowness vector $\vec{s}(x,z)$. 
-* Take a moment to realize that Dx(T) gives the x-component of the slowness vector.
-* Finally, we can similarly write the Eikonal equation in 3D.
-"""
+tip(md"""... when solving the Eikonal equation, we think of a *local plane wave* at $(x,z)$ with corresponding slowness vector $\vec{s}(x,z)$. Take a moment to realize that $(Dx(T)) gives the x-component of the slowness vector.
+""")
 
 # ╔═╡ b38c287e-5fa2-4442-94cb-7ea89f34af3d
 md"""
@@ -118,46 +129,24 @@ md"""
 Lines perpendicular to the wavefronts i.e. $T(x,y,z) = const.$ surfaces are termed rays. In other words, rays are parallel to the gradient of the travel-time function 
 $∇T(x,y,z)$.
 
-If $\hat{k}$ denoted the direction along $\nabla T$, then  
+If $\hat{s}$ denoted the direction along $\nabla T$, then  
 ```math
-\nabla T(x,y,z) = \vec{s}, \qquad\qquad (1)
+\nabla T(x,y,z) = \vec{s}(x,z) = |\vec{s}(x,z)|\hat{s}(x,z), \qquad\qquad (1)
 ```
-where $|s|=\frac{1}{α}$ is the local slowness.
+where $|\vec{s}|=\frac{1}{α}$ is the local slowness.
+
+We shall start this section by declaring the necessary symbols.
 """
 
 # ╔═╡ 48472040-7d98-437c-8d80-97313f674446
-@syms s(x::Real,z::Real)::Real sx(x::Real,z::Real)::Real sz(x::Real,z::Real)::Real px::Real pz::Real l::Real
-
-# ╔═╡ 7098ee62-8c43-4bfa-83be-472aed997975
-md"""
-Using equation (1), we shall now substitute `sx` and `sz` in `dsdl` and simplify.
-"""
-
-# ╔═╡ fd6d6a1b-b038-40be-af5b-864d693ab32c
-r1 = @acrule (Dx(Dx(~T))*Dx(~T) + ~B)/~A => (1/2 *(Dx(Dx(~T)*Dx(~T))) + ~B )/~A
-
-# ╔═╡ 7e1d125a-cc07-4713-8e21-f5d49ce41797
-r2 = @acrule (~B + Dz(Dx(~T))*Dz(~T))/~A => (~B + 1/2 *(Dx(Dz(~T)*Dz(~T))))/~A
-
-# ╔═╡ 1f9e802b-5523-4000-9486-60d77034f808
-r3 = @acrule (~B + Dz(Dz(~T))*Dz(~T))/~A => (1/2 *(Dz(Dz(~T)*Dz(~T))) + ~B )/~A
-
-# ╔═╡ 80d2c246-2c18-41d2-b744-ea40d87da87f
-r4 = @acrule (~B + Dx(Dz(~T))*Dx(~T))/~A => (~B + 1/2 *(Dz(Dx(~T)*Dx(~T))))/~A
-
-# ╔═╡ 6c400f08-0262-4ab2-adea-283a43afbc7f
-r5 = @acrule (~A *Dx(~B) + ~A*Dx(~C))/~D  => (~A *Dx(~B+~C))/~D
-
-# ╔═╡ 24eaebcb-0020-4916-85af-fe1a3a80f8f6
-r6 = @acrule (~A *Dz(~B) + ~A*Dz(~C))/~D  => (~A *Dz(~B+~C))/~D
-
-# ╔═╡ 8042d4f4-89f6-41c5-9fed-38ccc648dd61
-md"""
-We can now finally use the Eikonal equation to derive equation (2).
-"""
+begin
+	@syms s(x::Real,z::Real)::Real # slowness
+	@syms sx(x::Real,z::Real)::Real # slowness vector; x component
+	@syms sz(x::Real,z::Real)::Real # ...
+end
 
 # ╔═╡ 663efee6-b542-4f06-b468-13eb61622dd5
-svec=[sx(x,z), sz(x,z)]
+svec=[sx(x,z), sz(x,z)] # slowness vector
 
 # ╔═╡ 252804ea-2774-41ad-a832-59a997e3daab
 # The Jacobian Matrix
@@ -180,25 +169,59 @@ Finally, the slowness vector at the new position $\vec{p}_1$ is given by
 ```math
 \hat{s}_1 = \hat{s}_0 + \nabla|\hat{s}|\,dl. \qquad\qquad (3)
 ```
-This notebook solves equations (2) and (3) numerically to trace the ray path in a 2-D heterogeneous medium.
+This notebook solves equations (2) and (3) numerically to trace the ray path in 2-D heterogeneous media.
 """
 
 # ╔═╡ a2559f67-481b-4139-ac44-653b35b71f46
 dsdl1 = J * (svec./s(x,z))
+
+# ╔═╡ 7098ee62-8c43-4bfa-83be-472aed997975
+md"""
+Using equation (1), we shall now substitute `sx` and `sz` in `dsdl` and simplify.
+"""
 
 # ╔═╡ e35ea643-e180-4743-a46a-38090b397071
 dsdl2=broadcast(dsdl1) do ⋅
 	simplify(substitute(⋅, [sx(x,z)=>Dx(T(x,z)), sz(x,z)=>Dz(T(x,z))]))
 end
 
+# ╔═╡ fd6d6a1b-b038-40be-af5b-864d693ab32c
+r1 = @acrule (Dx(Dx(~T))*Dx(~T) + ~B)/~A => (1/2 *(Dx(Dx(~T)*Dx(~T))) + ~B )/~A
+
+# ╔═╡ 7e1d125a-cc07-4713-8e21-f5d49ce41797
+r2 = @acrule (~B + Dz(Dx(~T))*Dz(~T))/~A => (~B + 1/2 *(Dx(Dz(~T)*Dz(~T))))/~A
+
+# ╔═╡ 1f9e802b-5523-4000-9486-60d77034f808
+r3 = @acrule (Dz(Dz(~T))*Dz(~T) + ~B)/~A => (1/2 *(Dz(Dz(~T)*Dz(~T))) + ~B )/~A
+
+# ╔═╡ 80d2c246-2c18-41d2-b744-ea40d87da87f
+r4 = @acrule (~B + Dx(Dz(~T))*Dx(~T))/~A => (~B + 1/2 *(Dz(Dx(~T)*Dx(~T))))/~A
+
 # ╔═╡ ebb5334f-8619-4e2c-b329-20a4818da3cc
 dsdl3=[r2(r1(dsdl2[1])), r4(r3(dsdl2[2]))]
+
+# ╔═╡ 6c400f08-0262-4ab2-adea-283a43afbc7f
+r5 = @acrule (~A *Dx(~B) + ~A*Dx(~C))/~D  => (~A *Dx(~B+~C))/~D
+
+# ╔═╡ 24eaebcb-0020-4916-85af-fe1a3a80f8f6
+r6 = @acrule (~A *Dz(~B) + ~A*Dz(~C))/~D  => (~A *Dz(~B+~C))/~D
 
 # ╔═╡ b42d1cd0-6610-4d3f-8950-27b13f136368
 dsdl4=[r5(dsdl3[1]), r6(dsdl3[2])]
 
+# ╔═╡ 8042d4f4-89f6-41c5-9fed-38ccc648dd61
+md"""
+We can now finally use the Eikonal equation to derive equation (3).
+"""
+
 # ╔═╡ 123ef679-307b-4043-9318-96c91fe0ff18
 dsdl=expand_derivatives.(substitute.(dsdl4, Dx(T(x,z))*Dx(T(x,z)) + Dz(T(x,z))*Dz(T(x,z)) => s(x,z)*s(x,z) ))
+
+# ╔═╡ bbd33fc8-e9b0-418a-a1f3-10015d8dec6f
+tip(md"From this derivation, it is obvious that `dsdl` determines how the horizontal and vertical components of the slowness vector change along the raypath. For example, if $(Dx(s(x,z))) is zero in a layered Earth medium, the horizontal slowness remains constant!")
+
+# ╔═╡ 9fa624d8-013a-4f4f-b440-a349a023dc47
+@test iszero(dsdl.-Symbolics.gradient(s(x,z), [x,z]))
 
 # ╔═╡ 97307d52-d30c-46f9-8d55-9a0626879360
 md"""
@@ -222,7 +245,7 @@ function layered_medium_input(n) # n is the number of layers
 		
 		inputs = [
 			md""" Layer $(string(i)): $(
-				Child(string(i), Slider(1000:10000, default=2000))
+				Child(string(i), Slider(1000:10000, default=1000+i*1000))
 			)"""
 			
 			for i in 1:n
@@ -230,6 +253,7 @@ function layered_medium_input(n) # n is the number of layers
 		
 		md"""
 		### Layered Earth
+		Slide to adjust the seismic velocities ∈ [1, 10] km/s of the layers.
 		$(inputs)
 		"""
 	end
@@ -295,9 +319,9 @@ return PlutoUI.combine() do Child
 	
 	md"""
 	### Source Parameters
-	#### direction of the slowness vector
+	Adjust the direction outgoing planewave.
 	$(dinput...)
-	#### position
+	Change the source position if necessary.
 	$(linput...)
 	"""
 
@@ -1963,29 +1987,35 @@ version = "1.4.1+0"
 """
 
 # ╔═╡ Cell order:
-# ╠═d2dcd687-3623-433d-b591-cc8c2b8403eb
-# ╠═30c867cd-58cc-4276-ba04-4ff4a63a5da7
+# ╠═5053a4a4-312c-4a33-9c4f-79eb7bda2019
+# ╠═f715731e-7d18-423f-8ddf-75ae6b084e2c
+# ╟─d2dcd687-3623-433d-b591-cc8c2b8403eb
+# ╟─30c867cd-58cc-4276-ba04-4ff4a63a5da7
 # ╠═a66ab3cd-c293-45ce-9e58-36b93712dbf2
 # ╟─a2c9a4bb-43a1-4004-a54a-ecdd4e91a2e5
-# ╠═d3f909d1-1843-4580-ae75-de1c461dd433
+# ╟─d3f909d1-1843-4580-ae75-de1c461dd433
 # ╟─27b845b9-b653-4458-9225-036f9f5141b6
-# ╠═15d8f9d0-aa5f-4c62-868a-2486127e5800
+# ╟─15d8f9d0-aa5f-4c62-868a-2486127e5800
+# ╠═946772f8-3229-41cd-9a56-feae400ad11b
+# ╟─7ae51402-9b74-462d-9603-2344a9766dd5
 # ╠═b949b16b-aad7-43ce-9ddf-769e92cd2eb3
+# ╠═b3aa15cf-6baa-4209-9352-cebcb84dc3c5
+# ╟─ff0a4ccf-7518-4662-9203-ff639cb2bce2
 # ╠═f234fd11-93ba-4cbd-ab43-19997408be00
 # ╠═6b82596f-3d05-427d-83cc-f893f533458a
-# ╠═b3aa15cf-6baa-4209-9352-cebcb84dc3c5
-# ╠═946772f8-3229-41cd-9a56-feae400ad11b
+# ╟─2a131f55-a6fd-489b-b4d5-205f19de5ce4
 # ╠═0f457a47-4342-4582-b5e6-fe6fad263f2e
-# ╠═28b95ced-5252-403b-8ff2-c92ab743103d
+# ╟─28b95ced-5252-403b-8ff2-c92ab743103d
 # ╠═8ef1a5e5-aaad-41e0-bcc7-299822554714
 # ╠═43d09ae6-5e46-4961-8c0a-d9f8ad0addba
 # ╠═78dcaf9d-84fc-49d6-b6ba-9c6f7b2bf688
-# ╠═2e1cec4b-11ff-4811-862f-1dea2c52efa6
-# ╠═b38c287e-5fa2-4442-94cb-7ea89f34af3d
-# ╠═a311274d-322e-4b87-964d-1d8db379c218
+# ╟─aba0fd7b-3cb6-49f3-9257-eb610d7a47dc
+# ╟─2e1cec4b-11ff-4811-862f-1dea2c52efa6
+# ╟─b38c287e-5fa2-4442-94cb-7ea89f34af3d
+# ╟─a311274d-322e-4b87-964d-1d8db379c218
 # ╠═48472040-7d98-437c-8d80-97313f674446
 # ╠═663efee6-b542-4f06-b468-13eb61622dd5
-# ╠═2093a743-0dd5-4766-8fee-a8607d70a675
+# ╟─2093a743-0dd5-4766-8fee-a8607d70a675
 # ╠═252804ea-2774-41ad-a832-59a997e3daab
 # ╠═a2559f67-481b-4139-ac44-653b35b71f46
 # ╟─7098ee62-8c43-4bfa-83be-472aed997975
@@ -2000,11 +2030,13 @@ version = "1.4.1+0"
 # ╠═b42d1cd0-6610-4d3f-8950-27b13f136368
 # ╟─8042d4f4-89f6-41c5-9fed-38ccc648dd61
 # ╠═123ef679-307b-4043-9318-96c91fe0ff18
+# ╟─bbd33fc8-e9b0-418a-a1f3-10015d8dec6f
+# ╠═9fa624d8-013a-4f4f-b440-a349a023dc47
 # ╟─97307d52-d30c-46f9-8d55-9a0626879360
 # ╟─2d52222f-97b4-4e7d-a8e8-efa60aa8f3e7
 # ╠═f528250d-8a3c-45e1-8ad2-edb2194f0470
 # ╠═22e38218-34cf-11ed-1808-97f785a5c673
-# ╠═fcef78b7-7c31-449f-b620-251249f83eb6
+# ╟─fcef78b7-7c31-449f-b620-251249f83eb6
 # ╠═0c2a78b6-e859-4085-a5ad-1f742e5c70ac
 # ╠═b4685924-854c-4058-af0a-bd7937f669b6
 # ╠═633f5b9a-77da-48e5-b6b3-00a5bc3e42d4
