@@ -34,7 +34,8 @@ end
 # ╔═╡ d2dcd687-3623-433d-b591-cc8c2b8403eb
 md"""
 # Ray Theory and The Eikonal Equation
-This notebook discusses the governing equations of the ray theoretical methods. 
+
+This notebook discusses the governing equations of the ray theoretical methods. For simplicity, we shall consider two dimensions $(x, z)$, but the ideas can easily be extended to 3D. 
 
 
 Introduction of Seismology
@@ -43,19 +44,13 @@ ES218; August 2022;
 Instructor: Pawan Bharadwaj, Indian Institute of Science, Bengaluru, India
 """
 
-# ╔═╡ b949b16b-aad7-43ce-9ddf-769e92cd2eb3
-@syms x y z t ω::Real α::Real
+# ╔═╡ 30c867cd-58cc-4276-ba04-4ff4a63a5da7
+md"""
+## Lets Trace Rays!
+"""
 
-# ╔═╡ f234fd11-93ba-4cbd-ab43-19997408be00
-begin
-		Ðx=Differential(x)
-		Ðy=Differential(y)
-		Ðz=Differential(z)
-		Ðt=Differential(t)
-end
-
-# ╔═╡ 6b82596f-3d05-427d-83cc-f893f533458a
-L₂(ϕ, α)=Ðt(Ðt(ϕ))/α^2 - (Ðx(Ðx(ϕ)) + Ðz(Ðz(ϕ)))
+# ╔═╡ 27b845b9-b653-4458-9225-036f9f5141b6
+tip(md"This plot should get updated each time you submit a source input using the interface above. To refresh the plot, one should submit a new layer configuration.")
 
 # ╔═╡ 15d8f9d0-aa5f-4c62-868a-2486127e5800
 md"""
@@ -63,14 +58,27 @@ md"""
 We shall denote the travel time using $T$, and amplitude using $A$.
 """
 
+# ╔═╡ b949b16b-aad7-43ce-9ddf-769e92cd2eb3
+@syms x::Real z::Real t::Real ω::Real α::Real
+
+# ╔═╡ f234fd11-93ba-4cbd-ab43-19997408be00
+begin
+	Dx=Differential(x)
+	Dz=Differential(z)
+	Dt=Differential(t)
+end
+
+# ╔═╡ 6b82596f-3d05-427d-83cc-f893f533458a
+L(ϕ, α)=Dt(Dt(ϕ))/α^2 - (Dx(Dx(ϕ)) + Dz(Dz(ϕ)))
+
 # ╔═╡ b3aa15cf-6baa-4209-9352-cebcb84dc3c5
-@syms T(x,y,z) A(x,y,z) T₂(x,z) A₂(x,z)
+@syms T(x,z) A(x,z)
 
 # ╔═╡ 946772f8-3229-41cd-9a56-feae400ad11b
-ϕ₂ = A₂(x,z)*sin(ω*(t-T₂(x,z)))
+ϕ = A(x,z)*sin(ω*(t-T(x,z)))
 
 # ╔═╡ 0f457a47-4342-4582-b5e6-fe6fad263f2e
-args_L₂ϕ₂=arguments(expand_derivatives(L₂(ϕ₂, α)))
+args_Lϕ=arguments(expand_derivatives(L(ϕ, α)))
 
 # ╔═╡ 28b95ced-5252-403b-8ff2-c92ab743103d
 md"""
@@ -79,7 +87,7 @@ This approximation ignores the terms that are sufficiently small in the far-fiel
 """
 
 # ╔═╡ 8ef1a5e5-aaad-41e0-bcc7-299822554714
-map(simplify, args_L₂ϕ₂ ./ ω^2)
+map(simplify, args_Lϕ ./ ω^2)
 
 # ╔═╡ 43d09ae6-5e46-4961-8c0a-d9f8ad0addba
 md"""
@@ -87,19 +95,16 @@ This results in the Eikonal equation in 2D.
 """
 
 # ╔═╡ 78dcaf9d-84fc-49d6-b6ba-9c6f7b2bf688
-Ðx(T₂(x,z))^2+Ðz(T₂(x,z))^2 ~ 1/α^2
+Dx(T(x,z))^2+Dz(T(x,z))^2 ~ 1/α^2
 
 # ╔═╡ 2e1cec4b-11ff-4811-862f-1dea2c52efa6
 md"""
 * Note the similarity of the above equation to the dispersion relation we derived for a given planewave. 
-* Earlier, we saw that the magnitude of the wavenumber vector $\hat{k}$ should be equal to $ω^2/α^2$. This should indeed constrain the magnitude of the slowness vector $\hat{p}$ to $1/α^2$. 
-* Here, we are considering a *local planewave* at $(x,z)$ with a slowness vector $p(x,z)$. 
-* Take a moment to realize that Ðx(T) gives the x-component of the slowness vector.
+* Earlier, we saw that the magnitude of the wavenumber vector $\hat{k}$ should be equal to $ω^2/α^2$. This should indeed constrain the magnitude of the slowness vector $\vec{s}$ to $1/α^2$. 
+* Here, we are considering a *local planewave* at $(x,z)$ with a slowness vector $\vec{s}(x,z)$. 
+* Take a moment to realize that Dx(T) gives the x-component of the slowness vector.
 * Finally, we can similarly write the Eikonal equation in 3D.
 """
-
-# ╔═╡ a6c875b4-8103-40e7-a35d-593ccc414cb2
-Ðx(T(x,y,z))^2+Ðy(T(x,y,z))^2+Ðz(T(x,y,z))^2 ~ 1/α^2 
 
 # ╔═╡ b38c287e-5fa2-4442-94cb-7ea89f34af3d
 md"""
@@ -109,116 +114,138 @@ The function $T(x,y,z) = const.$ defines surfaces called wavefronts. For a mediu
 
 # ╔═╡ a311274d-322e-4b87-964d-1d8db379c218
 md"""
-## Raypaths
+## Raypath Tracing
 Lines perpendicular to the wavefronts i.e. $T(x,y,z) = const.$ surfaces are termed rays. In other words, rays are parallel to the gradient of the travel-time function 
 $∇T(x,y,z)$.
 
 If $\hat{k}$ denoted the direction along $\nabla T$, then  
 ```math
-\nabla T(x,y,z) = p(x,y,z)~\hat{k}, 
+\nabla T(x,y,z) = \vec{s}, \qquad\qquad (1)
 ```
-where $p=\frac{1}{α}$ is the local slowness.
+where $|s|=\frac{1}{α}$ is the local slowness.
 """
+
+# ╔═╡ 48472040-7d98-437c-8d80-97313f674446
+@syms s(x::Real,z::Real)::Real sx(x::Real,z::Real)::Real sz(x::Real,z::Real)::Real px::Real pz::Real l::Real
+
+# ╔═╡ 7098ee62-8c43-4bfa-83be-472aed997975
+md"""
+Using equation (1), we shall now substitute `sx` and `sz` in `dsdl` and simplify.
+"""
+
+# ╔═╡ fd6d6a1b-b038-40be-af5b-864d693ab32c
+r1 = @acrule (Dx(Dx(~T))*Dx(~T) + ~B)/~A => (1/2 *(Dx(Dx(~T)*Dx(~T))) + ~B )/~A
+
+# ╔═╡ 7e1d125a-cc07-4713-8e21-f5d49ce41797
+r2 = @acrule (~B + Dz(Dx(~T))*Dz(~T))/~A => (~B + 1/2 *(Dx(Dz(~T)*Dz(~T))))/~A
+
+# ╔═╡ 1f9e802b-5523-4000-9486-60d77034f808
+r3 = @acrule (~B + Dz(Dz(~T))*Dz(~T))/~A => (1/2 *(Dz(Dz(~T)*Dz(~T))) + ~B )/~A
+
+# ╔═╡ 80d2c246-2c18-41d2-b744-ea40d87da87f
+r4 = @acrule (~B + Dx(Dz(~T))*Dx(~T))/~A => (~B + 1/2 *(Dz(Dx(~T)*Dx(~T))))/~A
+
+# ╔═╡ 6c400f08-0262-4ab2-adea-283a43afbc7f
+r5 = @acrule (~A *Dx(~B) + ~A*Dx(~C))/~D  => (~A *Dx(~B+~C))/~D
+
+# ╔═╡ 24eaebcb-0020-4916-85af-fe1a3a80f8f6
+r6 = @acrule (~A *Dz(~B) + ~A*Dz(~C))/~D  => (~A *Dz(~B+~C))/~D
+
+# ╔═╡ 8042d4f4-89f6-41c5-9fed-38ccc648dd61
+md"""
+We can now finally use the Eikonal equation to derive equation (2).
+"""
+
+# ╔═╡ 663efee6-b542-4f06-b468-13eb61622dd5
+svec=[sx(x,z), sz(x,z)]
+
+# ╔═╡ 252804ea-2774-41ad-a832-59a997e3daab
+# The Jacobian Matrix
+J = Symbolics.jacobian(svec, [x,z])
 
 # ╔═╡ 2093a743-0dd5-4766-8fee-a8607d70a675
 md"""
-## Need to fix
-Towards that end, we shall now consider an individual ray with ds as incremental length along the ray path. Let's denote $r=[rx, rz]$ as the position vector along the ray path. As the ray is parallel to $\hat{k}$, we have
-
-
+The journey along a ray begins at the source, where we choose the direction of the outgoing plane wavefronts $\hat{s}_0$. Denoting the source position with $\vec{p}_0$, we simply move along $\hat{s}_0$ by an incremental length $dl$, and the updated position is given by:
+```math
+\vec{p}_1 = \vec{p}_0 + \hat{s}_0 \,dl.   \qquad\qquad(2)
 ```
+In order to trace the ray path further, we need to estimate the change in $s$ as we moved from $\vec{p}_0$ to $\vec{p}_1$.  Note that the plane wave that we are riding gets transformed as it propagates in the medium due to changes in the slowness $|\vec{s}|$. 
+
+In order to estimate this change, we shall first consider a Jacobian Matrix 
+`J`=$J.
+
+Then, we will simplify the derivative of $\vec{s}$ with respect to the length along the ray path ($l$), which is `dsdl`=`J`$\hat{s}$, using the Eikonal equation, to get `dsdl`=$\nabla|\hat{s}|$.
+
+Finally, the slowness vector at the new position $\vec{p}_1$ is given by 
+```math
+\hat{s}_1 = \hat{s}_0 + \nabla|\hat{s}|\,dl. \qquad\qquad (3)
+```
+This notebook solves equations (2) and (3) numerically to trace the ray path in a 2-D heterogeneous medium.
 """
 
-# ╔═╡ 8b913577-60ab-4216-a767-05dd3814b051
-md"""
-We are now interested in ∇p.
-"""
+# ╔═╡ a2559f67-481b-4139-ac44-653b35b71f46
+dsdl1 = J * (svec./s(x,z))
 
-# ╔═╡ 4611979c-6a09-4cf8-91ec-1767f5a8f625
-md"""
-Earlier, we realized that the x-component of the slowness vector is given by 
-Ðx(T).
-"""
+# ╔═╡ e35ea643-e180-4743-a46a-38090b397071
+dsdl2=broadcast(dsdl1) do ⋅
+	simplify(substitute(⋅, [sx(x,z)=>Dx(T(x,z)), sz(x,z)=>Dz(T(x,z))]))
+end
 
-# ╔═╡ 363b57bc-55c8-4ee1-ac86-4de0083d54ee
-[Ðx(T), Ðz(T)]
+# ╔═╡ ebb5334f-8619-4e2c-b329-20a4818da3cc
+dsdl3=[r2(r1(dsdl2[1])), r4(r3(dsdl2[2]))]
 
-# ╔═╡ 48472040-7d98-437c-8d80-97313f674446
-@syms rx::Real ry::Real rz::Real px(x,z)::Real pz(x,z)::Real
+# ╔═╡ b42d1cd0-6610-4d3f-8950-27b13f136368
+dsdl4=[r5(dsdl3[1]), r6(dsdl3[2])]
 
-# ╔═╡ 677f9816-e17e-4790-9323-0c4ad93100ea
-r̂=[rx, rz]
-
-# ╔═╡ 9733974f-0824-4985-b075-12bb9de40ac6
-p̂=[px(x,z), pz(x,z)]
-
-# ╔═╡ 0bedcf68-1195-4c5c-97ba-e1967482b57a
-p=sqrt(sum(p̂.^2))
-
-# ╔═╡ adc5a782-5214-4644-9e0f-7f4a134fd48a
-mm=simplify(expand_derivatives(Ðx(p)), expand=true)
-
-# ╔═╡ 0d67d3a6-38e2-46cb-abad-19e06dcf9131
-arguments(arguments(mm)[1])
-
-# ╔═╡ 92473502-c845-41d4-9343-3b79ef99d3e6
-mmm=substitute(mm, [px(x,z)=>Ðx(T₂(x,z)), pz(x,z)=>Ðz(T₂(x,z))] )
-
-# ╔═╡ 3c7f156d-2f3c-484c-b705-2e51d67d525f
-mmmm=substitute(mmm, [Ðx(T₂(x,z)) => px(x,z), Ðz(T₂(x,z))=>pz(x,z)])
-
-# ╔═╡ bdce77c3-4450-4afe-aa26-ac488a2373d8
-substitute(simplify(mm, expand=true),  (sqrt((px(x,z))^2+(pz(x,z))^2)) => p)
-
-# ╔═╡ 1dd06d77-fe8f-413f-a433-4d415164757e
-substitute(mmmm, (Ðx(T₂(x,z))^2+Ðz(T₂(x,z))^2)=>p^2)
-
-# ╔═╡ af9c7fbd-abea-4403-8260-1050fa07d3aa
-D
-
-# ╔═╡ 7bcd468e-247e-4c86-bb73-74224fc09e35
-R = [x,y,z]
-
-# ╔═╡ 07e22bb7-2536-4003-a100-651b3d639fd5
-@syms  s 
-
-# ╔═╡ 7cb0b48e-5ab7-4018-8061-26aa3663449d
-Ðs = Differential(s)
-
-# ╔═╡ 4211da5b-41b0-4bd5-ba58-e5ad50d3ef76
-Ðs(rx) ~ p̂[1]/p
-
-# ╔═╡ ae028388-86fc-4063-b3b2-7ba23b917d28
-Ðs.(r̂) .~ p̂./p
-
-# ╔═╡ 827c5a10-1383-44f1-9f7e-0b02b7623674
-substitute.(mm, px(x,z)/sqrt(px(x,z)^2+pz(x,z)^2) => Ðs(rx) )
-
-# ╔═╡ 93349315-ebf7-439e-ae2e-c791c0061a73
-expand_derivatives(Ðs(Ðx(T₂(x,z))))
-
-# ╔═╡ eea26ac5-38cc-45f3-8698-d39219ac07bc
-Ðs(T)
-
-# ╔═╡ d7beb90a-f2d8-4e31-8e8e-76d90183455b
-# simplify(kk, rule)
-
-# ╔═╡ d4988a24-82e5-4aa1-8b20-715a29a060b2
-# Base.isless(a::Complex{Int64}, b::Int64)=isless(abs(a),b)
-
-# ╔═╡ 28293599-77dc-43b0-9e71-cd0959315f23
-md"""
-## Numerics
-Let's consider a medium $x∈[0, 400]$ and $z∈[0, 100]$ 
-"""
-
-# ╔═╡ 690a6780-5169-4377-a7f1-795d89362c08
-zgrid = range(0, stop = 100, length = 512); xgrid = range(0, stop = 500, length = 512);
+# ╔═╡ 123ef679-307b-4043-9318-96c91fe0ff18
+dsdl=expand_derivatives.(substitute.(dsdl4, Dx(T(x,z))*Dx(T(x,z)) + Dz(T(x,z))*Dz(T(x,z)) => s(x,z)*s(x,z) ))
 
 # ╔═╡ 97307d52-d30c-46f9-8d55-9a0626879360
 md"""
 ## Appendix
 """
+
+# ╔═╡ 2d52222f-97b4-4e7d-a8e8-efa60aa8f3e7
+md"""
+### FFT Derivatives
+"""
+
+# ╔═╡ fcef78b7-7c31-449f-b620-251249f83eb6
+md"""
+### UI
+"""
+
+# ╔═╡ 0c2a78b6-e859-4085-a5ad-1f742e5c70ac
+function layered_medium_input(n) # n is the number of layers
+	
+	return PlutoUI.combine() do Child
+		
+		inputs = [
+			md""" Layer $(string(i)): $(
+				Child(string(i), Slider(1000:10000, default=2000))
+			)"""
+			
+			for i in 1:n
+		]
+		
+		md"""
+		### Layered Earth
+		$(inputs)
+		"""
+	end
+end
+
+# ╔═╡ a66ab3cd-c293-45ce-9e58-36b93712dbf2
+@bind layers confirm(layered_medium_input(5))
+
+# ╔═╡ 633f5b9a-77da-48e5-b6b3-00a5bc3e42d4
+md"""
+### Core
+Let's consider a medium $x∈[0, 400]$ and $z∈[0, 100]$ 
+"""
+
+# ╔═╡ 690a6780-5169-4377-a7f1-795d89362c08
+zgrid = range(0, stop = 100, length = 512); xgrid = range(0, stop = 500, length = 512);
 
 # ╔═╡ f528250d-8a3c-45e1-8ad2-edb2194f0470
 begin
@@ -248,31 +275,37 @@ begin
     Dfftz(P) = (dPdz = zero(P); Dfftz!(dPdz, P, fp); dPdz)
 end
 
-# ╔═╡ 0c2a78b6-e859-4085-a5ad-1f742e5c70ac
-function layered_medium_input(n) # n is the number of layers
-	
-	return PlutoUI.combine() do Child
-		
-		inputs = [
-			md""" Layer $(string(i)): $(
-				Child(string(i), Slider(1000:10000, default=2000))
-			)"""
-			
-			for i in 1:n
+# ╔═╡ b4685924-854c-4058-af0a-bd7937f669b6
+function source_input()
+return PlutoUI.combine() do Child
+	dinput = [
+			md""" $(x): $(
+				Child(string("s", x), NumberField(range(-1, stop=1, step=0.1), default=1))
+			)"""			
+			for x in ["x", "z"]
 		]
-		
-		md"""
-		### Input Layered Medium
-		$(inputs)
-		"""
-	end
+
+	linput = [
+			md""" $(x): $(
+				Child(string(x, "pos"), Slider(grid, default=50))
+			)"""			
+			for (x, grid) in zip(["x", "z"], [xgrid, zgrid])
+		]
+
+	
+	md"""
+	### Source Parameters
+	#### direction of the slowness vector
+	$(dinput...)
+	#### position
+	$(linput...)
+	"""
+
+end
 end
 
-# ╔═╡ a66ab3cd-c293-45ce-9e58-36b93712dbf2
-@bind layers confirm(layered_medium_input(5))
-
-# ╔═╡ f2349a90-915a-4382-b37b-f18e4f1be83a
-collect(layers)
+# ╔═╡ a2c9a4bb-43a1-4004-a54a-ecdd4e91a2e5
+@bind source confirm(source_input())
 
 # ╔═╡ 6a934875-4209-4913-89f0-2d431027ede0
 begin
@@ -296,44 +329,9 @@ begin
 	nothing
 end
 
-# ╔═╡ 948b934a-62db-474f-9ff1-3bafad32dec5
-rayplot=heatmap(xgrid, zgrid, inv.(slowness), c=:grays, aspect_ratio=length(zgrid)/length(xgrid), clims=(2000, 5000)); 
-
-# ╔═╡ b4685924-854c-4058-af0a-bd7937f669b6
-function source_input()
-return PlutoUI.combine() do Child
-	dinput = [
-			md""" $(x): $(
-				Child(string("s", x), NumberField(range(-1, stop=1, step=0.1), default=1))
-			)"""			
-			for x in ["x", "z"]
-		]
-
-	linput = [
-			md""" $(x): $(
-				Child(string(x, "pos"), Slider(grid, default=50))
-			)"""			
-			for (x, grid) in zip(["x", "z"], [xgrid, zgrid])
-		]
-
-	
-	md"""
-	### Input Source Parameters
-	#### direction of the slowness vector
-	$(dinput...)
-	#### position
-	$(linput...)
-	"""
-
-end
-end
-
-# ╔═╡ a2c9a4bb-43a1-4004-a54a-ecdd4e91a2e5
-@bind source confirm(source_input())
-
 # ╔═╡ e0619921-389e-4351-8799-02431574a01d
 function get_raypath(N, ds, Xinit, Sinit)
-	# keep the direction of S_init, but adjust the magnitude to match the slowness at source
+	# keep the direction of S_init, but adjust the magnitude to match the slowness at the source
 	Sinit = (Sinit ./ norm(Sinit)) .* norm([slowness_itp[Xinit[1], Xinit[2]]])
 	
     Xsave = Array{Any}(missing, 2, N)
@@ -358,8 +356,21 @@ end
 # ╔═╡ c05a5082-0175-4a24-9aeb-de26cb22e6c6
 raypath=get_raypath(200, 1, [source.zpos, source.xpos], [source.sz, source.sx]);
 
+# ╔═╡ 0a76470f-ffe4-4ae8-8dd6-f6886ac77454
+md"""
+### Plots
+"""
+
+# ╔═╡ 948b934a-62db-474f-9ff1-3bafad32dec5
+rayplot=heatmap(xgrid, zgrid, inv.(slowness), c=:grays, aspect_ratio=length(zgrid)/length(xgrid), clims=(2000, 5000), xlabel="Distance", ylabel="Depth", title="Medium Velocity"); 
+
+# ╔═╡ df7f0572-50cd-4a84-96ba-9c91cae9605d
+function update_rayplot(rayplot)
+	plot!(rayplot, raypath[2,:], raypath[1,:], yflip=true, w=2, palette = :Dark2_5, label=string("Raypath ", savename(source)), )
+end
+
 # ╔═╡ d3f909d1-1843-4580-ae75-de1c461dd433
-plot!(rayplot, raypath[2,:], raypath[1,:], yflip=true, w=2, palette = :Dark2_5, label=string("Raypath ", savename(source)), xlabel="Distance", ylabel="Depth", title="Medium Velocity")
+update_rayplot(rayplot)
 
 # ╔═╡ 00000000-0000-0000-0000-000000000001
 PLUTO_PROJECT_TOML_CONTENTS = """
@@ -397,7 +408,7 @@ PLUTO_MANIFEST_TOML_CONTENTS = """
 
 julia_version = "1.8.0"
 manifest_format = "2.0"
-project_hash = "32ed6e95910d62d95614c068d4029d88b5b9da8b"
+project_hash = "472fa72f2db1d3129e1a51df451cee363dbdc987"
 
 [[deps.AbstractAlgebra]]
 deps = ["GroupsCore", "InteractiveUtils", "LinearAlgebra", "MacroTools", "Markdown", "Random", "RandomExtensions", "SparseArrays", "Test"]
@@ -1953,10 +1964,15 @@ version = "1.4.1+0"
 
 # ╔═╡ Cell order:
 # ╠═d2dcd687-3623-433d-b591-cc8c2b8403eb
+# ╠═30c867cd-58cc-4276-ba04-4ff4a63a5da7
+# ╠═a66ab3cd-c293-45ce-9e58-36b93712dbf2
+# ╟─a2c9a4bb-43a1-4004-a54a-ecdd4e91a2e5
+# ╠═d3f909d1-1843-4580-ae75-de1c461dd433
+# ╟─27b845b9-b653-4458-9225-036f9f5141b6
+# ╠═15d8f9d0-aa5f-4c62-868a-2486127e5800
 # ╠═b949b16b-aad7-43ce-9ddf-769e92cd2eb3
 # ╠═f234fd11-93ba-4cbd-ab43-19997408be00
 # ╠═6b82596f-3d05-427d-83cc-f893f533458a
-# ╠═15d8f9d0-aa5f-4c62-868a-2486127e5800
 # ╠═b3aa15cf-6baa-4209-9352-cebcb84dc3c5
 # ╠═946772f8-3229-41cd-9a56-feae400ad11b
 # ╠═0f457a47-4342-4582-b5e6-fe6fad263f2e
@@ -1965,49 +1981,40 @@ version = "1.4.1+0"
 # ╠═43d09ae6-5e46-4961-8c0a-d9f8ad0addba
 # ╠═78dcaf9d-84fc-49d6-b6ba-9c6f7b2bf688
 # ╠═2e1cec4b-11ff-4811-862f-1dea2c52efa6
-# ╠═a6c875b4-8103-40e7-a35d-593ccc414cb2
 # ╠═b38c287e-5fa2-4442-94cb-7ea89f34af3d
 # ╠═a311274d-322e-4b87-964d-1d8db379c218
-# ╠═2093a743-0dd5-4766-8fee-a8607d70a675
-# ╠═4211da5b-41b0-4bd5-ba58-e5ad50d3ef76
-# ╠═ae028388-86fc-4063-b3b2-7ba23b917d28
-# ╠═8b913577-60ab-4216-a767-05dd3814b051
-# ╠═adc5a782-5214-4644-9e0f-7f4a134fd48a
-# ╠═827c5a10-1383-44f1-9f7e-0b02b7623674
-# ╠═0d67d3a6-38e2-46cb-abad-19e06dcf9131
-# ╠═bdce77c3-4450-4afe-aa26-ac488a2373d8
-# ╠═4611979c-6a09-4cf8-91ec-1767f5a8f625
-# ╠═92473502-c845-41d4-9343-3b79ef99d3e6
-# ╠═3c7f156d-2f3c-484c-b705-2e51d67d525f
-# ╠═1dd06d77-fe8f-413f-a433-4d415164757e
-# ╠═363b57bc-55c8-4ee1-ac86-4de0083d54ee
-# ╠═93349315-ebf7-439e-ae2e-c791c0061a73
 # ╠═48472040-7d98-437c-8d80-97313f674446
-# ╠═677f9816-e17e-4790-9323-0c4ad93100ea
-# ╠═9733974f-0824-4985-b075-12bb9de40ac6
-# ╠═0bedcf68-1195-4c5c-97ba-e1967482b57a
-# ╠═af9c7fbd-abea-4403-8260-1050fa07d3aa
-# ╠═7bcd468e-247e-4c86-bb73-74224fc09e35
-# ╠═07e22bb7-2536-4003-a100-651b3d639fd5
-# ╠═7cb0b48e-5ab7-4018-8061-26aa3663449d
-# ╠═eea26ac5-38cc-45f3-8698-d39219ac07bc
-# ╠═d7beb90a-f2d8-4e31-8e8e-76d90183455b
-# ╠═d4988a24-82e5-4aa1-8b20-715a29a060b2
-# ╠═28293599-77dc-43b0-9e71-cd0959315f23
-# ╠═690a6780-5169-4377-a7f1-795d89362c08
-# ╠═f2349a90-915a-4382-b37b-f18e4f1be83a
-# ╠═6a934875-4209-4913-89f0-2d431027ede0
-# ╠═412d0a5d-d4df-4c37-9fe3-90441bfcb32a
-# ╠═a66ab3cd-c293-45ce-9e58-36b93712dbf2
-# ╟─a2c9a4bb-43a1-4004-a54a-ecdd4e91a2e5
-# ╠═d3f909d1-1843-4580-ae75-de1c461dd433
-# ╠═948b934a-62db-474f-9ff1-3bafad32dec5
-# ╠═c05a5082-0175-4a24-9aeb-de26cb22e6c6
-# ╠═97307d52-d30c-46f9-8d55-9a0626879360
+# ╠═663efee6-b542-4f06-b468-13eb61622dd5
+# ╠═2093a743-0dd5-4766-8fee-a8607d70a675
+# ╠═252804ea-2774-41ad-a832-59a997e3daab
+# ╠═a2559f67-481b-4139-ac44-653b35b71f46
+# ╟─7098ee62-8c43-4bfa-83be-472aed997975
+# ╠═e35ea643-e180-4743-a46a-38090b397071
+# ╠═fd6d6a1b-b038-40be-af5b-864d693ab32c
+# ╠═7e1d125a-cc07-4713-8e21-f5d49ce41797
+# ╠═1f9e802b-5523-4000-9486-60d77034f808
+# ╠═80d2c246-2c18-41d2-b744-ea40d87da87f
+# ╠═ebb5334f-8619-4e2c-b329-20a4818da3cc
+# ╠═6c400f08-0262-4ab2-adea-283a43afbc7f
+# ╠═24eaebcb-0020-4916-85af-fe1a3a80f8f6
+# ╠═b42d1cd0-6610-4d3f-8950-27b13f136368
+# ╟─8042d4f4-89f6-41c5-9fed-38ccc648dd61
+# ╠═123ef679-307b-4043-9318-96c91fe0ff18
+# ╟─97307d52-d30c-46f9-8d55-9a0626879360
+# ╟─2d52222f-97b4-4e7d-a8e8-efa60aa8f3e7
 # ╠═f528250d-8a3c-45e1-8ad2-edb2194f0470
 # ╠═22e38218-34cf-11ed-1808-97f785a5c673
+# ╠═fcef78b7-7c31-449f-b620-251249f83eb6
 # ╠═0c2a78b6-e859-4085-a5ad-1f742e5c70ac
 # ╠═b4685924-854c-4058-af0a-bd7937f669b6
+# ╠═633f5b9a-77da-48e5-b6b3-00a5bc3e42d4
+# ╠═690a6780-5169-4377-a7f1-795d89362c08
+# ╠═6a934875-4209-4913-89f0-2d431027ede0
+# ╠═412d0a5d-d4df-4c37-9fe3-90441bfcb32a
+# ╠═c05a5082-0175-4a24-9aeb-de26cb22e6c6
 # ╠═e0619921-389e-4351-8799-02431574a01d
+# ╠═0a76470f-ffe4-4ae8-8dd6-f6886ac77454
+# ╠═948b934a-62db-474f-9ff1-3bafad32dec5
+# ╠═df7f0572-50cd-4a84-96ba-9c91cae9605d
 # ╟─00000000-0000-0000-0000-000000000001
 # ╟─00000000-0000-0000-0000-000000000002
