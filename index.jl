@@ -7,6 +7,16 @@ using InteractiveUtils
 # ╔═╡ aa8aa21c-6480-4d71-a55f-be4e98fe9dcc
 using Pluto
 
+# ╔═╡ d2bf8d0f-9b1e-4625-b51a-eeb27b684ba8
+md"""
+## Pluto resources
+[Pluto repository at Github](https://github.com/fonsp/pluto.jl)
+
+[How to Install Pluto](https://www.youtube.com/watch?v=OOjKEgbt8AI) (straight from the main author Fons van der Plas)
+
+Sample notebooks are available via the index page after starting Pluto.
+"""
+
 # ╔═╡ e3678360-96db-4f28-b972-584d1535d1d0
 notebook_files=filter(Pluto.is_pluto_notebook, readdir());
 
@@ -15,15 +25,24 @@ html_files=broadcast(splitext.(notebook_files)) do f
 	"https://pawbz.github.io/ES218.jl/" * first(f) * ".html"
 end;
 
+# ╔═╡ 3a0789b4-c66e-4ca9-9e1c-fd720d274947
+function links()
+	return (broadcast(vcat, [Markdown.parse("[$(first.(splitext.(basename.(ht))))]($ht)") for ht in html_files]))
+end
+
 # ╔═╡ 9fcd3f72-388c-11ed-12c5-dd984fa4f529
 md"""
-# Basic Seismology Pluto Notebooks
-A collection of [Pluto Reactive Notebooks](https://computationalthinking.mit.edu/Spring21/) that demonstrate key ideas in seismology. These notebooks are developed to assist the course on Introduction to Seismology (ES218; August 2022). The current list of notebooks is: 
+# Study the propagation of elastic waves in the Earth using Pluto Notebooks
+Pluto is a notebook system written in [Julia](https://julialang.org/).
+This is a collection of [Reactive Notebooks](https://computationalthinking.mit.edu/Spring21/) that help demonstrate key ideas in seismology. These notebooks are developed to assist the course on Introduction to Seismology (ES218; August 2022). 
 
-$(html_files...)
+This is WIP, with a current list of notebooks given below.
 
-Instructor: *Pawan Bharadwaj*,
-Indian Institute of Science, Bengaluru, India
+$(links())
+
+**Pawan Bharadwaj**\
+[https://ceas.iisc.ac.in/~geophyinv/](https://ceas.iisc.ac.in/~geophyinv/)\
+*Indian Institute of Science, Bengaluru, India*
 """
 
 # ╔═╡ 00000000-0000-0000-0000-000000000001
@@ -41,7 +60,7 @@ PLUTO_MANIFEST_TOML_CONTENTS = """
 
 julia_version = "1.8.0"
 manifest_format = "2.0"
-project_hash = "33308c26aeaf88935c476becd75fdb6db775d1fc"
+project_hash = "ab92db39d5d495b05ba985257349eeab6bb3cf26"
 
 [[deps.ArgTools]]
 uuid = "0dad84c5-d112-42e6-8d28-ef12dabb789f"
@@ -339,8 +358,10 @@ version = "17.4.0+0"
 
 # ╔═╡ Cell order:
 # ╟─9fcd3f72-388c-11ed-12c5-dd984fa4f529
+# ╟─d2bf8d0f-9b1e-4625-b51a-eeb27b684ba8
+# ╠═aa8aa21c-6480-4d71-a55f-be4e98fe9dcc
 # ╠═03ce0348-524c-4a76-a627-80b83208e68d
 # ╠═e3678360-96db-4f28-b972-584d1535d1d0
-# ╠═aa8aa21c-6480-4d71-a55f-be4e98fe9dcc
+# ╠═3a0789b4-c66e-4ca9-9e1c-fd720d274947
 # ╟─00000000-0000-0000-0000-000000000001
 # ╟─00000000-0000-0000-0000-000000000002
