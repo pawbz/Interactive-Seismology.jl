@@ -28,7 +28,6 @@ begin
 	using ProgressLogging
 	using Latexify
 	using PlutoUI
-	
 end
 
 # ╔═╡ 5053a4a4-312c-4a33-9c4f-79eb7bda2019
@@ -72,7 +71,7 @@ md"...with variables"
 @syms x::Real z::Real t::Real ω::Real α::Real
 
 # ╔═╡ b3aa15cf-6baa-4209-9352-cebcb84dc3c5
-@syms T(x,z) A(x,z)
+@syms T(x,z) A(x,z) # travel-time and amplitude A(x,z)
 
 # ╔═╡ 946772f8-3229-41cd-9a56-feae400ad11b
 ϕ = A(x,z)*sin(ω*(t-T(x,z)))
@@ -95,7 +94,7 @@ args_Lϕ=arguments(expand_derivatives(L(ϕ, α)))
 # ╔═╡ 28b95ced-5252-403b-8ff2-c92ab743103d
 md"""
 ## High-frequency Approximation
-This approximation ignores the terms that are sufficiently small in the far-field, i.e. when the high frequencies are considered. For example, we will divide the arguments obtained after substituting ϕ₂ in the 2-D wave equation with $ω^2$, and ignore terms decaying with either $\frac{1}{ω}$ or $\frac{1}{ω^2}$.
+This approximation ignores the terms that are sufficiently small in the far-field, i.e. when the high frequencies are considered. In this case, we shall divide the arguments obtained after substituting ϕ₂ in the 2-D wave equation with $ω^2$, and ignore $\frac{1}{ω^2}$ terms when $\omega$ is sufficiently large.
 """
 
 # ╔═╡ 8ef1a5e5-aaad-41e0-bcc7-299822554714
@@ -107,7 +106,13 @@ This results in the 2D Eikonal equation.
 """
 
 # ╔═╡ 78dcaf9d-84fc-49d6-b6ba-9c6f7b2bf688
-Dx(T(x,z))^2+Dz(T(x,z))^2 ~ 1/α^2
+eik=Dx(T(x,z))^2+Dz(T(x,z))^2 - 1/α^2; eik ~ 0 
+
+# ╔═╡ 5cb46243-8562-44ed-af21-d62a993f97c4
+md"... and"
+
+# ╔═╡ 9c30d437-507a-4300-921d-0c36a0911247
+eikA=2*dot(Symbolics.gradient(A(x,z), [x,z]), Symbolics.gradient(T(x,z), [x,z])) + A(x,z)*(Dx(Dx(T(x,z))) + Dz(Dz(T(x,z)))); eikA ~ 0
 
 # ╔═╡ aba0fd7b-3cb6-49f3-9257-eb610d7a47dc
 tip(md"""
@@ -364,10 +369,10 @@ function get_raypath(N, ds, Xinit, Sinit)
 	for i = 1:N
   		Xs = view(Xsave, :, i)
 		copyto!(Xs, X)
-		
+		# equation 2
 		X[1] = X[1] + (S[1] / slowness_itp[X[1], X[2]]) * ds
       	X[2] = X[2] + (S[2] / slowness_itp[X[1], X[2]]) * ds
-		
+		# equation 3
         S[1] = S[1] +  ds * slowness_itp_z[X[1], X[2]]
 		S[2] = S[2] +  ds * slowness_itp_x[X[1], X[2]]
 		
@@ -2007,8 +2012,10 @@ version = "1.4.1+0"
 # ╠═0f457a47-4342-4582-b5e6-fe6fad263f2e
 # ╟─28b95ced-5252-403b-8ff2-c92ab743103d
 # ╠═8ef1a5e5-aaad-41e0-bcc7-299822554714
-# ╠═43d09ae6-5e46-4961-8c0a-d9f8ad0addba
+# ╟─43d09ae6-5e46-4961-8c0a-d9f8ad0addba
 # ╠═78dcaf9d-84fc-49d6-b6ba-9c6f7b2bf688
+# ╟─5cb46243-8562-44ed-af21-d62a993f97c4
+# ╠═9c30d437-507a-4300-921d-0c36a0911247
 # ╟─aba0fd7b-3cb6-49f3-9257-eb610d7a47dc
 # ╟─2e1cec4b-11ff-4811-862f-1dea2c52efa6
 # ╟─b38c287e-5fa2-4442-94cb-7ea89f34af3d
@@ -2033,9 +2040,9 @@ version = "1.4.1+0"
 # ╟─bbd33fc8-e9b0-418a-a1f3-10015d8dec6f
 # ╠═9fa624d8-013a-4f4f-b440-a349a023dc47
 # ╟─97307d52-d30c-46f9-8d55-9a0626879360
+# ╠═22e38218-34cf-11ed-1808-97f785a5c673
 # ╟─2d52222f-97b4-4e7d-a8e8-efa60aa8f3e7
 # ╠═f528250d-8a3c-45e1-8ad2-edb2194f0470
-# ╠═22e38218-34cf-11ed-1808-97f785a5c673
 # ╟─fcef78b7-7c31-449f-b620-251249f83eb6
 # ╠═0c2a78b6-e859-4085-a5ad-1f742e5c70ac
 # ╠═b4685924-854c-4058-af0a-bd7937f669b6
