@@ -25,9 +25,11 @@ begin
 	using DrWatson
 	using FFTW
 	using Interpolations
+	using Statistics
 	using ProgressLogging
 	using Latexify
 	using PlutoUI
+	using ForwardDiff
 end
 
 # ╔═╡ 5053a4a4-312c-4a33-9c4f-79eb7bda2019
@@ -40,7 +42,7 @@ ChooseDisplayMode()
 md"""
 # Ray Theory and The Eikonal Equation
 
-This notebook presents the Eikonal equation under the high-frequency approximation. The governing equations of the ray theoretical methods are derived and numerically solved to trace seismic rays in heterogeneous Earth models. For simplicity, we shall consider two dimensions $(x, z)$, but the ideas can easily be extended to 3D. 
+This notebook first presents the Eikonal equation under the high-frequency approximation. The governing equations of the ray theoretical methods are derived and numerically solved to trace seismic rays in heterogeneous Earth models. For simplicity, we shall consider two dimensions $(x, z)$, but the ideas can easily be extended to 3D. A unique feature of this notebook is that the user can write any slowness function of $(x, y)$, and Julia's AD capability will automatically compute the gradient of this function with respect to $x$ and $y$, which is necessary for ray tracing. 
 
 
 Introduction of Seismology
@@ -244,28 +246,39 @@ md"""
 """
 
 # ╔═╡ 0c2a78b6-e859-4085-a5ad-1f742e5c70ac
-function layered_medium_input(n) # n is the number of layers
+function medium_input(n) # n is the number of layers
 	
 	return PlutoUI.combine() do Child
 		
 		inputs = [
 			md""" Layer $(string(i)): $(
-				Child(string(i), Slider(1000:10000, default=1000+i*1000))
+				Child(string("L",i), Slider(1000:10000, default=1000+i*1000))
 			)"""
-			
 			for i in 1:n
+		]
+
+		dvdz = [
+		md""" $(
+				Child("dvdz", Slider(10:100, default=20))
+			)"""
 		]
 		
 		md"""
 		### Layered Earth
+		These sliders are only active if you choose the `slowness_layered` option above.
 		Slide to adjust the seismic velocities ∈ [1, 10] km/s of the layers.
 		$(inputs)
+		### Velocity Increases Linearly with Depth
+		This slider is only active if you choose the `slowness_linear` option above.
+		Slide to adjust the velocity gradient.
+		$(dvdz)
+				
 		"""
 	end
 end
 
 # ╔═╡ a66ab3cd-c293-45ce-9e58-36b93712dbf2
-@bind layers confirm(layered_medium_input(5))
+@bind medium confirm(medium_input(5))
 
 # ╔═╡ 633f5b9a-77da-48e5-b6b3-00a5bc3e42d4
 md"""
@@ -336,32 +349,61 @@ end
 # ╔═╡ a2c9a4bb-43a1-4004-a54a-ecdd4e91a2e5
 @bind source confirm(source_input())
 
-# ╔═╡ 6a934875-4209-4913-89f0-2d431027ede0
-begin
+# ╔═╡ 412d0a5d-d4df-4c37-9fe3-90441bfcb32a
+function slowness_layered()
+	
+	L=[getindex(medium,k) for k in Symbol.(filter(x->occursin("L",x), string.(keys(medium))))]
 	# convert the input velocity values to a slowness field 
-	# TODO: it is easy to modify input to specify a 2-D slowness field, not just layerd medium
-	zlayer=collect(range(zgrid[1], stop=zgrid[end], length=length(layers)+2))
+	zlayer=collect(range(zgrid[1], stop=zgrid[end], length=length(L)+2))
 	xlayer=[xgrid[1], xgrid[end]]
-	slayer=inv.(vcat([2000], collect(layers), [2000]))
+	slayer=inv.(vcat([2000], collect(L), [2000]))
 	slayer_itp=extrapolate(interpolate((zlayer, xlayer), hcat(slayer, slayer), Gridded(Linear())), Flat())
-	slowness=[slayer_itp[z, x] for z in zgrid, x in xgrid]
-	nothing
+	
+	# we shall now create interpolation objects (just nearest-neighbour, nothing fancy)
+	slowness_grid=[slayer_itp[z, x] for z in zgrid, x in xgrid]
+	slowness_itp= extrapolate(interpolate((zgrid, xgrid), slowness_grid, Gridded(Constant())), Flat())
+	slowness(z,x)=slowness_itp[z,x]
+	# we need these objects for spatial derivatives of the slowness as well
+	slowness_x_itp =extrapolate(interpolate((zgrid, xgrid), Dfftx(slowness_grid), Gridded(Constant())), Flat())
+	slowness_x(z,x)=slowness_x_itp[z,x]
+	slowness_z_itp =extrapolate(interpolate((zgrid, xgrid), Dfftz(slowness_grid), Gridded(Constant())), Flat())
+	slowness_z(z,x)=slowness_z_itp[z,x]
+	return slowness, slowness_grid, slowness_x, slowness_z
 end
 
-# ╔═╡ 412d0a5d-d4df-4c37-9fe3-90441bfcb32a
-begin
-	# we shall now create interpolation objects (just nearest-neighbour, nothing fancy)
-	slowness_itp= extrapolate(interpolate((zgrid, xgrid), slowness, Gridded(Constant())), Flat())
-	# we need these objects for spatial derivatives of the slowness as well
-	slowness_itp_x =extrapolate(interpolate((zgrid, xgrid), Dfftx(slowness), Gridded(Constant())), Flat())
-	slowness_itp_z =extrapolate(interpolate((zgrid, xgrid), Dfftz(slowness), Gridded(Constant())), Flat())
-	nothing
+# ╔═╡ d3a75387-b9df-4fd2-b414-3ee662af813b
+function slowness_gaussian()
+	xmean=mean(xgrid)
+	zmean=mean(zgrid)
+	slowness(z,x) = inv(2000.0 + exp(-(x-xmean)^2/1e8)*exp(-(z-zmean)^2/1e8))
+	slowness_grid=[slowness(z,x) for z in zgrid, x in xgrid]
+	slowness_x(z,x)=ForwardDiff.derivative(x->slowness(z,x), x)
+	slowness_z(z,x)=ForwardDiff.derivative(z->slowness(z,x), z)
+	return slowness, slowness_grid, slowness_x, slowness_z
 end
+
+# ╔═╡ b6447c75-4205-4c51-8cdc-552cdd841354
+function slowness_zlinear()
+	xmean=mean(xgrid)
+	zmean=mean(zgrid)
+	# slowness(z,x) = (z>50) ? inv(2000) : inv(10000)
+	slowness(z,x) = (inv(2000.0 + abs(z) * medium.dvdz))
+	slowness_grid=[slowness(z,x) for z in zgrid, x in xgrid]
+	slowness_x(z,x)=ForwardDiff.derivative(x->slowness(z,x), x)
+	slowness_z(z,x)=ForwardDiff.derivative(z->slowness(z,x), z)
+	return slowness, slowness_grid, slowness_x, slowness_z
+end
+
+# ╔═╡ d2447315-f975-4447-ab92-5d5e267eaac5
+@bind get_slowness Select([slowness_layered, slowness_zlinear], default=slowness_layered)
+
+# ╔═╡ 7c71a06b-fd4a-455d-8e94-7cad5e075d62
+slowness, slowness_grid, slowness_x, slowness_z = get_slowness();
 
 # ╔═╡ e0619921-389e-4351-8799-02431574a01d
 function get_raypath(N, ds, Xinit, Sinit)
 	# keep the direction of S_init, but adjust the magnitude to match the slowness at the source
-	Sinit = (Sinit ./ norm(Sinit)) .* norm([slowness_itp[Xinit[1], Xinit[2]]])
+	Sinit = (Sinit ./ norm(Sinit)) .* norm([slowness(Xinit[1], Xinit[2])])
 	
     Xsave = Array{Any}(missing, 2, N)
 	X = deepcopy(Xinit)
@@ -370,11 +412,11 @@ function get_raypath(N, ds, Xinit, Sinit)
   		Xs = view(Xsave, :, i)
 		copyto!(Xs, X)
 		# equation 2
-		X[1] = X[1] + (S[1] / slowness_itp[X[1], X[2]]) * ds
-      	X[2] = X[2] + (S[2] / slowness_itp[X[1], X[2]]) * ds
+		X[1] = X[1] + (S[1] / slowness(X[1], X[2])) * ds
+      	X[2] = X[2] + (S[2] / slowness(X[1], X[2])) * ds
 		# equation 3
-        S[1] = S[1] +  ds * slowness_itp_z[X[1], X[2]]
-		S[2] = S[2] +  ds * slowness_itp_x[X[1], X[2]]
+        S[1] = S[1] +  ds * slowness_z(X[1], X[2])
+		S[2] = S[2] +  ds * slowness_x(X[1], X[2])
 		
 		# exit, if the ray reaches the edge of the medium
 		(((X[2]-xgrid[1])*(xgrid[end]-X[2])*(X[1]-zgrid[1])*(zgrid[end]-X[1]))<0.0) && break     
@@ -391,7 +433,7 @@ md"""
 """
 
 # ╔═╡ 948b934a-62db-474f-9ff1-3bafad32dec5
-rayplot=heatmap(xgrid, zgrid, inv.(slowness), c=:grays, aspect_ratio=length(zgrid)/length(xgrid), clims=(2000, 5000), xlabel="Distance", ylabel="Depth", title="Medium Velocity"); 
+rayplot=heatmap(xgrid, zgrid, inv.(slowness_grid), c=:grays, aspect_ratio=length(zgrid)/length(xgrid), clims=(2000, 5000), xlabel="Distance", ylabel="Depth", title="Medium Velocity"); 
 
 # ╔═╡ df7f0572-50cd-4a84-96ba-9c91cae9605d
 function update_rayplot(rayplot)
@@ -401,11 +443,57 @@ end
 # ╔═╡ d3f909d1-1843-4580-ae75-de1c461dd433
 update_rayplot(rayplot)
 
+# ╔═╡ ee179fd5-c5c0-42f5-8bb8-b6a4acabb70c
+md"## TODO"
+
+# ╔═╡ e4aaf1ea-f2f0-4083-bd4c-1069d98ee298
+md"""
+## Fermat's principle
+
+Consider two points $A$ and $B$. We would like to show that the ray function minimizes the total travel time from $A$ to $B$.
+
+In variational calculus, we are trying to find a function that minimizes a functional.
+The travel-time is given by the integral 
+```math
+\mathbb{T} = \int_A^B s(x)\,dl
+```
+Notice that this equation of $\mathbb{T}$ is nonlinear in the slowness field
+as the integration path depends on the velocity.
+
+In order to consider all other paths, let's consider some
+$\eta(x)$ that is an arbitrary path and scale it by a factor $\epsilon$. $\epsilon\eta(x)$ is the variation of $s(x)$. $\eta$ is twice differentiable. 
+
+
+```math
+\bar{s}(x) = s(x) + \epsilon\eta(x)
+```
+```math
+\eta(A) = \eta(B) = 0
+```
+
+Now we are going to set the derivative of $I$ w.r.t. to $\epsilon$ be zero.
+
+```math
+\frac{d\mathbb{T}}{d\epsilon}|_{\epsilon=0}
+```
+
+```math
+\int_A^B \eta(x)
+```
+"""
+
+# ╔═╡ c012fbb8-d696-403d-8752-61773c4f6d86
+md"""
+- Amplitudes!
+- Prove Fermat Principle
+"""
+
 # ╔═╡ 00000000-0000-0000-0000-000000000001
 PLUTO_PROJECT_TOML_CONTENTS = """
 [deps]
 DrWatson = "634d3b9d-ee7a-5ddf-bec9-22491ea816e1"
 FFTW = "7a1cc6ca-52ef-59f5-83cd-3a7055c09341"
+ForwardDiff = "f6369f11-7733-5829-9624-2563aa707210"
 Interpolations = "a98d9a8b-a2ab-59e6-89dd-64a1c18fca59"
 Latexify = "23fbe1c1-3f47-55db-b15f-69d7ec21a316"
 LinearAlgebra = "37e2e46d-f89d-539d-b4ee-838fcccc9c8e"
@@ -414,12 +502,14 @@ PlutoTeachingTools = "661c6b06-c737-4d37-b85c-46df65de6f69"
 PlutoTest = "cb4044da-4d16-4ffa-a6a3-8cad7f73ebdc"
 PlutoUI = "7f904dfe-b85e-4ff6-b463-dae2292396a8"
 ProgressLogging = "33c8b6b6-d38a-422a-b730-caa89a2f386c"
+Statistics = "10745b16-79ce-11e8-11f9-7d13ad32a3b2"
 SymbolicUtils = "d1185830-fcd6-423d-90d6-eec64667417b"
 Symbolics = "0c5d862f-8b57-4792-8d23-62f2024744c7"
 
 [compat]
 DrWatson = "~2.9.1"
 FFTW = "~1.5.0"
+ForwardDiff = "~0.10.32"
 Interpolations = "~0.14.5"
 Latexify = "~0.15.16"
 Plots = "~1.32.0"
@@ -437,7 +527,7 @@ PLUTO_MANIFEST_TOML_CONTENTS = """
 
 julia_version = "1.8.0"
 manifest_format = "2.0"
-project_hash = "472fa72f2db1d3129e1a51df451cee363dbdc987"
+project_hash = "1121f5881d802e7dbaf421381a96ee375f7e7174"
 
 [[deps.AbstractAlgebra]]
 deps = ["GroupsCore", "InteractiveUtils", "LinearAlgebra", "MacroTools", "Markdown", "Random", "RandomExtensions", "SparseArrays", "Test"]
@@ -1996,6 +2086,7 @@ version = "1.4.1+0"
 # ╠═f715731e-7d18-423f-8ddf-75ae6b084e2c
 # ╟─d2dcd687-3623-433d-b591-cc8c2b8403eb
 # ╟─30c867cd-58cc-4276-ba04-4ff4a63a5da7
+# ╠═d2447315-f975-4447-ab92-5d5e267eaac5
 # ╠═a66ab3cd-c293-45ce-9e58-36b93712dbf2
 # ╟─a2c9a4bb-43a1-4004-a54a-ecdd4e91a2e5
 # ╟─d3f909d1-1843-4580-ae75-de1c461dd433
@@ -2046,14 +2137,19 @@ version = "1.4.1+0"
 # ╟─fcef78b7-7c31-449f-b620-251249f83eb6
 # ╠═0c2a78b6-e859-4085-a5ad-1f742e5c70ac
 # ╠═b4685924-854c-4058-af0a-bd7937f669b6
-# ╠═633f5b9a-77da-48e5-b6b3-00a5bc3e42d4
+# ╟─633f5b9a-77da-48e5-b6b3-00a5bc3e42d4
 # ╠═690a6780-5169-4377-a7f1-795d89362c08
-# ╠═6a934875-4209-4913-89f0-2d431027ede0
 # ╠═412d0a5d-d4df-4c37-9fe3-90441bfcb32a
+# ╠═d3a75387-b9df-4fd2-b414-3ee662af813b
+# ╠═b6447c75-4205-4c51-8cdc-552cdd841354
+# ╠═7c71a06b-fd4a-455d-8e94-7cad5e075d62
 # ╠═c05a5082-0175-4a24-9aeb-de26cb22e6c6
 # ╠═e0619921-389e-4351-8799-02431574a01d
 # ╠═0a76470f-ffe4-4ae8-8dd6-f6886ac77454
 # ╠═948b934a-62db-474f-9ff1-3bafad32dec5
 # ╠═df7f0572-50cd-4a84-96ba-9c91cae9605d
+# ╟─ee179fd5-c5c0-42f5-8bb8-b6a4acabb70c
+# ╟─c012fbb8-d696-403d-8752-61773c4f6d86
+# ╠═e4aaf1ea-f2f0-4083-bd4c-1069d98ee298
 # ╟─00000000-0000-0000-0000-000000000001
 # ╟─00000000-0000-0000-0000-000000000002
