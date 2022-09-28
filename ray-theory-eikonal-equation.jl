@@ -16,20 +16,20 @@ end
 
 # ╔═╡ 22e38218-34cf-11ed-1808-97f785a5c673
 begin
-	using Symbolics
-	using SymbolicUtils
-	using LinearAlgebra
-	using PlutoTeachingTools
-	using Plots
-	using PlutoTest
-	using DrWatson
-	using FFTW
-	using Interpolations
-	using Statistics
-	using ProgressLogging
-	using Latexify
-	using PlutoUI
-	using ForwardDiff
+    using Symbolics
+    using SymbolicUtils
+    using LinearAlgebra
+    using PlutoTeachingTools
+    using Plots
+    using PlutoTest
+    using DrWatson
+    using FFTW
+    using Interpolations
+    using Statistics
+    using ProgressLogging
+    using Latexify
+    using PlutoUI
+    using ForwardDiff
 end
 
 # ╔═╡ 5053a4a4-312c-4a33-9c4f-79eb7bda2019
@@ -73,25 +73,29 @@ md"...with variables"
 @syms x::Real z::Real t::Real ω::Real α::Real
 
 # ╔═╡ b3aa15cf-6baa-4209-9352-cebcb84dc3c5
-@syms T(x,z) A(x,z) # travel-time and amplitude A(x,z)
+@syms T(x, z) A(x, z) # travel-time and amplitude A(x,z)
 
 # ╔═╡ 946772f8-3229-41cd-9a56-feae400ad11b
-ϕ = A(x,z)*sin(ω*(t-T(x,z)))
+ϕ = A(x, z) * sin(ω * (t - T(x, z)))
 
 # ╔═╡ ff0a4ccf-7518-4662-9203-ff639cb2bce2
 md"...and the following operators."
 
 # ╔═╡ f234fd11-93ba-4cbd-ab43-19997408be00
-Dx=Differential(x); Dz=Differential(z); Dt=Differential(t)
+begin
+	Dx = Differential(x);
+	Dz = Differential(z);
+	Dt = Differential(t);
+end
 
 # ╔═╡ 6b82596f-3d05-427d-83cc-f893f533458a
-L(ϕ, α)=Dt(Dt(ϕ))/α^2 - (Dx(Dx(ϕ)) + Dz(Dz(ϕ)))
+L(ϕ, α) = Dt(Dt(ϕ)) / α^2 - (Dx(Dx(ϕ)) + Dz(Dz(ϕ)))
 
 # ╔═╡ 2a131f55-a6fd-489b-b4d5-205f19de5ce4
 md"Here, T denotes the travel time and $A$ denotes the amplitude. Now, let's check the terms after substituting the solution $\phi$ into the scalar homogeneous wave-equation."
 
 # ╔═╡ 0f457a47-4342-4582-b5e6-fe6fad263f2e
-args_Lϕ=arguments(expand_derivatives(L(ϕ, α)))
+args_Lϕ = arguments(expand_derivatives(L(ϕ, α)))
 
 # ╔═╡ 28b95ced-5252-403b-8ff2-c92ab743103d
 md"""
@@ -108,13 +112,19 @@ This results in the 2D Eikonal equation.
 """
 
 # ╔═╡ 78dcaf9d-84fc-49d6-b6ba-9c6f7b2bf688
-eik=Dx(T(x,z))^2+Dz(T(x,z))^2 - 1/α^2; eik ~ 0 
+begin
+	eik(T) = Dx(T(x, z))^2 + Dz(T(x, z))^2 - 1 / α^2;
+	eik(T) ~ 0;
+end
 
 # ╔═╡ 5cb46243-8562-44ed-af21-d62a993f97c4
 md"... and"
 
 # ╔═╡ 9c30d437-507a-4300-921d-0c36a0911247
-eikA=2*dot(Symbolics.gradient(A(x,z), [x,z]), Symbolics.gradient(T(x,z), [x,z])) + A(x,z)*(Dx(Dx(T(x,z))) + Dz(Dz(T(x,z)))); eikA ~ 0
+begin
+	eikA(A) = 2 * dot(Symbolics.gradient(A(x, z), [x, z]), Symbolics.gradient(T(x, z), [x, z])) + A(x, z) * (Dx(Dx(T(x, z))) + Dz(Dz(T(x, z))));
+	eikA(A) ~ 0;
+end
 
 # ╔═╡ aba0fd7b-3cb6-49f3-9257-eb610d7a47dc
 tip(md"""
@@ -147,17 +157,17 @@ We shall start this section by declaring the necessary symbols.
 
 # ╔═╡ 48472040-7d98-437c-8d80-97313f674446
 begin
-	@syms s(x::Real,z::Real)::Real # slowness
-	@syms sx(x::Real,z::Real)::Real # slowness vector; x component
-	@syms sz(x::Real,z::Real)::Real # ...
+    @syms s(x::Real, z::Real)::Real # slowness
+    @syms sx(x::Real, z::Real)::Real # slowness vector; x component
+    @syms sz(x::Real, z::Real)::Real # ...
 end
 
 # ╔═╡ 663efee6-b542-4f06-b468-13eb61622dd5
-svec=[sx(x,z), sz(x,z)] # slowness vector
+svec = [sx(x, z), sz(x, z)] # slowness vector
 
 # ╔═╡ 252804ea-2774-41ad-a832-59a997e3daab
 # The Jacobian Matrix
-J = Symbolics.jacobian(svec, [x,z])
+J = Symbolics.jacobian(svec, [x, z])
 
 # ╔═╡ 2093a743-0dd5-4766-8fee-a8607d70a675
 md"""
@@ -165,22 +175,22 @@ The journey along a ray begins at the source, where we choose the direction of t
 ```math
 \vec{p}_1 = \vec{p}_0 + \hat{s}_0 \,dl.   \qquad\qquad(2)
 ```
-In order to trace the ray path further, we need to estimate the change in $s$ as we moved from $\vec{p}_0$ to $\vec{p}_1$.  Note that the plane wave that we are riding gets transformed as it propagates in the medium due to changes in the slowness $|\vec{s}|$. 
+In order to trace the ray path further, we need to estimate the change in $s$ as we moved from $\vec{p}_0$ to $\vec{p}_1$.  Note that the plane wave that we are riding gets transformed as it propagates in the medium due to changes in the slowness $s=|\vec{s}|$. 
 
 In order to estimate this change, we shall first consider a Jacobian Matrix 
 `J`=$J.
 
-Then, we will simplify the derivative of $\vec{s}$ with respect to the length along the ray path ($l$), which is `dsdl`=`J`$\hat{s}$, using the Eikonal equation, to get `dsdl`=$\nabla|\hat{s}|$.
+Then, we will simplify the derivative of $\vec{s}$ with respect to the length along the ray path ($l$), which is `dsdl`=`J`$\hat{s}$, using the Eikonal equation, to get `dsdl`=$\nabla\,s$.
 
 Finally, the slowness vector at the new position $\vec{p}_1$ is given by 
 ```math
-\hat{s}_1 = \hat{s}_0 + \nabla|\hat{s}|\,dl. \qquad\qquad (3)
+\hat{s}_1 = \hat{s}_0 + \nabla\,s\,dl. \qquad\qquad (3)
 ```
 This notebook solves equations (2) and (3) numerically to trace the ray path in 2-D heterogeneous media.
 """
 
 # ╔═╡ a2559f67-481b-4139-ac44-653b35b71f46
-dsdl1 = J * (svec./s(x,z))
+dsdl1 = J * (svec ./ s(x, z))
 
 # ╔═╡ 7098ee62-8c43-4bfa-83be-472aed997975
 md"""
@@ -188,33 +198,33 @@ Using equation (1), we shall now substitute `sx` and `sz` in `dsdl` and simplify
 """
 
 # ╔═╡ e35ea643-e180-4743-a46a-38090b397071
-dsdl2=broadcast(dsdl1) do ⋅
-	simplify(substitute(⋅, [sx(x,z)=>Dx(T(x,z)), sz(x,z)=>Dz(T(x,z))]))
+dsdl2 = broadcast(dsdl1) do ⋅
+    simplify(substitute(⋅, [sx(x, z) => Dx(T(x, z)), sz(x, z) => Dz(T(x, z))]))
 end
 
 # ╔═╡ fd6d6a1b-b038-40be-af5b-864d693ab32c
-r1 = @acrule (Dx(Dx(~T))*Dx(~T) + ~B)/~A => (1/2 *(Dx(Dx(~T)*Dx(~T))) + ~B )/~A
+r1 = @acrule (Dx(Dx(~T)) * Dx(~T) + ~B) / ~A => (1 / 2 * (Dx(Dx(~T) * Dx(~T))) + ~B) / ~A
 
 # ╔═╡ 7e1d125a-cc07-4713-8e21-f5d49ce41797
-r2 = @acrule (~B + Dz(Dx(~T))*Dz(~T))/~A => (~B + 1/2 *(Dx(Dz(~T)*Dz(~T))))/~A
+r2 = @acrule (~B + Dz(Dx(~T)) * Dz(~T)) / ~A => (~B + 1 / 2 * (Dx(Dz(~T) * Dz(~T)))) / ~A
 
 # ╔═╡ 1f9e802b-5523-4000-9486-60d77034f808
-r3 = @acrule (Dz(Dz(~T))*Dz(~T) + ~B)/~A => (1/2 *(Dz(Dz(~T)*Dz(~T))) + ~B )/~A
+r3 = @acrule (Dz(Dz(~T)) * Dz(~T) + ~B) / ~A => (1 / 2 * (Dz(Dz(~T) * Dz(~T))) + ~B) / ~A
 
 # ╔═╡ 80d2c246-2c18-41d2-b744-ea40d87da87f
-r4 = @acrule (~B + Dx(Dz(~T))*Dx(~T))/~A => (~B + 1/2 *(Dz(Dx(~T)*Dx(~T))))/~A
+r4 = @acrule (~B + Dx(Dz(~T)) * Dx(~T)) / ~A => (~B + 1 / 2 * (Dz(Dx(~T) * Dx(~T)))) / ~A
 
 # ╔═╡ ebb5334f-8619-4e2c-b329-20a4818da3cc
-dsdl3=[r2(r1(dsdl2[1])), r4(r3(dsdl2[2]))]
+dsdl3 = [r2(r1(dsdl2[1])), r4(r3(dsdl2[2]))]
 
 # ╔═╡ 6c400f08-0262-4ab2-adea-283a43afbc7f
-r5 = @acrule (~A *Dx(~B) + ~A*Dx(~C))/~D  => (~A *Dx(~B+~C))/~D
+r5 = @acrule (~A * Dx(~B) + ~A * Dx(~C)) / ~D => (~A * Dx(~B + ~C)) / ~D
 
 # ╔═╡ 24eaebcb-0020-4916-85af-fe1a3a80f8f6
-r6 = @acrule (~A *Dz(~B) + ~A*Dz(~C))/~D  => (~A *Dz(~B+~C))/~D
+r6 = @acrule (~A * Dz(~B) + ~A * Dz(~C)) / ~D => (~A * Dz(~B + ~C)) / ~D
 
 # ╔═╡ b42d1cd0-6610-4d3f-8950-27b13f136368
-dsdl4=[r5(dsdl3[1]), r6(dsdl3[2])]
+dsdl4 = [r5(dsdl3[1]), r6(dsdl3[2])]
 
 # ╔═╡ 8042d4f4-89f6-41c5-9fed-38ccc648dd61
 md"""
@@ -222,13 +232,51 @@ We can now finally use the Eikonal equation to derive equation (3).
 """
 
 # ╔═╡ 123ef679-307b-4043-9318-96c91fe0ff18
-dsdl=expand_derivatives.(substitute.(dsdl4, Dx(T(x,z))*Dx(T(x,z)) + Dz(T(x,z))*Dz(T(x,z)) => s(x,z)*s(x,z) ))
+dsdl = expand_derivatives.(substitute.(dsdl4, Dx(T(x, z)) * Dx(T(x, z)) + Dz(T(x, z)) * Dz(T(x, z)) => s(x, z) * s(x, z)))
 
 # ╔═╡ bbd33fc8-e9b0-418a-a1f3-10015d8dec6f
 tip(md"From this derivation, it is obvious that `dsdl` determines how the horizontal and vertical components of the slowness vector change along the raypath. For example, if $(Dx(s(x,z))) is zero in a layered Earth medium, the horizontal slowness remains constant!")
 
 # ╔═╡ 9fa624d8-013a-4f4f-b440-a349a023dc47
-@test iszero(dsdl.-Symbolics.gradient(s(x,z), [x,z]))
+@test iszero(dsdl .- Symbolics.gradient(s(x, z), [x, z]))
+
+# ╔═╡ 7d2d4e9c-e440-472e-9900-8d3266bdeb89
+md"""
+## Amplitudes
+"""
+
+# ╔═╡ 1fbd1c3d-c84c-4052-ae3f-714d87a1d6e6
+eikA(A) ~ 0
+
+# ╔═╡ aec4dafd-8686-4d6d-b80a-c22490d5c429
+begin
+	eikA_arg(A)=arguments(simplify(expand_derivatives(substitute(eikA(A), [Dx(T(x,z)) => sx(x,z), Dz(T(x,z)) => sz(x,z)]))))
+	eikA_arg(A)
+end
+
+# ╔═╡ 5cfb3c7d-c182-4431-b99e-7964b07255f7
+md"""
+We shall divide these terms with $s(x,z)$ and observe that the second and third terms correspond to the projection of the gradient of A along the ray path. We will use a trail solution for $A$ as $\exp(\tilde{A})$
+"""
+
+# ╔═╡ fc7beea4-0a99-4624-8407-f4b00c9e61b2
+@syms Ã(x::Real, z::Real)::Real
+
+# ╔═╡ 7e94debf-3f99-4eb9-8950-0c50462edbd1
+@syms ∫ₚₐₜₕ(x)
+
+# ╔═╡ 95e4c4e2-cdc6-4ffc-9bdc-f5a460557214
+# eikA_arg(Ã),
+exp(-1/2*∫ₚₐₜₕ(arguments(eikA_arg(Ã)[1])[1] / s(x,z)))
+
+# ╔═╡ a6d0da89-ae60-4d45-b718-8087517893c9
+A(x,z) ~ (eikA_arg[2] + eikA_arg[3])/arguments(eikA_arg[1])[1]
+
+# ╔═╡ e31506b1-2fe9-44a9-9e79-88f1464fae90
+md"""
+Lets discuss how the Amplitude changes along the ray path. Assuming the initial amplitude at the source. 
+Divergence of the slowness field
+"""
 
 # ╔═╡ 97307d52-d30c-46f9-8d55-9a0626879360
 md"""
@@ -247,34 +295,34 @@ md"""
 
 # ╔═╡ 0c2a78b6-e859-4085-a5ad-1f742e5c70ac
 function medium_input(n) # n is the number of layers
-	
-	return PlutoUI.combine() do Child
-		
-		inputs = [
-			md""" Layer $(string(i)): $(
-				Child(string("L",i), Slider(1000:10000, default=1000+i*1000))
-			)"""
-			for i in 1:n
-		]
 
-		dvdz = [
-		md""" $(
-				Child("dvdz", Slider(10:100, default=20))
-			)"""
-		]
-		
-		md"""
-		### Layered Earth
-		These sliders are only active if you choose the `slowness_layered` option above.
-		Slide to adjust the seismic velocities ∈ [1, 10] km/s of the layers.
-		$(inputs)
-		### Velocity Increases Linearly with Depth
-		This slider is only active if you choose the `slowness_linear` option above.
-		Slide to adjust the velocity gradient.
-		$(dvdz)
-				
-		"""
-	end
+    return PlutoUI.combine() do Child
+
+        inputs = [
+            md""" Layer $(string(i)): $(
+            	Child(string("L",i), Slider(1000:10000, default=1000+i*1000))
+            )"""
+            for i in 1:n
+        ]
+
+        dvdz = [
+            md""" $(
+             	Child("dvdz", Slider(10:100, default=20))
+             )"""
+        ]
+
+        md"""
+        ### Layered Earth
+        These sliders are only active if you choose the `slowness_layered` option above.
+        Slide to adjust the seismic velocities ∈ [1, 10] km/s of the layers.
+        $(inputs)
+        ### Velocity Increases Linearly with Depth
+        This slider is only active if you choose the `slowness_linear` option above.
+        Slide to adjust the velocity gradient.
+        $(dvdz)
+        		
+        """
+    end
 end
 
 # ╔═╡ a66ab3cd-c293-45ce-9e58-36b93712dbf2
@@ -287,17 +335,20 @@ Let's consider a medium $x∈[0, 400]$ and $z∈[0, 100]$
 """
 
 # ╔═╡ 690a6780-5169-4377-a7f1-795d89362c08
-zgrid = range(0, stop = 100, length = 512); xgrid = range(0, stop = 500, length = 512);
+begin
+	zgrid = range(0, stop=100, length=512);
+	xgrid = range(0, stop=500, length=512);
+end
 
 # ╔═╡ f528250d-8a3c-45e1-8ad2-edb2194f0470
 begin
-	nx, nz = length(xgrid), length(zgrid)
+    nx, nz = length(xgrid), length(zgrid)
     Fz = plan_rfft(zeros(nz, nx), (1))
-	Fx = plan_rfft(zeros(nz, nx), (2))
-    kx = reshape(collect(rfftfreq(nx, inv(step(xgrid)))), 1, :)*2*pi
-    kz = reshape(collect(rfftfreq(nz, inv(step(zgrid)))), :, 1)*2*pi
+    Fx = plan_rfft(zeros(nz, nx), (2))
+    kx = reshape(collect(rfftfreq(nx, inv(step(xgrid)))), 1, :) * 2 * pi
+    kz = reshape(collect(rfftfreq(nz, inv(step(zgrid)))), :, 1) * 2 * pi
     storagex = zero(Fx * zeros(nz, nx))
-	storagez = zero(Fz * zeros(nz, nx))
+    storagez = zero(Fz * zeros(nz, nx))
     fp = @strdict Fx Fz kx kz storagex storagez
     function Dfftx!(dPdx, P, fp)
         mul!(fp["storagex"], fp["Fx"], P)
@@ -319,31 +370,31 @@ end
 
 # ╔═╡ b4685924-854c-4058-af0a-bd7937f669b6
 function source_input()
-return PlutoUI.combine() do Child
-	dinput = [
-			md""" $(x): $(
-				Child(string("s", x), NumberField(range(-1, stop=1, step=0.1), default=1))
-			)"""			
-			for x in ["x", "z"]
-		]
+    return PlutoUI.combine() do Child
+        dinput = [
+            md""" $(x): $(
+            	Child(string("s", x), NumberField(range(-1, stop=1, step=0.1), default=1))
+            )"""
+            for x in ["x", "z"]
+        ]
 
-	linput = [
-			md""" $(x): $(
-				Child(string(x, "pos"), Slider(grid, default=50))
-			)"""			
-			for (x, grid) in zip(["x", "z"], [xgrid, zgrid])
-		]
+        linput = [
+            md""" $(x): $(
+            	Child(string(x, "pos"), Slider(grid, default=50))
+            )"""
+            for (x, grid) in zip(["x", "z"], [xgrid, zgrid])
+        ]
 
-	
-	md"""
-	### Source Parameters
-	Adjust the direction outgoing planewave.
-	$(dinput...)
-	Change the source position if necessary.
-	$(linput...)
-	"""
 
-end
+        md"""
+        ### Source Parameters
+        Adjust the direction outgoing planewave.
+        $(dinput...)
+        Change the source position if necessary.
+        $(linput...)
+        """
+
+    end
 end
 
 # ╔═╡ a2c9a4bb-43a1-4004-a54a-ecdd4e91a2e5
@@ -351,47 +402,47 @@ end
 
 # ╔═╡ 412d0a5d-d4df-4c37-9fe3-90441bfcb32a
 function slowness_layered()
-	
-	L=[getindex(medium,k) for k in Symbol.(filter(x->occursin("L",x), string.(keys(medium))))]
-	# convert the input velocity values to a slowness field 
-	zlayer=collect(range(zgrid[1], stop=zgrid[end], length=length(L)+2))
-	xlayer=[xgrid[1], xgrid[end]]
-	slayer=inv.(vcat([2000], collect(L), [2000]))
-	slayer_itp=extrapolate(interpolate((zlayer, xlayer), hcat(slayer, slayer), Gridded(Linear())), Flat())
-	
-	# we shall now create interpolation objects (just nearest-neighbour, nothing fancy)
-	slowness_grid=[slayer_itp[z, x] for z in zgrid, x in xgrid]
-	slowness_itp= extrapolate(interpolate((zgrid, xgrid), slowness_grid, Gridded(Constant())), Flat())
-	slowness(z,x)=slowness_itp[z,x]
-	# we need these objects for spatial derivatives of the slowness as well
-	slowness_x_itp =extrapolate(interpolate((zgrid, xgrid), Dfftx(slowness_grid), Gridded(Constant())), Flat())
-	slowness_x(z,x)=slowness_x_itp[z,x]
-	slowness_z_itp =extrapolate(interpolate((zgrid, xgrid), Dfftz(slowness_grid), Gridded(Constant())), Flat())
-	slowness_z(z,x)=slowness_z_itp[z,x]
-	return slowness, slowness_grid, slowness_x, slowness_z
+
+    L = [getindex(medium, k) for k in Symbol.(filter(x -> occursin("L", x), string.(keys(medium))))]
+    # convert the input velocity values to a slowness field 
+    zlayer = collect(range(zgrid[1], stop=zgrid[end], length=length(L) + 2))
+    xlayer = [xgrid[1], xgrid[end]]
+    slayer = inv.(vcat([2000], collect(L), [2000]))
+    slayer_itp = extrapolate(interpolate((zlayer, xlayer), hcat(slayer, slayer), Gridded(Linear())), Flat())
+
+    # we shall now create interpolation objects (just nearest-neighbour, nothing fancy)
+    slowness_grid = [slayer_itp[z, x] for z in zgrid, x in xgrid]
+    slowness_itp = extrapolate(interpolate((zgrid, xgrid), slowness_grid, Gridded(Constant())), Flat())
+    slowness(z, x) = slowness_itp[z, x]
+    # we need these objects for spatial derivatives of the slowness as well
+    slowness_x_itp = extrapolate(interpolate((zgrid, xgrid), Dfftx(slowness_grid), Gridded(Constant())), Flat())
+    slowness_x(z, x) = slowness_x_itp[z, x]
+    slowness_z_itp = extrapolate(interpolate((zgrid, xgrid), Dfftz(slowness_grid), Gridded(Constant())), Flat())
+    slowness_z(z, x) = slowness_z_itp[z, x]
+    return slowness, slowness_grid, slowness_x, slowness_z
 end
 
 # ╔═╡ d3a75387-b9df-4fd2-b414-3ee662af813b
 function slowness_gaussian()
-	xmean=mean(xgrid)
-	zmean=mean(zgrid)
-	slowness(z,x) = inv(2000.0 + exp(-(x-xmean)^2/1e8)*exp(-(z-zmean)^2/1e8))
-	slowness_grid=[slowness(z,x) for z in zgrid, x in xgrid]
-	slowness_x(z,x)=ForwardDiff.derivative(x->slowness(z,x), x)
-	slowness_z(z,x)=ForwardDiff.derivative(z->slowness(z,x), z)
-	return slowness, slowness_grid, slowness_x, slowness_z
+    xmean = mean(xgrid)
+    zmean = mean(zgrid)
+    slowness(z, x) = inv(2000.0 + exp(-(x - xmean)^2 / 1e8) * exp(-(z - zmean)^2 / 1e8))
+    slowness_grid = [slowness(z, x) for z in zgrid, x in xgrid]
+    slowness_x(z, x) = ForwardDiff.derivative(x -> slowness(z, x), x)
+    slowness_z(z, x) = ForwardDiff.derivative(z -> slowness(z, x), z)
+    return slowness, slowness_grid, slowness_x, slowness_z
 end
 
 # ╔═╡ b6447c75-4205-4c51-8cdc-552cdd841354
 function slowness_zlinear()
-	xmean=mean(xgrid)
-	zmean=mean(zgrid)
-	# slowness(z,x) = (z>50) ? inv(2000) : inv(10000)
-	slowness(z,x) = (inv(2000.0 + abs(z) * medium.dvdz))
-	slowness_grid=[slowness(z,x) for z in zgrid, x in xgrid]
-	slowness_x(z,x)=ForwardDiff.derivative(x->slowness(z,x), x)
-	slowness_z(z,x)=ForwardDiff.derivative(z->slowness(z,x), z)
-	return slowness, slowness_grid, slowness_x, slowness_z
+    xmean = mean(xgrid)
+    zmean = mean(zgrid)
+    # slowness(z,x) = (z>50) ? inv(2000) : inv(10000)
+    slowness(z, x) = (inv(2000.0 + abs(z) * medium.dvdz))
+    slowness_grid = [slowness(z, x) for z in zgrid, x in xgrid]
+    slowness_x(z, x) = ForwardDiff.derivative(x -> slowness(z, x), x)
+    slowness_z(z, x) = ForwardDiff.derivative(z -> slowness(z, x), z)
+    return slowness, slowness_grid, slowness_x, slowness_z
 end
 
 # ╔═╡ d2447315-f975-4447-ab92-5d5e267eaac5
@@ -402,30 +453,30 @@ slowness, slowness_grid, slowness_x, slowness_z = get_slowness();
 
 # ╔═╡ e0619921-389e-4351-8799-02431574a01d
 function get_raypath(N, ds, Xinit, Sinit)
-	# keep the direction of S_init, but adjust the magnitude to match the slowness at the source
-	Sinit = (Sinit ./ norm(Sinit)) .* norm([slowness(Xinit[1], Xinit[2])])
-	
+    # keep the direction of S_init, but adjust the magnitude to match the slowness at the source
+    Sinit = (Sinit ./ norm(Sinit)) .* norm([slowness(Xinit[1], Xinit[2])])
+
     Xsave = Array{Any}(missing, 2, N)
-	X = deepcopy(Xinit)
-	S = deepcopy(Sinit)
-	for i = 1:N
-  		Xs = view(Xsave, :, i)
-		copyto!(Xs, X)
-		# equation 2
-		X[1] = X[1] + (S[1] / slowness(X[1], X[2])) * ds
-      	X[2] = X[2] + (S[2] / slowness(X[1], X[2])) * ds
-		# equation 3
-        S[1] = S[1] +  ds * slowness_z(X[1], X[2])
-		S[2] = S[2] +  ds * slowness_x(X[1], X[2])
-		
-		# exit, if the ray reaches the edge of the medium
-		(((X[2]-xgrid[1])*(xgrid[end]-X[2])*(X[1]-zgrid[1])*(zgrid[end]-X[1]))<0.0) && break     
+    X = deepcopy(Xinit)
+    S = deepcopy(Sinit)
+    for i = 1:N
+        Xs = view(Xsave, :, i)
+        copyto!(Xs, X)
+        # equation 2
+        X[1] = X[1] + (S[1] / slowness(X[1], X[2])) * ds
+        X[2] = X[2] + (S[2] / slowness(X[1], X[2])) * ds
+        # equation 3
+        S[1] = S[1] + ds * slowness_z(X[1], X[2])
+        S[2] = S[2] + ds * slowness_x(X[1], X[2])
+
+        # exit, if the ray reaches the edge of the medium
+        (((X[2] - xgrid[1]) * (xgrid[end] - X[2]) * (X[1] - zgrid[1]) * (zgrid[end] - X[1])) < 0.0) && break
     end
-	return Xsave
+    return Xsave
 end
 
 # ╔═╡ c05a5082-0175-4a24-9aeb-de26cb22e6c6
-raypath=get_raypath(200, 1, [source.zpos, source.xpos], [source.sz, source.sx]);
+raypath = get_raypath(200, 1, [source.zpos, source.xpos], [source.sz, source.sx]);
 
 # ╔═╡ 0a76470f-ffe4-4ae8-8dd6-f6886ac77454
 md"""
@@ -433,11 +484,11 @@ md"""
 """
 
 # ╔═╡ 948b934a-62db-474f-9ff1-3bafad32dec5
-rayplot=heatmap(xgrid, zgrid, inv.(slowness_grid), c=:grays, aspect_ratio=length(zgrid)/length(xgrid), clims=(2000, 5000), xlabel="Distance", ylabel="Depth", title="Medium Velocity"); 
+rayplot = heatmap(xgrid, zgrid, inv.(slowness_grid), c=:grays, aspect_ratio=length(zgrid) / length(xgrid), clims=(2000, 5000), xlabel="Distance", ylabel="Depth", title="Medium Velocity");
 
 # ╔═╡ df7f0572-50cd-4a84-96ba-9c91cae9605d
 function update_rayplot(rayplot)
-	plot!(rayplot, raypath[2,:], raypath[1,:], yflip=true, w=2, palette = :Dark2_5, label=string("Raypath ", savename(source)), )
+    plot!(rayplot, raypath[2, :], raypath[1, :], yflip=true, w=2, palette=:Dark2_5, label=string("Raypath ", savename(source)),)
 end
 
 # ╔═╡ d3f909d1-1843-4580-ae75-de1c461dd433
@@ -445,6 +496,12 @@ update_rayplot(rayplot)
 
 # ╔═╡ ee179fd5-c5c0-42f5-8bb8-b6a4acabb70c
 md"## TODO"
+
+# ╔═╡ c012fbb8-d696-403d-8752-61773c4f6d86
+md"""
+- Amplitudes!
+- Prove Fermat Principle
+"""
 
 # ╔═╡ e4aaf1ea-f2f0-4083-bd4c-1069d98ee298
 md"""
@@ -480,12 +537,6 @@ Now we are going to set the derivative of $I$ w.r.t. to $\epsilon$ be zero.
 ```math
 \int_A^B \eta(x)
 ```
-"""
-
-# ╔═╡ c012fbb8-d696-403d-8752-61773c4f6d86
-md"""
-- Amplitudes!
-- Prove Fermat Principle
 """
 
 # ╔═╡ 00000000-0000-0000-0000-000000000001
@@ -2130,6 +2181,15 @@ version = "1.4.1+0"
 # ╠═123ef679-307b-4043-9318-96c91fe0ff18
 # ╟─bbd33fc8-e9b0-418a-a1f3-10015d8dec6f
 # ╠═9fa624d8-013a-4f4f-b440-a349a023dc47
+# ╠═7d2d4e9c-e440-472e-9900-8d3266bdeb89
+# ╠═1fbd1c3d-c84c-4052-ae3f-714d87a1d6e6
+# ╠═aec4dafd-8686-4d6d-b80a-c22490d5c429
+# ╠═5cfb3c7d-c182-4431-b99e-7964b07255f7
+# ╠═fc7beea4-0a99-4624-8407-f4b00c9e61b2
+# ╠═7e94debf-3f99-4eb9-8950-0c50462edbd1
+# ╠═95e4c4e2-cdc6-4ffc-9bdc-f5a460557214
+# ╠═a6d0da89-ae60-4d45-b718-8087517893c9
+# ╠═e31506b1-2fe9-44a9-9e79-88f1464fae90
 # ╟─97307d52-d30c-46f9-8d55-9a0626879360
 # ╠═22e38218-34cf-11ed-1808-97f785a5c673
 # ╟─2d52222f-97b4-4e7d-a8e8-efa60aa8f3e7
