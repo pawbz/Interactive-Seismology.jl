@@ -232,11 +232,6 @@ SHAₜ_ex, SHAᵣ_ex = broadcast([SHAₜ, SHAᵣ]) do x
     θ -> simplify(substitute(x, [η => ηMOHO(θ), ηₜ => ηₜMOHO(θ), μ₁ => β₁MOHO^2 * ρ₁MOHO, μ₂ => β₂MOHO^2 * ρ₂MOHO]))
 end
 
-# ╔═╡ 6c9b4c92-f7ef-4400-96c0-7ad96edd8e66
-begin
-
-end
-
 # ╔═╡ 1524aaac-2696-44a5-b589-070866e59cf3
 tip(md"""
 Observe that the amplitude of the evanescent waves exponentially decays as we move away from the boundary ($z=0$). You may want to observe this decay as a function of angular frequency! 
@@ -249,6 +244,11 @@ md"## Appendix"
 md"""
 Lets print the expression of the wavefield, plotted in the previous example.
 """
+
+# ╔═╡ ea3b7089-bda8-4694-8042-98534b1739bd
+warning_box(md"""
+The sign of the vertical slowness in the transmitted field above is chosen to prevent the exponential growth of the wavefield away from the boundary.
+""")
 
 # ╔═╡ f6b31173-72cd-4f25-b292-5aad02ec718c
 θgrid = range(0, stop=pi / 2, length=100); # need for reflectance plots
@@ -264,22 +264,13 @@ Angular frequency ωp: $(@bind ωp Slider(range(0.1, stop=2, length=10), default
 
 
 # ╔═╡ b790898e-11dd-440e-86ef-2403d14a1feb
-begin
-    u_incident_ex(θ) = substitute(plane(pMOHO(θ), ηMOHO(θ), 1.0), [ω => ωp])
-    simplify(u_incident_ex(θ))
-end
+u_incident_ex = substitute(plane(pMOHO(θp), ηMOHO(θp), 1.0), [ω => ωp]);
 
 # ╔═╡ cabe33b2-5c0a-45e4-a0fb-d057987d8c95
-begin
-    u_reflected_ex(θ) = substitute(plane(pMOHO(θ), -ηMOHO(θ), SHAᵣ_ex(θ)), [ω => ωp])
-    simplify(u_reflected_ex(θ))
-end
+u_reflected_ex = substitute(plane(pMOHO(θp), -ηMOHO(θp), SHAᵣ_ex(θp)), [ω => ωp]);
 
 # ╔═╡ d5fda5dc-d94e-4b39-94c4-a5c4311e59bd
-begin
-    u_transmitted_ex(θ) = substitute(plane(pMOHO(θ), -ηₜMOHO(θ), SHAₜ_ex(θ)), [ω => ωp])
-    u_transmitted_ex(θ)
-end
+u_transmitted_ex = substitute(plane(pMOHO(θp), isequal(imag(ηₜMOHO(θp)), 0.0) ? ηₜMOHO(θp) : -ηₜMOHO(θp), SHAₜ_ex(θp)), [ω => ωp]);
 
 # ╔═╡ 12dd8099-93a6-47c0-9faf-c8b204204219
 function plot_reflectivity(Aᵣ, Aₜ, θgrid)
@@ -325,14 +316,14 @@ function plot_planewave(ui, ur, ut, t1=0)
 
     plot(map([uip, urp, utp[1]], [zgrid_top, zgrid_top, zgrid_bottom], ["Incident", "Reflected", "Transmitted"]) do u, Z, title
             p = heatmap(xgrid, Z, u, title=title, yflip=true, c=:seismic, size=(300, 300), clim=(-2, 2), colorbar=nothing, frame=nothing, axis=nothing)
-            hline!(p, [0], w=20, c=:yellow, label="Boundary")
+            hline!(p, [0], w=20, c=:yellow, label="Boundary", aspect_ratio=1)
         end..., layout=(1, 3), size=(1000, 300))
 
 end
 
 # ╔═╡ 5408faa5-ea70-4aa8-8bd1-400b8d9220e6
 gif(@animate(for t in 1:10
-    plot_planewave(u_incident_ex(θp), u_reflected_ex(θp), u_transmitted_ex(θp), t)
+    plot_planewave(u_incident_ex, u_reflected_ex, u_transmitted_ex, t)
 end))
 
 # ╔═╡ fdddf5c8-c487-4c0d-8f2b-89dc49b34355
@@ -1866,7 +1857,6 @@ version = "1.4.1+0"
 # ╟─8c81ddb5-bf4d-4610-bfea-3d1a27ffd61f
 # ╠═a089ab5b-4703-4d4d-a7ab-11197b4b907c
 # ╠═c75d3d6d-1022-43a4-b3dd-d58a92ad93eb
-# ╠═6c9b4c92-f7ef-4400-96c0-7ad96edd8e66
 # ╟─c3f8e661-6cb5-4c08-8912-a77d101873fb
 # ╠═5408faa5-ea70-4aa8-8bd1-400b8d9220e6
 # ╟─1524aaac-2696-44a5-b589-070866e59cf3
@@ -1875,6 +1865,7 @@ version = "1.4.1+0"
 # ╠═b790898e-11dd-440e-86ef-2403d14a1feb
 # ╠═cabe33b2-5c0a-45e4-a0fb-d057987d8c95
 # ╠═d5fda5dc-d94e-4b39-94c4-a5c4311e59bd
+# ╟─ea3b7089-bda8-4694-8042-98534b1739bd
 # ╠═ab40f79c-3d8a-11ed-0697-a7b794dbba99
 # ╠═f6b31173-72cd-4f25-b292-5aad02ec718c
 # ╠═12dd8099-93a6-47c0-9faf-c8b204204219
