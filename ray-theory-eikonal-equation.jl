@@ -1,5 +1,5 @@
 ### A Pluto.jl notebook ###
-# v0.19.9
+# v0.19.12
 
 using Markdown
 using InteractiveUtils
@@ -7,7 +7,11 @@ using InteractiveUtils
 # This Pluto notebook uses @bind for interactivity. When running this notebook outside of Pluto, the following 'mock version' of @bind gives bound variables a default value (instead of an error).
 macro bind(def, element)
     quote
-        local iv = try Base.loaded_modules[Base.PkgId(Base.UUID("6e696c72-6542-2067-7265-42206c756150"), "AbstractPlutoDingetjes")].Bonds.initial_value catch; b -> missing; end
+        local iv = try
+            Base.loaded_modules[Base.PkgId(Base.UUID("6e696c72-6542-2067-7265-42206c756150"), "AbstractPlutoDingetjes")].Bonds.initial_value
+        catch
+            b -> missing
+        end
         local el = $(esc(element))
         global $(esc(def)) = Core.applicable(Base.get, el) ? Base.get(el) : iv(el)
         el
@@ -58,7 +62,7 @@ Choose the Earth model and the source parameters to plot ray paths.
 """
 
 # ╔═╡ 27b845b9-b653-4458-9225-036f9f5141b6
-tip(md"This plot should get updated each time you submit a source input using the interface above. To refresh the plot, one should submit a new layer configuration.")
+tip(md"This plot should get updated each time you submit a source input using the interface above. To refresh the plot, one should submit a new medium.")
 
 # ╔═╡ 15d8f9d0-aa5f-4c62-868a-2486127e5800
 md"""
@@ -83,9 +87,9 @@ md"...and the following operators."
 
 # ╔═╡ f234fd11-93ba-4cbd-ab43-19997408be00
 begin
-	Dx = Differential(x);
-	Dz = Differential(z);
-	Dt = Differential(t);
+    Dx = Differential(x)
+    Dz = Differential(z)
+    Dt = Differential(t)
 end
 
 # ╔═╡ 6b82596f-3d05-427d-83cc-f893f533458a
@@ -113,8 +117,8 @@ This results in the 2D Eikonal equation.
 
 # ╔═╡ 78dcaf9d-84fc-49d6-b6ba-9c6f7b2bf688
 begin
-	eik(T) = Dx(T(x, z))^2 + Dz(T(x, z))^2 - 1 / α^2;
-	eik(T) ~ 0;
+    eik(T) = Dx(T(x, z))^2 + Dz(T(x, z))^2 - 1 / α^2
+    eik(T) ~ 0
 end
 
 # ╔═╡ 5cb46243-8562-44ed-af21-d62a993f97c4
@@ -122,8 +126,8 @@ md"... and"
 
 # ╔═╡ 9c30d437-507a-4300-921d-0c36a0911247
 begin
-	eikA(A) = 2 * dot(Symbolics.gradient(A(x, z), [x, z]), Symbolics.gradient(T(x, z), [x, z])) + A(x, z) * (Dx(Dx(T(x, z))) + Dz(Dz(T(x, z))));
-	eikA(A) ~ 0;
+    eikA(A) = 2 * dot(Symbolics.gradient(A(x, z), [x, z]), Symbolics.gradient(T(x, z), [x, z])) + A(x, z) * (Dx(Dx(T(x, z))) + Dz(Dz(T(x, z))))
+    eikA(A) ~ 0
 end
 
 # ╔═╡ aba0fd7b-3cb6-49f3-9257-eb610d7a47dc
@@ -250,32 +254,41 @@ eikA(A) ~ 0
 
 # ╔═╡ aec4dafd-8686-4d6d-b80a-c22490d5c429
 begin
-	eikA_arg(A)=arguments(simplify(expand_derivatives(substitute(eikA(A), [Dx(T(x,z)) => sx(x,z), Dz(T(x,z)) => sz(x,z)]))))
-	eikA_arg(A)
+    eikA_arg(A) = simplify(expand_derivatives(substitute(eikA(A), [Dx(T(x, z)) => sx(x, z), Dz(T(x, z)) => sz(x, z)])))
+    eikA_arg(A)
 end
 
-# ╔═╡ 5cfb3c7d-c182-4431-b99e-7964b07255f7
+# ╔═╡ 8dfecdba-6350-485a-ae9b-27105948b3fd
 md"""
-We shall divide these terms with $s(x,z)$ and observe that the second and third terms correspond to the projection of the gradient of A along the ray path. We will use a trail solution for $A$ as $\exp(\tilde{A})$
+Lets assume a solution of the form `A(x, z) = exp(Ã(x, z))`.
 """
 
 # ╔═╡ fc7beea4-0a99-4624-8407-f4b00c9e61b2
 @syms Ã(x::Real, z::Real)::Real
 
+# ╔═╡ 012f25c3-4ce2-4cb0-99e7-3ede25005427
+eikÃ1 = expand_derivatives(substitute(eikA_arg(A), A(x, z) => exp(Ã(x, z))))
+
+# ╔═╡ 0be23d53-8c21-4702-bfa1-31f420c73c1f
+eikÃ2 = simplify(eikÃ1 / exp(Ã(x, z)))
+
+# ╔═╡ c89f84e0-e5fd-4f1e-bc7b-e220e0123f72
+eikÃ = sum(arguments(eikÃ2)[1:2]) / 2 / s(x, z) ~ -sum(arguments(eikÃ2)[3:4]) / s(x, z) / 2
+
+# ╔═╡ 5cfb3c7d-c182-4431-b99e-7964b07255f7
+md"""
+The LHS of the above equation corresponds to the projection of the gradient of A along the ray path. We can now integrate along the ray path to obtain the amplitude.
+"""
+
 # ╔═╡ 7e94debf-3f99-4eb9-8950-0c50462edbd1
 @syms ∫ₚₐₜₕ(x)
 
-# ╔═╡ 95e4c4e2-cdc6-4ffc-9bdc-f5a460557214
-# eikA_arg(Ã),
-exp(-1/2*∫ₚₐₜₕ(arguments(eikA_arg(Ã)[1])[1] / s(x,z)))
-
-# ╔═╡ a6d0da89-ae60-4d45-b718-8087517893c9
-A(x,z) ~ (eikA_arg[2] + eikA_arg[3])/arguments(eikA_arg[1])[1]
+# ╔═╡ d9f0ccd2-b902-4e78-95a9-3078c01354bf
+exp(∫ₚₐₜₕ(eikÃ.rhs))
 
 # ╔═╡ e31506b1-2fe9-44a9-9e79-88f1464fae90
 md"""
-Lets discuss how the Amplitude changes along the ray path. Assuming the initial amplitude at the source. 
-Divergence of the slowness field
+Intuition: Divergence of the slowness field.
 """
 
 # ╔═╡ 97307d52-d30c-46f9-8d55-9a0626879360
@@ -330,14 +343,13 @@ end
 
 # ╔═╡ 633f5b9a-77da-48e5-b6b3-00a5bc3e42d4
 md"""
-### Core
-Let's consider a medium $x∈[0, 400]$ and $z∈[0, 100]$ 
+### Medium Dimensions
 """
 
 # ╔═╡ 690a6780-5169-4377-a7f1-795d89362c08
 begin
-	zgrid = range(0, stop=100, length=512);
-	xgrid = range(0, stop=500, length=512);
+    zgrid = range(0, stop=100, length=512)
+    xgrid = range(0, stop=500, length=512)
 end
 
 # ╔═╡ f528250d-8a3c-45e1-8ad2-edb2194f0470
@@ -399,6 +411,11 @@ end
 
 # ╔═╡ a2c9a4bb-43a1-4004-a54a-ecdd4e91a2e5
 @bind source confirm(source_input())
+
+# ╔═╡ d9344362-a04e-4870-8569-a565c59d6a24
+md"""
+### Generate Media
+"""
 
 # ╔═╡ 412d0a5d-d4df-4c37-9fe3-90441bfcb32a
 function slowness_layered()
@@ -487,12 +504,12 @@ md"""
 rayplot = heatmap(xgrid, zgrid, inv.(slowness_grid), c=:grays, aspect_ratio=length(zgrid) / length(xgrid), clims=(2000, 5000), xlabel="Distance", ylabel="Depth", title="Medium Velocity");
 
 # ╔═╡ df7f0572-50cd-4a84-96ba-9c91cae9605d
-function update_rayplot(rayplot)
+function update_rayplot(rayplot, raypath)
     plot!(rayplot, raypath[2, :], raypath[1, :], yflip=true, w=2, palette=:Dark2_5, label=string("Raypath ", savename(source)),)
 end
 
 # ╔═╡ d3f909d1-1843-4580-ae75-de1c461dd433
-update_rayplot(rayplot)
+update_rayplot(rayplot, raypath)
 
 # ╔═╡ ee179fd5-c5c0-42f5-8bb8-b6a4acabb70c
 md"## TODO"
@@ -500,7 +517,7 @@ md"## TODO"
 # ╔═╡ c012fbb8-d696-403d-8752-61773c4f6d86
 md"""
 - Amplitudes!
-- Prove Fermat Principle
+- Prove Fermat Principle using Variational Calculus
 """
 
 # ╔═╡ e4aaf1ea-f2f0-4083-bd4c-1069d98ee298
@@ -576,7 +593,7 @@ Symbolics = "~4.10.4"
 PLUTO_MANIFEST_TOML_CONTENTS = """
 # This file is machine-generated - editing it directly is not advised
 
-julia_version = "1.8.0"
+julia_version = "1.8.2"
 manifest_format = "2.0"
 project_hash = "1121f5881d802e7dbaf421381a96ee375f7e7174"
 
@@ -910,10 +927,10 @@ uuid = "c87230d0-a227-11e9-1b43-d7ebe4e7570a"
 version = "0.4.1"
 
 [[deps.FFMPEG_jll]]
-deps = ["Artifacts", "Bzip2_jll", "FreeType2_jll", "FriBidi_jll", "JLLWrappers", "LAME_jll", "Libdl", "Ogg_jll", "OpenSSL_jll", "Opus_jll", "Pkg", "Zlib_jll", "libaom_jll", "libass_jll", "libfdk_aac_jll", "libvorbis_jll", "x264_jll", "x265_jll"]
-git-tree-sha1 = "ccd479984c7838684b3ac204b716c89955c76623"
+deps = ["Artifacts", "Bzip2_jll", "FreeType2_jll", "FriBidi_jll", "JLLWrappers", "LAME_jll", "Libdl", "Ogg_jll", "OpenSSL_jll", "Opus_jll", "PCRE2_jll", "Pkg", "Zlib_jll", "libaom_jll", "libass_jll", "libfdk_aac_jll", "libvorbis_jll", "x264_jll", "x265_jll"]
+git-tree-sha1 = "74faea50c1d007c85837327f6775bea60b5492dd"
 uuid = "b22a6f82-2f65-5046-a5b2-351ab43fb4e5"
-version = "4.4.2+0"
+version = "4.4.2+2"
 
 [[deps.FFTW]]
 deps = ["AbstractFFTs", "FFTW_jll", "LinearAlgebra", "MKL_jll", "Preferences", "Reexport"]
@@ -1451,6 +1468,11 @@ git-tree-sha1 = "85f8e6578bf1f9ee0d11e7bb1b1456435479d47c"
 uuid = "bac558e1-5e72-5ebc-8fee-abe8a469f55d"
 version = "1.4.1"
 
+[[deps.PCRE2_jll]]
+deps = ["Artifacts", "Libdl"]
+uuid = "efcefdf7-47ab-520b-bdef-62a2eaa19f15"
+version = "10.40.0+0"
+
 [[deps.PCRE_jll]]
 deps = ["Artifacts", "JLLWrappers", "Libdl", "Pkg"]
 git-tree-sha1 = "b2a7af664e098055a7529ad1a900ded962bca488"
@@ -1815,7 +1837,7 @@ version = "1.7.0"
 [[deps.Tar]]
 deps = ["ArgTools", "SHA"]
 uuid = "a4e569a6-e804-4fa4-b0f3-eef7a1d5b13e"
-version = "1.10.0"
+version = "1.10.1"
 
 [[deps.TensorCore]]
 deps = ["LinearAlgebra"]
@@ -2139,8 +2161,8 @@ version = "1.4.1+0"
 # ╟─30c867cd-58cc-4276-ba04-4ff4a63a5da7
 # ╠═d2447315-f975-4447-ab92-5d5e267eaac5
 # ╠═a66ab3cd-c293-45ce-9e58-36b93712dbf2
-# ╟─a2c9a4bb-43a1-4004-a54a-ecdd4e91a2e5
-# ╟─d3f909d1-1843-4580-ae75-de1c461dd433
+# ╠═a2c9a4bb-43a1-4004-a54a-ecdd4e91a2e5
+# ╠═d3f909d1-1843-4580-ae75-de1c461dd433
 # ╟─27b845b9-b653-4458-9225-036f9f5141b6
 # ╟─15d8f9d0-aa5f-4c62-868a-2486127e5800
 # ╠═946772f8-3229-41cd-9a56-feae400ad11b
@@ -2181,15 +2203,18 @@ version = "1.4.1+0"
 # ╠═123ef679-307b-4043-9318-96c91fe0ff18
 # ╟─bbd33fc8-e9b0-418a-a1f3-10015d8dec6f
 # ╠═9fa624d8-013a-4f4f-b440-a349a023dc47
-# ╠═7d2d4e9c-e440-472e-9900-8d3266bdeb89
+# ╟─7d2d4e9c-e440-472e-9900-8d3266bdeb89
 # ╠═1fbd1c3d-c84c-4052-ae3f-714d87a1d6e6
 # ╠═aec4dafd-8686-4d6d-b80a-c22490d5c429
-# ╠═5cfb3c7d-c182-4431-b99e-7964b07255f7
+# ╟─8dfecdba-6350-485a-ae9b-27105948b3fd
 # ╠═fc7beea4-0a99-4624-8407-f4b00c9e61b2
+# ╠═012f25c3-4ce2-4cb0-99e7-3ede25005427
+# ╠═0be23d53-8c21-4702-bfa1-31f420c73c1f
+# ╠═c89f84e0-e5fd-4f1e-bc7b-e220e0123f72
+# ╟─5cfb3c7d-c182-4431-b99e-7964b07255f7
 # ╠═7e94debf-3f99-4eb9-8950-0c50462edbd1
-# ╠═95e4c4e2-cdc6-4ffc-9bdc-f5a460557214
-# ╠═a6d0da89-ae60-4d45-b718-8087517893c9
-# ╠═e31506b1-2fe9-44a9-9e79-88f1464fae90
+# ╠═d9f0ccd2-b902-4e78-95a9-3078c01354bf
+# ╟─e31506b1-2fe9-44a9-9e79-88f1464fae90
 # ╟─97307d52-d30c-46f9-8d55-9a0626879360
 # ╠═22e38218-34cf-11ed-1808-97f785a5c673
 # ╟─2d52222f-97b4-4e7d-a8e8-efa60aa8f3e7
@@ -2199,17 +2224,18 @@ version = "1.4.1+0"
 # ╠═b4685924-854c-4058-af0a-bd7937f669b6
 # ╟─633f5b9a-77da-48e5-b6b3-00a5bc3e42d4
 # ╠═690a6780-5169-4377-a7f1-795d89362c08
+# ╟─d9344362-a04e-4870-8569-a565c59d6a24
 # ╠═412d0a5d-d4df-4c37-9fe3-90441bfcb32a
 # ╠═d3a75387-b9df-4fd2-b414-3ee662af813b
 # ╠═b6447c75-4205-4c51-8cdc-552cdd841354
 # ╠═7c71a06b-fd4a-455d-8e94-7cad5e075d62
 # ╠═c05a5082-0175-4a24-9aeb-de26cb22e6c6
 # ╠═e0619921-389e-4351-8799-02431574a01d
-# ╠═0a76470f-ffe4-4ae8-8dd6-f6886ac77454
+# ╟─0a76470f-ffe4-4ae8-8dd6-f6886ac77454
 # ╠═948b934a-62db-474f-9ff1-3bafad32dec5
 # ╠═df7f0572-50cd-4a84-96ba-9c91cae9605d
 # ╟─ee179fd5-c5c0-42f5-8bb8-b6a4acabb70c
 # ╟─c012fbb8-d696-403d-8752-61773c4f6d86
-# ╠═e4aaf1ea-f2f0-4083-bd4c-1069d98ee298
+# ╟─e4aaf1ea-f2f0-4083-bd4c-1069d98ee298
 # ╟─00000000-0000-0000-0000-000000000001
 # ╟─00000000-0000-0000-0000-000000000002

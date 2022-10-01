@@ -1,11 +1,18 @@
 ### A Pluto.jl notebook ###
-# v0.19.9
+# v0.19.12
 
 using Markdown
 using InteractiveUtils
 
 # ╔═╡ aa8aa21c-6480-4d71-a55f-be4e98fe9dcc
 using Pluto
+
+# ╔═╡ 1bb14878-b072-4dbf-b151-6ce26bb49d63
+md"""
+## References
+- Aki, Keiiti, and Paul G. Richards. Quantitative seismology. 2002.
+- Shearer, Peter M. Introduction to seismology. Cambridge university press, 2019.
+"""
 
 # ╔═╡ d2bf8d0f-9b1e-4625-b51a-eeb27b684ba8
 md"""
@@ -58,7 +65,7 @@ Pluto = "~0.19.11"
 PLUTO_MANIFEST_TOML_CONTENTS = """
 # This file is machine-generated - editing it directly is not advised
 
-julia_version = "1.8.0"
+julia_version = "1.8.2"
 manifest_format = "2.0"
 project_hash = "ab92db39d5d495b05ba985257349eeab6bb3cf26"
 
@@ -306,7 +313,7 @@ version = "1.8.0"
 [[deps.Tar]]
 deps = ["ArgTools", "SHA"]
 uuid = "a4e569a6-e804-4fa4-b0f3-eef7a1d5b13e"
-version = "1.10.0"
+version = "1.10.1"
 
 [[deps.Test]]
 deps = ["InteractiveUtils", "Logging", "Random", "Serialization"]
@@ -358,6 +365,7 @@ version = "17.4.0+0"
 
 # ╔═╡ Cell order:
 # ╟─9fcd3f72-388c-11ed-12c5-dd984fa4f529
+# ╟─1bb14878-b072-4dbf-b151-6ce26bb49d63
 # ╟─d2bf8d0f-9b1e-4625-b51a-eeb27b684ba8
 # ╠═aa8aa21c-6480-4d71-a55f-be4e98fe9dcc
 # ╠═03ce0348-524c-4a76-a627-80b83208e68d
