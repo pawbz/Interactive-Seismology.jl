@@ -1,5 +1,6 @@
 ### A Pluto.jl notebook ###
 # v0.19.9
+# v0.19.11
 
 using Markdown
 using InteractiveUtils
@@ -37,31 +38,29 @@ Indian Institute of Science, Bengaluru, India
 
 # ╔═╡ 2a1d6186-532f-4648-bd7c-171e8e6242b5
 md"""
-We shall now define the locations of a bunch of points at the reference time $t=t_0$.
+We shall now define the locations of a bunch of points on the square element ($x∈[0,1]$, $y∈[0,1]$) at the reference time $t=t_0$. Our objective is to understand how this square element is deformed by the action of the Jacobian. We do that by looking at the displacements of these reference locations.
 """
 
 # ╔═╡ c974c4e2-676c-49e2-8031-7c67cded9cea
 points=[[x, y] for x in range(0, stop=1, length=10), y in range(0, stop=1, length=10)];
 
-# ╔═╡ e9b00471-2807-4a59-bdf4-4b1a2633579b
+# ╔═╡ 07845efc-0ac1-49a5-9714-8c77c4d93089
 md"""
-Need a plotting function to visualize nodes. Let's write one down.
-* a is an array of points
-* t is the title (optional)
+Let us define the functions that we will be using in this notebook.
 """
 
 # ╔═╡ 962355bc-2e2e-4bba-b293-aefdca8f3627
+"""
+Function to visualize the node points. Inputs are the locations of the points (a) and title (t, optional)
+"""
 function plotpoints(a, t="")
-	p=scatter(first.(a), last.(a), c=:red, xlim=(-3,5), ylim=(-3,5), label=nothing, axis=nothing, size=(500,500), title=t)
+	p=scatter(first.(a), last.(a), c=:red, xlim=(-2,4), ylim=(-2,4), label=nothing, size=(500,500), title=t)
 	return p
 end
 
-# ╔═╡ 0b4d9045-b19c-4899-a7ac-0a43bd2b23ec
-plotpoints(points, "reference locations")
-
 # ╔═╡ 742fa93d-3c09-4ac3-827a-89e1ee8880cf
 """
-Need a function to compute new displacements given the reference locations and the Jacobian.
+Function to compute new locations by calculating the displacements given the reference locations (a) and the Jacobian (J).
 """
 function displace(a, J)
 	return [aa .+ J*aa for aa in a]
@@ -88,7 +87,7 @@ function Jacobian_input(directions::Vector)
 		
 		inputs = [
 			md""" $(name): $(
-				Child(name, Slider(range(0, stop=1, step=0.1), default=0.5))
+				Child(name, Slider(range(0, stop=1, step=0.1), default=0.5, show_value=true))
 			)"""
 			
 			for name in directions
@@ -108,22 +107,22 @@ end
 # Let's construct the Jacobian 
 J = [[Jdict[:∂₁u₁],Jdict[:∂₁u₂]] ;; [Jdict[:∂₂u₁],Jdict[:∂₂u₂]]]
 
-# ╔═╡ 353fce45-b2a2-47b0-98fd-392553697999
-plotpoints(displace(points, J), "after deformation")
-
 # ╔═╡ ff59b945-f8e1-4c33-b9de-08375c0a9309
 # Let's construct the strain tensor (symmetric part; Teoplitz decomposition)
 e = 0.5 .* (J + transpose(J))
 
-# ╔═╡ 3998d11d-5463-48dd-ad66-00481aebaa90
-plotpoints(displace(points, e), "only strain tensor")
-
 # ╔═╡ 3ad58d32-285c-4a78-b19a-f25747de4cfa
-# residual spin tensor
+# residual spin tensor (anti-symmetric)
 Ω = J .- e
 
-# ╔═╡ 5504b3bc-f66c-444f-8a8c-c78b08eb77c3
-plotpoints(displace(points, Ω), "only spin tensor")
+# ╔═╡ e7309331-ec59-4da5-92e3-223f79136b78
+begin
+	plot1 = plotpoints(points, "Before Deformation")
+	plot2 = plotpoints(displace(points,J), "After Deformation")
+	plot3 = plotpoints(displace(points,e), "Only strain tensor")
+	plot4 = plotpoints(displace(points,Ω), "Only spin tensor")
+	plot(plot1,plot2,plot3,plot4,layout=(2,2))
+end
 
 # ╔═╡ 00000000-0000-0000-0000-000000000001
 PLUTO_PROJECT_TOML_CONTENTS = """
@@ -289,10 +288,10 @@ uuid = "c87230d0-a227-11e9-1b43-d7ebe4e7570a"
 version = "0.4.1"
 
 [[deps.FFMPEG_jll]]
-deps = ["Artifacts", "Bzip2_jll", "FreeType2_jll", "FriBidi_jll", "JLLWrappers", "LAME_jll", "Libdl", "Ogg_jll", "OpenSSL_jll", "Opus_jll", "Pkg", "Zlib_jll", "libaom_jll", "libass_jll", "libfdk_aac_jll", "libvorbis_jll", "x264_jll", "x265_jll"]
-git-tree-sha1 = "ccd479984c7838684b3ac204b716c89955c76623"
+deps = ["Artifacts", "Bzip2_jll", "FreeType2_jll", "FriBidi_jll", "JLLWrappers", "LAME_jll", "Libdl", "Ogg_jll", "OpenSSL_jll", "Opus_jll", "PCRE2_jll", "Pkg", "Zlib_jll", "libaom_jll", "libass_jll", "libfdk_aac_jll", "libvorbis_jll", "x264_jll", "x265_jll"]
+git-tree-sha1 = "74faea50c1d007c85837327f6775bea60b5492dd"
 uuid = "b22a6f82-2f65-5046-a5b2-351ab43fb4e5"
-version = "4.4.2+0"
+version = "4.4.2+2"
 
 [[deps.FileWatching]]
 uuid = "7b1f6079-737a-58dc-b8bc-7a2ca5c1b5ee"
@@ -649,6 +648,10 @@ version = "1.3.2+0"
 git-tree-sha1 = "85f8e6578bf1f9ee0d11e7bb1b1456435479d47c"
 uuid = "bac558e1-5e72-5ebc-8fee-abe8a469f55d"
 version = "1.4.1"
+
+[[deps.PCRE2_jll]]
+deps = ["Artifacts", "Libdl"]
+uuid = "efcefdf7-47ab-520b-bdef-62a2eaa19f15"
 
 [[deps.PCRE_jll]]
 deps = ["Artifacts", "JLLWrappers", "Libdl", "Pkg"]
@@ -1109,20 +1112,17 @@ version = "0.9.1+5"
 """
 
 # ╔═╡ Cell order:
-# ╠═fd14256d-8c69-4d8a-91b5-924a32479866
+# ╟─fd14256d-8c69-4d8a-91b5-924a32479866
 # ╟─2a1d6186-532f-4648-bd7c-171e8e6242b5
 # ╠═c974c4e2-676c-49e2-8031-7c67cded9cea
-# ╟─e9b00471-2807-4a59-bdf4-4b1a2633579b
+# ╟─07845efc-0ac1-49a5-9714-8c77c4d93089
 # ╠═962355bc-2e2e-4bba-b293-aefdca8f3627
-# ╠═0b4d9045-b19c-4899-a7ac-0a43bd2b23ec
 # ╠═742fa93d-3c09-4ac3-827a-89e1ee8880cf
-# ╠═353fce45-b2a2-47b0-98fd-392553697999
 # ╠═e21576e6-c5f1-40af-8a5e-325e6308b4a7
 # ╠═2b4f0fb2-32a6-4e8d-9649-59eaefcb6cdc
 # ╠═ff59b945-f8e1-4c33-b9de-08375c0a9309
 # ╠═3ad58d32-285c-4a78-b19a-f25747de4cfa
-# ╠═3998d11d-5463-48dd-ad66-00481aebaa90
-# ╠═5504b3bc-f66c-444f-8a8c-c78b08eb77c3
+# ╟─e7309331-ec59-4da5-92e3-223f79136b78
 # ╠═13598bee-a50b-4fe4-b4bc-1885e5317232
 # ╟─6f33c7ed-e8a8-440d-a771-84789ee1f397
 # ╠═13a3429e-12f6-11ed-326f-c154f5debceb
