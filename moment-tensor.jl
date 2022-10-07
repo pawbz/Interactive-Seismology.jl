@@ -42,7 +42,7 @@ md"""
 
 The purpose of this notebook is to visualize the far-field particle displacement, for both P and S waves, in a homogeneous medium due to an input seismic moment tensor. In the notebook, for a given input moment tensor, we shall first visualize the equivalent body-force couples and dipoles, then compute the far-field displacement for each of the equivalent forcing terms (see Aki & Richards; eq. 4.23).
 
-##### Introduction of Seismology
+##### [Introduction of Seismology](https://pawbz.github.io/ES218.jl/)
 ES218; August 2022; Assignment III
 
 Instructor: *Pawan Bharadwaj*,

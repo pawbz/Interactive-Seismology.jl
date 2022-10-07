@@ -38,7 +38,7 @@ md"""
 This notebook discusses the concepts of near-field and far-field radiation and helps understand the P and S far-field radiation due to seismic sources.
 
 
-##### Introduction of Seismology
+##### [Introduction of Seismology](https://pawbz.github.io/ES218.jl/)
 ES218; August 2022;
 
 Instructor: *Pawan Bharadwaj*,

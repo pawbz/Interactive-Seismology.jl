@@ -29,7 +29,7 @@ md"""
 ## Strain Tensor
 This notebook demonstrates how a 2-D square element gets deformed by an input strain or spin tensor.
 
-##### Introduction of Seismology
+##### [Introduction of Seismology](https://pawbz.github.io/ES218.jl/)
 ES218; August 2022; Assignment I
 
 Instructor: *Pawan Bharadwaj*,

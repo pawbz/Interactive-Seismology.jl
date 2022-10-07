@@ -39,7 +39,7 @@ md"""
 # Rayleigh Function
 This notebook shall help us thoroughly grasp the theory for Rayleigh waves. While discussing reflection coefficients, we have seen examples in which the incident wave is homogeneous with at least one of the scattered waves being homogeneous. Here, all the plane waves interacting with the boundary are inhomogeneous. Specifically, we consider inhomogeneous P- and SV-waves interacting with the free surface of the medium.
 
-##### Introduction of Seismology
+##### [Introduction of Seismology](https://pawbz.github.io/ES218.jl/)
 ES218; August 2022
 
 Instructor: *Pawan Bharadwaj*,

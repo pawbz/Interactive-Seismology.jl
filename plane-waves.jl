@@ -41,7 +41,7 @@ This notebook helps to gain an intuition of plane-wave propagation in the far-fi
 ```
 Here, $\sigma$ denotes the stress tensor, $u$ is the particle displacement, $\rho$ is the mass density, $X$ is the spatial coordinate and $t$ is time. The elastic constants and mass density are assumed constant throughout the medium. In this case, we can study the displacements caused by P and S waves using Lame's theorem, and show that the shear waves are transverse in nature with no volume change while P waves are longitudinal in nature.
 
-##### Introduction of Seismology
+##### [Introduction of Seismology](https://pawbz.github.io/ES218.jl/)
 ES218; August 2022;
 
 Instructor: *Pawan Bharadwaj*,

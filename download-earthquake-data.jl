@@ -33,7 +33,7 @@ md"""
 ## Plot Earthquake Data
 A notebook that quickly downloads sample earthquake data.
 
-##### Introduction of Seismology
+##### [Introduction of Seismology](https://pawbz.github.io/ES218.jl/)
 ES218; August 2022;
 
 Instructor: *Pawan Bharadwaj*,

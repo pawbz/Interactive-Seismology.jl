@@ -47,7 +47,7 @@ By interacting with this notebook, we can
 - visualize the displacement wavefield for different modes;
 - notice the cut-off frequency of the $n$th order higher mode.
 
-##### Introduction of Seismology
+##### [Introduction of Seismology](https://pawbz.github.io/ES218.jl/)
 ES218; August 2022
 
 Instructor: *Pawan Bharadwaj*,

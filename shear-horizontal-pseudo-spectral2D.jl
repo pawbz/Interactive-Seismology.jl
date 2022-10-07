@@ -38,7 +38,7 @@ We shall assume a 2-D periodic domain and define methods to compute FFT, spatial
 [Geophysical Flows](https://github.com/FourierFlows/GeophysicalFlows.jl).
 Importantly, equations are oftentimes time-stepped forward in Fourier space, which is faster, however, we avoid that in this notebook to facilitate storage of snapshots at arbit values of the time.
 
-##### Introduction of Seismology
+##### [Introduction of Seismology](https://pawbz.github.io/ES218.jl/)
 ES218; August 2022; Assignment II
 
 Instructor: *Pawan Bharadwaj*,

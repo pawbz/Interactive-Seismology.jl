@@ -49,7 +49,7 @@ md"""
 This notebook first presents the Eikonal equation under the high-frequency approximation. The governing equations of the ray theoretical methods are derived and numerically solved to trace seismic rays in heterogeneous Earth models. For simplicity, we shall consider two dimensions $(x, z)$, but the ideas can easily be extended to 3D. A unique feature of this notebook is that the user can write any slowness function of $(x, y)$, and Julia's AD capability will automatically compute the gradient of this function with respect to $x$ and $y$, which is necessary for ray tracing. 
 
 
-Introduction of Seismology
+[Introduction of Seismology](https://pawbz.github.io/ES218.jl/)
 ES218; August 2022
 
 Instructor: Pawan Bharadwaj, Indian Institute of Science, Bengaluru, India

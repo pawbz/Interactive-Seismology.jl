@@ -43,7 +43,7 @@ In this notebook, we shall analyze the amplitudes of the reflected and transmitt
 plane waves due to an interface between two solids (geological layers). 
 Specifically, we assume a horizontal interface at $z=0$ and use the necessary boundary conditions to come up with expressions for the reflected and transmitted amplitudes. For simplicity, only shear-horizontal waves are analyzed.
 
-##### Introduction of Seismology
+##### [Introduction of Seismology](https://pawbz.github.io/ES218.jl/)
 ES218; August 2022;
 
 Instructor: *Pawan Bharadwaj*,
