@@ -14,323 +14,374 @@ macro bind(def, element)
     end
 end
 
-# ╔═╡ ab40f79c-3d8a-11ed-0697-a7b794dbba99
+# ╔═╡ 928f806a-3cc2-11ed-09c8-7f3b53b830e2
 begin
+    using PlutoUI
     using Symbolics
     using SymbolicUtils
-    using Plots
-    using LinearAlgebra
-    using Latexify
-    using LaTeXStrings
-    using PlutoUI
     using PlutoTeachingTools
+    using Latexify
+    using Roots
+    using Plots
     using PlotThemes
     using Measures
+    using LaTeXStrings
+    gr()
     theme(:dark)
     default(titlefont=(15, "times"), legendfontsize=7, guidefont=(10, :white), tickfont=(10, :white), framestyle=:zerolines, yminorgrid=true, w=2, margin=5mm)
 end
 
-# ╔═╡ e6b12602-f3c7-4f5d-9787-9d0cf0e3887b
+# ╔═╡ 9b02e72d-be6b-485d-a186-ba2fe2dcd6fb
 ChooseDisplayMode()
 
-# ╔═╡ 08429397-3964-4600-bc14-c45d22c915ec
+# ╔═╡ bdf3d004-653a-4b56-af7c-42ca1d6021e5
 TableOfContents()
 
-# ╔═╡ 32a757ff-aa7a-41d5-b8b3-6ac9e0125875
+# ╔═╡ 2a41b15e-1a0e-4c92-a3a5-53603faacea1
 md"""
-# Reflection & Transmission Coefficients
-In this notebook, we shall analyze the amplitudes of the reflected and transmitted 
-plane waves due to an interface between two solids (geological layers). 
-Specifically, we assume a horizontal interface at $z=0$ and use the necessary boundary conditions to come up with expressions for the reflected and transmitted amplitudes. For simplicity, only shear-horizontal waves are analyzed.
+# Love Waves
+This notebook studies the simplest case of plane Love waves in a single homogeneous layer overlying a homogeneous half-space. This is an eigenvalue problem, where the boundary and the free-surface conditions limit the allowable eigenvalues and eigenfunctions. In other words, for a given frequency, the horizontal slowness can only take special values. It can often happen that more than one value of the horizontal slowness contributes to the Love wave of a particular frequency. 
+
+By interacting with this notebook, we can
+
+- visualize the displacement wavefield for different modes;
+- notice the cut-off frequency of the $n$th order higher mode.
 
 ##### Introduction of Seismology
-ES218; August 2022;
+ES218; August 2022
 
 Instructor: *Pawan Bharadwaj*,
 Indian Institute of Science, Bengaluru, India
+
 """
 
-# ╔═╡ 4476bf78-39e3-4674-a152-db19fe80929a
-md"Spatial coordinates, time, and angular frequency."
+# ╔═╡ 8d2fd2d9-da36-43f4-8dcb-dd931c8189f5
+@syms β₁::Real β₂::Real μ₁::Real μ₂::Real ρ₁::Real ρ₂::Real
 
-# ╔═╡ 927dcc43-202c-4ad2-a76c-837d41f1ed6c
-@syms x::Real z::Real ω::Real t::Real
+# ╔═╡ 25f32a28-4c57-4ed0-9fc4-4a40ca31e4dd
+@syms H::Real
 
-# ╔═╡ c2eacb91-38e8-428e-9247-691950668bc3
+# ╔═╡ d8b52234-757b-441d-918d-585fd6593fcf
+md"""
+## Trail Wavefield
+
+We shall now consider a trail solution for the $y$-component of the displacement field, denoted using `u`. This solution considers two planewaves with amplitudes $A$ and $B$ and slowness components $p$ and $\eta$. If the planewave if homogeneous $\eta$ is imaginary. Otherwise, if $\eta$ is real, we have either exponentially decaying or growing fields with depth with inhomogeneous waves travelling in the $x$ direction.
+"""
+
+# ╔═╡ b120da8e-dcd6-4280-819b-0e20b4675080
+@syms p::Real η₂
+
+# ╔═╡ c74c4a58-b47e-4509-aadd-7400c350ff6c
 @syms ı::Complex{Real} # imaginary unit, going to substitute with im later
 
-# ╔═╡ 0bea69f9-3ffa-4695-a5eb-6e962d2a81ce
-md"Differential operators."
+# ╔═╡ 44aa241c-bf9d-4a2a-b459-28a73a991606
+@syms x::Real z::Real t::Real ω::Real
 
-# ╔═╡ e8729ceb-e85f-4c21-89d2-f15ec69a840f
+# ╔═╡ 5896fa94-ab7f-42f0-9fac-265e11faba2b
+trail_soln(p, η, A, B) = (A * exp(-ω * η * z) + B * exp(ω * η * z)) * exp(ı * ω * (t - (p * x)))
+
+# ╔═╡ 6e734951-2907-49d7-ae88-dffc463bf8a3
+md"The wave operator corresponding to the top layer $z∈[0, H]$ is denoted using `L1`."
+
+# ╔═╡ 2f40cb44-60af-4fbe-8f73-d8d06e99fc3b
 begin
-    Dx = Differential(x)
     Dz = Differential(z)
+    Dx = Differential(x)
+    Dt = Differential(t)
 end
 
-# ╔═╡ 670d5198-f810-472e-8db8-b13385ca294a
-md"In 2D, a harmonic plane wave with an frequency `ω`, amplitude `A`, horizontal slowness `p` and vertical slowness `η` is defined below."
+# ╔═╡ 4d859323-12e0-4fba-a796-48995f980f33
+L1(u) = Dt(Dt(u)) - μ₁ / ρ₁ * (Dx(Dx(u)) + Dz(Dz(u)))
 
-# ╔═╡ 6043b904-6991-4776-bc1b-13eda3fcc936
-plane(p, η, A) = A * exp(ı * ω * (t - (p * x + η * z)))
+# ╔═╡ 79c4f3a4-65b6-4e02-9786-f168584c7781
+md"We now write an expression for the wavefield in the top layer using the vertical component of the slowness vector $\eta_1$ and amplitudes $A_1$ and $B_1$."
 
-# ╔═╡ c7c52926-6e2e-4c4c-a01f-09f57c2ececd
-md"The horizontal slowness i.e., the ray parameter is denoted using $p$."
+# ╔═╡ dc709a17-ab03-406f-b232-d7658872a95e
+@syms A₁::Real B₁::Real η₁
 
-# ╔═╡ 33c6aa70-87cb-464a-88f7-b82d17476a2f
-md"The vertical component of the slowness vector in the first and second layer are denoted using $\eta$ and $\eta_t$. These plane waves satisfy the scalar wave equation only if the dispersion relation
-```math
-p^2 + η^2 = \frac{1}{β^2}
-```
-is satisfied."
+# ╔═╡ 83e2b2b3-f84a-4926-9332-b5570d52be8b
+u1 = trail_soln(p, η₁, A₁, B₁)
 
-# ╔═╡ 73618659-04b3-459b-87cb-496ed9097004
+# ╔═╡ 52c90f98-d314-4c5f-8b8d-4aff4c32b6d9
+simplify(expand_derivatives(L1(u1)) / u1)
+
+# ╔═╡ d6dc2422-6be3-447e-b7c1-be655971b6f7
+md"Similarly, for the half space."
+
+# ╔═╡ 1a13363a-9f8f-4123-9b37-c6dcad1ccdde
+@syms A₂::Real B₂::Real
+
+# ╔═╡ 2f80cfcf-9788-41a3-8797-cd1965216738
+u2 = trail_soln(p, η₂, A₂, B₂)
+
+# ╔═╡ de304d8c-253e-4cb5-8332-db79de20991c
 md"""
-## Boundary Conditions
-These conditions determine the relationship between the displacements and tractions across the interface (here, $z=0$). In the earth, we often encounter three types of interfaces.
-
-- **Free-surface (Solid--Vaccum)** The components of the stress tensor attached to the traction vector corresponding to the normal to the boundary are zero.
-```math
-\sigma_{xz} = \sigma_{yz} = \sigma_{zz} = 0.
-```
-- **Solid--Solid** The traction is continuous across the boundary. As the interface is welded, the displacements also have to be continuous.
-- **Solid--Fluid** The components of the traction tangential to the interface are zero. The tangential components of the displacements need not be continuous. The normal components of the traction and displacement are continuous.
-```math
-\sigma_{xz} = \sigma_{yz} = 0.
-```
+We ignore the upcoming wave when $\eta_2$ is imaginary, and avoid exponential growth with depth when $\eta_2$ is real such that.
 """
 
-# ╔═╡ fbc6cd6c-0b3b-44e9-b2a6-5edb0eeced1b
-@syms A Aₜ Aᵣ
+# ╔═╡ 30219c41-a040-4056-adda-ce64ac3c6969
+B₂ ~ 0
 
-# ╔═╡ 8dad08c2-b9a8-40ec-a8ef-c9383e5ec7b1
-@syms p::Real
-
-# ╔═╡ 13b5abc9-10be-4ef1-817d-bcee1271c89e
-@syms η ηₜ
-
-# ╔═╡ 49e3a1a5-9d1a-4ece-b563-2bd6ee909b5a
+# ╔═╡ e1ab342d-84fe-4c00-9756-455436b0fad7
 md"""
-## 2-D SH Problem
-To be updated.
+## Free Surface Condition
+We shall now evaluate the traction corresponding to the free surface and set it to zero.
 """
 
-# ╔═╡ aae7b893-4b33-44ae-b01c-6345a1180d0d
+# ╔═╡ ca377428-d597-47a2-b29e-f40884697bd6
+σyz1 = expand_derivatives(μ₁ .* Dz(u1))
+
+# ╔═╡ b819ce05-628a-49b6-aa57-f1ee765fb027
+Symbolics.solve_for(substitute(σyz1, z => 0), B₁) |> simplify
+
+# ╔═╡ 53799d32-3edc-4416-a928-868ea974c6bd
+A₁ ~ B₁
+
+# ╔═╡ f39b1e01-c16e-405e-a2fc-85408d53c762
+md"## Dynamic Boundary Condition
+We now impose continuity of $\sigma_{yz}$ component of the stress tensor across the boundary at $z=H$."
+
+
+# ╔═╡ b3924a35-6565-46c4-9a6e-d29b1172668e
+σyz2 = expand_derivatives(μ₂ .* Dz(u2))
+
+# ╔═╡ 30f26e47-0a37-4165-b18b-a20f1148deb1
+σyz1H = substitute(σyz1, z => H)
+
+# ╔═╡ f7b5adba-09ca-4895-8b18-5fc84b752392
+σyz2H = substitute(σyz2, z => H)
+
+# ╔═╡ 8f35d8b0-ff20-442c-b5b2-f5a2616fe345
+A₂ex1 = substitute(Symbolics.solve_for(σyz1H ~ σyz2H, A₂), [B₁ => A₁, B₂ => 0])
+
+# ╔═╡ dab840e2-7d7c-4f65-b4ea-289babc430c8
+md"## Kinematic Boundary Condition
+Similarly, we impose the continuity of the displacement field across the boundary."
+
+# ╔═╡ 644637c9-c32d-4335-af59-3452263a9707
+u1H = substitute(u1, [z => H, B₁ => A₁])
+
+# ╔═╡ 09a8041d-6443-4e83-8443-e0e2aa05317a
+u2H = substitute(u2, [z => H, B₂ => 0])
+
+# ╔═╡ 0fc4d1a1-25ac-49c9-b74b-a9f26928c652
+A₂ex2 = Symbolics.solve_for(u1H ~ u2H, A₂)
+
+# ╔═╡ 794a1f79-708d-4305-8aa0-d2673f34e31f
 md"""
-## Continuity in Displacement; Kinematic Boundary Conditions
-For two solids welded in contact, the kinematic boundary condition is that all three components of the displacement have to be continuous across the boundary.
-We begin with expressions of the incident, transmitted and reflected plane waves.
-Note that all these plane waves share the same horizontal slowness $p$.
+## Graphical Solution
+This section reacts to the medium configuration selected above. In order to have a non-trivial solution, we need the two expressions for $A₂$ should be equal to each other. We begin by simplifying these expressions, substitute the UI medium configuration and plot them in following three ranges.
 """
 
-# ╔═╡ f488f9f3-e73b-42ae-b3c2-2262661fd839
-u_incident = plane(p, η, A)
+# ╔═╡ bfb54c6f-a52c-4a10-87c7-9788f2f63629
+ex1 = simplify(A₂ex1 * arguments(A₂ex1)[2] / A₁)
 
-# ╔═╡ 4dc428b0-f141-4e94-9edb-e847780333aa
-u_reflected = plane(p, -η, Aᵣ)
+# ╔═╡ cbbae944-5377-44a4-ae32-868a75625248
+ex2 = simplify(A₂ex2 * arguments(A₂ex1)[2] / A₁)
 
-# ╔═╡ 8940ee90-2dd1-448c-92cd-09fd1ebbaea7
-u_transmitted = plane(p, ηₜ, Aₜ)
+# ╔═╡ b5c5f1d0-0075-4727-a6a9-8b20d6f65bc4
+md"Note that the goal here is to find zeros of the function `F` defined below,  which outputs `ex1-ex2` for a given horizontal slowness `p`."
 
-# ╔═╡ 9f28cf9f-6a45-4773-a371-63743c8dc4c8
-md"As the displacement is continuous across the boundary, we shall now substitute $z=0$ in the plane waves defined above, and impose a condition that the displacement due to the incident and the reflected waves in the first layer should be equal to the displacement due to the transmitted wave."
+# ╔═╡ b2858a78-4498-4374-9ee0-c68f3dfca6e8
+md"From the above plots, we can observe that there are no zeros in either (0,β₁) or (β₂, ∞). Therefore, we will now find the zeros of `F` in the interval [β₁, β₂]. The `find_zeros` function from the [`Roots.jl`](https://github.com/JuliaMath/Roots.jl) package can be used to search for all zeros in a specified interval in a derivative-free fashion. We only consider the real part of `F` as the imaginary part is zero in [β₁, β₂]. The zeros correspond to the eigenvalue phase velocities."
 
-# ╔═╡ 0b930000-d544-48ba-ae5e-f4737e258cf4
-u_z0 = substitute(u_incident + u_reflected - u_transmitted, z => 0) ~ 0
-
-# ╔═╡ 6e132f9a-4808-41ac-90a6-81fb4ab8b4b6
-md"Lets assume the amplitude of the incident planewave to be 1 for simplicity. In other words, $A_r$ and $A_t$ now denote the amplitude relative to the incident wave."
-
-# ╔═╡ 63dde687-8f19-466c-a3f4-a80a4991eafa
-eq_displacement = simplify(Symbolics.solve_for(u_z0, A)) ~ 1
-
-# ╔═╡ 52d2ba9b-826a-4805-9583-f1a80b10a926
-md"""
-## Continuity in Traction; Dynamic Boundary Conditions
-Apparently, a continuity in displacement is not sufficient for us to uniquely 
-determine both Aₜ and Aᵣ, given A. We should also employ the dynamic boundary condition, i.e., a constraint that traction on the surface $z=0$ is continuous. Specifically, here the component `σyz` of the stress tensor has to be continuous.
-"""
-
-# ╔═╡ 7cf515f8-2496-4bde-b3b3-9d39d971764a
-@syms μ₁::Real μ₂::Real
-
-# ╔═╡ 040f1440-14c4-491b-b792-570aa3c2080b
-σyz_incident = expand_derivatives.(μ₁ .* Dz.(u_incident))
-
-# ╔═╡ 3525bf50-b0e5-4c3b-ba75-77689a5799f4
-σyz_transmitted = expand_derivatives.(μ₂ .* Dz.(u_transmitted))
-
-# ╔═╡ 0dfd91aa-f9e1-4d93-a471-0bf99e476af5
-σyz_reflected = expand_derivatives.(μ₁ .* Dz.(u_reflected))
-
-# ╔═╡ bbf3e71e-b41d-4a85-b9dd-5e96d355cdda
-md"Similar to the displacement case, we now impose the continuity in `σyz`."
-
-# ╔═╡ 06a568fa-ba94-4c5f-815d-f30c6c8a4260
-σyz_z0 = substitute.(σyz_incident .+ σyz_reflected .- σyz_transmitted, z => 0) .~ 0
-
-# ╔═╡ b1a1be64-c635-4002-9031-8752b8dbb408
-eq_traction = (η * μ₁) * simplify(Symbolics.solve_for(σyz_z0, A)) ~ (η * μ₁)
-
-# ╔═╡ f6f18cf0-d9b6-41a1-b4db-f14b72025cf6
-tip(md"The remaining element σyx doesn't have to be continuous as it doesn't determine the traction on the interface $z=0$.")
-
-# ╔═╡ 080fde69-99e2-4292-8cd3-3edae2debd88
-md"""
-Finally, we can solve for the reflection and transmission amplitudes, $A_r$ and $A_t$,
-for the 2-D SH problem.
-"""
-
-# ╔═╡ 6746517c-043e-4137-8255-a6230d36a886
-SHAₜ, SHAᵣ = simplify(Symbolics.solve_for([eq_displacement, eq_traction], [Aₜ, Aᵣ]))
-
-# ╔═╡ 5729b459-b283-41ce-95be-c4d33a7c28c0
-md"### MOHO Example"
-
-# ╔═╡ afdb5b7d-d670-4a98-a91d-3ff638fb0294
-md"""
-It is evident that the reflection and transmission coefficients are dependent on the 
-wave velocity and density values of the layers. In this section, we will choose these parameters to analyze waves.
-By default, we take the PREM (Preliminary Earth Reference Model) shear-wave velocity and density values at the MOHO. This example is discussed in Chapter 6 of Introduction to Seismology (Peter Shearer).
-
-β₁ (km/sec) $(@bind β₁MOHO NumberField(range(2.0, stop=6.0, step=0.1), default=3.9))
-β₂ (km/sec) $(@bind β₂MOHO NumberField(range(2.0, stop=6.0, step=0.1), default=4.49))
-ρ₁ (gm/cm³) $(@bind ρ₁MOHO NumberField(range(2.0, stop=6.0, step=0.1), default=2.9))
-ρ₂ (gm/cm³) $(@bind ρ₂MOHO NumberField(range(2.0, stop=6.0, step=0.1), default=3.38))
-"""
-
-# ╔═╡ 281cb873-760c-411f-98b5-1c64d218e7e9
-md"""
-We shall begin defining a function that computes the ray parameter, given the 
-the angle of incidence $θ$.
-"""
-
-# ╔═╡ 3d50985b-b79a-45ab-ba1f-5287936c56d9
-@syms θ::Real
-
-# ╔═╡ 284e4a79-6cfe-4c4a-939b-55fc69611ecb
-pMOHO(θ) = sin(θ) / β₁MOHO
-
-# ╔═╡ a7cb9cd5-7013-461b-960d-5da73db62aea
-md"We can then compute the vertical component of the slowness vector using the 
-dispersion relation."
-
-# ╔═╡ a06affae-47c3-4dfa-a997-ee75b35ab122
-ηMOHO(θ) = sqrt((inv(β₁MOHO)^2 - (pMOHO(θ))^2) + 0im)
-
-# ╔═╡ 602dcab9-b563-46e9-a694-4561c8acd9a7
-md"Similarly, the vertical component of the slowness vector in the second layer can be computed."
-
-# ╔═╡ 8d0636a6-3863-4934-949b-da5a65f329c8
-ηₜMOHO(θ) = sqrt((inv(β₂MOHO)^2 - (pMOHO(θ))^2) + 0im)
-
-# ╔═╡ 8c81ddb5-bf4d-4610-bfea-3d1a27ffd61f
-md"We can finally, update the expression of `SHAᵣ` and `SHAₜ` using the MOHO parameters and plot them"
-
-# ╔═╡ a089ab5b-4703-4d4d-a7ab-11197b4b907c
-SHAₜ_ex, SHAᵣ_ex = broadcast([SHAₜ, SHAᵣ]) do x
-    θ -> simplify(substitute(x, [η => ηMOHO(θ), ηₜ => ηₜMOHO(θ), μ₁ => β₁MOHO^2 * ρ₁MOHO, μ₂ => β₂MOHO^2 * ρ₂MOHO]))
-end
-
-# ╔═╡ 1524aaac-2696-44a5-b589-070866e59cf3
-tip(md"""
-Observe that the amplitude of the evanescent waves exponentially decays as we move away from the boundary ($z=0$). You may want to observe this decay as a function of angular frequency! 
-""")
-
-# ╔═╡ dba7ea14-e0dd-4dc4-ad9c-4627fd16cc62
+# ╔═╡ df35e923-b43c-4809-a9db-32a371fc9010
 md"## Appendix"
 
-# ╔═╡ 57176a1b-b8cd-40fa-a615-8a589fb7ea73
-md"""
-Lets print the expression of the wavefield, plotted in the previous example.
-"""
+# ╔═╡ 840a743a-e298-4f99-ae6e-11c85b6f5bc5
+# a range for phase velocity (typical shear velocity values in crust/ mantle)
+cgrid = range(1, stop=7, step=0.2)
 
-# ╔═╡ ea3b7089-bda8-4694-8042-98534b1739bd
-warning_box(md"""
-The sign of the vertical slowness in the transmitted field above is chosen to prevent the exponential growth of the wavefield away from the boundary.
-""")
+# ╔═╡ 7bd19e44-b4f5-43f3-b6be-b557ca95c67f
+md"In order to plot the displacement wavefield, we will now build functions that output the particle displacement in the first and second layers for input $x$, $z$, $t$ and $p$."
 
-# ╔═╡ f6b31173-72cd-4f25-b292-5aad02ec718c
-θgrid = range(0, stop=pi / 2, length=100); # need for reflectance plots
+# ╔═╡ db4a22f5-74eb-477e-9426-065dcfd1751c
+md"## UI"
 
-# ╔═╡ c3f8e661-6cb5-4c08-8912-a77d101873fb
-md"""
-**Parameters to interact with the wavefield plots.**
+# ╔═╡ ccbb61f1-c7a1-4cc1-a5c8-0555dd664e16
+function medium_input()
 
-Angle of incidence θp ∈ [0, π/2]: $(@bind θp Slider(θgrid, default=1.4))
+    return PlutoUI.combine() do Child
+        inputs1 = [
+            md""" 
+   H (km) $(Child("Hp", Slider(range(10, 100, step=5), default=35, show_value=true)))""",
+            md"""
+            β₁ (km/s) $(Child("β₁", Slider(cgrid, default=3.5, show_value=true)))
+            """,
+            md"""
+            β₂ (km/s) $(Child("β₂", Slider(cgrid, default=4.5, show_value=true)))
+            """,
+            md"""
+            ρ₁ (gm/cc) $(Child("ρ₁", Slider(range(1, 7, step=0.2), default=2.6, show_value=true)))
+            """,
+            md"""
+            ρ₂ (gm/cc) $(Child("ρ₂", Slider(range(1, 7, step=0.2), default=3.4, show_value=true)))
+            """
+        ]
+        inputs2 = [
+            md"""
+            $(Child("freq", Slider(range(0.0, 0.25, step=0.01), default=0.08, show_value=true)))
+            """,
+        ]
 
-Angular frequency ωp: $(@bind ωp Slider(range(0.1, stop=2, length=10), default=0.3))
-"""
-
-
-# ╔═╡ b790898e-11dd-440e-86ef-2403d14a1feb
-u_incident_ex = substitute(plane(pMOHO(θp), ηMOHO(θp), 1.0), [ω => ωp]);
-
-# ╔═╡ cabe33b2-5c0a-45e4-a0fb-d057987d8c95
-u_reflected_ex = substitute(plane(pMOHO(θp), -ηMOHO(θp), SHAᵣ_ex(θp)), [ω => ωp]);
-
-# ╔═╡ d5fda5dc-d94e-4b39-94c4-a5c4311e59bd
-u_transmitted_ex = substitute(plane(pMOHO(θp), isequal(imag(ηₜMOHO(θp)), 0.0) ? ηₜMOHO(θp) : -ηₜMOHO(θp), SHAₜ_ex(θp)), [ω => ωp]);
-
-# ╔═╡ 12dd8099-93a6-47c0-9faf-c8b204204219
-function plot_reflectivity(Aᵣ, Aₜ, θgrid)
-    degθ = rad2deg.(θgrid)
-    p1 = plot(degθ, abs.(Aᵣ.(θgrid)), label="Abs", title="Reflected-Wave Coeff.", ylabel="Amplitude", xlabel="Incidence Angle (degree)")
-    plot!(p1, degθ, real.(Aᵣ.(θgrid)), label="Real")
-    plot!(p1, degθ, imag.(Aᵣ.(θgrid)), label="Imag")
-    vline!(p1, [rad2deg(θp)], c=:white, label=nothing)
-
-    p2 = plot(degθ, abs.(Aₜ.(θgrid)), label="Abs", title="Transmitted-Wave Coeff.", ylabel="Amplitude", xlabel="Incidence Angle (degree)")
-    plot!(p2, degθ, real.(Aₜ.(θgrid)), label="Real")
-    plot!(p2, degθ, imag.(Aₜ.(θgrid)), label="Imag")
-    vline!(p2, [rad2deg(θp)], c=:white, label=nothing)
-
-    plot(p1, p2, layout=(1, 2), size=(800, 400))
+        md"""
+### Parameters
+##### Medium
+Choose the depth of the boundary between the top layer and the halfspace.
+Slide to adjust the seismic velocities ∈ [1, 7] km/s and densities ∈ [1, 7] gm/cc of the top layer and the halfspace. By default, the parameters corresponding to the curst and mantle will be chosen.
+  $(inputs1)
+		
+##### Frequency (Hz)
+  $(inputs2)
+        """
+    end
 end
 
+# ╔═╡ 19a31e92-8226-4ce5-aa04-933552953a9d
+@bind medium confirm(medium_input())
 
-# ╔═╡ c75d3d6d-1022-43a4-b3dd-d58a92ad93eb
-plot_reflectivity(SHAᵣ_ex, SHAₜ_ex, θgrid)
+# ╔═╡ 7bd5a551-3379-4270-81d0-9506292e6d8c
+crange1 = range(medium.β₁, stop=medium.β₂, length=100)
 
-# ╔═╡ de445666-cd08-4c78-8cab-2d63fd79af43
-function plot_planewave(ui, ur, ut, t1=0)
+# ╔═╡ b3e662bf-8d13-418b-886c-b29456d62454
+crange2 = range(medium.β₁ - 0.5, stop=medium.β₁, length=100)
+
+# ╔═╡ 3fa22358-6d61-4b9a-9aa8-39d2b1c6a917
+crange3 = range(medium.β₂, stop=medium.β₂ + 0.5, length=100)
+
+# ╔═╡ 355e039d-db6d-48b4-a7d7-5f73686e6d56
+# substitute values of medium.Hp, medium.β₁, and medium.ρ₁ into the expression x, instead of μ, η.
+# then return a function of horizontal slowness f(p) that can be plotted
+function subs_βρ(x; output_function=true)
+    x = substitute(x, [ω => 2 * pi * medium.freq, H => medium.Hp, μ₁ => medium.β₁ * medium.β₁ * medium.ρ₁, μ₂ => medium.β₂ * medium.β₂ * medium.ρ₂, η₁ => sqrt((p * p - 1 / medium.β₁^2 + eps() * im)), η₂ => sqrt((p * p - 1 / medium.β₂^2) + eps() * im)])
+    if (output_function)
+        return build_function(x, p, expression=Val{false})
+    else
+        x
+    end
+end
+
+# ╔═╡ ad269679-e1f9-4d9d-827f-468e36f27bfc
+F = subs_βρ(ex1 - ex2; output_function=true)
+
+# ╔═╡ cc173455-2ed0-42f3-a9c0-0dfdbbe982ee
+cn = sort(inv.(find_zeros(real ∘ F, inv(medium.β₁), inv(medium.β₂))))
+
+# ╔═╡ ad78f0ef-460d-4b62-8bbc-0f7059214b38
+# need prettier labels for MultiCheckBox
+names_cn = map(enumerate(cn)) do (i, c)
+    c => string(i, ") ", floor(c, digits=2))
+end
+
+# ╔═╡ cdaefb2c-818e-4d66-b1c3-f6ac8829ba45
+function subs_u1(u; output_function=true)
+    u = substitute(subs_βρ(u; output_function=false), [ı => im, B₁ => 1, A₁ => 1, B₂ => 0])
+    if (output_function)
+        build_function(u, x, z, t, p, expression=Val{false})
+    else
+        u
+    end
+end
+
+# ╔═╡ 8912a771-1914-42a7-a35b-43cb63971a41
+U1 = subs_u1(u1)
+
+# ╔═╡ 236e2338-f057-4c33-80e2-7dd8ea9ce206
+function subs_u2(u; output_function=true)
+    A₂p = subs_u1(A₂ex1, output_function=false)
+    u = substitute(subs_βρ(u; output_function=false), [ı => im, B₁ => 1, A₁ => 1, B₂ => 0, A₂ => A₂p])
+    if (output_function)
+        build_function(u, x, z, t, p, expression=Val{false})
+    else
+        u
+    end
+end
+
+# ╔═╡ d49ae6c9-a4ee-45f0-99c3-ab9f23ab895d
+U2 = subs_u2(u2)
+
+# ╔═╡ d76e9b6a-a33c-4342-985e-48f8ee91bf71
+function mode_input()
+
+    return PlutoUI.combine() do Child
+
+        input = [md""" 
+        cₙ (km/s) $(Child("c", MultiCheckBox(names_cn, select_all=true, default=cn)))
+        """,]
+
+        return md"""
+     ### Phase-velocity Eigenvalues
+  Depending on the parameters chosen above, the estimated phase-velocity eigenvalues (cₙ) are given below. Select them to plot the corresponding eigenfunction (uₙ) i.e., displacement wavefield of a particular mode. You may also select multiple eigenfunctions to plot their superposition. For example, for the crust-mantle configuration, we can notice the first higher-order mode for frequency $0.08$Hz.
+
+    $(input)
+             """
+    end
+end
+
+# ╔═╡ 2d89a043-dfd3-4662-8c29-8829987fa39c
+@bind modes confirm(mode_input())
+
+# ╔═╡ b79f409d-a91e-4e4b-8e16-dff4769924f6
+md"## Plots"
+
+# ╔═╡ 723c2f5f-04e3-4cc2-94dc-1780cb2a2179
+# plot real and imag parts of `f1(c)` and 
+function plot_roots(x1, x2, cgrid)
+
+    f1 = subs_βρ(x1)
+    f2 = subs_βρ(x2)
+
+    a = [f1((inv(c))) for c in cgrid]
+    b = [f2((inv(c))) for c in cgrid]
+
+    plot(cgrid, real.(a), c=:red, label="real(ex1)", legend=:outertopleft, size=(800, 300), title="F(c)=ex1(c) - ex2(c)", xlabel="phase velocity (c)", margin=5mm, xlim=(cgrid[1], cgrid[end]))
+    plot!(cgrid, imag.(a), c=:blue, label="imag(ex1)")
+    plot!(cgrid, real.(b), c=:red, line=(:dash, 2), label="real(ex2)")
+    plot!(cgrid, imag.(b), c=:blue, line=(:dash, 2), label="imag(ex2)")
+    vline!([medium.β₁], label="β₁", w=3, c=:white, l=(:dot, 7))
+    vline!([medium.β₂], label="β₂", w=3, c=:white, l=(:dash, 7))
+end
+
+# ╔═╡ ca8f817d-8715-40d4-9f48-ded6a79b421e
+plot_roots(ex1, ex2, crange1)
+
+# ╔═╡ ed15bab9-c0dd-467a-93cf-e6edb5f03216
+plot_roots(ex1, ex2, crange2)
+
+# ╔═╡ ffb3cf31-0d33-48eb-9be0-cfa4e009b315
+plot_roots(ex1, ex2, crange3)
+
+# ╔═╡ 330b0dd1-85ed-4fea-bf8f-78bfe3cdf335
+function plot_Love_waves()
     # we need to discretize space before plotting 
     xgrid = range(-100, stop=100, length=100)
-    zgrid_bottom = range(0, stop=200, length=100)
-    zgrid_top = range(-200, stop=0, length=100)
+    zgrid1 = range(0, stop=medium.Hp, length=100)
+    zgrid2 = range(medium.Hp, stop=200, length=100)
 
-    # substitute imaginary unit
-    ui, ur, ut = map([ui, ur, ut]) do ⋅
-        substitute(⋅, [ı => im])
+    gif_Love = @gif for t in 1:10
+        U1p = map(modes.c) do c
+            return [real(U1(x, z, t, inv(c))) for z in zgrid1, x in xgrid]
+        end
+        U2p = map(modes.c) do c
+            return [real(U2(x, z, t, inv(c))) for z in zgrid2, x in xgrid]
+        end
+
+        fig = heatmap(xgrid, zgrid1, sum(U1p), title="Love-wave Displacement", yflip=true, c=:seismic, size=(400, 400), colorbar=nothing, frame=nothing, axis=nothing)
+        heatmap!(fig, xgrid, zgrid2, sum(U2p), c=:seismic, colorbar=false, frame=false, axis=false)
+        hline!(fig, [medium.Hp], w=5, c=:yellow, label="Boundary", aspect_ratio=1, legend=:bottomleft)
+        hline!(fig, [0], w=5, c=:yellow, line=(:dot, 10), label="Free Surface", aspect_ratio=1, legend=:outerbottomleft)
     end
-    # build functions (reflected and incident)
-    uip, urp = map([ui, ur]) do ⋅
-        fn = build_function(⋅, x, z, t, expression=Val{false})
-        [real(fn(x, z, t1)) for z in zgrid_top, x in xgrid]
-    end
-    utp = map([ut]) do ⋅
-        fn = build_function(⋅, x, z, t, expression=Val{false})
-        [real(fn(x, z, t1)) for z in zgrid_bottom, x in xgrid]
-    end
 
-
-    plot(map([uip, urp, utp[1]], [zgrid_top, zgrid_top, zgrid_bottom], ["Incident", "Reflected", "Transmitted"]) do u, Z, title
-            p = heatmap(xgrid, Z, u, title=title, yflip=true, c=:seismic, size=(300, 300), clim=(-2, 2), colorbar=nothing, frame=nothing, axis=nothing)
-            hline!(p, [0], w=20, c=:yellow, label="Boundary", aspect_ratio=1)
-        end..., layout=(1, 3), size=(1000, 300))
-
+    return gif_Love
 end
 
-# ╔═╡ 5408faa5-ea70-4aa8-8bd1-400b8d9220e6
-gif(@animate(for t in 1:10
-    plot_planewave(u_incident_ex, u_reflected_ex, u_transmitted_ex, t)
-end))
+# ╔═╡ fefb338f-0b89-4902-a85f-c8f87cf5c172
+plot_Love_waves()
 
-# ╔═╡ fdddf5c8-c487-4c0d-8f2b-89dc49b34355
+# ╔═╡ 16c826bf-fa48-423c-bfec-195f7fc502f8
 md"""
 ## TODO
-
--  Phase Vs. Angle Plots
+- Have a plot that shows how a wavelet disperses as it propagates, which needs a sum of frequencies, with some initial phases assigned.
 """
 
 # ╔═╡ 00000000-0000-0000-0000-000000000001
@@ -338,12 +389,12 @@ PLUTO_PROJECT_TOML_CONTENTS = """
 [deps]
 LaTeXStrings = "b964fa9f-0449-5b57-a5c2-d3ea65f4040f"
 Latexify = "23fbe1c1-3f47-55db-b15f-69d7ec21a316"
-LinearAlgebra = "37e2e46d-f89d-539d-b4ee-838fcccc9c8e"
 Measures = "442fdcdd-2543-5da2-b0f3-8c86c306513e"
 PlotThemes = "ccf2f8ad-2431-5c83-bf29-c5338b663b6a"
 Plots = "91a5bcdd-55d7-5caf-9e0b-520d859cae80"
 PlutoTeachingTools = "661c6b06-c737-4d37-b85c-46df65de6f69"
 PlutoUI = "7f904dfe-b85e-4ff6-b463-dae2292396a8"
+Roots = "f2b01f46-fcfa-551c-844a-d8ac1e96c665"
 SymbolicUtils = "d1185830-fcd6-423d-90d6-eec64667417b"
 Symbolics = "0c5d862f-8b57-4792-8d23-62f2024744c7"
 
@@ -352,9 +403,10 @@ LaTeXStrings = "~1.3.0"
 Latexify = "~0.15.17"
 Measures = "~0.3.1"
 PlotThemes = "~3.0.0"
-Plots = "~1.34.4"
+Plots = "~1.35.2"
 PlutoTeachingTools = "~0.2.3"
 PlutoUI = "~0.7.43"
+Roots = "~2.0.7"
 SymbolicUtils = "~0.19.11"
 Symbolics = "~4.10.4"
 """
@@ -365,7 +417,7 @@ PLUTO_MANIFEST_TOML_CONTENTS = """
 
 julia_version = "1.8.2"
 manifest_format = "2.0"
-project_hash = "987d1f267bd6387aea5ab4ddf94bbb72abc0b8dc"
+project_hash = "ddd4658979ba7855da315966fc18e3fb429724b9"
 
 [[deps.AbstractAlgebra]]
 deps = ["GroupsCore", "InteractiveUtils", "LinearAlgebra", "MacroTools", "Markdown", "Random", "RandomExtensions", "SparseArrays", "Test"]
@@ -622,9 +674,9 @@ uuid = "8ba89e20-285c-5b6f-9357-94700520ee1b"
 
 [[deps.Distributions]]
 deps = ["ChainRulesCore", "DensityInterface", "FillArrays", "LinearAlgebra", "PDMats", "Printf", "QuadGK", "Random", "SparseArrays", "SpecialFunctions", "Statistics", "StatsBase", "StatsFuns", "Test"]
-git-tree-sha1 = "0d7d213133d948c56e8c2d9f4eab0293491d8e4a"
+git-tree-sha1 = "70e9677e1195e7236763042194e3fbf147fdb146"
 uuid = "31c24e10-a181-5473-b8eb-7969acd0382f"
-version = "0.25.75"
+version = "0.25.74"
 
 [[deps.DocStringExtensions]]
 deps = ["LibGit2"]
@@ -751,10 +803,10 @@ uuid = "46192b85-c4d5-4398-a991-12ede77f4527"
 version = "0.1.2"
 
 [[deps.GR]]
-deps = ["Base64", "DelimitedFiles", "GR_jll", "HTTP", "JSON", "Libdl", "LinearAlgebra", "Pkg", "Printf", "Random", "RelocatableFolders", "Serialization", "Sockets", "Test", "UUIDs"]
-git-tree-sha1 = "0ac6f27e784059c68b987f42b909ade0bcfabe69"
+deps = ["Base64", "DelimitedFiles", "GR_jll", "HTTP", "JSON", "Libdl", "LinearAlgebra", "Pkg", "Preferences", "Printf", "Random", "Serialization", "Sockets", "Test", "UUIDs"]
+git-tree-sha1 = "a9ec6a35bc5ddc3aeb8938f800dc599e652d0029"
 uuid = "28b8d3ca-fb5f-59d9-8090-bfdbd6d07a71"
-version = "0.68.0"
+version = "0.69.3"
 
 [[deps.GR_jll]]
 deps = ["Artifacts", "Bzip2_jll", "Cairo_jll", "FFMPEG_jll", "Fontconfig_jll", "GLFW_jll", "JLLWrappers", "JpegTurbo_jll", "Libdl", "Libtiff_jll", "Pixman_jll", "Pkg", "Qt5Base_jll", "Zlib_jll", "libpng_jll"]
@@ -1130,9 +1182,9 @@ version = "0.8.1+0"
 
 [[deps.OpenSSL]]
 deps = ["BitFlags", "Dates", "MozillaCACerts_jll", "OpenSSL_jll", "Sockets"]
-git-tree-sha1 = "02be9f845cb58c2d6029a6d5f67f4e0af3237814"
+git-tree-sha1 = "ebe81469e9d7b471d7ddb611d9e147ea16de0add"
 uuid = "4d8831e6-92b7-49fb-bdf8-b643e874388c"
-version = "1.1.3"
+version = "1.2.1"
 
 [[deps.OpenSSL_jll]]
 deps = ["Artifacts", "JLLWrappers", "Libdl", "Pkg"]
@@ -1210,9 +1262,9 @@ version = "1.3.1"
 
 [[deps.Plots]]
 deps = ["Base64", "Contour", "Dates", "Downloads", "FFMPEG", "FixedPointNumbers", "GR", "JLFzf", "JSON", "LaTeXStrings", "Latexify", "LinearAlgebra", "Measures", "NaNMath", "Pkg", "PlotThemes", "PlotUtils", "Printf", "REPL", "Random", "RecipesBase", "RecipesPipeline", "Reexport", "RelocatableFolders", "Requires", "Scratch", "Showoff", "SnoopPrecompile", "SparseArrays", "Statistics", "StatsBase", "UUIDs", "UnicodeFun", "Unzip"]
-git-tree-sha1 = "284a353a34a352a95fca1d61ea28a0d48feaf273"
+git-tree-sha1 = "65451f70d8d71bd9d06821c7a53adbed162454c9"
 uuid = "91a5bcdd-55d7-5caf-9e0b-520d859cae80"
-version = "1.34.4"
+version = "1.35.2"
 
 [[deps.PlutoHooks]]
 deps = ["InteractiveUtils", "Markdown", "UUIDs"]
@@ -1293,9 +1345,9 @@ version = "1.2.1"
 
 [[deps.RecipesPipeline]]
 deps = ["Dates", "NaNMath", "PlotUtils", "RecipesBase"]
-git-tree-sha1 = "e7eac76a958f8664f2718508435d058168c7953d"
+git-tree-sha1 = "017f217e647cf20b0081b9be938b78c3443356a0"
 uuid = "01d81517-befc-4cb6-b9ec-a95719d0359c"
-version = "0.6.3"
+version = "0.6.6"
 
 [[deps.RecursiveArrayTools]]
 deps = ["Adapt", "ArrayInterfaceCore", "ArrayInterfaceStaticArraysCore", "ChainRulesCore", "DocStringExtensions", "FillArrays", "GPUArraysCore", "IteratorInterfaceExtensions", "LinearAlgebra", "RecipesBase", "StaticArraysCore", "Statistics", "Tables", "ZygoteRules"]
@@ -1343,6 +1395,12 @@ deps = ["Artifacts", "JLLWrappers", "Libdl", "Pkg"]
 git-tree-sha1 = "68db32dff12bb6127bac73c209881191bf0efbb7"
 uuid = "f50d1b31-88e8-58de-be2c-1cc44531875f"
 version = "0.3.0+0"
+
+[[deps.Roots]]
+deps = ["ChainRulesCore", "CommonSolve", "Printf", "Setfield"]
+git-tree-sha1 = "422c880f74967af5a8db5702c6df9a03b465202e"
+uuid = "f2b01f46-fcfa-551c-844a-d8ac1e96c665"
+version = "2.0.7"
 
 [[deps.RuntimeGeneratedFunctions]]
 deps = ["ExprTools", "SHA", "Serialization"]
@@ -1809,67 +1867,73 @@ version = "1.4.1+0"
 """
 
 # ╔═╡ Cell order:
-# ╠═e6b12602-f3c7-4f5d-9787-9d0cf0e3887b
-# ╠═08429397-3964-4600-bc14-c45d22c915ec
-# ╟─32a757ff-aa7a-41d5-b8b3-6ac9e0125875
-# ╟─4476bf78-39e3-4674-a152-db19fe80929a
-# ╠═927dcc43-202c-4ad2-a76c-837d41f1ed6c
-# ╠═c2eacb91-38e8-428e-9247-691950668bc3
-# ╟─0bea69f9-3ffa-4695-a5eb-6e962d2a81ce
-# ╠═e8729ceb-e85f-4c21-89d2-f15ec69a840f
-# ╟─670d5198-f810-472e-8db8-b13385ca294a
-# ╠═6043b904-6991-4776-bc1b-13eda3fcc936
-# ╟─c7c52926-6e2e-4c4c-a01f-09f57c2ececd
-# ╟─33c6aa70-87cb-464a-88f7-b82d17476a2f
-# ╟─73618659-04b3-459b-87cb-496ed9097004
-# ╠═fbc6cd6c-0b3b-44e9-b2a6-5edb0eeced1b
-# ╠═8dad08c2-b9a8-40ec-a8ef-c9383e5ec7b1
-# ╠═13b5abc9-10be-4ef1-817d-bcee1271c89e
-# ╟─49e3a1a5-9d1a-4ece-b563-2bd6ee909b5a
-# ╟─aae7b893-4b33-44ae-b01c-6345a1180d0d
-# ╠═f488f9f3-e73b-42ae-b3c2-2262661fd839
-# ╠═4dc428b0-f141-4e94-9edb-e847780333aa
-# ╠═8940ee90-2dd1-448c-92cd-09fd1ebbaea7
-# ╟─9f28cf9f-6a45-4773-a371-63743c8dc4c8
-# ╠═0b930000-d544-48ba-ae5e-f4737e258cf4
-# ╟─6e132f9a-4808-41ac-90a6-81fb4ab8b4b6
-# ╠═63dde687-8f19-466c-a3f4-a80a4991eafa
-# ╟─52d2ba9b-826a-4805-9583-f1a80b10a926
-# ╠═7cf515f8-2496-4bde-b3b3-9d39d971764a
-# ╠═040f1440-14c4-491b-b792-570aa3c2080b
-# ╠═3525bf50-b0e5-4c3b-ba75-77689a5799f4
-# ╠═0dfd91aa-f9e1-4d93-a471-0bf99e476af5
-# ╟─bbf3e71e-b41d-4a85-b9dd-5e96d355cdda
-# ╠═06a568fa-ba94-4c5f-815d-f30c6c8a4260
-# ╠═b1a1be64-c635-4002-9031-8752b8dbb408
-# ╟─f6f18cf0-d9b6-41a1-b4db-f14b72025cf6
-# ╟─080fde69-99e2-4292-8cd3-3edae2debd88
-# ╠═6746517c-043e-4137-8255-a6230d36a886
-# ╟─5729b459-b283-41ce-95be-c4d33a7c28c0
-# ╟─afdb5b7d-d670-4a98-a91d-3ff638fb0294
-# ╟─281cb873-760c-411f-98b5-1c64d218e7e9
-# ╠═3d50985b-b79a-45ab-ba1f-5287936c56d9
-# ╠═284e4a79-6cfe-4c4a-939b-55fc69611ecb
-# ╟─a7cb9cd5-7013-461b-960d-5da73db62aea
-# ╠═a06affae-47c3-4dfa-a997-ee75b35ab122
-# ╟─602dcab9-b563-46e9-a694-4561c8acd9a7
-# ╠═8d0636a6-3863-4934-949b-da5a65f329c8
-# ╟─8c81ddb5-bf4d-4610-bfea-3d1a27ffd61f
-# ╠═a089ab5b-4703-4d4d-a7ab-11197b4b907c
-# ╠═c75d3d6d-1022-43a4-b3dd-d58a92ad93eb
-# ╟─c3f8e661-6cb5-4c08-8912-a77d101873fb
-# ╠═5408faa5-ea70-4aa8-8bd1-400b8d9220e6
-# ╟─1524aaac-2696-44a5-b589-070866e59cf3
-# ╟─dba7ea14-e0dd-4dc4-ad9c-4627fd16cc62
-# ╟─57176a1b-b8cd-40fa-a615-8a589fb7ea73
-# ╠═b790898e-11dd-440e-86ef-2403d14a1feb
-# ╠═cabe33b2-5c0a-45e4-a0fb-d057987d8c95
-# ╠═d5fda5dc-d94e-4b39-94c4-a5c4311e59bd
-# ╟─ea3b7089-bda8-4694-8042-98534b1739bd
-# ╠═ab40f79c-3d8a-11ed-0697-a7b794dbba99
-# ╠═f6b31173-72cd-4f25-b292-5aad02ec718c
-# ╠═12dd8099-93a6-47c0-9faf-c8b204204219
-# ╠═de445666-cd08-4c78-8cab-2d63fd79af43
-# ╟─fdddf5c8-c487-4c0d-8f2b-89dc49b34355
+# ╠═9b02e72d-be6b-485d-a186-ba2fe2dcd6fb
+# ╠═bdf3d004-653a-4b56-af7c-42ca1d6021e5
+# ╟─2a41b15e-1a0e-4c92-a3a5-53603faacea1
+# ╠═8d2fd2d9-da36-43f4-8dcb-dd931c8189f5
+# ╠═25f32a28-4c57-4ed0-9fc4-4a40ca31e4dd
+# ╟─19a31e92-8226-4ce5-aa04-933552953a9d
+# ╟─2d89a043-dfd3-4662-8c29-8829987fa39c
+# ╟─fefb338f-0b89-4902-a85f-c8f87cf5c172
+# ╟─d8b52234-757b-441d-918d-585fd6593fcf
+# ╠═b120da8e-dcd6-4280-819b-0e20b4675080
+# ╠═c74c4a58-b47e-4509-aadd-7400c350ff6c
+# ╠═44aa241c-bf9d-4a2a-b459-28a73a991606
+# ╠═5896fa94-ab7f-42f0-9fac-265e11faba2b
+# ╟─6e734951-2907-49d7-ae88-dffc463bf8a3
+# ╠═2f40cb44-60af-4fbe-8f73-d8d06e99fc3b
+# ╠═4d859323-12e0-4fba-a796-48995f980f33
+# ╟─79c4f3a4-65b6-4e02-9786-f168584c7781
+# ╠═dc709a17-ab03-406f-b232-d7658872a95e
+# ╠═83e2b2b3-f84a-4926-9332-b5570d52be8b
+# ╠═52c90f98-d314-4c5f-8b8d-4aff4c32b6d9
+# ╟─d6dc2422-6be3-447e-b7c1-be655971b6f7
+# ╠═1a13363a-9f8f-4123-9b37-c6dcad1ccdde
+# ╠═2f80cfcf-9788-41a3-8797-cd1965216738
+# ╟─de304d8c-253e-4cb5-8332-db79de20991c
+# ╠═30219c41-a040-4056-adda-ce64ac3c6969
+# ╟─e1ab342d-84fe-4c00-9756-455436b0fad7
+# ╠═ca377428-d597-47a2-b29e-f40884697bd6
+# ╠═b819ce05-628a-49b6-aa57-f1ee765fb027
+# ╠═53799d32-3edc-4416-a928-868ea974c6bd
+# ╟─f39b1e01-c16e-405e-a2fc-85408d53c762
+# ╠═b3924a35-6565-46c4-9a6e-d29b1172668e
+# ╠═30f26e47-0a37-4165-b18b-a20f1148deb1
+# ╠═f7b5adba-09ca-4895-8b18-5fc84b752392
+# ╠═8f35d8b0-ff20-442c-b5b2-f5a2616fe345
+# ╟─dab840e2-7d7c-4f65-b4ea-289babc430c8
+# ╠═644637c9-c32d-4335-af59-3452263a9707
+# ╠═09a8041d-6443-4e83-8443-e0e2aa05317a
+# ╠═0fc4d1a1-25ac-49c9-b74b-a9f26928c652
+# ╟─794a1f79-708d-4305-8aa0-d2673f34e31f
+# ╠═7bd5a551-3379-4270-81d0-9506292e6d8c
+# ╠═b3e662bf-8d13-418b-886c-b29456d62454
+# ╠═3fa22358-6d61-4b9a-9aa8-39d2b1c6a917
+# ╠═bfb54c6f-a52c-4a10-87c7-9788f2f63629
+# ╠═cbbae944-5377-44a4-ae32-868a75625248
+# ╠═ca8f817d-8715-40d4-9f48-ded6a79b421e
+# ╠═ed15bab9-c0dd-467a-93cf-e6edb5f03216
+# ╠═ffb3cf31-0d33-48eb-9be0-cfa4e009b315
+# ╟─b5c5f1d0-0075-4727-a6a9-8b20d6f65bc4
+# ╠═ad269679-e1f9-4d9d-827f-468e36f27bfc
+# ╟─b2858a78-4498-4374-9ee0-c68f3dfca6e8
+# ╠═cc173455-2ed0-42f3-a9c0-0dfdbbe982ee
+# ╠═ad78f0ef-460d-4b62-8bbc-0f7059214b38
+# ╟─df35e923-b43c-4809-a9db-32a371fc9010
+# ╠═928f806a-3cc2-11ed-09c8-7f3b53b830e2
+# ╠═840a743a-e298-4f99-ae6e-11c85b6f5bc5
+# ╠═355e039d-db6d-48b4-a7d7-5f73686e6d56
+# ╟─7bd19e44-b4f5-43f3-b6be-b557ca95c67f
+# ╠═cdaefb2c-818e-4d66-b1c3-f6ac8829ba45
+# ╠═236e2338-f057-4c33-80e2-7dd8ea9ce206
+# ╠═8912a771-1914-42a7-a35b-43cb63971a41
+# ╠═d49ae6c9-a4ee-45f0-99c3-ab9f23ab895d
+# ╟─db4a22f5-74eb-477e-9426-065dcfd1751c
+# ╠═ccbb61f1-c7a1-4cc1-a5c8-0555dd664e16
+# ╠═d76e9b6a-a33c-4342-985e-48f8ee91bf71
+# ╟─b79f409d-a91e-4e4b-8e16-dff4769924f6
+# ╠═723c2f5f-04e3-4cc2-94dc-1780cb2a2179
+# ╠═330b0dd1-85ed-4fea-bf8f-78bfe3cdf335
+# ╟─16c826bf-fa48-423c-bfec-195f7fc502f8
 # ╟─00000000-0000-0000-0000-000000000001
 # ╟─00000000-0000-0000-0000-000000000002

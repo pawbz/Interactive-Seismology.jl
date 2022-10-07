@@ -33,16 +33,16 @@ Sample notebooks are available via the index page after starting Pluto.
 
 
 # ╔═╡ e3678360-96db-4f28-b972-584d1535d1d0
-notebook_files=filter(Pluto.is_pluto_notebook, readdir());
+notebook_files = filter(Pluto.is_pluto_notebook, readdir());
 
 # ╔═╡ 03ce0348-524c-4a76-a627-80b83208e68d
-html_files=broadcast(splitext.(notebook_files)) do f
-	"https://pawbz.github.io/ES218.jl/" * first(f) * ".html"
+html_files = broadcast(splitext.(notebook_files)) do f
+    "https://pawbz.github.io/ES218.jl/" * first(f) * ".html"
 end;
 
 # ╔═╡ 3a0789b4-c66e-4ca9-9e1c-fd720d274947
 function links()
-	return (broadcast(vcat, [Markdown.parse("[$(first.(splitext.(basename.(ht))))]($ht)") for ht in html_files]))
+    return (broadcast(vcat, [Markdown.parse("[$(first.(splitext.(basename.(ht))))]($ht)") for ht in html_files]))
 end
 
 # ╔═╡ 9fcd3f72-388c-11ed-12c5-dd984fa4f529
