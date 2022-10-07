@@ -14,9 +14,15 @@ md"""
 - Shearer, Peter M. Introduction to seismology. Cambridge university press, 2019.
 """
 
+# ╔═╡ c7d99003-8094-4875-9366-8d0f696c7665
+md"""
+## Other Resources
+- [Live Jupyter Notebooks for Seismology](https://krischer.github.io/seismo_live_build/tree/index.html)
+"""
+
 # ╔═╡ d2bf8d0f-9b1e-4625-b51a-eeb27b684ba8
 md"""
-## Pluto resources
+## Pluto Resources
 [Pluto repository at Github](https://github.com/fonsp/pluto.jl)
 
 [How to Install Pluto](https://www.youtube.com/watch?v=OOjKEgbt8AI) (straight from the main author Fons van der Plas)
@@ -41,11 +47,11 @@ end
 
 # ╔═╡ 9fcd3f72-388c-11ed-12c5-dd984fa4f529
 md"""
-# Study the propagation of elastic waves in the Earth using Pluto Notebooks
+# Study the propagation of elastic waves in the Earth using Pluto notebooks
 Pluto is a notebook system written in [Julia](https://julialang.org/).
 This is a collection of [Reactive Notebooks](https://computationalthinking.mit.edu/Spring21/) that help demonstrate key ideas in seismology. These notebooks are developed to assist the course on Introduction to Seismology (ES218; August 2022). 
 
-This is WIP, with a current list of notebooks given below.
+This is WIP, with a current list of notebooks, in no particular order, given below.
 
 $(links())
 
@@ -368,6 +374,7 @@ version = "17.4.0+0"
 # ╔═╡ Cell order:
 # ╟─9fcd3f72-388c-11ed-12c5-dd984fa4f529
 # ╟─1bb14878-b072-4dbf-b151-6ce26bb49d63
+# ╟─c7d99003-8094-4875-9366-8d0f696c7665
 # ╟─d2bf8d0f-9b1e-4625-b51a-eeb27b684ba8
 # ╠═aa8aa21c-6480-4d71-a55f-be4e98fe9dcc
 # ╠═03ce0348-524c-4a76-a627-80b83208e68d
