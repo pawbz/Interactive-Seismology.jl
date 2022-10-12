@@ -1,5 +1,5 @@
 ### A Pluto.jl notebook ###
-# v0.19.9
+# v0.19.12
 
 #> [frontmatter]
 #> title = "Radiation Patterns"
@@ -40,10 +40,10 @@ end
 md"""
 # Far-field P & S Radiation Patterns
 
-The purpose of this notebook is to visualize the far-field particle displacement, for both P and S waves, in a homogeneous medium due to an input seismic moment tensor. In the notebook, for a given input moment tensor, we shall first visualize the equivalent body-force couples and dipoles, then compute the far-field displacement for each of the equivalent forcing terms (see Aki & Richards; eq. 4.23).
+The purpose of this notebook is to visualize the far-field particle displacement, for both P and S waves, in a homogeneous medium due to an input seismic moment tensor. In the notebook, for a given input moment tensor, we shall first visualize the equivalent body-force couples and dipoles, then compute the far-field displacement for the equivalent forcing terms (see Aki & Richards; eq. 4.23).
 
 ##### [Introduction of Seismology](https://pawbz.github.io/ES218.jl/)
-ES218; August 2022; Assignment III
+ES218; August 2022
 
 Instructor: *Pawan Bharadwaj*,
 Indian Institute of Science, Bengaluru, India
@@ -57,7 +57,7 @@ Indian Institute of Science, Bengaluru, India
 		   $(c,"x") $(
 		Child(NumberField(range(-1, step=0.1, stop=1), default=0))
 		)  $(c,"y") $(
-		Child(NumberField(range(-1, step=0.1,stop=1), default=0))
+		Child(NumberField(range(-1, step=0.1,stop=1), default=1))
 		)  $(c,"z") $(
 		Child(NumberField(range(-1, step=0.1, stop=1), default=0))
 		)""" for c in components]
@@ -81,7 +81,7 @@ warning_box(md"Here, we are **not** forcing the moment tensor to be symmetric!")
 	components=["x", "y", "z"]
 	s2=[md"""
 		"x" $(
-			Child(NumberField(range(-1, step=0.1, stop=1), default=0))
+			Child(NumberField(range(-1, step=0.1, stop=1), default=1))
 		) "y" $( 
 			Child(NumberField(range(-1, step=0.1, stop=1), default=0))
 		) "z" $(
@@ -121,12 +121,6 @@ md"""
 
 # ╔═╡ 89b56471-6339-44c4-a81b-1c58e2fe72fc
 tip(md"The above 3D plots from WGLMakie are interactive, so you can use them to train your intuition.")
-
-# ╔═╡ 7d6484e3-4cfd-4b29-8704-56c1f4048ae9
-md"""
-## Assignment
-* Choose the moment tensors corresponding to strike-slip, normal, reverse, and oblique faults. Explain your choices and plot the corresponding radiation patterns.
-"""
 
 # ╔═╡ bacfc397-1c38-4184-bbde-f5f81a9a5df3
 md"""
@@ -333,9 +327,6 @@ function unormalize(args...)
 	return args
 end
 
-# ╔═╡ dae9a07c-9e05-463b-b62b-3eb52bd0a71f
-unormalize(displacement2D(S(), xy()))
-
 # ╔═╡ 9c94f9ef-7241-4dd9-ab59-47bcc148a9bc
 function get_arrow_sizes(args...)
 	a = vec(sqrt.(sum(map(x->abs2.(x),  [args...]))))
@@ -490,6 +481,7 @@ TODO()
 # ╔═╡ e4721ad5-e407-47ed-89c9-6ca3d099c9ad
 md"""
 * Have beachballs plotted for a given moment tensor.
+* Choose the moment tensors corresponding to strike-slip, normal, reverse, and oblique faults. Explain your choices and plot the corresponding radiation patterns.
 """
 
 # ╔═╡ ada78100-ede9-4b42-a04f-eb87461ce9fc
@@ -519,14 +511,11 @@ lats =  rad2deg.(getfield.(SphericalFromCartesian().(sphpts), :ϕ))
 	fig
 end
 
-# ╔═╡ cd9d401d-df70-477e-87b4-271d3a50cc2e
-SphericalFromCartesian()sphpts
-
 # ╔═╡ e10dd2e3-9753-4745-97ee-c40ad1621491
 broadcast(coordinates ∘ centroid, collect(elements(sphmesh)))
 
 # ╔═╡ 26390557-abfa-4495-b94f-1dd4e639faa3
-broadcast(coordinates centroid, collect(elements(sphmesh)))
+# broadcast(coordinates centroid, collect(elements(sphmesh)))
 
 # ╔═╡ d377fe49-08fe-49d4-b85d-990f3f8b4503
  rad2deg.(getfield.(SphericalFromCartesian().(sphpts), :ϕ))
@@ -575,7 +564,7 @@ PlutoUI = "~0.7.39"
 PLUTO_MANIFEST_TOML_CONTENTS = """
 # This file is machine-generated - editing it directly is not advised
 
-julia_version = "1.8.0"
+julia_version = "1.8.2"
 manifest_format = "2.0"
 project_hash = "f2e63cf4b52d27ffef023661085c68471dc64f07"
 
@@ -848,10 +837,10 @@ uuid = "c87230d0-a227-11e9-1b43-d7ebe4e7570a"
 version = "0.4.1"
 
 [[deps.FFMPEG_jll]]
-deps = ["Artifacts", "Bzip2_jll", "FreeType2_jll", "FriBidi_jll", "JLLWrappers", "LAME_jll", "Libdl", "Ogg_jll", "OpenSSL_jll", "Opus_jll", "Pkg", "Zlib_jll", "libaom_jll", "libass_jll", "libfdk_aac_jll", "libvorbis_jll", "x264_jll", "x265_jll"]
-git-tree-sha1 = "ccd479984c7838684b3ac204b716c89955c76623"
+deps = ["Artifacts", "Bzip2_jll", "FreeType2_jll", "FriBidi_jll", "JLLWrappers", "LAME_jll", "Libdl", "Ogg_jll", "OpenSSL_jll", "Opus_jll", "PCRE2_jll", "Pkg", "Zlib_jll", "libaom_jll", "libass_jll", "libfdk_aac_jll", "libvorbis_jll", "x264_jll", "x265_jll"]
+git-tree-sha1 = "74faea50c1d007c85837327f6775bea60b5492dd"
 uuid = "b22a6f82-2f65-5046-a5b2-351ab43fb4e5"
-version = "4.4.2+0"
+version = "4.4.2+2"
 
 [[deps.FFTW]]
 deps = ["AbstractFFTs", "FFTW_jll", "LinearAlgebra", "MKL_jll", "Preferences", "Reexport"]
@@ -1425,6 +1414,11 @@ git-tree-sha1 = "85f8e6578bf1f9ee0d11e7bb1b1456435479d47c"
 uuid = "bac558e1-5e72-5ebc-8fee-abe8a469f55d"
 version = "1.4.1"
 
+[[deps.PCRE2_jll]]
+deps = ["Artifacts", "Libdl"]
+uuid = "efcefdf7-47ab-520b-bdef-62a2eaa19f15"
+version = "10.40.0+0"
+
 [[deps.PCRE_jll]]
 deps = ["Artifacts", "JLLWrappers", "Libdl", "Pkg"]
 git-tree-sha1 = "b2a7af664e098055a7529ad1a900ded962bca488"
@@ -1776,7 +1770,7 @@ version = "1.7.0"
 [[deps.Tar]]
 deps = ["ArgTools", "SHA"]
 uuid = "a4e569a6-e804-4fa4-b0f3-eef7a1d5b13e"
-version = "1.10.0"
+version = "1.10.1"
 
 [[deps.TensorCore]]
 deps = ["LinearAlgebra"]
@@ -1978,7 +1972,6 @@ version = "3.5.0+0"
 # ╟─dc0ed979-2e37-4fbf-972d-b1f30cd7ce23
 # ╠═98442df9-beac-41c4-aeb8-490b3377ccc8
 # ╟─89b56471-6339-44c4-a81b-1c58e2fe72fc
-# ╠═7d6484e3-4cfd-4b29-8704-56c1f4048ae9
 # ╟─bacfc397-1c38-4184-bbde-f5f81a9a5df3
 # ╟─5e687f7d-2f91-412d-ab2a-d1da145a5d47
 # ╠═c2983a3b-005e-4de5-b9dc-2692850ff627
@@ -1999,7 +1992,6 @@ version = "3.5.0+0"
 # ╠═2d7ca9f8-7575-4b2f-8c2b-80d728a79635
 # ╠═2f29f440-4cc6-4ab0-95fe-6baf87c0cd06
 # ╠═eb072a57-352e-47de-af61-f6f6259ea763
-# ╠═dae9a07c-9e05-463b-b62b-3eb52bd0a71f
 # ╠═8f1cc2eb-5c79-47a5-a35e-995d1e5d8775
 # ╠═e9450f23-8879-4b49-9689-c50c755463f0
 # ╠═875182de-0955-43ae-9805-6dbb8f44b057
@@ -2020,7 +2012,6 @@ version = "3.5.0+0"
 # ╟─473acfd0-0a69-4426-af47-4ac283965431
 # ╠═e4721ad5-e407-47ed-89c9-6ca3d099c9ad
 # ╠═ada78100-ede9-4b42-a04f-eb87461ce9fc
-# ╠═cd9d401d-df70-477e-87b4-271d3a50cc2e
 # ╠═e10dd2e3-9753-4745-97ee-c40ad1621491
 # ╠═26390557-abfa-4495-b94f-1dd4e639faa3
 # ╠═d377fe49-08fe-49d4-b85d-990f3f8b4503
