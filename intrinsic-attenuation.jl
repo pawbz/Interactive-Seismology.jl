@@ -49,9 +49,6 @@ Instructor: *Pawan Bharadwaj*,
 Indian Institute of Science, Bengaluru, India
 """
 
-# ╔═╡ 6fc369c5-785d-4ddf-a809-28be2315048c
-
-
 # ╔═╡ 36de89c5-8cf6-44de-baaf-cbe409818578
 @bind medium Radio(["elastic" => "elastic", "anelastic1" => "anelastic (non-dipersive)", "anelastic2" => "anelastic (dispersive)"], default="anelastic1")
 
@@ -1720,7 +1717,6 @@ version = "1.4.1+0"
 # ╠═e20adc8d-59a9-4f0a-a9e5-2beb4e559650
 # ╠═a9436d89-ad43-4cb8-8619-67c0e26eb686
 # ╟─fbbee9cc-493d-11ed-00fd-b1e3bddbb3fa
-# ╠═6fc369c5-785d-4ddf-a809-28be2315048c
 # ╟─36de89c5-8cf6-44de-baaf-cbe409818578
 # ╟─5d9fed8c-860b-48d8-a30d-e1c79f5db1e8
 # ╠═eb190d1a-3c6b-407a-a586-9b13ed40b106
