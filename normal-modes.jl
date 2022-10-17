@@ -43,8 +43,7 @@ In this notebook, our goal is to understand the free oscillations of the Earth u
 ```math
 u(x,t) = \Sigma_{n} a_n u_n(x,t), 
 ```
-with constants $a_n$ and free oscillations $u_n$.
-
+with constants $a_n$ and free oscillations $u_n$. 
 The source-free elastic wave equation can be written in terms of a coupled 
 first-order system.
 ```math
@@ -53,6 +52,24 @@ first-order system.
 ```math
 \rho \partial_t(v)-\partial_x\sigma=0.
 ```
+Instead of using Runge-Kutta time extrapolation method to solve for "propagating waves" from an initial state, we use the method of separation of variables to arrive at a Sturm–Liouville eigenvalue problem. We solve this eigenvalue problem to obtain the "normal-mode solutions" using Chebyshev pseudo-spectral method. Which one is more "real"? They are just different ways of representing displacements. 
+
+Similarly, there are two methods we use to solve for surface waves in seismology: one where we extrapolate in depth using a shooting method to match the boundary conditions; or alternatively, solve an eigenvalue problem. 
+"""
+
+# ╔═╡ 4a41c6f8-55e6-47ef-ac7f-876764c6b684
+md"""
+We begin with a solution of the form.
+"""
+
+# ╔═╡ 410bfa83-bbf0-4e05-a568-19416314ab87
+md"""
+The differential equation above is in Sturm–Liouville form. If the medium is homogeneous with constant velocity `c`, the solution is given by.
+"""
+
+# ╔═╡ c7ac6da6-7e5b-4c14-a4aa-b3d83b469550
+md"""
+## Observations
 """
 
 # ╔═╡ 235eff94-9dca-40e6-a37f-e906d04eb094
@@ -68,23 +85,41 @@ md"""
 ## Normal Modes of 1D Earth
 """
 
+# ╔═╡ 73d50ccc-9791-4b8b-8216-2041a3940357
+md"""
+### Records 
+We can measure eigenfrequencies and infer the velocity of the medium.
+"""
+
+# ╔═╡ c683d0a8-85a0-4ff9-a071-abbbf64e64bf
+@info "Integer multiples of the first Eigen frequencies."
+
+# ╔═╡ ea125ec7-babe-4941-a22f-5d4bab2ce76c
+nt = 1000
+
+# ╔═╡ 6a853cd4-8d11-4cbe-9fb3-a2c3379a5fee
+dt = 0.01
+
+# ╔═╡ 6c79fe3b-303f-47fa-be5d-32aa2deb1592
+tgrid = range(0, step=dt, length=nt)
+
+# ╔═╡ e5911de3-df61-4eff-9125-e17e2b60635c
+md"## Appendix"
+
 # ╔═╡ 49d1e6d1-acd0-4cf8-8373-3c9daf61cf6c
-@syms x::Real t::Real ω::Real U(::Real, ::Real)::Real c::Real c₁::Real c₂::Real ρ₁::Real ρ₂::Real A₁::Real A₂::Real X::Real μ₁::Real μ₂::Real μ::Real ρ::Real H::Real
-
-# ╔═╡ 12975139-a33f-4180-813c-244ead59c2f6
-@syms A::Real
-
-# ╔═╡ d8d39a7a-7f6c-41c2-8cf3-5ebefca14bff
-begin
-    Dx = Differential(x)
-    Dt = Differential(t)
-end
+@syms x::Real t::Real ω::Real U(::Real, ::Real)::Real c::Real μ::Real ρ::Real
 
 # ╔═╡ b899e9fe-b707-4a94-bb9c-4ca26842f311
 u(x, t) = U(x, ω) * cos(ω * t)
 
 # ╔═╡ b9b01f1b-92ca-4bfe-9d8c-2fcadbdcbf0f
 u(x, t)
+
+# ╔═╡ d8d39a7a-7f6c-41c2-8cf3-5ebefca14bff
+begin
+    Dx = Differential(x)
+    Dt = Differential(t)
+end
 
 # ╔═╡ a2261203-72f2-4b6e-8d5a-29b42691eaa4
 L(u, ρ, μ) = ρ * Dt(Dt(u)) - Dx(μ * Dx(u))
@@ -104,73 +139,129 @@ Usol(x, c)
 # ╔═╡ 8f1ddc1d-f03f-4a0b-b129-e6de48ecc51c
 substitute(Ueq.lhs, [U(x, ω) => Usol(x, c)]) |> expand_derivatives |> x -> substitute(x, [c^2 => μ / ρ]) |> simplify
 
-# ╔═╡ 429b1658-fad5-42e9-84b3-861afd5a05ce
-substitute(Ueq.lhs, [U(x, ω) => Usol(H - x, c)]) |> expand_derivatives |> x -> substitute(x, [c^2 => μ / ρ]) |> simplify
+# ╔═╡ 1f085e5e-373f-4133-9866-c40fe941d0e8
+function get_wavespeed(medium, xgrid)
+    c = zeros(medium.nx)
+    i = argmin(abs.(xgrid .- medium.bx))
+    c[1:i] .= medium.c₁
+    c[i:end] .= medium.c₂
+    return c
+end
 
-# ╔═╡ 345f4d2a-e366-4d23-a21b-e8b7c29ed770
-md"Assume two different layers"
-
-# ╔═╡ fa2359e8-ab13-4419-a27a-b7278fa51f8d
-U₁ = A₁ * Usol(x, c₁)
-
-# ╔═╡ badb4a45-1b50-4566-a481-aecf85ad093d
-U₂ = A₂ * Usol(H - x, c₂)
-
-# ╔═╡ e6603db3-db73-43df-9bbe-c9556df236ea
-σ₁ = expand_derivatives(μ * Dx(U₁))
-
-# ╔═╡ 9c600220-3c7c-47fb-a188-76770ff674f1
-σ₂ = expand_derivatives(μ * Dx(U₂))
-
-# ╔═╡ bdfbe463-b25d-46de-bc63-6914780f2bd1
-ex1 = Symbolics.solve_for(substitute(σ₁, [x => X]) ~ substitute(σ₂, [x => X]), A₁) / A₂
-
-# ╔═╡ 4859b272-776c-453f-a58a-dc69542ca60c
-ex2 = Symbolics.solve_for(substitute(U₁, [x => X]) ~ substitute(U₂, [x => X]), A₁) / A₂
-
-# ╔═╡ 3d22907a-df8a-4821-9bd2-a764f12be877
-eqω = (first(arguments(ex1)) * last(arguments(ex2))) - (first(arguments(ex2)) * last(arguments(ex1)))
-
-# ╔═╡ c683d0a8-85a0-4ff9-a071-abbbf64e64bf
-@info "Integer multiples of the first Eigen frequencies."
-
-# ╔═╡ 7d128fec-b23a-4d3d-b1d9-ab09b9fb13ca
-μp = 1.0
-
-# ╔═╡ 9ec15e7c-372a-425d-a1f6-683417a7deae
-
-
-# ╔═╡ 31a039de-ac6e-4f2a-b3a5-681d8b2ab560
-
-
-# ╔═╡ fd50db96-9c51-411f-a2b0-adb0be149c72
-
-
-# ╔═╡ 9b369d82-fdec-4fad-bba9-84b6345aec47
-dx = 0.25
-
-# ╔═╡ f264786e-d8ed-474a-b35d-4a83be8c63c8
-dx
-
-# ╔═╡ 3a8ec885-6bd1-43d7-8f34-6032b3988e09
-# dt = 1
-
-# ╔═╡ 73d50ccc-9791-4b8b-8216-2041a3940357
+# ╔═╡ fd8088b6-4ea0-4ca8-823c-0b46d7b115f9
 md"""
-##
-We can measure eigenfrequencies and infer the velocity of the medium. To 
+### Chebyshev Methods
 """
 
-# ╔═╡ ea125ec7-babe-4941-a22f-5d4bab2ce76c
-nt = 1000
+# ╔═╡ 02858b76-bf4d-42a6-9570-5dc96227163c
+md"Here, we shall form the Chebyshev differential matrix explicitly, instead of using `FFTW` library."
+
+# ╔═╡ dd991305-7f64-4b25-9899-c7ea005f4fb8
+function get_Chebyshev_grid(medium)
+    nx = medium.nx
+    return cos.(pi .* collect(0:nx-1) ./ (nx - 1))
+end
+
+# ╔═╡ 854eccae-776c-4010-8726-f7555f5afa1a
+# This function returns the Chebyshev spectral differentiation matrix.
+function Chebyshev_Diff_Matrix(z_, N)
+    c = ones(N + 1)
+    c[1] = 2
+    c[N+1] = 2
+    D = zeros(N + 1, N + 1)
+
+    for i in 1:N+1
+        for j in 1:N+1
+            if i == 1 && i != j
+                D[i, j] = 2 * ((-1)^(j - 1)) / (1 - z_[j])
+            elseif i == N + 1 && i != j
+                D[i, j] = (-2) * ((-1)^(i + j - 2)) / (1 + z_[j])
+            elseif i != 1 && i != N + 1
+                if i == j
+                    D[i, j] = (-1 * z_[i]) / (2 * (1 - (z_[i])^2))
+                else
+                    D[i, j] = (c[i] / c[j]) * (((-1)^(i + j - 2)) / (z_[i] - z_[j]))
+                end
+            end
+        end
+    end
+    D[1, 1] = (2 * (N^2) + 1) / 6
+    D[N+1, N+1] = -1 * D[1, 1]
+    D[1, N+1] = ((-1)^(N) / 2)
+    D[N+1, 1] = -D[1, N+1]
+    return D
+end
+
+# ╔═╡ b72860bc-e30b-489c-b45a-fa13195ee6f2
+md"""
+A simple test to check `D`.
+"""
+
+# ╔═╡ 5dbdf865-548e-4ed0-ab37-2132fdd86461
+# return operator, and it eigen factorization
+function get_op(medium, cvec, D)
+    L = diagm(cvec .^ 2) * D * D
+    # boundary conditions
+    L[1, :] .= 0
+    L[end, :] .= 0
+    LE = eigen(L, permute=false, scale=false)
+    return L, LE
+end
+
+# ╔═╡ ab7b1681-9528-4053-8e32-ba5614ed1be7
+md"""
+### Source
+"""
+
+# ╔═╡ e4189130-9f62-47ed-a143-2acbd73e4ffd
+function get_source(pa, medium)
+    s = zeros(medium.nx)
+    s[pa.isx] = 1.0
+    return s
+end
+
+# ╔═╡ e14392f8-7c8d-444e-8ba6-99d68811178e
+md"""
+### Normal-mode Solution
+"""
+
+# ╔═╡ 1a37a04e-4d58-4b8c-b8d9-eca694270e66
+function get_eigen(LE, pa)
+    eigen_frequencies = sqrt.(-1 .* LE.values[end-pa.nω:end-2])
+    eigen_vectors = LE.vectors[:, end-pa.nω:end-2]
+    return eigen_vectors, eigen_frequencies
+end
+
+# ╔═╡ 6e44f4ab-52da-4198-a0ad-7f2120fccdd5
+@warn "Why is it not identity?!"
+
+# ╔═╡ b2fd6fed-99ce-4e54-a4cd-d81796daad3c
+md"It has been proven that all the eigenvalues of the second-order Chebyshev spectral differentiation matrix are real, distinct, and negative (Gottleib and Lustman). We shall now plot them."
 
 # ╔═╡ 1e0dcfbd-a2d4-49fd-9928-6fb0706fae2b
 md"""
 The amplitude of each eigenfunction depends on the position of the source and the source time function. The operation `E' * s` gives us the amplitude of each eigen function.
 """
 
-# ╔═╡ e5911de3-df61-4eff-9125-e17e2b60635c
-md"## Appendix"
+# ╔═╡ a027090d-bc56-42c7-8994-2e4a91450d84
+# return the displacement field after normal mode summation for each t in tgrid
+# EV: eigen vectors
+# EF: eigen frequencies
+# s: source
+function normal_mode_summation(EV, EF, s, tgrid)
+    nt = length(tgrid)
+    nx = size(EV, 1)
+    nω = size(EV, 2)
+    C = zeros(1, nω) # buffer 
+    up = map(tgrid) do t
+        # update buffer
+        for (iω, ω) in enumerate(EF)
+            C[1, iω] = cos(t * ω)
+        end
+        return ((EV .* C) * (EV' * s))
+    end
+    return permutedims(hcat(up...), (2, 1))
+end
 
 # ╔═╡ 7c657799-cea6-47b8-a678-40fa8abb1b9e
 md"### UI"
@@ -181,88 +272,101 @@ function medium_input()
     return PlutoUI.combine() do Child
         inputs1 = [
             md"""
-            ρ₁ (gm/cc) $(Child("ρ₁", Slider(range(1, 7, step=0.2), default=2.6, show_value=true)))
+            c₁ (gm/cc) $(Child("c₁", Slider(range(1, 4, step=0.2), default=1.8, show_value=true)))
             """,
             md"""
-            ρ₂ (gm/cc) $(Child("ρ₂", Slider(range(1, 7, step=0.2), default=2.6, show_value=true)))
-            """ 
-		       ]
-		
+            c₂ (gm/cc) $(Child("c₂", Slider(range(1, 4, step=0.2), default=2.5, show_value=true)))
+            """
+        ]
+
         inputs2 = [
-md"""
-nx $(Child("nx", Select([256, 512, 1024])))
-""",
-md"""
-dt (sec) $(Child("dt", Slider(range(0.1, 1.0, length=5), default=1, show_value=true)))""",
-md"""
-dx (km) $(Child("dx", Slider(range(0.1, 1.0, length=5), default=1, show_value=true)))"""
+            md"""
+            nx $(Child("nx", Select([64, 128, 256, 512, 1024], default=128)))
+            """,
+        ]
+
+        boundary = [
+            md"""
+            bx $(Child("bx", Slider(range(-1, stop=1, length=11), default=0.0, show_value=true)))
+            """,
         ]
 
 
 
-md"""
-### Medium
-##### Medium
-Choose the depth of the boundary between the top layer and the half space.
-Slide to adjust the seismic velocities ∈ [1, 7] km/s and densities ∈ [1, 7] gm/cc of the top layer and the halfspace. By default, the parameters corresponding to the crust and mantle will be chosen.
-$(inputs1)
+        md"""
+        ### Medium Parameters
 
-##### wrfg
-$(inputs2)
-"""
+        ##### Wavespeeds
+        Slide to adjust the seismic velocities ∈ [1, 4] km/s.
+        $(inputs1)
+
+        ##### Boundary
+        Choose the position ∈ [-1, 1] km of the boundary between the media.
+        $(boundary)
+
+        ##### Number of Chebyshev Collocation Points
+        $(inputs2)
+        """
     end
 end
 
 # ╔═╡ a8aba6f3-c212-4428-8458-6925c49524cd
 @bind medium confirm(medium_input())
 
-# ╔═╡ 551cb396-7737-413b-9484-a9ece00bacfb
-medium
+# ╔═╡ 38cf2c5b-d185-496f-a189-660f9a5730eb
+xgrid = get_Chebyshev_grid(medium);
 
-# ╔═╡ 6c327c04-8a6c-4d2c-b6e7-1d7c5f2efb22
-dx * (medium.nx - 1)
+# ╔═╡ 8ffdd68b-5ee4-49ec-b2c5-83510d68822d
+cvec = get_wavespeed(medium, xgrid);
 
-# ╔═╡ b05d590e-8fef-43f7-bc84-4dc45d27c7e2
-(medium.nx - 1)
+# ╔═╡ c98ad9b1-863a-4bc3-8637-9b7242390524
+plot(xgrid, cvec, w=2, title="Wavespeed", label=nothing, size=(600, 200))
 
-# ╔═╡ 6c79fe3b-303f-47fa-be5d-32aa2deb1592
-tgrid = range(0, step=medium.dt, length=nt)
+# ╔═╡ f144c9a2-c2b4-4673-8766-18dde0a12431
+scatter(xgrid, [0], ylim=(-1, 1), title="Chebyshev Collocation Points", size=(600, 200))
+
+# ╔═╡ 9afe5aa9-579f-4c56-8e7a-451efdd10a57
+D = Chebyshev_Diff_Matrix(xgrid, medium.nx - 1);
+
+# ╔═╡ bef9146b-4965-4a74-87b3-09ddcf8ed3d9
+@test (3 .* cos.(3.0 .* xgrid)) ≈ D * sin.(3.0 .* xgrid)
+
+# ╔═╡ 8b8b76d2-ac05-4160-8ceb-e9139908e53f
+Lop, LE = get_op(medium, cvec, D);
 
 # ╔═╡ 38c37772-7610-469f-9ae5-d9c73160b132
 function other_input()
     return PlutoUI.combine() do Child
         source = [
             md"""
-            $(Child("isx", Slider(1:medium.nx, default=div(medium.nx, 2), show_value=true)))
+            $(Child("isx", Slider(1:medium.nx, default=div(medium.nx, 3/2), show_value=false)))
             """,
         ]
 
         receiver = [
             md"""
-            $(Child("irx", Slider(1:medium.nx, default=div(medium.nx,4), show_value=true)))
+            $(Child("irx", Slider(1:medium.nx, default=div(medium.nx,4), show_value=false)))
             """,
         ]
-        layer = [
-            md"""
-           Layer $(Child("iX", Slider(1:medium.nx, show_value=true, default=div(medium.nx, 2))))
-           """,]
+
         eigen = [
             md"""
-           Number of EigenFrequencies $(Child("nω", NumberField(1:100, default=100)))
+           $(Child("nω", NumberField(1:100, default=40)))
            	""",]
 
         md"""
-   ### Parameters
-   ##### Source
-     $(source)
+   ### Modeling Parameters
+##### Source Position
+Slide to adjust the source position ∈ [-1, 1] km.
+$(source)
 
-   ##### Receiver
-     $(receiver)
+##### Receiver Position
+Slide to adjust the receiver position ∈ [-1, 1] km.
+$(receiver)
 
-   ##### Modeling Parameters
-     $(layer)
-
-     $(eigen)
+##### Modes
+Number of normal modes used in the summation.
+$(eigen)
            """
     end
 end
@@ -270,143 +374,54 @@ end
 # ╔═╡ e464db0e-97fe-4a38-9309-8595b0c0420b
 @bind pa confirm(other_input())
 
-# ╔═╡ 30c3b755-3878-4298-b122-fc77bf42494f
-# substitute UI parameters
-function psubs(x)
-    x1 = substitute(x, [ρ₁ => medium.ρ₁, ρ₂ => medium.ρ₂, c₁ => sqrt(μp / medium.ρ₁), c₂ => sqrt(μp / medium.ρ₂), H => dx * (medium.nx - 1), A₂ => 1, X => (pa.iX - 1) * dx])
-end
+# ╔═╡ 26935936-82fe-4eaa-96a1-72ebf39c67ed
+eigen_vectors, eigen_frequencies = get_eigen(LE, pa);
 
-# ╔═╡ 5cb12a2f-91d2-4619-aba6-31cbfb395996
-# substitute UI parameters and A₁
-function psubsA₁(x)
-    y = psubs(ex1)
-    substitute(psubs(x), [A₁ => y])
-end
+# ╔═╡ 8cf920ec-97a2-4ae8-a0e4-2f094c8efbcf
+heatmap(eigen_vectors)
 
-# ╔═╡ ada8c00e-7bdc-452c-98f6-3ead80b713dc
-simplify(psubsA₁((U₁)))
+# ╔═╡ 6e399a13-7fd2-4fa7-99ad-bfec81f4c378
+scatter(eigen_frequencies, label="Eigen Frequencies")
 
-# ╔═╡ 39a7c985-156c-432a-8710-91aa51d376bf
-psubsA₁(U₁)
+# ╔═╡ 3ce77047-5c1d-4288-929e-e51f307e0d69
+heatmap(eigen_vectors' * eigen_vectors)
 
-# ╔═╡ 02e2f2d1-8111-4351-9a71-c8051c858d6c
-psubsA₁(U₂)
+# ╔═╡ 7bb7fde1-f933-495a-b09b-351c7632ef34
+source = get_source(pa, medium);
 
-# ╔═╡ 20b0cc2e-773c-4eb7-80f2-5c60167cd164
-U₁f = build_function(psubsA₁(U₁), x, ω, expression=Val{false})
-
-# ╔═╡ f22037bf-a9d3-4084-88aa-7c189902d605
-# checking rigid boundary conditions (left edge)
-@test iszero(U₁f(0, abs(randn())))
-
-# ╔═╡ 7f4ac342-7736-42cb-b9cf-4811ff8ed37d
-U₂f = build_function(psubsA₁(U₂), x, ω, expression=Val{false})
-
-# ╔═╡ dd235673-f911-4cc0-9be7-524efaca2335
-# checking rigid boundary conditions (right edge)
-@test iszero(U₂f((medium.nx - 1) * dx, abs(randn())))
-
-# ╔═╡ 29c37160-3aad-4d8a-8a42-79d7dd43c411
- y = psubs(ex1)
-
-# ╔═╡ a2c4be7c-ae6b-40d0-aec2-f8184c9b3d47
-psubs(eqω)
-
-# ╔═╡ 29a76565-5d6a-48f1-bf20-17d561c984a9
-fnω = build_function(psubs(eqω), ω, expression=Val{false})
-
-# ╔═╡ c4f69846-ade8-4d7a-9003-cacf43d8fb4b
-fnω(1)
-
-# ╔═╡ 721ccc62-e73c-4c31-b3bb-8c4174498e6b
-plot([fnω(om) for om in range(0, stop=1, length=100)])
-
-# ╔═╡ 6cf7b556-8026-44f3-aa66-22c9d703f7e6
-eigen_frequencies = find_zeros(fnω, [0, 2])
-
-# ╔═╡ 07346082-1c3e-4654-bcbf-689465f5de05
-# testing if the first mode satisfies the continuity
-@test U₁f((pa.iX - 1) * dx, eigen_frequencies[2]) ≈ U₂f((pa.iX - 1) * dx, eigen_frequencies[2])
-
-# ╔═╡ eb726e73-a5ed-477b-a2e9-df70a978ec4c
-scatter(eigen_frequencies, label="Eigen Frequencies", ylim=[0, 1])
-
-# ╔═╡ 20b7106f-18d9-433f-82e9-f7a3e2220cf1
-Uf(ix, ω) = (ix <= pa.iX) ? U₁f((ix - 1) * dx, ω) : U₂f((ix - 1) * dx, ω)
-
-# ╔═╡ 27bdb448-3f68-4583-b03d-2efd29f284ab
-function get_eigen_matrix(Uf)
-    E = zeros(medium.nx, pa.nω)
-    for ix in 1:medium.nx
-        for iω in 1:pa.nω
-            E[ix, iω] = U₁f(ix, eigen_frequencies[2] * iω)
-        end
-    end
-	return E
-end
-
-# ╔═╡ 01de33db-1b05-44ac-9075-5b1af080eb64
-E = get_eigen_matrix(Uf)
-
-# ╔═╡ f863da1e-cd3f-4e72-a513-448f4e2ce554
-heatmap(E)
-
-# ╔═╡ fcf9b80e-aa1a-4910-a8eb-1350a9e0c5f7
-heatmap(E' * E)
-
-# ╔═╡ 6871338f-fdea-4fcb-8c8b-04fa085cbf1e
+# ╔═╡ f8abaa6a-c85b-4ae9-adeb-e68d7d0eb26e
 begin
-	s = zeros(medium.nx);
-	s[pa.isx] = 1.0;
+	plot(source, label=nothing);
+	plot!(eigen_vectors * eigen_vectors' * source, label=nothing, size=(600, 200));
 end
 
-# ╔═╡ da648a12-6d5b-4b02-8a4a-777551153c0e
-plot(s)
-
-# ╔═╡ df2e841e-48cf-4856-a6c2-486162d93032
-scatter(E' * s)
-
-# ╔═╡ bd788dd0-f15e-4e88-be31-4732bd53efed
-plot(E * E' *s)
-
-# ╔═╡ a027090d-bc56-42c7-8994-2e4a91450d84
-begin
-    up = zeros(nt, medium.nx)
-    for it in 1:nt
-        C = zeros(1, pa.nω)
-        for iω in 1:pa.nω
-            C[1, iω] = cos((it - 1) * medium.dt * eigen_frequencies[2] * iω)
-        end
-        up[it, :] .= ((E .* C) * (E' * s))
-    end
-end
-
-# ╔═╡ 7d855288-2d04-4fdb-8eb4-429a9ae406c8
-ylim = (-maximum(abs.(up)), maximum(abs.(up)))
+# ╔═╡ 7ef02104-c456-4c5f-8320-6d58f66a6bc6
+up = normal_mode_summation(eigen_vectors, eigen_frequencies, source, tgrid);
 
 # ╔═╡ 2ee412fe-5a38-4884-b745-4f9c7ca2287c
-heatmap(up, xlabel="x position", ylabel="time", title="Displacement", aspect_ratio=0.25, c=:seismic)
+heatmap(up, xlabel="x position", ylabel="time", title="Displacement", aspect_ratio=1, c=:seismic, size=(300, 600))
 
 # ╔═╡ 2c4b1d89-906f-45f7-8360-d270d691fe12
 md"### Plots"
 
 # ╔═╡ 8a19be18-13dd-4bfb-a082-08e4fbe50603
-function plot_up()
-    @gif for it in 1:100
-        plot(up[it, :], ylim=ylim, label=nothing, title="Displacement of 1D Earth (it=$it)", ylabel="Amplitude", w=2)
-        vline!([pa.isx], label="source", w=2)
-        vline!([pa.irx], label="receiver", w=2)
-		vline!([pa.iX], label="boundary", w=2)
+function plot_up(up)
+    ylim = (-maximum(abs.(up)), maximum(abs.(up)))
+    @gif for it in 1:2:100
+        plot(xgrid, up[it, :], ylim=ylim, label=nothing, title="Displacement of 1D Earth (it=$it)", ylabel="Amplitude", w=2)
+        vline!([xgrid[pa.isx]], label="source", w=2)
+        vline!([xgrid[pa.irx]], label="receiver", w=2)
+        vline!([xgrid[argmin(abs.(xgrid .- medium.bx))]], label="boundary", w=2)
     end
 end
 
 # ╔═╡ e4597db1-f92e-4513-824b-87c22ecb0f15
-plot_up()
+plot_up(up)
 
 # ╔═╡ 05d7771e-ad50-4f4f-8d38-1fe8297b4ff2
 function plot_record()
     p1 = plot(tgrid, up[:, pa.irx], title="Recorded Time Series", xlabel="Time (s)", ylabel="Amplitude", label=nothing)
-    p2 = plot(rfftfreq(nt), abs.(rfft(up[:, pa.irx])), w=2, xlabel="Frequency (Hz)", label=nothing, title="Recorded Spectra", ylabel="Amplitude")
+    p2 = plot(rfftfreq(nt, inv(dt)), abs.(rfft(up[:, pa.irx])), w=2, xlabel="Frequency (Hz)", label=nothing, title="Recorded Spectra", ylabel="Amplitude")
     vline!(p2, eigen_frequencies ./ 2 ./ pi, label="Eigen Frequencies")
     plot(p1, p2, layout=(2, 1))
 end
@@ -414,16 +429,11 @@ end
 # ╔═╡ 9cda10ec-8e35-4b51-a0be-644c3be56f8e
 plot_record()
 
-# ╔═╡ 1d662335-6be9-4503-84d0-4dfad40706a0
-function plot_eigen()
-    heatmap(E)
-end
-
-# ╔═╡ dc7f0286-194c-48f0-9bbe-d00ad988aa2c
-plot_eigen()
-
-# ╔═╡ b4e68bdd-33e0-4c55-918c-f8c96f7fcbac
-medium
+# ╔═╡ 4a584b5c-61c5-4f6d-a53e-6adae435c85e
+md"""
+## References
+- Weideman, J. A. C., and L. N. Trefethen. “The Eigenvalues of Second-Order Spectral Differentiation Matrices.” SIAM Journal on Numerical Analysis, vol. 25, no. 6, 1988, pp. 1279–98. [pdf](https://www.jstor.org/stable/2157485?seq=3#metadata_info_tab_contents)
+"""
 
 # ╔═╡ 00000000-0000-0000-0000-000000000001
 PLUTO_PROJECT_TOML_CONTENTS = """
@@ -459,7 +469,7 @@ PLUTO_MANIFEST_TOML_CONTENTS = """
 
 julia_version = "1.8.2"
 manifest_format = "2.0"
-project_hash = "6f8882978e3dd75f205dd548f46b2b2b1eaac604"
+project_hash = "1649c2481def2035b891a1a9661608ff59d81827"
 
 [[deps.AbstractAlgebra]]
 deps = ["GroupsCore", "InteractiveUtils", "LinearAlgebra", "MacroTools", "Markdown", "Random", "RandomExtensions", "SparseArrays", "Test"]
@@ -2007,88 +2017,70 @@ version = "1.4.1+0"
 # ╔═╡ Cell order:
 # ╠═dcbfa6fd-6ffa-4f38-8c72-4f65233c938b
 # ╠═46d9831d-2b46-4030-bb15-cdc732d72e68
-# ╠═ba25df6d-fdc8-4b19-8f83-2578d89dc128
+# ╟─ba25df6d-fdc8-4b19-8f83-2578d89dc128
+# ╟─4a41c6f8-55e6-47ef-ac7f-876764c6b684
+# ╠═b899e9fe-b707-4a94-bb9c-4ca26842f311
+# ╠═b9b01f1b-92ca-4bfe-9d8c-2fcadbdcbf0f
+# ╠═d8d39a7a-7f6c-41c2-8cf3-5ebefca14bff
+# ╠═a2261203-72f2-4b6e-8d5a-29b42691eaa4
+# ╠═50cdd3ff-d53b-4477-8654-3cfbca8c3741
+# ╠═e1230cdd-c000-4f80-aabf-705cd47d7f05
+# ╟─410bfa83-bbf0-4e05-a568-19416314ab87
+# ╠═7f70b9ad-9f4e-4ec9-ba3c-04fdd860e4b4
+# ╠═8b5410b6-e7b8-4f2a-a8ce-b0572b7f7f52
+# ╠═8f1ddc1d-f03f-4a0b-b129-e6de48ecc51c
+# ╟─c7ac6da6-7e5b-4c14-a4aa-b3d83b469550
 # ╟─235eff94-9dca-40e6-a37f-e906d04eb094
 # ╟─04f765cb-826e-4939-800e-9a4952e895bb
 # ╟─0d74cf59-6dea-43ac-a5c8-d060eec21936
 # ╠═a8aba6f3-c212-4428-8458-6925c49524cd
 # ╠═e464db0e-97fe-4a38-9309-8595b0c0420b
 # ╠═e4597db1-f92e-4513-824b-87c22ecb0f15
+# ╟─73d50ccc-9791-4b8b-8216-2041a3940357
 # ╠═9cda10ec-8e35-4b51-a0be-644c3be56f8e
-# ╠═dc7f0286-194c-48f0-9bbe-d00ad988aa2c
-# ╠═49d1e6d1-acd0-4cf8-8373-3c9daf61cf6c
-# ╠═12975139-a33f-4180-813c-244ead59c2f6
-# ╠═d8d39a7a-7f6c-41c2-8cf3-5ebefca14bff
-# ╠═b899e9fe-b707-4a94-bb9c-4ca26842f311
-# ╠═b9b01f1b-92ca-4bfe-9d8c-2fcadbdcbf0f
-# ╠═a2261203-72f2-4b6e-8d5a-29b42691eaa4
-# ╠═50cdd3ff-d53b-4477-8654-3cfbca8c3741
-# ╠═e1230cdd-c000-4f80-aabf-705cd47d7f05
-# ╠═7f70b9ad-9f4e-4ec9-ba3c-04fdd860e4b4
-# ╠═8b5410b6-e7b8-4f2a-a8ce-b0572b7f7f52
-# ╠═8f1ddc1d-f03f-4a0b-b129-e6de48ecc51c
-# ╠═429b1658-fad5-42e9-84b3-861afd5a05ce
-# ╠═345f4d2a-e366-4d23-a21b-e8b7c29ed770
-# ╠═fa2359e8-ab13-4419-a27a-b7278fa51f8d
-# ╠═badb4a45-1b50-4566-a481-aecf85ad093d
-# ╠═07346082-1c3e-4654-bcbf-689465f5de05
-# ╠═f22037bf-a9d3-4084-88aa-7c189902d605
-# ╠═dd235673-f911-4cc0-9be7-524efaca2335
-# ╠═551cb396-7737-413b-9484-a9ece00bacfb
-# ╠═30c3b755-3878-4298-b122-fc77bf42494f
-# ╠═6c327c04-8a6c-4d2c-b6e7-1d7c5f2efb22
-# ╠═f264786e-d8ed-474a-b35d-4a83be8c63c8
-# ╠═b05d590e-8fef-43f7-bc84-4dc45d27c7e2
-# ╠═5cb12a2f-91d2-4619-aba6-31cbfb395996
-# ╠═ada8c00e-7bdc-452c-98f6-3ead80b713dc
-# ╠═29c37160-3aad-4d8a-8a42-79d7dd43c411
-# ╠═39a7c985-156c-432a-8710-91aa51d376bf
-# ╠═02e2f2d1-8111-4351-9a71-c8051c858d6c
-# ╠═20b0cc2e-773c-4eb7-80f2-5c60167cd164
-# ╠═7f4ac342-7736-42cb-b9cf-4811ff8ed37d
-# ╠═20b7106f-18d9-433f-82e9-f7a3e2220cf1
-# ╠═e6603db3-db73-43df-9bbe-c9556df236ea
-# ╠═9c600220-3c7c-47fb-a188-76770ff674f1
-# ╠═bdfbe463-b25d-46de-bc63-6914780f2bd1
-# ╠═4859b272-776c-453f-a58a-dc69542ca60c
-# ╠═3d22907a-df8a-4821-9bd2-a764f12be877
-# ╠═a2c4be7c-ae6b-40d0-aec2-f8184c9b3d47
-# ╠═29a76565-5d6a-48f1-bf20-17d561c984a9
-# ╠═c4f69846-ade8-4d7a-9003-cacf43d8fb4b
-# ╠═721ccc62-e73c-4c31-b3bb-8c4174498e6b
-# ╠═6cf7b556-8026-44f3-aa66-22c9d703f7e6
-# ╠═eb726e73-a5ed-477b-a2e9-df70a978ec4c
+# ╠═8ffdd68b-5ee4-49ec-b2c5-83510d68822d
+# ╠═c98ad9b1-863a-4bc3-8637-9b7242390524
 # ╟─c683d0a8-85a0-4ff9-a071-abbbf64e64bf
-# ╠═7d128fec-b23a-4d3d-b1d9-ab09b9fb13ca
-# ╠═9ec15e7c-372a-425d-a1f6-683417a7deae
-# ╠═31a039de-ac6e-4f2a-b3a5-681d8b2ab560
-# ╠═fd50db96-9c51-411f-a2b0-adb0be149c72
-# ╠═9b369d82-fdec-4fad-bba9-84b6345aec47
-# ╠═01de33db-1b05-44ac-9075-5b1af080eb64
-# ╠═f863da1e-cd3f-4e72-a513-448f4e2ce554
-# ╠═27bdb448-3f68-4583-b03d-2efd29f284ab
-# ╠═3a8ec885-6bd1-43d7-8f34-6032b3988e09
-# ╠═73d50ccc-9791-4b8b-8216-2041a3940357
+# ╠═38cf2c5b-d185-496f-a189-660f9a5730eb
+# ╠═f144c9a2-c2b4-4673-8766-18dde0a12431
+# ╠═9afe5aa9-579f-4c56-8e7a-451efdd10a57
+# ╠═8b8b76d2-ac05-4160-8ceb-e9139908e53f
+# ╠═26935936-82fe-4eaa-96a1-72ebf39c67ed
+# ╠═8cf920ec-97a2-4ae8-a0e4-2f094c8efbcf
+# ╠═6e399a13-7fd2-4fa7-99ad-bfec81f4c378
+# ╠═7bb7fde1-f933-495a-b09b-351c7632ef34
+# ╠═f8abaa6a-c85b-4ae9-adeb-e68d7d0eb26e
 # ╠═ea125ec7-babe-4941-a22f-5d4bab2ce76c
-# ╠═1e0dcfbd-a2d4-49fd-9928-6fb0706fae2b
-# ╠═da648a12-6d5b-4b02-8a4a-777551153c0e
-# ╠═df2e841e-48cf-4856-a6c2-486162d93032
-# ╠═bd788dd0-f15e-4e88-be31-4732bd53efed
-# ╠═fcf9b80e-aa1a-4910-a8eb-1350a9e0c5f7
-# ╠═a027090d-bc56-42c7-8994-2e4a91450d84
+# ╠═6a853cd4-8d11-4cbe-9fb3-a2c3379a5fee
 # ╠═6c79fe3b-303f-47fa-be5d-32aa2deb1592
-# ╠═7d855288-2d04-4fdb-8eb4-429a9ae406c8
+# ╠═7ef02104-c456-4c5f-8320-6d58f66a6bc6
 # ╠═2ee412fe-5a38-4884-b745-4f9c7ca2287c
-# ╠═6871338f-fdea-4fcb-8c8b-04fa085cbf1e
 # ╟─e5911de3-df61-4eff-9125-e17e2b60635c
 # ╠═cd668fc4-7a21-49c3-b923-482f8779a73d
+# ╠═49d1e6d1-acd0-4cf8-8373-3c9daf61cf6c
+# ╠═1f085e5e-373f-4133-9866-c40fe941d0e8
+# ╟─fd8088b6-4ea0-4ca8-823c-0b46d7b115f9
+# ╟─02858b76-bf4d-42a6-9570-5dc96227163c
+# ╠═dd991305-7f64-4b25-9899-c7ea005f4fb8
+# ╠═854eccae-776c-4010-8726-f7555f5afa1a
+# ╟─b72860bc-e30b-489c-b45a-fa13195ee6f2
+# ╠═bef9146b-4965-4a74-87b3-09ddcf8ed3d9
+# ╠═5dbdf865-548e-4ed0-ab37-2132fdd86461
+# ╟─ab7b1681-9528-4053-8e32-ba5614ed1be7
+# ╠═e4189130-9f62-47ed-a143-2acbd73e4ffd
+# ╟─e14392f8-7c8d-444e-8ba6-99d68811178e
+# ╠═1a37a04e-4d58-4b8c-b8d9-eca694270e66
+# ╠═3ce77047-5c1d-4288-929e-e51f307e0d69
+# ╟─6e44f4ab-52da-4198-a0ad-7f2120fccdd5
+# ╟─b2fd6fed-99ce-4e54-a4cd-d81796daad3c
+# ╟─1e0dcfbd-a2d4-49fd-9928-6fb0706fae2b
+# ╠═a027090d-bc56-42c7-8994-2e4a91450d84
 # ╟─7c657799-cea6-47b8-a678-40fa8abb1b9e
 # ╠═d48d5df6-6329-4bf5-9048-e11f05216076
 # ╠═38c37772-7610-469f-9ae5-d9c73160b132
 # ╟─2c4b1d89-906f-45f7-8360-d270d691fe12
 # ╠═8a19be18-13dd-4bfb-a082-08e4fbe50603
 # ╠═05d7771e-ad50-4f4f-8d38-1fe8297b4ff2
-# ╠═1d662335-6be9-4503-84d0-4dfad40706a0
-# ╠═b4e68bdd-33e0-4c55-918c-f8c96f7fcbac
+# ╟─4a584b5c-61c5-4f6d-a53e-6adae435c85e
 # ╟─00000000-0000-0000-0000-000000000001
 # ╟─00000000-0000-0000-0000-000000000002
