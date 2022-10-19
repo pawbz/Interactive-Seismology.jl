@@ -25,9 +25,9 @@ begin
     using TensorOperations
     using LinearAlgebra
     using Einsum
-	using Unitful
-	using PlotThemes
-	theme(:dark)
+    using Unitful
+    using PlotThemes
+    theme(:dark)
 end
 
 # ╔═╡ b48fc46c-47b2-4090-83fb-710b1974c2a2
@@ -36,20 +36,57 @@ ChooseDisplayMode()
 # ╔═╡ 6e9dc83f-5d4f-4f21-a495-d43bc64f6041
 TableOfContents()
 
+# ╔═╡ b99cb15b-b51b-4bd6-ac88-d5f6b99bf10b
+aside(tip(md"**Mantle anisotropy**
+Mapping anisotropy in the upper mantle helps identify the preferential orientation of olivine crystals, and therefore helps investigate plate motions."))
+
+# ╔═╡ 56efaf7d-2b8b-4540-b0e8-b722edd1d8f8
+md"""
+For the transverse anisotropy option, if selected above, adjust the five independent elastic constants to interact with the wavefronts.
+
+A (GPa) $(@bind Ap Slider(range(50, stop=300, length=100), default=272, show_value=true))
+
+C (GPa) $(@bind Cp Slider(range(50, stop=300, length=100), default=160, show_value=true))
+
+L (GPa) $(@bind Lp Slider(range(50, stop=300, length=100), default=60, show_value=true))
+
+N (GPa) $(@bind Np Slider(range(50, stop=300, length=100), default=50, show_value=true))
+
+F (GPa) $(@bind Fp Slider(range(50, stop=300, length=100), default=60, show_value=true))
+
+"""
+
+# ╔═╡ d2027f44-361b-4d00-9efb-86fe2c7e9b68
+aside(tip(md"**Shear-wave splitting** As the two quasi-shear waves travel with different speeds in the case of an anisotropic medium, it leads to shear-wave splitting. Which means, the two orthogonal components of the shear wave reach at slightly different times."))
+
 # ╔═╡ 7d5bcebe-3f1c-485a-a094-78eb3b976352
 md"""
-## Voigt Notation
-The Voigt matrix is a six-dimensional symmetric matrix denoted using `C`.
-Our starting point is the Love convention, where the elastic constants are represented using the following symbols."""
+## Transverse Anisotropy; Voigt Notation
+A transversely anisotropic material can be characterized by five independent elastic constants. The Voigt matrix is a six-dimensional symmetric matrix denoted using `C`.
+We follow the Love convention, where the elastic constants are represented using the following symbols.
+"""
+
+# ╔═╡ bba0ec5e-32bd-4ab1-84d1-76e18c88dc5a
+md"""
+$(LocalResource("./images/rock_strata.jpg", :width => 300))
+
+*Example of SPO: transverse anisotropy because of layered rock materials.*
+"""
 
 # ╔═╡ 4b2d3084-e981-4ab2-bf40-fea4335082ad
 @variables A::Real N::Real F::Real C::Real L::Real
 
 # ╔═╡ 70ebdd20-3a02-4493-a0d6-718fa5b51675
-md"In the case of transverse anisotropy, the Love constants can be used to from the Voigt matrix as follows."
+md"In the case of transverse anisotropy, with rock layers oriented along in the $xy$-plane, the Love constants can be used from the Voigt matrix as follows. In this case, the axis of symmetry is along $z$."
 
 # ╔═╡ 4f7b0a05-004a-417d-81d2-e4b1176909d6
 Ctrans = [[A, A - 2N, F, 0, 0, 0];; [A - 2N, A, F, 0, 0, 0];; [F, F, C, 0, 0, 0];; [0, 0, 0, L, 0, 0];; [0, 0, 0, 0, L, 0];; [0, 0, 0, 0, 0, L]]
+
+# ╔═╡ 1de3540c-6e07-4e4e-b411-7a5667b5c742
+aside(tip(md"For layered rocks, the seismic waves travel faster in the direction parallel to the layers, as opposed to the perpendicular direction. This is because the waves can *choose* to travel in the fast layers in the former case."))
+
+# ╔═╡ f5f78c1e-9062-4a5b-8bc3-4efb0f1883ca
+md"As an example of LPO, we now construct the Voigt matrix for olivine, where the constants are in $(u\"GPa\")."
 
 # ╔═╡ 5c3cea52-3154-4aa3-824c-5be50a302be5
 Colivine = [[192, 66, 60, 0, 0, 0];; [66, 160, 56, 0, 0, 0];; [60, 56, 272, 0, 0, 0];; [0, 0, 0, 60, 0, 0];; [0, 0, 0, 0, 62, 0];; [0, 0, 0, 0, 0, 49]]
@@ -69,8 +106,8 @@ end
 
 # ╔═╡ 12a42fbb-bfb7-4852-a638-2dec237c032d
 md"""
-## `cijkl` 
-Given the elements of the Voigt matrix, we can construct the tensor `cijkl`, for both isotropic and transverse anisotropy cases, using the following method. 
+## Elastic tensor `cijkl`
+The Voigt matrix is not a tensor and no longer preserves the mathematical properties of the elastic tensor. Given the elements of the Voigt matrix, we can construct the tensor `cijkl`, for both isotropic and transverse anisotropy cases, using the following method. 
 """
 
 # ╔═╡ 0ea0a70c-72b2-47da-902d-00cd6279fbb5
@@ -79,59 +116,58 @@ function get_cijkl(C)
 end
 
 # ╔═╡ 2d4ab726-4257-4fc4-aac0-2cc90ce76e53
-ciso = get_cijkl(Ciso);
+ciso = get_cijkl(Ciso); # for isotropic 
 
 # ╔═╡ f2c3eeca-4e03-4360-b14b-4fd98e24d530
-ctrans = get_cijkl(Ctrans);
+ctrans = get_cijkl(Ctrans); # for transverse anisotropy
 
 # ╔═╡ 4ac951fc-0054-4119-9296-fa8feacdd4c2
-colivine = get_cijkl(Colivine);
+colivine = get_cijkl(Colivine); # for anisotropy
 
 # ╔═╡ 17942206-4ea3-11ed-30fa-d38c9c47f282
 md"""
 # Anisotropy
-Phase velocity, group velocity, non circular wavefronts
+It is important to consider deviations from isotropy when imaging the Earth. Although there could be up to 21 independent linear elastic constants, we attach the term *anisotropy* to a situation where we use more than two elastic constants to describe the medium. 
 
-You may select the medium that you want to analyze going forward. 
+* __Lattice-preferred anisotropy (LPO)__: homogeneous material, but there is preferred crystal orientation, e.g., olivine.
+* __Shape-preferred anisotropy (SPO)__: a stack of rock layers with different isotropic properties cause seismic velocities to differ in different directions; or prefered orientation of cracks in the medium.
 
-Medium: $(@bind cmedium Select([colivine => "olivine", ctrans=>"transverse anisotropic", ciso =>  "isotropic", ]))
+It is often difficult to distinguish the effects of anisotropy and those of medium heterogeneity. The presence of anisotropy results in non-circular wavefronts, even though the elastic constants are homogeneous. We can visualize wavefronts after projecting them along different planes by interacting with the plot below.
+
+Select medium type $(@bind cmedium Select([colivine => "olivine", ctrans=>"transverse anisotropic (z-axis symmetry)", ciso =>  "isotropic"]))
 """
 
 # ╔═╡ 0028f23a-0a92-42d8-9077-cc5fd585cce6
-md"Let's take a moment to understand the power of our notation using `Symbolics` and `Einsum` packages. We shall write down something that we understood in the isotropic world: the stress-strain relation."
+md"Let's take a moment to realize the power of our notation using `Symbolics` and `Einsum` packages. We shall now write down something that we were familiar in the isotropic world: the stress-strain relation."
 
 # ╔═╡ 8aa7f639-3e76-4db4-bd44-37b78f7f3781
 @variables e[1:3, 1:3] # strain tensor
 
 # ╔═╡ c6eefa83-676f-464b-85f1-4c7442100cbf
-@einsum σiso[i,j] := ciso[i, j, k,l] *  e[k, l]
+@einsum σiso[i, j] := ciso[i, j, k, l] * e[k, l]
 
 # ╔═╡ 183cc6c5-a4ae-47c6-8c48-2c8ff2e1cbc6
 md"""
-If you were confused about the Voigt matrix above, we can simply understand it by writing the stress-strain relation in the transversely anisotropic medium.
+Doesn't it look easy? If you were confused about the Voigt matrix above, we can simply understand it by writing the stress-strain relation in the transversely anisotropic medium.
 """
 
 # ╔═╡ 4af3c346-f657-4b59-9a79-ee9ff0b79bbd
-@einsum σtrans[i,j] := ctrans[i, j, k,l] *  e[k, l]
+@einsum σtrans[i, j] := ctrans[i, j, k, l] * e[k, l]
 
 # ╔═╡ 24553b91-78cb-4cde-b0d6-8dbbd7e671d6
 @variables ρ::Real ω::Real t::Real
 
-# ╔═╡ 8db6f721-b965-413d-b03b-dc65ea7b6009
-# m = Symbolics.scalarize(sum(e.*σ, dims=1))
-
 # ╔═╡ f940ed1a-1f89-4f7b-bb41-05615e2351a0
 md"""
 ## Planewaves in Anisotropic Media
-We assume that all the elastic constants `cikjl` are constant, i.e., the medium is homogeneous.
-
+It is important to realize that we are going to work with homogeneous media, where all the elastic constants in `cikjl` don't vary with spatial coordinates. We shall now analyze plane wave solutions.
 """
 
 # ╔═╡ 54657fec-e8e7-4040-8108-a29ae8df1c24
 @variables u[1:3] # vector displacement field x[1:3] g[1:3] p::Real
 
 # ╔═╡ 108996f0-8980-4aff-8334-5f9f9f6f09d2
-@variables x[1:3] # position vector
+@variables x[1:3] # position vector ~ [x, y, z]
 
 # ╔═╡ 5b1f23d8-33d1-4d25-92e3-ca590fc0118d
 @variables g[1:3] # amplitude vector (we already used A for one of the elastic constants)
@@ -140,7 +176,7 @@ We assume that all the elastic constants `cikjl` are constant, i.e., the medium 
 @variables s[1:3] # unit slowness vector 
 
 # ╔═╡ ffeb806f-875f-4bc8-a15f-3d8db4252e96
-@variables p # slowness
+@variables p # slowness magnitude
 
 # ╔═╡ 32fdd4ec-afef-4d03-8081-71a8201c3fcf
 @variables v # velocity (inverse of slowness)
@@ -155,7 +191,7 @@ D = [Differential(x[1]), Differential(x[2]), Differential(x[3])]
 Dt = Differential(t)
 
 # ╔═╡ 7d38e878-0136-46c6-b265-85b7dc85153e
-utrail1 =  exp(ı * ω * (t - p * dot(s, x)))
+utrail1 = exp(ı * ω * (t - p * dot(s, x)))
 
 # ╔═╡ 6c964379-2169-4567-9505-745198609d49
 utrail = Symbolics.scalarize(g .* utrail1)
@@ -170,41 +206,50 @@ utrail = Symbolics.scalarize(g .* utrail1)
 @einsum uddot_trail2[i] := expand_derivatives(Dt(Dt(utrail[i]))) * ρ
 
 # ╔═╡ 2a2fc196-10a9-4c97-b1c1-e2a68e21119e
-md"The following two expressions must be equal to each other."
+md"The equation of motion is satisfied only when the following two expressions are equal to each other."
 
 # ╔═╡ 77f96830-e81b-438d-b5ae-4ac59cb031df
-g1 = simplify.(uddot_trail1 ./ utrail1 ./ ω^2 ./ ı^2 / p^2)
+ga = simplify.(uddot_trail1 ./ utrail1 ./ ω^2 ./ ı^2 / p^2)
 
 # ╔═╡ 27f97bab-bef0-4705-bc22-8e9b087444b2
-g2 = simplify.(uddot_trail2 ./ utrail1 ./ ω^2 ./ ı^2 * v^2)
+gb = simplify.(uddot_trail2 ./ utrail1 ./ ω^2 ./ ı^2 * v^2)
 
 # ╔═╡ 366ee997-e2fc-4b48-bb6e-33b666ea38f5
 md"""
-## Christoffel Matrix
+## Christoffel Matrix `M`
+Now we would like to work towards the construction of a transformation matrix `M` such that `ga=M*g`. Notice that `gb` is already in the direction of the amplitude vector, so once we construct `M`, all we need to solve is an eigenvalue problem
+```math
+M*g = ρv^2*g,
+```
+where the eigenvalues will give us the phase velocities. Note that `M` depends on the direction of the slowness vector `s`, therefore leading to anisotropy. As `M` is symmetric, we have three solutions for general anisotropic case: a single quasi-P wave (qP) and two quasi-S waves (qS).
 """
 
 # ╔═╡ f6675c52-740c-4098-98d6-9c9038b4f6f4
-M1 = map(g1) do x
+M1 = map(ga) do x
     simplify(substitute(x, [g[2] => 0, g[3] => 0]) / g[1])
 end
 
 # ╔═╡ 97da0c08-b971-4104-88fe-aa1d1f2c68b0
-M2 = map(g1) do x
+M2 = map(ga) do x
     simplify(substitute(x, [g[1] => 0, g[3] => 0]) / g[2])
 end
 
 # ╔═╡ cbdb003e-09a2-419b-8811-7d0cd290968d
-M3 = map(g1) do x
+M3 = map(ga) do x
     simplify(substitute(x, [g[2] => 0, g[1] => 0]) / g[3])
 end
 
 # ╔═╡ b22a4fcd-1f0c-410f-95b8-f67671d3aa63
-M = [M1;; M2;; M3]
+M = [M1;; M2;; M3] # concat all the columns to get the Christoffel matrix
 
 # ╔═╡ b5997b61-2ca2-4c2f-acd6-16c121f0aa13
 md"""
-The matrices for plane waves traveling in `x[1]`, `x[2]`, and `x[3]` directions are given by the following expressions respectively.
+We shall now analyze plane waves traveling along the cartesian axis individually. Towards that end, we will make necessary substitutions for the slowness vector.
+The Chistoffel matrices for plane waves traveling in `x[1]`, `x[2]`, and `x[3]` directions are given by the following expressions respectively.
 """
+
+# ╔═╡ 2bdba346-7a64-4de6-9b71-7034b9d68986
+aside(correct(md"For an isotropic medium, note that the Christoffel matrices didn't change with the direction of the slowness vector. Obviously. Its eigenvalues correspond to P, SV and SH waves."))
 
 # ╔═╡ 78449122-6762-4191-9a8d-b1f8bee69bd8
 map(M) do x
@@ -221,65 +266,62 @@ map(M) do x
     simplify(substitute(x, [s[1] => 0, s[2] => 0, s[3] => 1]))
 end
 
-# ╔═╡ 2bdba346-7a64-4de6-9b71-7034b9d68986
-md"For anisotropic media, note that the Christoffel matrices change with direction of the slowness vector. In order to evaluate a matrix "
+# ╔═╡ 4a66af73-6b29-475e-9c71-8e62ee69802a
+md"""
+## References
+* Jules Thomas Browaeys, Sébastien Chevrot, Decomposition of the elastic tensor and geophysical applications, Geophysical Journal International, Volume 159, Issue 2, November 2004, Pages 667–678, https://doi.org/10.1111/j.1365-246X.2004.02415.x
+	"""
 
-# ╔═╡ 9d45dd60-4a80-4894-b350-36127a584e0b
-@syms θ
+# ╔═╡ ebf4953d-abc5-4530-af51-8b68096a0113
+md"## Appendix"
 
 # ╔═╡ 5f027a58-d752-4c5c-b933-f63bb9c98d26
 begin
+    # planes to be analyzed
     struct xy end
     struct yz end
     struct zx end
 end
 
+# ╔═╡ 9d45dd60-4a80-4894-b350-36127a584e0b
+@syms θ # azimuth
+
 # ╔═╡ e0e0841d-953f-4d4f-abb4-90e7b49b0869
 begin
+    # substitute the components of the slowness vector given θ and the plane
     ssubs(::xy) = [s[1] => sin(θ), s[2] => cos(θ), s[3] => 0]
     ssubs(::yz) = [s[1] => 0, s[2] => sin(θ), s[3] => cos(θ)]
     ssubs(::zx) = [s[1] => cos(θ), s[2] => 0, s[3] => sin(θ)]
 end
 
-# ╔═╡ 1617fc13-b94c-4de6-8ccc-c4e0a0c5ff7f
-
-
 # ╔═╡ 5cbb7aed-70d1-4122-9b0c-63ce1e15d2bb
-ρp = 2u"g/cm^3"
+ρp = 4u"g/cm^3" # fix density
 
 # ╔═╡ b95076ef-632e-4826-9bc1-f811c72fe1c5
+# return phase velocities (qP, qS1, qS2) for each θ
 function get_phase_velocity(θgrid, M)
-    V=broadcast(θgrid) do θ
+    V = broadcast(θgrid) do θ
         E = eigen(map(M) do m
             m(θ)
         end)
 
         return broadcast(E.values) do e
-			u"km/s"(sqrt(e * u"GPa" / ρp))
-		end
+            u"km/s"(sqrt(e * u"GPa" / ρp))
+        end
     end
-	return hcat(V...)
-end
-
-
-# ╔═╡ 8a67ac82-c67d-41ee-87d7-74fe62be5b79
-begin
-	# enter in GPa
-	Ap = 272;
-	Cp = 160;
-	Lp = 60;
-	Np = 50;
-	Fp = 60;
+    return hcat(V...)
 end
 
 # ╔═╡ 83f8924d-0db4-484c-8c6e-40acb1b01b26
+# substitute a given array of expressions with UI elastic constants
 function subsp(X)
     map(X) do x
-        substitute(x, [A => Ap, L => Lp, C => Cp, F => Fp, N => Np, λ=>Ap-2Np, μ=>Lp])
+        substitute(x, [A => Ap, L => Lp, C => Cp, F => Fp, N => Np, λ => Ap - 2Np, μ => Lp])
     end
 end
 
 # ╔═╡ 13677e27-65f5-4606-8ded-a0f36ae4bb95
+# return a function of azimuth θ that generates the Christoffel matrix
 function get_Christoffel_matrix(M, plane)
     mp = map(M) do x
         simplify(subsp(substitute(x, ssubs(plane))))
@@ -292,6 +334,7 @@ function get_Christoffel_matrix(M, plane)
 end
 
 # ╔═╡ 502cde6b-b1a4-4994-86ce-72d56345f3d3
+# generate the functions and store, for further plotting
 begin
     Mxy = get_Christoffel_matrix(M, xy())
     Myz = get_Christoffel_matrix(M, yz())
@@ -299,54 +342,36 @@ begin
 end;
 
 # ╔═╡ 816abdd5-74de-415b-a19b-95b7ad7cdf0c
-θgrid = range(0, stop=2π, length=50)
-
-# ╔═╡ 69747028-9092-4156-8292-435079f1ee97
-xx=get_phase_velocity(θgrid, Mxy)
-
-# ╔═╡ 659678ee-85a6-452a-8ec0-aac3db053c86
-hcat(xx...)
-
-# ╔═╡ 4a66af73-6b29-475e-9c71-8e62ee69802a
-md"""
-## References
-* Jules Thomas Browaeys, Sébastien Chevrot, Decomposition of the elastic tensor and geophysical applications, Geophysical Journal International, Volume 159, Issue 2, November 2004, Pages 667–678, https://doi.org/10.1111/j.1365-246X.2004.02415.x
-	"""
-
-# ╔═╡ ebf4953d-abc5-4530-af51-8b68096a0113
-md"## Appendix"
+θgrid = range(0, stop=2π, length=50) # need an azimuth grid to plot wavefronts in each plane
 
 # ╔═╡ 8ff5c871-08a3-4b94-b2ea-2e3eaca16308
 md"### Plots"
 
 # ╔═╡ ae9536aa-3d38-4d22-b887-39c0c56e9f0e
 begin
-    @userplot MyPolar
+    @userplot PolarPS
 
-    @recipe function f(h::MyPolar)
-        # grid := :none
+    @recipe function f(h::PolarPS)
 
-		
-		w := 2
-		lims := (0, 10) # maximum 10 km, so that we can talk about tmax=1 s
-		proj := :polar
-		axis := nothing
-		yguidefontsize:=10
-		
-		
-		frame := nothing
-        
+        w := 2
+        lims := (0, 10) # maximum 10 km, so that we can talk about tmax=1 s
+        proj := :polar
+        axis := nothing
+        yguidefontsize := 10
+
+        frame := nothing
+
         @series begin
-			label --> "qP"
+            label --> "qP"
             θgrid, reshape(h.args[1], 3, :)[1, :]
         end
-		@series begin
-			label --> "qS₁"
-			linestyle := :dot
+        @series begin
+            label --> "qS₁"
+            linestyle := :dot
             θgrid, reshape(h.args[1], 3, :)[2, :]
         end
-		@series begin
-			label --> "qS₂"
+        @series begin
+            label --> "qS₂"
             θgrid, reshape(h.args[1], 3, :)[3, :]
         end
     end
@@ -354,20 +379,24 @@ end
 
 # ╔═╡ cc5de715-11ae-4a01-9ab9-ba610bd6882d
 function plot_wavefronts()
-@gif for t in range(0, stop=1, length=50)
-    # cc(θ) = 1 + cos(θ) * sin(θ)^2
-	p1=plot()
-	p2=plot()
-	p3=plot()
-    p1 = mypolar(t .* get_phase_velocity(θgrid, Mxy), title="xy projection")
-    p2 = mypolar(t .* get_phase_velocity(θgrid, Myz), title="yz projection")
-    p3 = mypolar(t .* get_phase_velocity(θgrid, Mzx),title="zx projection" )
-    plot(p1, p2, p3, layout=(1,3))
-end
+    @gif for t in range(0, stop=1, length=50)
+        p1 = polarps(t .* get_phase_velocity(θgrid, Mxy), title="xy projection")
+        p2 = polarps(t .* get_phase_velocity(θgrid, Myz), title="yz projection")
+        p3 = polarps(t .* get_phase_velocity(θgrid, Mzx), title="zx projection")
+        plot(p1, p2, p3, layout=(1, 3))
+    end
 end
 
 # ╔═╡ e28c94fd-f04d-442c-8b19-be84d565d5c7
 plot_wavefronts()
+
+# ╔═╡ 0989b0f0-06c6-4353-9933-ec713563f0c6
+md"""
+## TODO
+* add details on particle motion `g` for quasiP and quasiS phases
+* group velocity vs. phase velocity
+* planes waves incident on a horizontal interface
+"""
 
 # ╔═╡ 00000000-0000-0000-0000-000000000001
 PLUTO_PROJECT_TOML_CONTENTS = """
@@ -1958,17 +1987,23 @@ version = "1.4.1+0"
 # ╔═╡ Cell order:
 # ╠═b48fc46c-47b2-4090-83fb-710b1974c2a2
 # ╠═6e9dc83f-5d4f-4f21-a495-d43bc64f6041
-# ╠═17942206-4ea3-11ed-30fa-d38c9c47f282
+# ╟─17942206-4ea3-11ed-30fa-d38c9c47f282
+# ╟─b99cb15b-b51b-4bd6-ac88-d5f6b99bf10b
 # ╠═e28c94fd-f04d-442c-8b19-be84d565d5c7
+# ╟─56efaf7d-2b8b-4540-b0e8-b722edd1d8f8
+# ╟─d2027f44-361b-4d00-9efb-86fe2c7e9b68
 # ╟─7d5bcebe-3f1c-485a-a094-78eb3b976352
+# ╟─bba0ec5e-32bd-4ab1-84d1-76e18c88dc5a
 # ╠═4b2d3084-e981-4ab2-bf40-fea4335082ad
 # ╟─70ebdd20-3a02-4493-a0d6-718fa5b51675
 # ╠═4f7b0a05-004a-417d-81d2-e4b1176909d6
+# ╟─1de3540c-6e07-4e4e-b411-7a5667b5c742
+# ╟─f5f78c1e-9062-4a5b-8bc3-4efb0f1883ca
 # ╠═5c3cea52-3154-4aa3-824c-5be50a302be5
 # ╟─88fb688e-d768-4895-8fe9-822f5db335b0
 # ╠═b64d6d57-c38c-4f54-b86f-0d254d27c3ed
 # ╠═1fa4ecc5-8c5d-49f6-a023-bb2c4b4d5c27
-# ╠═12a42fbb-bfb7-4852-a638-2dec237c032d
+# ╟─12a42fbb-bfb7-4852-a638-2dec237c032d
 # ╠═0ea0a70c-72b2-47da-902d-00cd6279fbb5
 # ╠═2d4ab726-4257-4fc4-aac0-2cc90ce76e53
 # ╠═f2c3eeca-4e03-4360-b14b-4fd98e24d530
@@ -1979,8 +2014,7 @@ version = "1.4.1+0"
 # ╟─183cc6c5-a4ae-47c6-8c48-2c8ff2e1cbc6
 # ╠═4af3c346-f657-4b59-9a79-ee9ff0b79bbd
 # ╠═24553b91-78cb-4cde-b0d6-8dbbd7e671d6
-# ╠═8db6f721-b965-413d-b03b-dc65ea7b6009
-# ╠═f940ed1a-1f89-4f7b-bb41-05615e2351a0
+# ╟─f940ed1a-1f89-4f7b-bb41-05615e2351a0
 # ╠═54657fec-e8e7-4040-8108-a29ae8df1c24
 # ╠═108996f0-8980-4aff-8334-5f9f9f6f09d2
 # ╠═5b1f23d8-33d1-4d25-92e3-ca590fc0118d
@@ -1998,34 +2032,31 @@ version = "1.4.1+0"
 # ╟─2a2fc196-10a9-4c97-b1c1-e2a68e21119e
 # ╠═77f96830-e81b-438d-b5ae-4ac59cb031df
 # ╠═27f97bab-bef0-4705-bc22-8e9b087444b2
-# ╠═366ee997-e2fc-4b48-bb6e-33b666ea38f5
+# ╟─366ee997-e2fc-4b48-bb6e-33b666ea38f5
 # ╠═f6675c52-740c-4098-98d6-9c9038b4f6f4
 # ╠═97da0c08-b971-4104-88fe-aa1d1f2c68b0
 # ╠═cbdb003e-09a2-419b-8811-7d0cd290968d
 # ╠═b22a4fcd-1f0c-410f-95b8-f67671d3aa63
 # ╟─b5997b61-2ca2-4c2f-acd6-16c121f0aa13
+# ╠═2bdba346-7a64-4de6-9b71-7034b9d68986
 # ╠═78449122-6762-4191-9a8d-b1f8bee69bd8
 # ╠═3bbbfa0d-c8ce-44f5-8546-16c9a1742e23
 # ╠═747ca67e-60d7-44a4-bac1-78cfa9b20cc7
-# ╠═2bdba346-7a64-4de6-9b71-7034b9d68986
-# ╠═9d45dd60-4a80-4894-b350-36127a584e0b
+# ╟─4a66af73-6b29-475e-9c71-8e62ee69802a
+# ╟─ebf4953d-abc5-4530-af51-8b68096a0113
 # ╠═5f027a58-d752-4c5c-b933-f63bb9c98d26
+# ╠═9d45dd60-4a80-4894-b350-36127a584e0b
 # ╠═e0e0841d-953f-4d4f-abb4-90e7b49b0869
 # ╠═13677e27-65f5-4606-8ded-a0f36ae4bb95
 # ╠═502cde6b-b1a4-4994-86ce-72d56345f3d3
-# ╠═1617fc13-b94c-4de6-8ccc-c4e0a0c5ff7f
 # ╠═b95076ef-632e-4826-9bc1-f811c72fe1c5
-# ╠═69747028-9092-4156-8292-435079f1ee97
-# ╠═659678ee-85a6-452a-8ec0-aac3db053c86
 # ╠═5cbb7aed-70d1-4122-9b0c-63ce1e15d2bb
-# ╠═8a67ac82-c67d-41ee-87d7-74fe62be5b79
 # ╠═83f8924d-0db4-484c-8c6e-40acb1b01b26
 # ╠═816abdd5-74de-415b-a19b-95b7ad7cdf0c
 # ╠═5f12d3e9-4d5c-434c-bdef-bcc74b79705e
-# ╠═4a66af73-6b29-475e-9c71-8e62ee69802a
-# ╠═ebf4953d-abc5-4530-af51-8b68096a0113
-# ╠═8ff5c871-08a3-4b94-b2ea-2e3eaca16308
+# ╟─8ff5c871-08a3-4b94-b2ea-2e3eaca16308
 # ╠═ae9536aa-3d38-4d22-b887-39c0c56e9f0e
 # ╠═cc5de715-11ae-4a01-9ab9-ba610bd6882d
+# ╟─0989b0f0-06c6-4353-9933-ec713563f0c6
 # ╟─00000000-0000-0000-0000-000000000001
 # ╟─00000000-0000-0000-0000-000000000002
