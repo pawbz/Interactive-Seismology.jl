@@ -55,6 +55,12 @@ first-order system.
 Instead of using Runge-Kutta time extrapolation method to solve for "propagating waves" from an initial state, we use the method of separation of variables to arrive at a Sturm–Liouville eigenvalue problem. We solve this eigenvalue problem to obtain the "normal-mode solutions" using Chebyshev pseudo-spectral method. Which one is more "real"? They are just different ways of representing displacements. 
 
 Similarly, there are two methods we use to solve for surface waves in seismology: one where we extrapolate in depth using a shooting method to match the boundary conditions; or alternatively, solve an eigenvalue problem. 
+
+##### [Introduction of Seismology](https://pawbz.github.io/ES218.jl/)
+ES218; August 2022
+
+Instructor: *Pawan Bharadwaj*,
+Indian Institute of Science, Bengaluru, India
 """
 
 # ╔═╡ 4a41c6f8-55e6-47ef-ac7f-876764c6b684
@@ -93,6 +99,9 @@ We can measure eigenfrequencies and infer the velocity of the medium.
 
 # ╔═╡ c683d0a8-85a0-4ff9-a071-abbbf64e64bf
 @info "Integer multiples of the first Eigen frequencies."
+
+# ╔═╡ b2fd6fed-99ce-4e54-a4cd-d81796daad3c
+md"It has been proven that all the eigenvalues of the second-order Chebyshev spectral differentiation matrix are real, distinct, and negative (Gottleib and Lustman). We shall now plot them."
 
 # ╔═╡ ea125ec7-babe-4941-a22f-5d4bab2ce76c
 nt = 1000
@@ -164,6 +173,7 @@ end
 
 # ╔═╡ 854eccae-776c-4010-8726-f7555f5afa1a
 # This function returns the Chebyshev spectral differentiation matrix.
+# courtesy: Sanket
 function Chebyshev_Diff_Matrix(z_, N)
     c = ones(N + 1)
     c[1] = 2
@@ -233,10 +243,7 @@ function get_eigen(LE, pa)
 end
 
 # ╔═╡ 6e44f4ab-52da-4198-a0ad-7f2120fccdd5
-@warn "Why is it not identity?!"
-
-# ╔═╡ b2fd6fed-99ce-4e54-a4cd-d81796daad3c
-md"It has been proven that all the eigenvalues of the second-order Chebyshev spectral differentiation matrix are real, distinct, and negative (Gottleib and Lustman). We shall now plot them."
+@warn "Notice that the eigenvectors are not orthogonal to each other, as the operator matrix is not symmetric."
 
 # ╔═╡ 1e0dcfbd-a2d4-49fd-9928-6fb0706fae2b
 md"""
@@ -281,7 +288,7 @@ function medium_input()
 
         inputs2 = [
             md"""
-            nx $(Child("nx", Select([64, 128, 256, 512, 1024], default=128)))
+            nx $(Child("nx", Select([64, 128, 256, 512, 1024], default=256)))
             """,
         ]
 
@@ -431,8 +438,9 @@ plot_record()
 
 # ╔═╡ 4a584b5c-61c5-4f6d-a53e-6adae435c85e
 md"""
-## References
+## Additional Reading
 - Weideman, J. A. C., and L. N. Trefethen. “The Eigenvalues of Second-Order Spectral Differentiation Matrices.” SIAM Journal on Numerical Analysis, vol. 25, no. 6, 1988, pp. 1279–98. [pdf](https://www.jstor.org/stable/2157485?seq=3#metadata_info_tab_contents)
+- [Prof. John K Hunter; Notes from UC Davis](https://www.math.ucdavis.edu/~hunter/m280_09/ch4.pdf)
 """
 
 # ╔═╡ 00000000-0000-0000-0000-000000000001
@@ -517,9 +525,9 @@ version = "6.0.23"
 
 [[deps.ArrayInterfaceCore]]
 deps = ["LinearAlgebra", "SparseArrays", "SuiteSparse"]
-git-tree-sha1 = "46e0f347fa57f5ad13646cf731ec9b1834445cbf"
+git-tree-sha1 = "e9f7992287edfc27b3cbe0046c544bace004ca5b"
 uuid = "30b0a656-2188-435a-8636-2ec0e6a096e2"
-version = "0.1.21"
+version = "0.1.22"
 
 [[deps.ArrayInterfaceStaticArrays]]
 deps = ["Adapt", "ArrayInterface", "ArrayInterfaceStaticArraysCore", "LinearAlgebra", "Static", "StaticArrays"]
@@ -529,9 +537,9 @@ version = "0.1.4"
 
 [[deps.ArrayInterfaceStaticArraysCore]]
 deps = ["Adapt", "ArrayInterfaceCore", "LinearAlgebra", "StaticArraysCore"]
-git-tree-sha1 = "a1e2cf6ced6505cbad2490532388683f1e88c3ed"
+git-tree-sha1 = "93c8ba53d8d26e124a5a8d4ec914c3a16e6a0970"
 uuid = "dd5226c6-a4d4-4bc7-8575-46859f9c95b9"
-version = "0.1.0"
+version = "0.1.3"
 
 [[deps.Artifacts]]
 uuid = "56f22d72-fd6d-98f1-02f0-08ddc0907c33"
@@ -728,9 +736,9 @@ version = "1.1.0"
 
 [[deps.DiffRules]]
 deps = ["IrrationalConstants", "LogExpFunctions", "NaNMath", "Random", "SpecialFunctions"]
-git-tree-sha1 = "992a23afdb109d0d2f8802a30cf5ae4b1fe7ea68"
+git-tree-sha1 = "8b7a4d23e22f5d44883671da70865ca98f2ebf9d"
 uuid = "b552c78f-8df3-52c6-915a-8e097449b14b"
-version = "1.11.1"
+version = "1.12.0"
 
 [[deps.Distributed]]
 deps = ["Random", "Serialization", "Sockets"]
@@ -750,9 +758,9 @@ version = "0.9.1"
 
 [[deps.DomainSets]]
 deps = ["CompositeTypes", "IntervalSets", "LinearAlgebra", "Random", "StaticArrays", "Statistics"]
-git-tree-sha1 = "dc45fbbe91d6d17a8e187abad39fb45963d97388"
+git-tree-sha1 = "85cf537e38b7f34a84eaac22b534aa1b5bf01949"
 uuid = "5b8099bc-c8ec-5219-889f-1d9e522a28bf"
-version = "0.5.13"
+version = "0.5.14"
 
 [[deps.Downloads]]
 deps = ["ArgTools", "FileWatching", "LibCURL", "NetworkOptions"]
@@ -771,6 +779,11 @@ git-tree-sha1 = "d0fa82f39c2a5cdb3ee385ad52bc05c42cb4b9f0"
 uuid = "7c1d4256-1411-5781-91ec-d7bc3513ac07"
 version = "0.4.5"
 
+[[deps.EnumX]]
+git-tree-sha1 = "e5333cd1e1c713ee21d07b6ed8b0d8853fabe650"
+uuid = "4e289a0a-7415-4d19-859d-a7e5c4648b56"
+version = "1.0.3"
+
 [[deps.Expat_jll]]
 deps = ["Artifacts", "JLLWrappers", "Libdl", "Pkg"]
 git-tree-sha1 = "bad72f730e9e91c08d9427d5e8db95478a3c323d"
@@ -783,9 +796,9 @@ uuid = "e2ba6199-217a-4e67-a87a-7c52f15ade04"
 version = "0.1.8"
 
 [[deps.ExproniconLite]]
-git-tree-sha1 = "07b85b02d910f90dde6b383484c5ee6c0f169fa3"
+git-tree-sha1 = "09dcb4512e103b2b8ad45aa35199633797654f47"
 uuid = "55351af7-c7e9-48d6-89ff-24e801d99491"
-version = "0.7.0"
+version = "0.7.1"
 
 [[deps.FFMPEG]]
 deps = ["FFMPEG_jll"]
@@ -816,9 +829,9 @@ uuid = "7b1f6079-737a-58dc-b8bc-7a2ca5c1b5ee"
 
 [[deps.FillArrays]]
 deps = ["LinearAlgebra", "Random", "SparseArrays", "Statistics"]
-git-tree-sha1 = "87519eb762f85534445f5cda35be12e32759ee14"
+git-tree-sha1 = "802bfc139833d2ba893dd9e62ba1767c88d708ae"
 uuid = "1a297f60-69ca-5386-bcde-b61e274b549b"
-version = "0.13.4"
+version = "0.13.5"
 
 [[deps.FixedPointNumbers]]
 deps = ["Statistics"]
@@ -938,9 +951,9 @@ version = "0.4.0"
 
 [[deps.HTTP]]
 deps = ["Base64", "CodecZlib", "Dates", "IniFile", "Logging", "LoggingExtras", "MbedTLS", "NetworkOptions", "OpenSSL", "Random", "SimpleBufferStream", "Sockets", "URIs", "UUIDs"]
-git-tree-sha1 = "e8c58d5f03b9d9eb9ed7067a2f34c7c371ab130b"
+git-tree-sha1 = "3cdd8948c55d8b53b5323f23c9581555dc2e30e1"
 uuid = "cd3eb016-35fb-5094-929b-558a96fad6f3"
-version = "1.4.1"
+version = "1.5.0"
 
 [[deps.HarfBuzz_jll]]
 deps = ["Artifacts", "Cairo_jll", "Fontconfig_jll", "FreeType2_jll", "Glib_jll", "Graphite2_jll", "JLLWrappers", "Libdl", "Libffi_jll", "Pkg"]
@@ -1079,9 +1092,9 @@ version = "1.3.0"
 
 [[deps.LabelledArrays]]
 deps = ["ArrayInterfaceCore", "ArrayInterfaceStaticArrays", "ChainRulesCore", "ForwardDiff", "LinearAlgebra", "MacroTools", "PreallocationTools", "RecursiveArrayTools", "StaticArrays"]
-git-tree-sha1 = "3926535a04c12fb986028a4a86bf5a0a3cf88b91"
+git-tree-sha1 = "b35f1f5e66a9b5264fb5e9b556288bcbd635c72c"
 uuid = "2ee39098-c373-598a-b85f-a56591580800"
-version = "1.12.0"
+version = "1.12.2"
 
 [[deps.LambertW]]
 git-tree-sha1 = "2d9f4009c486ef676646bca06419ac02061c088e"
@@ -1205,9 +1218,9 @@ version = "0.1.4"
 
 [[deps.MKL_jll]]
 deps = ["Artifacts", "IntelOpenMP_jll", "JLLWrappers", "LazyArtifacts", "Libdl", "Pkg"]
-git-tree-sha1 = "41d162ae9c868218b1f3fe78cba878aa348c2d26"
+git-tree-sha1 = "2ce8695e1e699b68702c03402672a69f54b8aca9"
 uuid = "856f044c-d86e-5d09-b602-aeab76dc8ba7"
-version = "2022.1.0+0"
+version = "2022.2.0+0"
 
 [[deps.MacroTools]]
 deps = ["Markdown", "Random"]
@@ -1306,15 +1319,15 @@ version = "0.8.1+0"
 
 [[deps.OpenSSL]]
 deps = ["BitFlags", "Dates", "MozillaCACerts_jll", "OpenSSL_jll", "Sockets"]
-git-tree-sha1 = "ebe81469e9d7b471d7ddb611d9e147ea16de0add"
+git-tree-sha1 = "3c3c4a401d267b04942545b1e964a20279587fd7"
 uuid = "4d8831e6-92b7-49fb-bdf8-b643e874388c"
-version = "1.2.1"
+version = "1.3.0"
 
 [[deps.OpenSSL_jll]]
 deps = ["Artifacts", "JLLWrappers", "Libdl", "Pkg"]
-git-tree-sha1 = "a94dc0169bffbf7e5250fb7e1efb1a85b09105c7"
+git-tree-sha1 = "e60321e3f2616584ff98f0a4f18d98ae6f89bbb3"
 uuid = "458c3c95-2e84-50aa-8efc-19380b2a3a95"
-version = "1.1.18+0"
+version = "1.1.17+0"
 
 [[deps.OpenSpecFun_jll]]
 deps = ["Artifacts", "CompilerSupportLibraries_jll", "JLLWrappers", "Libdl", "Pkg"]
@@ -1386,9 +1399,9 @@ version = "1.3.1"
 
 [[deps.Plots]]
 deps = ["Base64", "Contour", "Dates", "Downloads", "FFMPEG", "FixedPointNumbers", "GR", "JLFzf", "JSON", "LaTeXStrings", "Latexify", "LinearAlgebra", "Measures", "NaNMath", "Pkg", "PlotThemes", "PlotUtils", "Printf", "REPL", "Random", "RecipesBase", "RecipesPipeline", "Reexport", "RelocatableFolders", "Requires", "Scratch", "Showoff", "SnoopPrecompile", "SparseArrays", "Statistics", "StatsBase", "UUIDs", "UnicodeFun", "Unzip"]
-git-tree-sha1 = "524d9ff1b2f4473fef59678c06f9f77160a204b1"
+git-tree-sha1 = "041704a5182f25cdcbb1369f13d9d9f94a86b5fd"
 uuid = "91a5bcdd-55d7-5caf-9e0b-520d859cae80"
-version = "1.35.3"
+version = "1.35.4"
 
 [[deps.Pluto]]
 deps = ["Base64", "Configurations", "Dates", "Distributed", "FileWatching", "FuzzyCompletions", "HTTP", "HypertextLiteral", "InteractiveUtils", "Logging", "MIMEs", "Markdown", "MsgPack", "Pkg", "PrecompileSignatures", "REPL", "RegistryInstances", "RelocatableFolders", "Sockets", "TOML", "Tables", "URIs", "UUIDs"]
@@ -1421,10 +1434,10 @@ uuid = "cb4044da-4d16-4ffa-a6a3-8cad7f73ebdc"
 version = "0.2.2"
 
 [[deps.PlutoUI]]
-deps = ["AbstractPlutoDingetjes", "Base64", "ColorTypes", "Dates", "Hyperscript", "HypertextLiteral", "IOCapture", "InteractiveUtils", "JSON", "Logging", "Markdown", "Random", "Reexport", "UUIDs"]
-git-tree-sha1 = "6e33d318cf8843dade925e35162992145b4eb12f"
+deps = ["AbstractPlutoDingetjes", "Base64", "ColorTypes", "Dates", "FixedPointNumbers", "Hyperscript", "HypertextLiteral", "IOCapture", "InteractiveUtils", "JSON", "Logging", "MIMEs", "Markdown", "Random", "Reexport", "URIs", "UUIDs"]
+git-tree-sha1 = "47a31ed1dd7d30173cb78f5066860eea2d4eaf7b"
 uuid = "7f904dfe-b85e-4ff6-b463-dae2292396a8"
-version = "0.7.44"
+version = "0.7.46"
 
 [[deps.PreallocationTools]]
 deps = ["Adapt", "ArrayInterfaceCore", "ForwardDiff"]
@@ -1481,9 +1494,9 @@ version = "0.4.3"
 
 [[deps.RecipesBase]]
 deps = ["SnoopPrecompile"]
-git-tree-sha1 = "612a4d76ad98e9722c8ba387614539155a59e30c"
+git-tree-sha1 = "d12e612bba40d189cead6ff857ddb67bd2e6a387"
 uuid = "3cdcf5f2-1ef4-517c-9805-6587b60abb01"
-version = "1.3.0"
+version = "1.3.1"
 
 [[deps.RecipesPipeline]]
 deps = ["Dates", "NaNMath", "PlotUtils", "RecipesBase", "SnoopPrecompile"]
@@ -1561,10 +1574,10 @@ uuid = "ea8e919c-243c-51af-8825-aaa63cd721ce"
 version = "0.7.0"
 
 [[deps.SciMLBase]]
-deps = ["ArrayInterfaceCore", "CommonSolve", "ConstructionBase", "Distributed", "DocStringExtensions", "FunctionWrappersWrappers", "IteratorInterfaceExtensions", "LinearAlgebra", "Logging", "Markdown", "Preferences", "RecipesBase", "RecursiveArrayTools", "StaticArraysCore", "Statistics", "Tables"]
-git-tree-sha1 = "5227af27f04ad30a68e2bb48300bf1b1a965d145"
+deps = ["ArrayInterfaceCore", "CommonSolve", "ConstructionBase", "Distributed", "DocStringExtensions", "EnumX", "FunctionWrappersWrappers", "IteratorInterfaceExtensions", "LinearAlgebra", "Logging", "Markdown", "Preferences", "RecipesBase", "RecursiveArrayTools", "RuntimeGeneratedFunctions", "StaticArraysCore", "Statistics", "Tables"]
+git-tree-sha1 = "d41daf11db3383bd979ba00e1590d2f4297ace61"
 uuid = "0bca4576-84f4-4d90-8ffe-ffa030f20462"
-version = "1.61.2"
+version = "1.63.0"
 
 [[deps.Scratch]]
 deps = ["Dates"]
@@ -2047,6 +2060,7 @@ version = "1.4.1+0"
 # ╠═8b8b76d2-ac05-4160-8ceb-e9139908e53f
 # ╠═26935936-82fe-4eaa-96a1-72ebf39c67ed
 # ╠═8cf920ec-97a2-4ae8-a0e4-2f094c8efbcf
+# ╟─b2fd6fed-99ce-4e54-a4cd-d81796daad3c
 # ╠═6e399a13-7fd2-4fa7-99ad-bfec81f4c378
 # ╠═7bb7fde1-f933-495a-b09b-351c7632ef34
 # ╠═f8abaa6a-c85b-4ae9-adeb-e68d7d0eb26e
@@ -2072,7 +2086,6 @@ version = "1.4.1+0"
 # ╠═1a37a04e-4d58-4b8c-b8d9-eca694270e66
 # ╠═3ce77047-5c1d-4288-929e-e51f307e0d69
 # ╟─6e44f4ab-52da-4198-a0ad-7f2120fccdd5
-# ╟─b2fd6fed-99ce-4e54-a4cd-d81796daad3c
 # ╟─1e0dcfbd-a2d4-49fd-9928-6fb0706fae2b
 # ╠═a027090d-bc56-42c7-8994-2e4a91450d84
 # ╟─7c657799-cea6-47b8-a678-40fa8abb1b9e

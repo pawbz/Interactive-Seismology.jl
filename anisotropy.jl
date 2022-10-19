@@ -7,7 +7,11 @@ using InteractiveUtils
 # This Pluto notebook uses @bind for interactivity. When running this notebook outside of Pluto, the following 'mock version' of @bind gives bound variables a default value (instead of an error).
 macro bind(def, element)
     quote
-        local iv = try Base.loaded_modules[Base.PkgId(Base.UUID("6e696c72-6542-2067-7265-42206c756150"), "AbstractPlutoDingetjes")].Bonds.initial_value catch; b -> missing; end
+        local iv = try
+            Base.loaded_modules[Base.PkgId(Base.UUID("6e696c72-6542-2067-7265-42206c756150"), "AbstractPlutoDingetjes")].Bonds.initial_value
+        catch
+            b -> missing
+        end
         local el = $(esc(element))
         global $(esc(def)) = Core.applicable(Base.get, el) ? Base.get(el) : iv(el)
         el
@@ -35,6 +39,27 @@ ChooseDisplayMode()
 
 # ╔═╡ 6e9dc83f-5d4f-4f21-a495-d43bc64f6041
 TableOfContents()
+
+# ╔═╡ 17942206-4ea3-11ed-30fa-d38c9c47f282
+md"""
+# Anisotropy
+It is important to consider deviations from isotropy when imaging the Earth. Although there could be up to 21 independent linear elastic constants, we attach the term *anisotropy* to a situation where we use more than two elastic constants to describe the medium. 
+
+* __Lattice-preferred anisotropy (LPO)__: homogeneous material, but there is preferred crystal orientation, e.g., olivine.
+* __Shape-preferred anisotropy (SPO)__: a stack of rock layers with different isotropic properties cause seismic velocities to differ in different directions, or preferred orientation of cracks in the medium.
+
+It is often difficult to distinguish the effects of anisotropy and those of medium heterogeneity. The presence of anisotropy results in non-circular wavefronts, even though the elastic constants are homogeneous. We can visualize wavefronts after projecting them along different planes by interacting with the plot below.
+
+##### [Introduction of Seismology](https://pawbz.github.io/ES218.jl/)
+ES218; August 2022
+
+Instructor: *Pawan Bharadwaj*,
+Indian Institute of Science, Bengaluru, India
+"""
+
+
+# ╔═╡ 109f4df4-aa1b-400c-b9d4-ff3604afa7d3
+@warn "The rest of the notebook reacts to the choice made above."
 
 # ╔═╡ b99cb15b-b51b-4bd6-ac88-d5f6b99bf10b
 aside(tip(md"**Mantle anisotropy**
@@ -124,16 +149,8 @@ ctrans = get_cijkl(Ctrans); # for transverse anisotropy
 # ╔═╡ 4ac951fc-0054-4119-9296-fa8feacdd4c2
 colivine = get_cijkl(Colivine); # for anisotropy
 
-# ╔═╡ 17942206-4ea3-11ed-30fa-d38c9c47f282
+# ╔═╡ fbe96b0a-84f8-4cae-905c-ba093b1b4340
 md"""
-# Anisotropy
-It is important to consider deviations from isotropy when imaging the Earth. Although there could be up to 21 independent linear elastic constants, we attach the term *anisotropy* to a situation where we use more than two elastic constants to describe the medium. 
-
-* __Lattice-preferred anisotropy (LPO)__: homogeneous material, but there is preferred crystal orientation, e.g., olivine.
-* __Shape-preferred anisotropy (SPO)__: a stack of rock layers with different isotropic properties cause seismic velocities to differ in different directions; or prefered orientation of cracks in the medium.
-
-It is often difficult to distinguish the effects of anisotropy and those of medium heterogeneity. The presence of anisotropy results in non-circular wavefronts, even though the elastic constants are homogeneous. We can visualize wavefronts after projecting them along different planes by interacting with the plot below.
-
 Select medium type $(@bind cmedium Select([colivine => "olivine", ctrans=>"transverse anisotropic (z-axis symmetry)", ciso =>  "isotropic"]))
 """
 
@@ -342,7 +359,7 @@ begin
 end;
 
 # ╔═╡ 816abdd5-74de-415b-a19b-95b7ad7cdf0c
-θgrid = range(0, stop=2π, length=50) # need an azimuth grid to plot wavefronts in each plane
+θgrid = range(0, stop=2π, length=50) # need an azimuth grid to slice wavefronts along each plane
 
 # ╔═╡ 8ff5c871-08a3-4b94-b2ea-2e3eaca16308
 md"### Plots"
@@ -362,7 +379,7 @@ begin
         frame := nothing
 
         @series begin
-            label --> "qP"
+            label --> "qS₂"
             θgrid, reshape(h.args[1], 3, :)[1, :]
         end
         @series begin
@@ -371,7 +388,7 @@ begin
             θgrid, reshape(h.args[1], 3, :)[2, :]
         end
         @series begin
-            label --> "qS₂"
+            label --> "qP"
             θgrid, reshape(h.args[1], 3, :)[3, :]
         end
     end
@@ -393,8 +410,8 @@ plot_wavefronts()
 # ╔═╡ 0989b0f0-06c6-4353-9933-ec713563f0c6
 md"""
 ## TODO
-* add details on particle motion `g` for quasiP and quasiS phases
-* group velocity vs. phase velocity
+* vis. particle motion `g` for quasiP and quasiS phases
+* vis. for group velocity vs. phase velocity
 * planes waves incident on a horizontal interface
 """
 
@@ -432,7 +449,7 @@ PLUTO_MANIFEST_TOML_CONTENTS = """
 
 julia_version = "1.8.2"
 manifest_format = "2.0"
-project_hash = "9b86a47a736f5432b21fd144ca0df155a4ecfbd8"
+project_hash = "193d7c34bcfb2494d0476a2302fdcd5e930ae731"
 
 [[deps.AbstractAlgebra]]
 deps = ["GroupsCore", "InteractiveUtils", "LinearAlgebra", "MacroTools", "Markdown", "Random", "RandomExtensions", "SparseArrays", "Test"]
@@ -1988,6 +2005,8 @@ version = "1.4.1+0"
 # ╠═b48fc46c-47b2-4090-83fb-710b1974c2a2
 # ╠═6e9dc83f-5d4f-4f21-a495-d43bc64f6041
 # ╟─17942206-4ea3-11ed-30fa-d38c9c47f282
+# ╟─fbe96b0a-84f8-4cae-905c-ba093b1b4340
+# ╟─109f4df4-aa1b-400c-b9d4-ff3604afa7d3
 # ╟─b99cb15b-b51b-4bd6-ac88-d5f6b99bf10b
 # ╠═e28c94fd-f04d-442c-8b19-be84d565d5c7
 # ╟─56efaf7d-2b8b-4540-b0e8-b722edd1d8f8
