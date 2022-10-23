@@ -91,6 +91,13 @@ md"""
 ## Normal Modes of 1D Earth
 """
 
+# ╔═╡ b74bec20-f8a7-4ebf-93bf-13ac8bec8f44
+@bind n_layers PlutoUI.combine() do Child
+	md"""
+	Number of layers: $(Child(NumberField(1:1:5)))
+	"""
+end
+
 # ╔═╡ 73d50ccc-9791-4b8b-8216-2041a3940357
 md"""
 ### Records 
@@ -181,12 +188,41 @@ Function to interpolate layer-wise velocity input to all the grid points. Veloci
 """
 
 # ╔═╡ 1f085e5e-373f-4133-9866-c40fe941d0e8
-function get_wavespeed(medium, xgrid)
-    c = zeros(medium.nx)
-    i = argmin(abs.(xgrid .- medium.bx))
-    c[1:i] .= medium.c₁
-    c[i:end] .= medium.c₂
-    return c
+begin
+	function get_wavespeed(medium,xgrid,n_layers)
+		# Getting the array of UI velocities and boundaries
+		c_ui = zeros(n_layers)
+		for i = 1:n_layers
+			c_ui[i] = medium[i]
+		end
+		
+		if (n_layers > 1)
+			b_ui = zeros(n_layers-1)
+			for i = 1:n_layers-1
+				b_ui[i] = medium[n_layers+i]
+			end
+		end
+
+		# Creating the velocity vector
+		c_rev = zeros(medium.nx)
+		xgrid_rev = reverse(xgrid)
+		if (n_layers > 1)
+			start_index = 1
+			for i = 1:n_layers-1
+			end_index = argmin(abs.(xgrid_rev .- b_ui[i]))
+				c_rev[start_index:end_index] .= c_ui[i]
+				start_index = end_index + 1
+			end
+			c_rev[start_index:medium.nx] .= c_ui[n_layers]
+		else
+			c_rev[:] .= c_ui
+		end
+
+		c = reverse(c_rev)
+		return c
+
+	end
+	nothing
 end
 
 # ╔═╡ fd8088b6-4ea0-4ca8-823c-0b46d7b115f9
@@ -325,51 +361,49 @@ Function to define the medium parameters i.e velocities of each layer and the bo
 """
 
 # ╔═╡ d48d5df6-6329-4bf5-9048-e11f05216076
-function medium_input()
+begin
+	function medium_input(n_layers)
 
-    return PlutoUI.combine() do Child
-        inputs1 = [
-            md"""
-            c₁ (km/s) $(Child("c₁", Slider(range(1, 4, step=0.2), default=1.8, show_value=true)))
-            """,
-            md"""
-            c₂ (km/s) $(Child("c₂", Slider(range(1, 4, step=0.2), default=2.5, show_value=true)))
-            """
-        ]
+    	return PlutoUI.combine() do Child
+        	inputs1 = [
+            	md""" c$(string(i)) (km/s): $(
+					Child(string(:c,i), Slider(range(1, 4, step=0.2), default=1.8, show_value=true)))"""
+				for i in 1:n_layers
+        	]
 
-        inputs2 = [
-            md"""
-            nx $(Child("nx", Select([64, 128, 256, 512, 1024], default=256)))
-            """,
-        ]
+        	inputs2 = [
+            	md"""
+            	nx $(Child("nx", Select([64, 128, 256, 512, 1024], default=256)))
+            	""",
+        	]
 
-        boundary = [
-            md"""
-            bx (km) $(Child("bx", Slider(range(-1, stop=1, length=11), default=0.0, show_value=true)))
-            """,
-        ]
+        	boundary = [
+            	md"""
+            	bx$(string(i,i+1)) (km) $(Child(string(:bx,i,i+1), Slider(range(-1, stop=1, length=11), default=0.0, show_value=true)))"""
+				for i in 1:n_layers-1
+        	]
 
+        	md"""
+        	##### Medium Parameters
 
+        	###### Wavespeeds
+        	Slide to adjust the seismic velocities ∈ [1, 4] km/s.
+        	$(inputs1)
 
-        md"""
-        ### Medium Parameters
+        	###### Boundary
+        	Choose the position ∈ [-1, 1] km of the boundary between the media in the increasing order of distance from the left. If it is homeogenous 1-D Earth, then there is no boundary
+        	$(boundary)
 
-        ##### Wavespeeds
-        Slide to adjust the seismic velocities ∈ [1, 4] km/s.
-        $(inputs1)
-
-        ##### Boundary
-        Choose the position ∈ [-1, 1] km of the boundary between the media.
-        $(boundary)
-
-        ##### Number of Chebyshev Collocation Points
-        $(inputs2)
-        """
-    end
+        	###### Number of Chebyshev Collocation Points
+        	$(inputs2)
+        	"""
+    	end
+	end
+	nothing
 end
 
 # ╔═╡ a8aba6f3-c212-4428-8458-6925c49524cd
-@bind medium confirm(medium_input())
+@bind medium confirm(medium_input(n_layers[1]))
 
 # ╔═╡ 48fdfc8f-c6ef-497d-aa76-37faf6bc335b
 xgrid = get_Chebyshev_grid(medium);
@@ -378,7 +412,7 @@ xgrid = get_Chebyshev_grid(medium);
 scatter(xgrid, [0], ylim=(-1, 1), title="Chebyshev Collocation Points", size=(600, 200))
 
 # ╔═╡ 8ffdd68b-5ee4-49ec-b2c5-83510d68822d
-cvec = get_wavespeed(medium, xgrid);
+cvec = get_wavespeed(medium, xgrid, n_layers[1]);
 
 # ╔═╡ c98ad9b1-863a-4bc3-8637-9b7242390524
 plot(xgrid, cvec, w=2, title="Wavespeed", label=nothing, size=(600, 200))
@@ -477,18 +511,23 @@ Function to show the animation of displacements in the medium at different times
 """
 
 # ╔═╡ 8a19be18-13dd-4bfb-a082-08e4fbe50603
-function plot_up(up)
-    ylim = (-maximum(abs.(up)), maximum(abs.(up)))
-    @gif for it in 1:2:100
-        plot(xgrid, up[it, :], ylim=ylim, label=nothing, title="Displacement of 1D Earth (it=$it)", ylabel="Amplitude", w=2)
-        vline!([xgrid[pa.isx]], label="source", w=2)
-        vline!([xgrid[pa.irx]], label="receiver", w=2)
-        vline!([xgrid[argmin(abs.(xgrid .- medium.bx))]], label="boundary", w=2)
-    end
+begin
+	function plot_up(up,xgrid,pa,medium,n_layers)
+    	ylim = (-maximum(abs.(up)), maximum(abs.(up)))
+    	@gif for it in 1:2:100
+        	plot(xgrid, up[it, :], ylim=ylim, label=nothing, title="Displacement of 1D Earth (it=$it)", ylabel="Amplitude", w=2)
+        	vline!([xgrid[pa.isx]], label="source", w=2)
+        	vline!([xgrid[pa.irx]], label="receiver", w=2)
+			for i = 1:n_layers-1
+				vline!([xgrid[argmin(abs.(xgrid .- medium[n_layers+i]))]], label="boundary", w=2)
+			end
+    	end
+	end
+	nothing
 end
 
 # ╔═╡ e4597db1-f92e-4513-824b-87c22ecb0f15
-plot_up(up)
+plot_up(up,xgrid,pa,medium,n_layers[1])
 
 # ╔═╡ 28aaf613-3041-4ede-b8f3-ebfb955ef5cc
 md"""
@@ -2095,6 +2134,7 @@ version = "1.4.1+0"
 # ╟─235eff94-9dca-40e6-a37f-e906d04eb094
 # ╟─04f765cb-826e-4939-800e-9a4952e895bb
 # ╟─0d74cf59-6dea-43ac-a5c8-d060eec21936
+# ╟─b74bec20-f8a7-4ebf-93bf-13ac8bec8f44
 # ╠═a8aba6f3-c212-4428-8458-6925c49524cd
 # ╠═e464db0e-97fe-4a38-9309-8595b0c0420b
 # ╠═e4597db1-f92e-4513-824b-87c22ecb0f15
