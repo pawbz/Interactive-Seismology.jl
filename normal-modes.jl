@@ -1,5 +1,5 @@
 ### A Pluto.jl notebook ###
-# v0.19.13
+# v0.19.11
 
 using Markdown
 using InteractiveUtils
@@ -97,20 +97,45 @@ md"""
 We can measure eigenfrequencies and infer the velocity of the medium.
 """
 
+# ╔═╡ 106401bc-bea2-47e0-b8a8-c3429a9b8aff
+md"""
+### Simulation
+"""
+
+# ╔═╡ 4c2be508-c65c-40df-b9b4-e5dac4ba8480
+md"""
+**Definition of spatial grid:** Spatial grid is defined using Chebyshev collocation points.
+"""
+
+# ╔═╡ 95e0e53c-131e-4b83-91e1-1aefd3808b2c
+md"""
+**Interpolation of wave speeds:** Layer-wise wave speeds are interpolated to the spatial grid points by assuming that the wave speeds are invariant within the layer.
+"""
+
 # ╔═╡ c683d0a8-85a0-4ff9-a071-abbbf64e64bf
 @info "Integer multiples of the first Eigen frequencies."
 
+# ╔═╡ 38cf2c5b-d185-496f-a189-660f9a5730eb
+md"""
+**Definition of matrix operator and Eigen decomposition:** The matrix operator that we are interested in is $c^2\frac{\partial^2}{\partial x^2}$. The spatial derivative is computed using the Chebyshev spectral method. We do the Eigen value decomposition of this matrix operator after applying the boundary condition.
+"""
+
 # ╔═╡ b2fd6fed-99ce-4e54-a4cd-d81796daad3c
-md"It has been proven that all the eigenvalues of the second-order Chebyshev spectral differentiation matrix are real, distinct, and negative (Gottleib and Lustman). We shall now plot them."
+md"It has been proven that all the eigen values of the second-order Chebyshev spectral differentiation matrix are real, distinct, and negative (Gottleib and Lustman). We shall now plot them."
 
-# ╔═╡ ea125ec7-babe-4941-a22f-5d4bab2ce76c
-nt = 1000
+# ╔═╡ 5c299817-255b-4b27-8b1b-ef5a84d7a892
+md"""
+**Modeling the source as a delta function:** We model the source as a delta function placed at its grid location.
+"""
 
-# ╔═╡ 6a853cd4-8d11-4cbe-9fb3-a2c3379a5fee
-dt = 0.01
+# ╔═╡ f2498b6b-2628-4beb-bee0-391bcfde2e1f
+md"""
+**Normal mode summation to obtain displacement field:** The displacement field is given by
 
-# ╔═╡ 6c79fe3b-303f-47fa-be5d-32aa2deb1592
-tgrid = range(0, step=dt, length=nt)
+$u(x,t) = U(x,\omega)cos(\omega t) = \Sigma_nU_n(x,\omega_n)cos(\omega_nt)$
+
+Here, $\omega_n$ are the eigen frequencies that we have computed and $U_n(x,\omega_n)$ are the corresponding eigen functions. The eigen functions also need to be scaled by the position of the source and the source-time function.
+"""
 
 # ╔═╡ e5911de3-df61-4eff-9125-e17e2b60635c
 md"## Appendix"
@@ -148,6 +173,13 @@ Usol(x, c)
 # ╔═╡ 8f1ddc1d-f03f-4a0b-b129-e6de48ecc51c
 substitute(Ueq.lhs, [U(x, ω) => Usol(x, c)]) |> expand_derivatives |> x -> substitute(x, [c^2 => μ / ρ]) |> simplify
 
+# ╔═╡ ede6c92e-9fb8-4e25-b87a-6c6ef5ba30da
+md"""
+### Velocity Interpolation
+
+Function to interpolate layer-wise velocity input to all the grid points. Velocity is assumed to be constant at all the grid points of a particular layer
+"""
+
 # ╔═╡ 1f085e5e-373f-4133-9866-c40fe941d0e8
 function get_wavespeed(medium, xgrid)
     c = zeros(medium.nx)
@@ -160,16 +192,18 @@ end
 # ╔═╡ fd8088b6-4ea0-4ca8-823c-0b46d7b115f9
 md"""
 ### Chebyshev Methods
-"""
 
-# ╔═╡ 02858b76-bf4d-42a6-9570-5dc96227163c
-md"Here, we shall form the Chebyshev differential matrix explicitly, instead of using `FFTW` library."
+Function to designate the Chebyshev collocation points
+"""
 
 # ╔═╡ dd991305-7f64-4b25-9899-c7ea005f4fb8
 function get_Chebyshev_grid(medium)
     nx = medium.nx
     return cos.(pi .* collect(0:nx-1) ./ (nx - 1))
 end
+
+# ╔═╡ 81162f10-ab6e-4837-bae9-b0265298f960
+md"Here, we shall form the Chebyshev differential matrix explicitly, instead of using `FFTW` library."
 
 # ╔═╡ 854eccae-776c-4010-8726-f7555f5afa1a
 # This function returns the Chebyshev spectral differentiation matrix.
@@ -204,7 +238,17 @@ end
 
 # ╔═╡ b72860bc-e30b-489c-b45a-fa13195ee6f2
 md"""
-A simple test to check `D`.
+A simple test to check the differential operator `D`.
+"""
+
+# ╔═╡ 9bbb4967-134c-4d6c-ac66-ff7ec993e8aa
+md"""
+Function to return the operator matrix on which Eigen value decomposition needs to be performed for the Strum-Louville formulation. The Eigen value equation is 
+
+$\frac{\mu}{\rho}\frac{\partial^2 U(x,\omega)}{\partial x^2} = -\omega^2U(x,\omega)$
+
+$c^2\frac{\partial^2 U(x,\omega)}{\partial x^2} = -\omega^2U(x,\omega)$
+Therefore, the matrix operator is $c^2\frac{\partial^2}{\partial x^2}$.
 """
 
 # ╔═╡ 5dbdf865-548e-4ed0-ab37-2132fdd86461
@@ -221,6 +265,8 @@ end
 # ╔═╡ ab7b1681-9528-4053-8e32-ba5614ed1be7
 md"""
 ### Source
+
+Function to model the source as a delta function.
 """
 
 # ╔═╡ e4189130-9f62-47ed-a143-2acbd73e4ffd
@@ -233,6 +279,8 @@ end
 # ╔═╡ e14392f8-7c8d-444e-8ba6-99d68811178e
 md"""
 ### Normal-mode Solution
+
+Function to get the eigen frequencies and eigen vectors for summation of normal modes. Number of modes to be used in the summation is specified by the user.
 """
 
 # ╔═╡ 1a37a04e-4d58-4b8c-b8d9-eca694270e66
@@ -247,7 +295,7 @@ end
 
 # ╔═╡ 1e0dcfbd-a2d4-49fd-9928-6fb0706fae2b
 md"""
-The amplitude of each eigenfunction depends on the position of the source and the source time function. The operation `E' * s` gives us the amplitude of each eigen function.
+Here, we do summation of the normal modes to obtain the total displacement field ($u(x,t) = U(x,\omega)cos(\omega t)$). The Eigen functions are $U(x,\omega)$ (eigen vectors of the operator matrix). The amplitude of each eigen function depends on the position of the source and the source time function. The operation `E' * s` gives us the amplitude of each eigen function (E is the matrix of eigen vectors).
 """
 
 # ╔═╡ a027090d-bc56-42c7-8994-2e4a91450d84
@@ -271,7 +319,10 @@ function normal_mode_summation(EV, EF, s, tgrid)
 end
 
 # ╔═╡ 7c657799-cea6-47b8-a678-40fa8abb1b9e
-md"### UI"
+md"""
+### UI
+Function to define the medium parameters i.e velocities of each layer and the boundaries of the layers.
+"""
 
 # ╔═╡ d48d5df6-6329-4bf5-9048-e11f05216076
 function medium_input()
@@ -279,10 +330,10 @@ function medium_input()
     return PlutoUI.combine() do Child
         inputs1 = [
             md"""
-            c₁ (gm/cc) $(Child("c₁", Slider(range(1, 4, step=0.2), default=1.8, show_value=true)))
+            c₁ (km/s) $(Child("c₁", Slider(range(1, 4, step=0.2), default=1.8, show_value=true)))
             """,
             md"""
-            c₂ (gm/cc) $(Child("c₂", Slider(range(1, 4, step=0.2), default=2.5, show_value=true)))
+            c₂ (km/s) $(Child("c₂", Slider(range(1, 4, step=0.2), default=2.5, show_value=true)))
             """
         ]
 
@@ -294,7 +345,7 @@ function medium_input()
 
         boundary = [
             md"""
-            bx $(Child("bx", Slider(range(-1, stop=1, length=11), default=0.0, show_value=true)))
+            bx (km) $(Child("bx", Slider(range(-1, stop=1, length=11), default=0.0, show_value=true)))
             """,
         ]
 
@@ -320,17 +371,17 @@ end
 # ╔═╡ a8aba6f3-c212-4428-8458-6925c49524cd
 @bind medium confirm(medium_input())
 
-# ╔═╡ 38cf2c5b-d185-496f-a189-660f9a5730eb
+# ╔═╡ 48fdfc8f-c6ef-497d-aa76-37faf6bc335b
 xgrid = get_Chebyshev_grid(medium);
+
+# ╔═╡ 3710527e-1f16-4a77-9881-e5dfa71bceb3
+scatter(xgrid, [0], ylim=(-1, 1), title="Chebyshev Collocation Points", size=(600, 200))
 
 # ╔═╡ 8ffdd68b-5ee4-49ec-b2c5-83510d68822d
 cvec = get_wavespeed(medium, xgrid);
 
 # ╔═╡ c98ad9b1-863a-4bc3-8637-9b7242390524
 plot(xgrid, cvec, w=2, title="Wavespeed", label=nothing, size=(600, 200))
-
-# ╔═╡ f144c9a2-c2b4-4673-8766-18dde0a12431
-scatter(xgrid, [0], ylim=(-1, 1), title="Chebyshev Collocation Points", size=(600, 200))
 
 # ╔═╡ 9afe5aa9-579f-4c56-8e7a-451efdd10a57
 D = Chebyshev_Diff_Matrix(xgrid, medium.nx - 1);
@@ -340,6 +391,11 @@ D = Chebyshev_Diff_Matrix(xgrid, medium.nx - 1);
 
 # ╔═╡ 8b8b76d2-ac05-4160-8ceb-e9139908e53f
 Lop, LE = get_op(medium, cvec, D);
+
+# ╔═╡ fdad8225-33db-41ad-a21e-06edd8ab3a9e
+md"""
+Function to define the source and receiver locations and the number of normal modes used in the summation.
+"""
 
 # ╔═╡ 38c37772-7610-469f-9ae5-d9c73160b132
 function other_input()
@@ -402,14 +458,23 @@ begin
 	plot!(eigen_vectors * eigen_vectors' * source, label=nothing, size=(600, 200));
 end
 
-# ╔═╡ 7ef02104-c456-4c5f-8320-6d58f66a6bc6
-up = normal_mode_summation(eigen_vectors, eigen_frequencies, source, tgrid);
+# ╔═╡ 1c6243ed-8025-4eeb-9088-530c742383cc
+begin
+	nt = 1000
+	dt = 0.01
+	tgrid = range(0, step=dt, length=nt)
+	up = normal_mode_summation(eigen_vectors, eigen_frequencies, source, tgrid)
+	nothing
+end
 
 # ╔═╡ 2ee412fe-5a38-4884-b745-4f9c7ca2287c
 heatmap(up, xlabel="x position", ylabel="time", title="Displacement", aspect_ratio=1, c=:seismic, size=(300, 600))
 
 # ╔═╡ 2c4b1d89-906f-45f7-8360-d270d691fe12
-md"### Plots"
+md"""
+### Plots
+Function to show the animation of displacements in the medium at different times. This helps to visualize the propagation of waves through the medium.
+"""
 
 # ╔═╡ 8a19be18-13dd-4bfb-a082-08e4fbe50603
 function plot_up(up)
@@ -424,6 +489,11 @@ end
 
 # ╔═╡ e4597db1-f92e-4513-824b-87c22ecb0f15
 plot_up(up)
+
+# ╔═╡ 28aaf613-3041-4ede-b8f3-ebfb955ef5cc
+md"""
+Function to plot the time-series and spectrum at the receiver location.
+"""
 
 # ╔═╡ 05d7771e-ad50-4f4f-8d38-1fe8297b4ff2
 function plot_record()
@@ -475,15 +545,14 @@ Symbolics = "~4.11.1"
 PLUTO_MANIFEST_TOML_CONTENTS = """
 # This file is machine-generated - editing it directly is not advised
 
-julia_version = "1.8.2"
+julia_version = "1.7.3"
 manifest_format = "2.0"
-project_hash = "1649c2481def2035b891a1a9661608ff59d81827"
 
 [[deps.AbstractAlgebra]]
 deps = ["GroupsCore", "InteractiveUtils", "LinearAlgebra", "MacroTools", "Markdown", "Random", "RandomExtensions", "SparseArrays", "Test"]
-git-tree-sha1 = "e506dcc52d993ec7c69ea754b3bbd507d4737891"
+git-tree-sha1 = "da90f455c3321f244efd72ef11a8501408a04c1a"
 uuid = "c3fe647b-3220-5bb0-a1ea-a7954cac585d"
-version = "0.27.5"
+version = "0.27.6"
 
 [[deps.AbstractFFTs]]
 deps = ["ChainRulesCore", "LinearAlgebra"]
@@ -498,9 +567,9 @@ uuid = "6e696c72-6542-2067-7265-42206c756150"
 version = "1.1.4"
 
 [[deps.AbstractTrees]]
-git-tree-sha1 = "5c0b629df8a5566a06f5fef5100b53ea56e465a0"
+git-tree-sha1 = "52b3b436f8f73133d7bc3a6c71ee7ed6ab2ab754"
 uuid = "1520ce14-60c1-5f80-bbc7-55ef81b5835c"
-version = "0.4.2"
+version = "0.4.3"
 
 [[deps.Adapt]]
 deps = ["LinearAlgebra"]
@@ -515,7 +584,6 @@ version = "2.3.0"
 
 [[deps.ArgTools]]
 uuid = "0dad84c5-d112-42e6-8d28-ef12dabb789f"
-version = "1.1.1"
 
 [[deps.ArrayInterface]]
 deps = ["ArrayInterfaceCore", "Compat", "IfElse", "LinearAlgebra", "Static"]
@@ -525,9 +593,9 @@ version = "6.0.23"
 
 [[deps.ArrayInterfaceCore]]
 deps = ["LinearAlgebra", "SparseArrays", "SuiteSparse"]
-git-tree-sha1 = "e9f7992287edfc27b3cbe0046c544bace004ca5b"
+git-tree-sha1 = "e6cba4aadba7e8a7574ab2ba2fcfb307b4c4b02a"
 uuid = "30b0a656-2188-435a-8636-2ec0e6a096e2"
-version = "0.1.22"
+version = "0.1.23"
 
 [[deps.ArrayInterfaceStaticArrays]]
 deps = ["Adapt", "ArrayInterface", "ArrayInterfaceStaticArraysCore", "LinearAlgebra", "Static", "StaticArrays"]
@@ -664,7 +732,6 @@ version = "4.3.0"
 [[deps.CompilerSupportLibraries_jll]]
 deps = ["Artifacts", "Libdl"]
 uuid = "e66e0078-7015-5450-92f7-15fbd957f2ae"
-version = "0.5.2+0"
 
 [[deps.CompositeTypes]]
 git-tree-sha1 = "d5b014b216dc891e81fea299638e4c10c657b582"
@@ -752,9 +819,9 @@ version = "0.25.76"
 
 [[deps.DocStringExtensions]]
 deps = ["LibGit2"]
-git-tree-sha1 = "5158c2b41018c5f7eb1470d558127ac274eca0c9"
+git-tree-sha1 = "c36550cb29cbe373e95b3f40486b9a4148f89ffd"
 uuid = "ffbed154-4ef7-542d-bbb7-c09d3a79fcae"
-version = "0.9.1"
+version = "0.9.2"
 
 [[deps.DomainSets]]
 deps = ["CompositeTypes", "IntervalSets", "LinearAlgebra", "Random", "StaticArrays", "Statistics"]
@@ -765,7 +832,6 @@ version = "0.5.14"
 [[deps.Downloads]]
 deps = ["ArgTools", "FileWatching", "LibCURL", "NetworkOptions"]
 uuid = "f43a241f-c20a-4ad4-852c-f6b1247861c6"
-version = "1.6.0"
 
 [[deps.DualNumbers]]
 deps = ["Calculus", "NaNMath", "SpecialFunctions"]
@@ -951,9 +1017,9 @@ version = "0.4.0"
 
 [[deps.HTTP]]
 deps = ["Base64", "CodecZlib", "Dates", "IniFile", "Logging", "LoggingExtras", "MbedTLS", "NetworkOptions", "OpenSSL", "Random", "SimpleBufferStream", "Sockets", "URIs", "UUIDs"]
-git-tree-sha1 = "3cdd8948c55d8b53b5323f23c9581555dc2e30e1"
+git-tree-sha1 = "a97d47758e933cd5fe5ea181d178936a9fc60427"
 uuid = "cd3eb016-35fb-5094-929b-558a96fad6f3"
-version = "1.5.0"
+version = "1.5.1"
 
 [[deps.HarfBuzz_jll]]
 deps = ["Artifacts", "Cairo_jll", "Fontconfig_jll", "FreeType2_jll", "Glib_jll", "Graphite2_jll", "JLLWrappers", "Libdl", "Libffi_jll", "Pkg"]
@@ -1091,10 +1157,10 @@ uuid = "b964fa9f-0449-5b57-a5c2-d3ea65f4040f"
 version = "1.3.0"
 
 [[deps.LabelledArrays]]
-deps = ["ArrayInterfaceCore", "ArrayInterfaceStaticArrays", "ChainRulesCore", "ForwardDiff", "LinearAlgebra", "MacroTools", "PreallocationTools", "RecursiveArrayTools", "StaticArrays"]
-git-tree-sha1 = "b35f1f5e66a9b5264fb5e9b556288bcbd635c72c"
+deps = ["ArrayInterfaceCore", "ArrayInterfaceStaticArrays", "ArrayInterfaceStaticArraysCore", "ChainRulesCore", "ForwardDiff", "LinearAlgebra", "MacroTools", "PreallocationTools", "RecursiveArrayTools", "StaticArrays"]
+git-tree-sha1 = "09f2b5dc592497df821681838d65460b51caad9a"
 uuid = "2ee39098-c373-598a-b85f-a56591580800"
-version = "1.12.2"
+version = "1.12.4"
 
 [[deps.LambertW]]
 git-tree-sha1 = "2d9f4009c486ef676646bca06419ac02061c088e"
@@ -1119,12 +1185,10 @@ uuid = "4af54fe1-eca0-43a8-85a7-787d91b784e3"
 [[deps.LibCURL]]
 deps = ["LibCURL_jll", "MozillaCACerts_jll"]
 uuid = "b27032c2-a3e7-50c8-80cd-2d36dbcbfd21"
-version = "0.6.3"
 
 [[deps.LibCURL_jll]]
 deps = ["Artifacts", "LibSSH2_jll", "Libdl", "MbedTLS_jll", "Zlib_jll", "nghttp2_jll"]
 uuid = "deac9b47-8bc7-5906-a0fe-35ac56dc84c0"
-version = "7.84.0+0"
 
 [[deps.LibGit2]]
 deps = ["Base64", "NetworkOptions", "Printf", "SHA"]
@@ -1133,7 +1197,6 @@ uuid = "76f85450-5226-5b5a-8eaa-529ad045b433"
 [[deps.LibSSH2_jll]]
 deps = ["Artifacts", "Libdl", "MbedTLS_jll"]
 uuid = "29816b5a-b9ab-546f-933c-edad1886dfa8"
-version = "1.10.2+0"
 
 [[deps.Libdl]]
 uuid = "8f399da3-3557-5675-b5ff-fb832c97cbdb"
@@ -1234,14 +1297,13 @@ uuid = "d6f4376e-aef5-505a-96c1-9c027394607a"
 
 [[deps.MbedTLS]]
 deps = ["Dates", "MbedTLS_jll", "MozillaCACerts_jll", "Random", "Sockets"]
-git-tree-sha1 = "6872f9594ff273da6d13c7c1a1545d5a8c7d0c1c"
+git-tree-sha1 = "03a9b9718f5682ecb107ac9f7308991db4ce395b"
 uuid = "739be429-bea8-5141-9913-cc70e7f3736d"
-version = "1.1.6"
+version = "1.1.7"
 
 [[deps.MbedTLS_jll]]
 deps = ["Artifacts", "Libdl"]
 uuid = "c8ffd9c3-330d-5841-b78e-0817d7145fa1"
-version = "2.28.0+0"
 
 [[deps.Measures]]
 git-tree-sha1 = "e498ddeee6f9fdb4551ce855a46f54dbd900245f"
@@ -1271,7 +1333,6 @@ uuid = "a63ad114-7e13-5084-954f-fe012c677804"
 
 [[deps.MozillaCACerts_jll]]
 uuid = "14a3606d-f60d-562e-9121-12d972cd8159"
-version = "2022.2.1"
 
 [[deps.MsgPack]]
 deps = ["Serialization"]
@@ -1299,7 +1360,6 @@ version = "1.0.1"
 
 [[deps.NetworkOptions]]
 uuid = "ca575930-c2e3-43a9-ace4-1e988b2c1908"
-version = "1.2.0"
 
 [[deps.Ogg_jll]]
 deps = ["Artifacts", "JLLWrappers", "Libdl", "Pkg"]
@@ -1310,12 +1370,10 @@ version = "1.3.5+1"
 [[deps.OpenBLAS_jll]]
 deps = ["Artifacts", "CompilerSupportLibraries_jll", "Libdl"]
 uuid = "4536629a-c528-5b80-bd46-f80d51c5b363"
-version = "0.3.20+0"
 
 [[deps.OpenLibm_jll]]
 deps = ["Artifacts", "Libdl"]
 uuid = "05823500-19ac-5b8b-9628-191a04bc5112"
-version = "0.8.1+0"
 
 [[deps.OpenSSL]]
 deps = ["BitFlags", "Dates", "MozillaCACerts_jll", "OpenSSL_jll", "Sockets"]
@@ -1349,7 +1407,6 @@ version = "1.4.1"
 [[deps.PCRE2_jll]]
 deps = ["Artifacts", "Libdl"]
 uuid = "efcefdf7-47ab-520b-bdef-62a2eaa19f15"
-version = "10.40.0+0"
 
 [[deps.PDMats]]
 deps = ["LinearAlgebra", "SparseArrays", "SuiteSparse"]
@@ -1383,7 +1440,6 @@ version = "0.40.1+0"
 [[deps.Pkg]]
 deps = ["Artifacts", "Dates", "Downloads", "LibGit2", "Libdl", "Logging", "Markdown", "Printf", "REPL", "Random", "SHA", "Serialization", "TOML", "Tar", "UUIDs", "p7zip_jll"]
 uuid = "44cfe95a-1eb2-52ea-b672-e2afdf69b78f"
-version = "1.8.0"
 
 [[deps.PlotThemes]]
 deps = ["PlotUtils", "Statistics"]
@@ -1399,15 +1455,15 @@ version = "1.3.1"
 
 [[deps.Plots]]
 deps = ["Base64", "Contour", "Dates", "Downloads", "FFMPEG", "FixedPointNumbers", "GR", "JLFzf", "JSON", "LaTeXStrings", "Latexify", "LinearAlgebra", "Measures", "NaNMath", "Pkg", "PlotThemes", "PlotUtils", "Printf", "REPL", "Random", "RecipesBase", "RecipesPipeline", "Reexport", "RelocatableFolders", "Requires", "Scratch", "Showoff", "SnoopPrecompile", "SparseArrays", "Statistics", "StatsBase", "UUIDs", "UnicodeFun", "Unzip"]
-git-tree-sha1 = "041704a5182f25cdcbb1369f13d9d9f94a86b5fd"
+git-tree-sha1 = "0a56829d264eb1bc910cf7c39ac008b5bcb5a0d9"
 uuid = "91a5bcdd-55d7-5caf-9e0b-520d859cae80"
-version = "1.35.4"
+version = "1.35.5"
 
 [[deps.Pluto]]
 deps = ["Base64", "Configurations", "Dates", "Distributed", "FileWatching", "FuzzyCompletions", "HTTP", "HypertextLiteral", "InteractiveUtils", "Logging", "MIMEs", "Markdown", "MsgPack", "Pkg", "PrecompileSignatures", "REPL", "RegistryInstances", "RelocatableFolders", "Sockets", "TOML", "Tables", "URIs", "UUIDs"]
-git-tree-sha1 = "ce8a4ea07c59ddb75b6c065a256a3cf4cee78917"
+git-tree-sha1 = "c3f344a915bc1d67455ecc5e38f4a184ffc4ad96"
 uuid = "c3e4b0f8-55cb-11ea-2926-15256bba5781"
-version = "0.19.13"
+version = "0.19.14"
 
 [[deps.PlutoHooks]]
 deps = ["InteractiveUtils", "Markdown", "UUIDs"]
@@ -1435,9 +1491,9 @@ version = "0.2.2"
 
 [[deps.PlutoUI]]
 deps = ["AbstractPlutoDingetjes", "Base64", "ColorTypes", "Dates", "FixedPointNumbers", "Hyperscript", "HypertextLiteral", "IOCapture", "InteractiveUtils", "JSON", "Logging", "MIMEs", "Markdown", "Random", "Reexport", "URIs", "UUIDs"]
-git-tree-sha1 = "47a31ed1dd7d30173cb78f5066860eea2d4eaf7b"
+git-tree-sha1 = "efc140104e6d0ae3e7e30d56c98c4a927154d684"
 uuid = "7f904dfe-b85e-4ff6-b463-dae2292396a8"
-version = "0.7.46"
+version = "0.7.48"
 
 [[deps.PreallocationTools]]
 deps = ["Adapt", "ArrayInterfaceCore", "ForwardDiff"]
@@ -1571,13 +1627,12 @@ version = "0.5.3"
 
 [[deps.SHA]]
 uuid = "ea8e919c-243c-51af-8825-aaa63cd721ce"
-version = "0.7.0"
 
 [[deps.SciMLBase]]
 deps = ["ArrayInterfaceCore", "CommonSolve", "ConstructionBase", "Distributed", "DocStringExtensions", "EnumX", "FunctionWrappersWrappers", "IteratorInterfaceExtensions", "LinearAlgebra", "Logging", "Markdown", "Preferences", "RecipesBase", "RecursiveArrayTools", "RuntimeGeneratedFunctions", "StaticArraysCore", "Statistics", "Tables"]
-git-tree-sha1 = "d41daf11db3383bd979ba00e1590d2f4297ace61"
+git-tree-sha1 = "bb721d406b9002ccd5636f576041f077b6d06371"
 uuid = "0bca4576-84f4-4d90-8ffe-ffa030f20462"
-version = "1.63.0"
+version = "1.64.0"
 
 [[deps.Scratch]]
 deps = ["Dates"]
@@ -1693,7 +1748,6 @@ version = "4.11.1"
 [[deps.TOML]]
 deps = ["Dates"]
 uuid = "fa267f1f-6049-4f14-aa54-33bafae1ed76"
-version = "1.0.0"
 
 [[deps.TableTraits]]
 deps = ["IteratorInterfaceExtensions"]
@@ -1710,7 +1764,6 @@ version = "1.10.0"
 [[deps.Tar]]
 deps = ["ArgTools", "SHA"]
 uuid = "a4e569a6-e804-4fa4-b0f3-eef7a1d5b13e"
-version = "1.10.1"
 
 [[deps.TensorCore]]
 deps = ["LinearAlgebra"]
@@ -1943,7 +1996,6 @@ version = "1.4.0+3"
 [[deps.Zlib_jll]]
 deps = ["Libdl"]
 uuid = "83775a58-1f1d-513f-b197-d71354ab007a"
-version = "1.2.12+3"
 
 [[deps.Zstd_jll]]
 deps = ["Artifacts", "JLLWrappers", "Libdl", "Pkg"]
@@ -1978,7 +2030,6 @@ version = "0.15.1+0"
 [[deps.libblastrampoline_jll]]
 deps = ["Artifacts", "Libdl", "OpenBLAS_jll"]
 uuid = "8e850b90-86db-534c-a0d3-1478176c7d93"
-version = "5.1.1+0"
 
 [[deps.libfdk_aac_jll]]
 deps = ["Artifacts", "JLLWrappers", "Libdl", "Pkg"]
@@ -2001,12 +2052,10 @@ version = "1.3.7+1"
 [[deps.nghttp2_jll]]
 deps = ["Artifacts", "Libdl"]
 uuid = "8e850ede-7688-5339-a07c-302acd2aaf8d"
-version = "1.48.0+0"
 
 [[deps.p7zip_jll]]
 deps = ["Artifacts", "Libdl"]
 uuid = "3f19e933-33d8-53b3-aaab-bd5110c3b7a0"
-version = "17.4.0+0"
 
 [[deps.x264_jll]]
 deps = ["Artifacts", "JLLWrappers", "Libdl", "Pkg"]
@@ -2051,34 +2100,39 @@ version = "1.4.1+0"
 # ╠═e4597db1-f92e-4513-824b-87c22ecb0f15
 # ╟─73d50ccc-9791-4b8b-8216-2041a3940357
 # ╠═9cda10ec-8e35-4b51-a0be-644c3be56f8e
+# ╟─106401bc-bea2-47e0-b8a8-c3429a9b8aff
+# ╟─4c2be508-c65c-40df-b9b4-e5dac4ba8480
+# ╠═48fdfc8f-c6ef-497d-aa76-37faf6bc335b
+# ╠═3710527e-1f16-4a77-9881-e5dfa71bceb3
+# ╟─95e0e53c-131e-4b83-91e1-1aefd3808b2c
 # ╠═8ffdd68b-5ee4-49ec-b2c5-83510d68822d
 # ╠═c98ad9b1-863a-4bc3-8637-9b7242390524
 # ╟─c683d0a8-85a0-4ff9-a071-abbbf64e64bf
-# ╠═38cf2c5b-d185-496f-a189-660f9a5730eb
-# ╠═f144c9a2-c2b4-4673-8766-18dde0a12431
+# ╟─38cf2c5b-d185-496f-a189-660f9a5730eb
 # ╠═9afe5aa9-579f-4c56-8e7a-451efdd10a57
 # ╠═8b8b76d2-ac05-4160-8ceb-e9139908e53f
 # ╠═26935936-82fe-4eaa-96a1-72ebf39c67ed
 # ╠═8cf920ec-97a2-4ae8-a0e4-2f094c8efbcf
 # ╟─b2fd6fed-99ce-4e54-a4cd-d81796daad3c
 # ╠═6e399a13-7fd2-4fa7-99ad-bfec81f4c378
+# ╟─5c299817-255b-4b27-8b1b-ef5a84d7a892
 # ╠═7bb7fde1-f933-495a-b09b-351c7632ef34
 # ╠═f8abaa6a-c85b-4ae9-adeb-e68d7d0eb26e
-# ╠═ea125ec7-babe-4941-a22f-5d4bab2ce76c
-# ╠═6a853cd4-8d11-4cbe-9fb3-a2c3379a5fee
-# ╠═6c79fe3b-303f-47fa-be5d-32aa2deb1592
-# ╠═7ef02104-c456-4c5f-8320-6d58f66a6bc6
+# ╟─f2498b6b-2628-4beb-bee0-391bcfde2e1f
+# ╠═1c6243ed-8025-4eeb-9088-530c742383cc
 # ╠═2ee412fe-5a38-4884-b745-4f9c7ca2287c
 # ╟─e5911de3-df61-4eff-9125-e17e2b60635c
 # ╠═cd668fc4-7a21-49c3-b923-482f8779a73d
 # ╠═49d1e6d1-acd0-4cf8-8373-3c9daf61cf6c
+# ╟─ede6c92e-9fb8-4e25-b87a-6c6ef5ba30da
 # ╠═1f085e5e-373f-4133-9866-c40fe941d0e8
 # ╟─fd8088b6-4ea0-4ca8-823c-0b46d7b115f9
-# ╟─02858b76-bf4d-42a6-9570-5dc96227163c
 # ╠═dd991305-7f64-4b25-9899-c7ea005f4fb8
+# ╟─81162f10-ab6e-4837-bae9-b0265298f960
 # ╠═854eccae-776c-4010-8726-f7555f5afa1a
 # ╟─b72860bc-e30b-489c-b45a-fa13195ee6f2
 # ╠═bef9146b-4965-4a74-87b3-09ddcf8ed3d9
+# ╟─9bbb4967-134c-4d6c-ac66-ff7ec993e8aa
 # ╠═5dbdf865-548e-4ed0-ab37-2132fdd86461
 # ╟─ab7b1681-9528-4053-8e32-ba5614ed1be7
 # ╠═e4189130-9f62-47ed-a143-2acbd73e4ffd
@@ -2090,9 +2144,11 @@ version = "1.4.1+0"
 # ╠═a027090d-bc56-42c7-8994-2e4a91450d84
 # ╟─7c657799-cea6-47b8-a678-40fa8abb1b9e
 # ╠═d48d5df6-6329-4bf5-9048-e11f05216076
+# ╟─fdad8225-33db-41ad-a21e-06edd8ab3a9e
 # ╠═38c37772-7610-469f-9ae5-d9c73160b132
 # ╟─2c4b1d89-906f-45f7-8360-d270d691fe12
 # ╠═8a19be18-13dd-4bfb-a082-08e4fbe50603
+# ╟─28aaf613-3041-4ede-b8f3-ebfb955ef5cc
 # ╠═05d7771e-ad50-4f4f-8d38-1fe8297b4ff2
 # ╟─4a584b5c-61c5-4f6d-a53e-6adae435c85e
 # ╟─00000000-0000-0000-0000-000000000001
