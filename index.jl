@@ -6,12 +6,12 @@ using InteractiveUtils
 
 # ╔═╡ aa8aa21c-6480-4d71-a55f-be4e98fe9dcc
 begin
-	using Pluto
-	using PlutoUI
+    using Pluto
+    using PlutoUI
 end
 
 # ╔═╡ 64625acb-b12e-4e95-b543-38d44b640e5d
-PlutoUI.LocalResource("./images/geophones_in_IISc.jpg", :width=>600)
+PlutoUI.LocalResource("./images/geophones_in_IISc.jpg", :width => 600)
 
 # ╔═╡ 1bb14878-b072-4dbf-b151-6ce26bb49d63
 md"""
