@@ -95,11 +95,14 @@ Indian Institute of Science, Bengaluru, India
 </script>
 """)
 
+# ╔═╡ 0af26694-c8d5-4449-a132-2b55a68549b5
+slowness_pert_draw_input
+
 # ╔═╡ 4972f23b-88a8-49d9-acad-75a65bdbe101
 md"""
 ## Draw Diffraction Hyperbolas!
-The canvas above is has a distance of $x∈[0, 1000]\,$m and depth $z∈[0, 500]\,$m. 
-The seismic source is located near the surface at $[0, -100]$, and $100$ receivers are equispaced from $[0, -10]$ to $[1000, -10]$ parallel to the surface. You can draw on the canvas to place the scatterers and observe the scattered wavefield below.
+The canvas above has a distance of $x∈[0, 1000]\,$m and depth $z∈[0, 500]\,$m. 
+The seismic source is located near the surface at $[0, -100]$, and $100$ receivers are equispaced from $[0, -10]$ to $[1000, -10]$ parallel to the surface. You can draw (using mouse clicks) on the canvas to place the scatterers and observe the scattered wavefield below.
 """
 
 # ╔═╡ 30d354da-fceb-42a3-8c4c-59bc211e0022
@@ -359,7 +362,7 @@ function G0(rloc, sloc, f, c)
 end
 
 # ╔═╡ e5a6e125-c700-4471-9781-abbd0b1c49c7
-function get_reference_wavefield()
+function get_reference_wavefield(freqgrid, Fsource, rlocs, slocs,)
     @tullio D[iω, ir, is] := G0(rlocs[ir], slocs[is], freqgrid[iω], vp0) * Fsource[iω]
     # remove zero frequencies
     @tullio D[1, i, j] = complex(0.0)
@@ -368,12 +371,15 @@ function get_reference_wavefield()
 end
 
 # ╔═╡ 9c8ce20e-171a-4909-9f3d-c2fe233dda7b
-d = get_reference_wavefield();
+d = get_reference_wavefield(freqgrid, Fsource, rlocs, slocs,);
 
 # ╔═╡ 99fd676e-d0a5-4975-9a0a-82d6438a3143
-function get_scattered_wavefield(δs, δx)
-    (slowness_pert_draw_input == []) && return zeros(length(tgrid), length(rlocs), length(slocs))
-    @tullio D[iω, ir, is] := G0(get_location(slowness_pert_draw_input[i], δx), slocs[is], freqgrid[iω], vp0) * G0(rlocs[ir], get_location(slowness_pert_draw_input[i], δx), freqgrid[iω], vp0) * freqgrid[iω] * freqgrid[iω] * δs * Fsource[iω] * 4.0 * pi * pi
+# δs is the perturbation in slowness
+# δx is the spatial sampling used to scale slowness_pertindices
+# rlocs and slocs are receiver and source positions
+function get_scattered_wavefield(δs, δx, freqgrid, Fsource, slowness_pertindices, rlocs, slocs)
+    (slowness_pertindices == []) && return zeros(length(tgrid), length(rlocs), length(slocs))
+    @tullio D[iω, ir, is] := G0(get_location(slowness_pertindices[i], δx), slocs[is], freqgrid[iω], vp0) * G0(rlocs[ir], get_location(slowness_pertindices[i], δx), freqgrid[iω], vp0) * freqgrid[iω] * freqgrid[iω] * δs * Fsource[iω] * 4.0 * pi * pi
     # remove zero frequencies
     @tullio D[1, i, j] = complex(0.0)
     # transform to time domain
@@ -381,7 +387,7 @@ function get_scattered_wavefield(δs, δx)
 end
 
 # ╔═╡ e5ee5c1f-f056-47de-9759-077777c6a157
-δd = get_scattered_wavefield(1e-6, δx);
+δd = get_scattered_wavefield(1e-6, δx, freqgrid, Fsource, slowness_pert_draw_input, rlocs, slocs);
 
 # ╔═╡ 3c23a484-0b9a-4044-bcec-fec447509991
 md"### Plots"
@@ -389,7 +395,7 @@ md"### Plots"
 # ╔═╡ a6f59c95-2271-4f2f-894f-b574401cd545
 function plot_data(d, δd)
 
-    fig = Plot(Layout( yaxis_autorange="reversed", height=400, width=500, yaxis_title="time [s]", Subplots(shared_xaxes=true, shared_yaxes=true, rows=1, cols=2, subplot_titles=["Reference Wavefield" "Scattered Wavefield"])))
+    fig = Plot(Layout(yaxis_autorange="reversed", height=400, width=500, yaxis_title="time [s]", Subplots(shared_xaxes=true, shared_yaxes=true, rows=1, cols=2, subplot_titles=["Reference Wavefield" "Scattered Wavefield"])))
     add_trace!(fig, heatmap(y=tgrid, z=d, showscale=false, colorscale="jet"), row=1, col=1)
     add_trace!(fig, heatmap(y=tgrid, z=δd, showscale=false, colorscale="jet"), row=1, col=2)
 
@@ -450,7 +456,7 @@ PLUTO_MANIFEST_TOML_CONTENTS = """
 
 julia_version = "1.8.2"
 manifest_format = "2.0"
-project_hash = "602db291c69da677efac70ad85377acc75fea070"
+project_hash = "36d471d82421f1898c5124672d8c091a5e6036e3"
 
 [[deps.AbstractAlgebra]]
 deps = ["GroupsCore", "InteractiveUtils", "LinearAlgebra", "MacroTools", "Markdown", "Random", "RandomExtensions", "SparseArrays", "Test"]
@@ -1435,6 +1441,7 @@ version = "17.4.0+0"
 # ╠═4aa9e374-27a1-4d80-9d7f-9a7c1ee859b2
 # ╟─5d3692af-dee6-4adf-9276-82f11a1a9544
 # ╟─3d88f8c4-ba31-4d99-8966-3ddf617e5b5f
+# ╠═0af26694-c8d5-4449-a132-2b55a68549b5
 # ╟─4972f23b-88a8-49d9-acad-75a65bdbe101
 # ╠═5b60b72c-73a4-4a90-b50d-c3bd3c8654d5
 # ╠═9c8ce20e-171a-4909-9f3d-c2fe233dda7b

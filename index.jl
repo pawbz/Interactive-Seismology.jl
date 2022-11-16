@@ -1,5 +1,5 @@
 ### A Pluto.jl notebook ###
-# v0.19.13
+# v0.19.14
 
 using Markdown
 using InteractiveUtils
@@ -12,6 +12,16 @@ end
 
 # ╔═╡ 64625acb-b12e-4e95-b543-38d44b640e5d
 PlutoUI.LocalResource("./images/geophones_in_IISc.jpg", :width => 600)
+
+# ╔═╡ 1bb8813d-320f-49de-9ca8-92f858f7d512
+md"""
+##### [Introduction of Seismology](https://pawbz.github.io/ES218.jl/)
+ES218; August 2022
+
+**Pawan Bharadwaj**\
+[https://ceas.iisc.ac.in/~geophyinv/](https://ceas.iisc.ac.in/~geophyinv/)\
+*Indian Institute of Science, Bengaluru, India*
+"""
 
 # ╔═╡ 1bb14878-b072-4dbf-b151-6ce26bb49d63
 md"""
@@ -38,6 +48,12 @@ Sample notebooks are available via the index page after starting Pluto.
 
 
 
+# ╔═╡ 39ff3178-e5d0-4c1b-9e65-3173c86878dc
+readme = read(joinpath(@__DIR__, "./README.md"), String) |> Markdown.parse;
+
+# ╔═╡ 7cede54e-5eed-4763-9689-09e2ab9eca92
+readme
+
 # ╔═╡ e3678360-96db-4f28-b972-584d1535d1d0
 notebook_files = filter(Pluto.is_pluto_notebook, readdir());
 
@@ -53,18 +69,8 @@ end
 
 # ╔═╡ 9fcd3f72-388c-11ed-12c5-dd984fa4f529
 md"""
-# Study the propagation of elastic waves in the Earth using Pluto notebooks
-Pluto is a notebook system written in [Julia](https://julialang.org/).
-This is a collection of [Reactive Notebooks](https://computationalthinking.mit.edu/Spring21/) that help demonstrate key concepts in seismology. These notebooks are developed to assist the course on Introduction to Seismology (ES218; August 2022). The idea is that the student, even with minimal programming knowledge, should be able to interact with these notebooks and develop intuition on wave phenomena. In addition to interactivity, another important feature is that these standalone notebooks contain all the necessary mathematics, where the expressions are manipulated using [Symbolics.jl](https://symbolics.juliasymbolics.org/dev/), a modern Computer Algebra System (CAS).
-
-
 This is WIP, with a current list of notebooks, in no particular order, given below.
-
 $(links())
-
-**Pawan Bharadwaj**\
-[https://ceas.iisc.ac.in/~geophyinv/](https://ceas.iisc.ac.in/~geophyinv/)\
-*Indian Institute of Science, Bengaluru, India*
 """
 
 # ╔═╡ 00000000-0000-0000-0000-000000000001
@@ -475,12 +481,15 @@ version = "17.4.0+0"
 
 # ╔═╡ Cell order:
 # ╟─64625acb-b12e-4e95-b543-38d44b640e5d
+# ╟─7cede54e-5eed-4763-9689-09e2ab9eca92
 # ╟─9fcd3f72-388c-11ed-12c5-dd984fa4f529
+# ╟─1bb8813d-320f-49de-9ca8-92f858f7d512
 # ╟─1bb14878-b072-4dbf-b151-6ce26bb49d63
 # ╟─c7d99003-8094-4875-9366-8d0f696c7665
 # ╟─d2bf8d0f-9b1e-4625-b51a-eeb27b684ba8
 # ╠═aa8aa21c-6480-4d71-a55f-be4e98fe9dcc
 # ╠═03ce0348-524c-4a76-a627-80b83208e68d
+# ╠═39ff3178-e5d0-4c1b-9e65-3173c86878dc
 # ╠═e3678360-96db-4f28-b972-584d1535d1d0
 # ╠═3a0789b4-c66e-4ca9-9e1c-fd720d274947
 # ╟─00000000-0000-0000-0000-000000000001
