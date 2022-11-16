@@ -382,7 +382,7 @@ end
 # ╔═╡ b1350eb1-059e-4f83-a539-2e2befc3dabb
 function plot_models()
 
-    fig = Plot(Layout(height=350, Subplots(shared_xaxes=true, shared_yaxes=true, rows=1, cols=2, subplot_titles=["True Earth Model (seismic velocity)" "Estimated Earth Model"])))
+    fig = Plot(Layout(height=350, width=700, Subplots(shared_xaxes=true, shared_yaxes=true, rows=1, cols=2, subplot_titles=["True Earth Model (seismic velocity)" "Estimated Earth Model"])))
     add_trace!(fig, heatmap_model(ctrue, xgrid, zgrid), row=1, col=1)
     add_trace!(fig, heatmap_model(cest, xgrid_inv, zgrid_inv), row=1, col=2)
 
@@ -439,7 +439,7 @@ PLUTO_MANIFEST_TOML_CONTENTS = """
 
 julia_version = "1.8.2"
 manifest_format = "2.0"
-project_hash = "27c9c104ad9ea9df3d16bae7f3b2af60ccf00ef0"
+project_hash = "29e63e0d4e0dce318abd5bfd2f792d101b5f319a"
 
 [[deps.AbstractPlutoDingetjes]]
 deps = ["Pkg"]
@@ -1061,7 +1061,7 @@ version = "17.4.0+0"
 # ╔═╡ Cell order:
 # ╠═7e72f1fc-345a-4a2d-b03b-8a7549ef6efc
 # ╠═35c21158-fc55-45f6-930d-7b82c2c0685d
-# ╠═d9d53d21-09ee-47cd-b661-8787de32f2c1
+# ╟─d9d53d21-09ee-47cd-b661-8787de32f2c1
 # ╟─842ec98f-505a-4873-9c64-725e2f92cbb9
 # ╟─d6787951-065d-4eac-8c73-c30295f570ca
 # ╟─f6902c2c-4489-4ce9-8a19-86df8b16a81d
