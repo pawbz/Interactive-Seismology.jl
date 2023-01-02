@@ -1,5 +1,5 @@
 ### A Pluto.jl notebook ###
-# v0.19.14
+# v0.19.19
 
 using Markdown
 using InteractiveUtils
@@ -12,6 +12,9 @@ end
 
 # ╔═╡ 64625acb-b12e-4e95-b543-38d44b640e5d
 PlutoUI.LocalResource("./images/geophones_in_IISc.jpg", :width => 600)
+
+# ╔═╡ fa81c344-9df7-4823-a9e4-3833528488d3
+PlutoUI.LocalResource("./movies/ES219-Traveltime-Tomography.gif",  :width=>300, :autoplay => "", :loop => "")
 
 # ╔═╡ 1bb8813d-320f-49de-9ca8-92f858f7d512
 md"""
@@ -482,6 +485,7 @@ version = "17.4.0+0"
 # ╔═╡ Cell order:
 # ╟─64625acb-b12e-4e95-b543-38d44b640e5d
 # ╟─7cede54e-5eed-4763-9689-09e2ab9eca92
+# ╟─fa81c344-9df7-4823-a9e4-3833528488d3
 # ╟─9fcd3f72-388c-11ed-12c5-dd984fa4f529
 # ╟─1bb8813d-320f-49de-9ca8-92f858f7d512
 # ╟─1bb14878-b072-4dbf-b151-6ce26bb49d63
