@@ -1,6 +1,9 @@
 ### A Pluto.jl notebook ###
 # v0.19.19
 
+#> [frontmatter]
+#> tags = ["seismology", "waves", "interactive", "julia", "pluto", "earth", "earthquakes", "seismic waves", "inversion", "geophysics", "Symbolics"]
+
 using Markdown
 using InteractiveUtils
 
@@ -14,7 +17,7 @@ end
 PlutoUI.LocalResource("./images/geophones_in_IISc.jpg", :width => 600)
 
 # ╔═╡ fa81c344-9df7-4823-a9e4-3833528488d3
-PlutoUI.LocalResource("./movies/ES219-Traveltime-Tomography.gif",  :width=>300, :autoplay => "", :loop => "")
+PlutoUI.LocalResource("./movies/ES219-Traveltime-Tomography.gif", :width => 300, :autoplay => "", :loop => "")
 
 # ╔═╡ 1bb8813d-320f-49de-9ca8-92f858f7d512
 md"""
@@ -93,7 +96,7 @@ PLUTO_MANIFEST_TOML_CONTENTS = """
 
 julia_version = "1.8.2"
 manifest_format = "2.0"
-project_hash = "c0a22d9f28803f071051c733f48c66e207e02082"
+project_hash = "2f588b09d9b33a9ac75e056a4446604b3d7de7ac"
 
 [[deps.AbstractPlutoDingetjes]]
 deps = ["Pkg"]

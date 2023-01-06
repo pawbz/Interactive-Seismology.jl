@@ -7,11 +7,7 @@ using InteractiveUtils
 # This Pluto notebook uses @bind for interactivity. When running this notebook outside of Pluto, the following 'mock version' of @bind gives bound variables a default value (instead of an error).
 macro bind(def, element)
     quote
-        local iv = try
-            Base.loaded_modules[Base.PkgId(Base.UUID("6e696c72-6542-2067-7265-42206c756150"), "AbstractPlutoDingetjes")].Bonds.initial_value
-        catch
-            b -> missing
-        end
+        local iv = try Base.loaded_modules[Base.PkgId(Base.UUID("6e696c72-6542-2067-7265-42206c756150"), "AbstractPlutoDingetjes")].Bonds.initial_value catch; b -> missing; end
         local el = $(esc(element))
         global $(esc(def)) = Core.applicable(Base.get, el) ? Base.get(el) : iv(el)
         el
@@ -35,7 +31,7 @@ TableOfContents()
 
 # ╔═╡ 92735ad6-8b5f-11ed-103a-b1eeeee21a3f
 md"""
-# Linear Algebra
+# Linear Algebra (Primer)
 It is one of the mathematical pillars of our course:
 - the measured data is often organized to form a vector $d$; 
 - in many problems, the physics is often simplified (linearized) to form a matrix $G$ that maps the model vector $m$ to produce measurements $d$:
@@ -136,15 +132,22 @@ G = hcat(g₁, g₂)
 d = G * m
 
 # ╔═╡ be6cc32a-b105-4fc5-9f0c-31d79d1b4302
-tip(md"""
-Intuitively, the multiplication of $G$ times $m$ can be interpreted in two ways:
-1) linear combination of columns $g_1$ and $g_2$ -- which means the vector $G\,m$ belongs to the column space of $G$;
-2) an inner product between each row of $G$ with the vector $m$ -- roughly, what is the correlation of each row of $G$ with the vector $m$?
-""")
+Markdown.MD(Markdown.Admonition("warning", "Intuition",
+    [md"""
+    The multiplication of $G$ times $m$ can be interpreted in two ways:
+    1) linear combination of columns $g_1$ and $g_2$ -- which means the vector $G\,m$ belongs to the column space of $G$;
+    2) an inner product between each row of $G$ with the vector $m$ -- roughly, what is the correlation of each row of $G$ with the vector $m$?
+    """]))
 
 # ╔═╡ cdd66332-8c01-4f73-ad4e-14f008be6f25
 # linear combination of columns
 m₁ * G[:, 1] + m₂ * G[:, 2]
+
+# ╔═╡ f25e1410-3ce1-4d44-97c5-ac5c4b40c334
+aside(Markdown.MD(Markdown.Admonition("therom", "Think",
+    [md"""
+    Is there any linear combination, other than $m_1=0$ and $m_2=0$, of $g_1$ and $g_2$ that produces a zero vector? Why not?
+    """])))
 
 # ╔═╡ dddfda51-ddf6-4f18-9cae-de4535199255
 md"""
@@ -289,6 +292,18 @@ sum(sX.S .^ 2) # sum of squared singular values
 # ╔═╡ f56f8acc-fabf-48e7-b2b3-f4e3685224d8
 md"Finally, we understand how to arrange singular vectors by importance, at least in the L2 sense."
 
+# ╔═╡ 6f7e15fd-2641-4d58-8937-f60968d76c29
+md"""## Nullspace
+Now we are interested in a linear combination of the columns of a matrix that generates a zero vector. Other than the trivial case of multiplying all the columns with zero, when is such a non-zero combination possible? Obviously, we cannot combine independent vectors to produce zero. 
+"""
+
+# ╔═╡ f5952f79-e5bd-4e8c-b168-7b8a8bcd308a
+Markdown.MD(Markdown.Admonition("note", "Counting Law", [md"""
+A matrix $G$ has rank $r$; then the equation $G\,m=0$ has $n-r$ independent solutions, 
+where $n$ is the number of columns of $G$.
+"""
+]))
+
 # ╔═╡ 8f36d740-b185-4f10-aa93-1ad514ac0205
 md"""
 ## Appendix
@@ -344,8 +359,9 @@ myquiver(vcat([X[:, i] for i in 1:size(X, 2)], [sX.U[:, i] .* sX.S[i] for i in 1
 
 # ╔═╡ 316043ba-b950-486a-a0bb-d84f8a60fb6e
 md"""
-## References
+## Resources
 [^Book]:  Linear algebra and learning from data, Gilbert Strang, 2019.
+[^Youtube]: [Essence of linear algebra](https://www.youtube.com/playlist?list=PLZHQObOWTQDPD3MizzM2xVFitgF8hE_ab), 3Blue1Brown
 """
 
 # ╔═╡ 00000000-0000-0000-0000-000000000001
@@ -1341,6 +1357,7 @@ version = "17.4.0+0"
 # ╠═8d4aa317-a78f-4da9-b9d7-310dd566e89c
 # ╟─be6cc32a-b105-4fc5-9f0c-31d79d1b4302
 # ╠═cdd66332-8c01-4f73-ad4e-14f008be6f25
+# ╟─f25e1410-3ce1-4d44-97c5-ac5c4b40c334
 # ╟─dddfda51-ddf6-4f18-9cae-de4535199255
 # ╟─b03d542b-64b8-4a99-88e5-a0204277309c
 # ╠═024a1e91-ead5-4c83-8f7b-b89377a2c08b
@@ -1375,6 +1392,8 @@ version = "17.4.0+0"
 # ╠═58a3ad1a-53dc-4c3d-beca-925cf9847ed4
 # ╠═79498db3-cbd8-4e0e-9bf9-759951ba02d3
 # ╟─f56f8acc-fabf-48e7-b2b3-f4e3685224d8
+# ╟─6f7e15fd-2641-4d58-8937-f60968d76c29
+# ╟─f5952f79-e5bd-4e8c-b168-7b8a8bcd308a
 # ╟─8f36d740-b185-4f10-aa93-1ad514ac0205
 # ╠═04f8c8df-f2c3-430c-b4a8-281edc72fd62
 # ╟─5b3cd4da-82ff-41a6-9121-53574c50ab16
