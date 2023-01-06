@@ -38,7 +38,11 @@ It is one of the mathematical pillars of our course:
 ```math
 d = G * m.
 ```
-In this notebook, we shall try to revisit some highlights of linear algebra. Hopefully, as most of you are aware of these basic concepts, this notebook will also serve as a primer for Julia!
+In this notebook, we shall try to revisit some highlights of linear algebra. Hopefully, as most of you learned these basic concepts, this notebook will serve as a necessary primer! One needs to develop a good geometrical picture of the concepts. For example, we would like to clearly visualize the least-squares solution
+```math
+\hat{m} = [G^TG]^{-1}G^T d
+```
+that you will encounter soon.
 """
 
 # ╔═╡ bee44787-2b0e-4d1f-b952-4b3714263cf2
@@ -360,7 +364,7 @@ myquiver(vcat([X[:, i] for i in 1:size(X, 2)], [sX.U[:, i] .* sX.S[i] for i in 1
 # ╔═╡ 316043ba-b950-486a-a0bb-d84f8a60fb6e
 md"""
 ## Resources
-[^Book]:  Linear algebra and learning from data, Gilbert Strang, 2019.
+[^Book]:  Linear algebra and learning from data, Gilbert Strang
 [^Youtube]: [Essence of linear algebra](https://www.youtube.com/playlist?list=PLZHQObOWTQDPD3MizzM2xVFitgF8hE_ab), 3Blue1Brown
 """
 
