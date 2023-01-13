@@ -25,7 +25,7 @@ begin
     using StatsBase
     using PlutoUI
     using TikzPictures
-	using Colors, ColorSchemes
+    using Colors, ColorSchemes
 end
 
 # ╔═╡ 7e72f1fc-345a-4a2d-b03b-8a7549ef6efc
@@ -184,13 +184,13 @@ function find_intersect(A1, A2, B1, B2, C1, C2, D1, D2)
     # E = B - A
     # F = D - C = [D1-C1, D2-C2]
     # P = [A2-B2, B1-A1]
-	dFP = (D1-C1)*(A2-B2)+(B1-A1)*(D2-C2)
+    dFP = (D1 - C1) * (A2 - B2) + (B1 - A1) * (D2 - C2)
     if (iszero(dFP)) # when parallel
         return nothing
     end
-    h = ((A1-C1)*(A2-B2)+(A2-C2)*(B1-A1)) / dFP
+    h = ((A1 - C1) * (A2 - B2) + (A2 - C2) * (B1 - A1)) / dFP
     if (((h * (h - 1)) <= 0) | (h ≈ 0) | (h ≈ 1)) # h should be in (0, 1) or h==0 or h==1
-        return [C1 + h *( D1-C1) , C2 + h*(D2-C2)]
+        return [C1 + h * (D1 - C1), C2 + h * (D2 - C2)]
     else
         return nothing
     end
@@ -198,10 +198,10 @@ end
 
 # ╔═╡ 3e2460ec-102a-4d3c-a4c5-5d6c6e2193ec
 function find_length_in_cell(xmin, xmax, zmin, zmax, A1, A2, B1, B2)
-    P1 = find_intersect(A1, A2, B1,B2, xmin, zmin, xmin, zmax)
-    P2 = find_intersect(A1,A2, B1,B2, xmin, zmin, xmax, zmin)
-    P3 = find_intersect(A1, A2, B1,B2, xmin, zmax, xmax, zmax)
-    P4 = find_intersect(A1,A2, B1,B2, xmax, zmin, xmax, zmax)
+    P1 = find_intersect(A1, A2, B1, B2, xmin, zmin, xmin, zmax)
+    P2 = find_intersect(A1, A2, B1, B2, xmin, zmin, xmax, zmin)
+    P3 = find_intersect(A1, A2, B1, B2, xmin, zmax, xmax, zmax)
+    P4 = find_intersect(A1, A2, B1, B2, xmax, zmin, xmax, zmax)
 
     P = filter(x -> !(x === nothing), [P1, P2, P3, P4])
     P = unique(P)
@@ -209,7 +209,7 @@ function find_length_in_cell(xmin, xmax, zmin, zmax, A1, A2, B1, B2)
         # remove sides that will be otherwise counted twice by adjacent cells
         if (([xmin, zmax] ∈ P) & ([xmax, zmax] ∈ P))
             return 0
-		elseif (([xmax, zmin] ∈ P) & ([xmax, zmax]∈ P))
+        elseif (([xmax, zmin] ∈ P) & ([xmax, zmax] ∈ P))
             return 0
         else
             return maximum(broadcast(x -> sqrt(sum(abs2.(x))), diff(P)))
@@ -264,12 +264,12 @@ end
 # ╔═╡ 7e6ae5d6-ff89-45f5-914a-c58d3e185041
 function resolution_input()
     return PlutoUI.combine() do Child
-		d = [
-			md"""
-			Resolution (m) of true $(Child("ds", Slider(range(10,stop=200), default=25, show_value=true)))
-			and inverted $(Child("ds_inv", Slider(range(10,stop=200), default=150, show_value=true))) media
-			""",
-		]
+        d = [
+            md"""
+            Resolution (m) of true $(Child("ds", Slider(range(10,stop=200), default=25, show_value=true)))
+            and inverted $(Child("ds_inv", Slider(range(10,stop=200), default=150, show_value=true))) media
+            """,
+        ]
 
         md"$(d)"
     end
@@ -302,17 +302,17 @@ end;
 # ╔═╡ 6702fde2-8847-407b-9d69-8e099374d6ce
 function acq_input()
     return PlutoUI.combine() do Child
-		d = [
-			md"""
-			Choose number of sources $(Child("ns", Slider(2:2:50, show_value=true, default=25)))
-			and receivers $(Child("nr", Slider(2:2:50, show_value=true, default=25)))
-			""",
-		]
+        d = [
+            md"""
+            Choose number of sources $(Child("ns", Slider(2:2:50, show_value=true, default=25)))
+            and receivers $(Child("nr", Slider(2:2:50, show_value=true, default=25)))
+            """,
+        ]
 
         md"""
-		### Acquisition Setup
-		$(d)
-		"""
+  ### Acquisition Setup
+  $(d)
+  """
     end
 end
 
@@ -382,7 +382,7 @@ data_residual = tt_G - dobs;
 grad_slowness = reshape(G' * data_residual, length(zgrid_inv) - 1, length(xgrid_inv) - 1);
 
 # ╔═╡ 848e19a7-73bc-40c4-98bb-310b9f9c8079
-c=Dict(["Backprojected Data Residual"=>grad_slowness, "Estimated Seismic Velocity"=>cest])
+c = Dict(["Backprojected Data Residual" => grad_slowness, "Estimated Seismic Velocity" => cest])
 
 # ╔═╡ 7608a5c1-20b1-4d49-b12b-a8f2daef192b
 md"""
@@ -401,16 +401,16 @@ md"### Plots"
 # ╔═╡ b1350eb1-059e-4f83-a539-2e2befc3dabb
 function plot_models()
 
-    fig = Plot(Layout(yaxis_autorange="reversed", height=300, width=650, title=attr(font_size=12,),font=attr(
-        size=10), yaxis=attr(scaleanchor="x"), Subplots(shared_xaxes=true, shared_yaxes=true, horizontal_spacing=0.3, rows=1, cols=2, subplot_titles=["True Seismic Velocity" ckey])))
+    fig = Plot(Layout(yaxis_autorange="reversed", height=300, width=650, title=attr(font_size=12,), font=attr(
+            size=10), yaxis=attr(scaleanchor="x"), Subplots(shared_xaxes=true, shared_yaxes=true, horizontal_spacing=0.3, rows=1, cols=2, subplot_titles=["True Seismic Velocity" ckey])))
     add_trace!(fig, heatmap(
-        x=xgrid,
-        y=zgrid,
-        z=ctrue, colorscale="jet", colorbar_x=0.35), row=1, col=1)
+            x=xgrid,
+            y=zgrid,
+            z=ctrue, colorscale="jet", colorbar_x=0.35), row=1, col=1)
     add_trace!(fig, heatmap(
-        x=xgrid_inv,
-        y=zgrid_inv,
-        z=c[ckey], colorscale="jet", colorbar_x=1.0), row=1, col=2)
+            x=xgrid_inv,
+            y=zgrid_inv,
+            z=c[ckey], colorscale="jet", colorbar_x=1.0), row=1, col=2)
 
     return PlutoPlotly.plot(fig)
 
@@ -430,7 +430,7 @@ end;
 # ╔═╡ d7dd7859-9489-4bfc-bc77-edec76fe96f2
 function plot_ray_setup()
     return plot(vec(ray_setup), Layout(yaxis_autorange="reversed", font=attr(
-        size=10), showlegend=false, width=450, title="Ray Geometry<br>(red ray paths have higher data residuals)", yaxis_tickvals=zgrid_inv, xaxis_tickvals=xgrid_inv, xaxis=attr(title="x", ticks="outside", tickwidth=1, tickcolor="black", ticklen=10, gridcolor="gray"), yaxis=attr(title="z", scaleanchor="x", ticks="outside", tickwidth=1, tickcolor="black", ticklen=10, gridcolor="gray"), xaxis_zeroline=false, yaxis_zeroline=false,))
+            size=10), showlegend=false, width=450, title="Ray Geometry<br>(red ray paths have higher data residuals)", yaxis_tickvals=zgrid_inv, xaxis_tickvals=xgrid_inv, xaxis=attr(title="x", ticks="outside", tickwidth=1, tickcolor="black", ticklen=10, gridcolor="gray"), yaxis=attr(title="z", scaleanchor="x", ticks="outside", tickwidth=1, tickcolor="black", ticklen=10, gridcolor="gray"), xaxis_zeroline=false, yaxis_zeroline=false,))
 end
 
 
@@ -548,7 +548,7 @@ plot_tikzrow(t1, t2, tn, tv; s1="", s2="") = TikzPicture(L"""
 plot_tikzrow("raypath 1", "raypath 2", "raypath K", "slowness vector", s1="K×N", s2="N×1")
 
 # ╔═╡ cad88757-7a23-4c99-84fe-219d9337a1f7
-plot_tikzrow("model pixel 1", "model pixel 2", "model pixel N", "data residual",s1="N×K", s2="K×1")
+plot_tikzrow("model pixel 1", "model pixel 2", "model pixel N", "data residual", s1="N×K", s2="K×1")
 
 # ╔═╡ 0d000f59-ecb2-4fc9-9f21-c60eac17b3bf
 # t1, t2, t3, tv are texts
@@ -586,7 +586,7 @@ plot_tikzcol(t1, t2, tn, tv; s1="", s2="") = TikzPicture(L"""
   """, options=tikz_default_options, preamble=tikz_preamble, width="12cm")
 
 # ╔═╡ 5dd62dd3-fc67-4043-9579-aea1b1a922a9
-plot_tikzcol("model pixel 1", "model pixel 2", "model pixel N", "slowness vector",s1="K×N", s2="N×1")
+plot_tikzcol("model pixel 1", "model pixel 2", "model pixel N", "slowness vector", s1="K×N", s2="N×1")
 
 # ╔═╡ 68c959c7-b8e9-4992-b4ce-a793d1a34d20
 plot_tikzcol("raypath 1", "raypath 2", "raypath K", "data residual", s1="N×K", s2="K×1")
