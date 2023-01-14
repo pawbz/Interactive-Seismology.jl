@@ -7,7 +7,11 @@ using InteractiveUtils
 # This Pluto notebook uses @bind for interactivity. When running this notebook outside of Pluto, the following 'mock version' of @bind gives bound variables a default value (instead of an error).
 macro bind(def, element)
     quote
-        local iv = try Base.loaded_modules[Base.PkgId(Base.UUID("6e696c72-6542-2067-7265-42206c756150"), "AbstractPlutoDingetjes")].Bonds.initial_value catch; b -> missing; end
+        local iv = try
+            Base.loaded_modules[Base.PkgId(Base.UUID("6e696c72-6542-2067-7265-42206c756150"), "AbstractPlutoDingetjes")].Bonds.initial_value
+        catch
+            b -> missing
+        end
         local el = $(esc(element))
         global $(esc(def)) = Core.applicable(Base.get, el) ? Base.get(el) : iv(el)
         el
@@ -72,19 +76,21 @@ The column picture of $G \times s$ gives insight into the tradeoff between diffe
 "
 
 # ╔═╡ 792e9b54-3438-4338-913c-190565d38029
-md"## Backpropagation"
+md"""## Backpropagation
+Gradient is formed by backpropagation of traveltime residuals.
+"""
+
 
 # ╔═╡ 9a5bac04-d1d9-49f4-b7c4-b18bfdd436ef
 md"""
 ### Column Picture
-The column picture of $G^{} \times$ gives insight 
+The column picture of $G^{\text{T}} \times \Delta d$ illustrates how the traveltime residuals are distributed across the model grid. It represents a weighted sum of the raypaths, where the weights are given by the traveltime residuals. This means that higher values in the model will be spread along the raypaths whose associated traveltimes do not match the observed traveltimes.
 """
 
 # ╔═╡ 6680a1f4-0cc5-4dc8-a0a2-f5b5014c712a
-md"### Row Picture"
-
-# ╔═╡ 54b95769-af61-46f8-a49b-e288831baec7
-md"Gradient is formed by backpropagation of traveltime residuals. Let's plot the gradient of the squared euclidean distance w.r.t. to the slowness vector at the homogeneous model."
+md"""### Row Picture
+The row picture of $G^{\text{T}} \times \Delta d$ represents the correlation between the model pixels and the data residuals. It shows that the model pixels whose ray distribution corresponds with the data residuals are given a larger weight. In other words, pixels that are intersected by high-residual rays are highlighted, or this means that the pixels in the model that are most responsible for the residuals in the data will be given more weight in the image.
+"""
 
 # ╔═╡ 924555b0-5ddc-4ee5-ad32-4696f9fb47e4
 md"""
@@ -365,9 +371,6 @@ plot(heatmap(x=xgrid_inv, y=zgrid_inv, z=reshape((transpose(G)*G)[irowm, :], len
 plot(heatmap(x=xgrid_inv, y=zgrid_inv, z=reshape((Gi*G)[irowm, :], length(zgrid_inv) - 1, length(xgrid_inv) - 1)),
     Layout(yaxis_autorange="reversed", title="Row of Model Resolution Matrix", width=450))
 
-# ╔═╡ 9ff217e4-bfe5-42b2-88e6-f2c14f905b23
-@time get_forw_operator(xgrid, zgrid, srcx, srcz, recx, recz);
-
 # ╔═╡ 58867c8d-af21-48e9-ab0c-4472711e8eb0
 begin
     tt_analytic = vec([(sqrt(sum(abs2.([srcx[is] - recx[ir], srcz[is] - recz[ir]])))) * inv(2000) for ir in 1:acq.nr, is in 1:acq.ns])
@@ -382,11 +385,11 @@ data_residual = tt_G - dobs;
 grad_slowness = reshape(G' * data_residual, length(zgrid_inv) - 1, length(xgrid_inv) - 1);
 
 # ╔═╡ 848e19a7-73bc-40c4-98bb-310b9f9c8079
-c = Dict(["Backprojected Data Residual" => grad_slowness, "Estimated Seismic Velocity" => cest])
+c = Dict(["Backpropagate the data residual" => grad_slowness, "Estimate seismic velocity" => cest])
 
 # ╔═╡ 7608a5c1-20b1-4d49-b12b-a8f2daef192b
 md"""
-What to plot? $(@bind ckey Select(collect(keys(c))))
+What do you want to do? $(@bind ckey Select(collect(keys(c))))
 """
 
 # ╔═╡ 1807eb3a-ce0b-46fe-8c70-fa4af3d9ebad
@@ -1491,11 +1494,10 @@ version = "17.4.0+0"
 # ╟─792e9b54-3438-4338-913c-190565d38029
 # ╠═0bf44317-45cf-4899-8b1b-dfa1fe018db4
 # ╠═461859c0-5f94-469c-a054-4553045bac17
-# ╠═9a5bac04-d1d9-49f4-b7c4-b18bfdd436ef
+# ╟─9a5bac04-d1d9-49f4-b7c4-b18bfdd436ef
 # ╟─68c959c7-b8e9-4992-b4ce-a793d1a34d20
 # ╟─6680a1f4-0cc5-4dc8-a0a2-f5b5014c712a
 # ╟─cad88757-7a23-4c99-84fe-219d9337a1f7
-# ╟─54b95769-af61-46f8-a49b-e288831baec7
 # ╟─924555b0-5ddc-4ee5-ad32-4696f9fb47e4
 # ╠═dce75e41-274b-4e6a-8949-5caaeef7238a
 # ╠═1f66502a-bfbe-407f-b869-142f446dfdf6
@@ -1533,7 +1535,6 @@ version = "17.4.0+0"
 # ╠═565af43c-8b85-4ab4-b72d-ac9560efd4fc
 # ╠═3e2460ec-102a-4d3c-a4c5-5d6c6e2193ec
 # ╠═82d3a20f-ea2b-47e6-96df-45fa568da9f8
-# ╠═9ff217e4-bfe5-42b2-88e6-f2c14f905b23
 # ╟─4dd5df1f-f0bc-49ec-a533-4498ed17d223
 # ╠═208932c4-a57b-487d-9d3b-f165b4a4a4ed
 # ╠═7e6ae5d6-ff89-45f5-914a-c58d3e185041
