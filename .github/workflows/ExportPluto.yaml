@@ -22,6 +22,8 @@ jobs:
               uses: julia-actions/setup-julia@v1
               with:
                   version: "1.8"
+            - name: Install TeXlive
+              run: sudo apt-get update && sudo apt-get install texlive-full
 
             - name: Cache Julia artifacts & such
               uses: julia-actions/cache@v1
@@ -44,6 +46,7 @@ jobs:
                   Pkg.activate(mktempdir())
                   Pkg.add([
                     Pkg.PackageSpec(name="PlutoSliderServer", version="0.3.2-0.3"),
+                    Pkg.PackageSpec(name="Pluto", version="0.19.14"),
                   ])
 
                   import PlutoSliderServer
