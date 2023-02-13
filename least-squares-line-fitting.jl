@@ -37,7 +37,11 @@ Click to regenerate 1) $(@bind renoise Button("Noise")) 2) $(@bind reout Button(
 # ╔═╡ 725659ff-77f1-46b5-9783-24100b3bc2c5
 Markdown.MD(Markdown.Admonition("warning", "Intuition",
 [md"""
+<<<<<<< HEAD
 Regenerate noise   to notice that the variance along the y-intercept dimension is higher than the variance along the slope dimension. This means the estimate of the slope is less uncertain than the y-intercept. Notice the broad minimum along the y-intercept dimension compared to the sharp minimum along the slope dimension.
+=======
+Regenerate observations to notice that the variance along the y-intercept dimension is higher than the variance along the slope dimension. This means the estimate of the slope is less uncertain than the y-intercept.
+>>>>>>> 90f02f535b4c3a90b90acbdfdffcd66b67de501f
 """]
 ))
 
@@ -67,6 +71,7 @@ Notice that the columns of $G$ are linearly independent, therefore $G^\top G$ is
 
 # ╔═╡ 371db73a-9093-4fa1-8ebd-953ac4e5e090
 md"""
+<<<<<<< HEAD
 Least-squares functional has the form
 ```math
 J = (G\cdot m-d)^\top \cdot (G\cdot m-d)
@@ -75,6 +80,12 @@ which can be written as
 ```math
 J = m^\top G^\top G\,m\,+\,2\,m^\top\,G^\top\,d\,+ d^\top\,d
 ```
+=======
+Least-squares functional
+```math
+J = (G\cdot m-d)^\top \cdot (G\cdot m-d)
+```
+>>>>>>> 90f02f535b4c3a90b90acbdfdffcd66b67de501f
 gradient w.r.t. $m$
 ```math
   \frac{\partial J}{\partial m} = 2\cdot G^\top \cdot (G\cdot m-d)
@@ -85,6 +96,7 @@ solution using the Moore-Penrose inverse
 ```
 """
 
+<<<<<<< HEAD
 # ╔═╡ 419f6827-1dfd-40c9-bb73-53a9d5600edd
 G⁻ᵍ = inv(transpose(G) * G) * transpose(G)
 
@@ -111,6 +123,8 @@ heatmap(G⁻ᵍ * G, yflip=true, title="Model Resolution Matrix")
 # ╔═╡ 3a22e16c-57b9-4b8f-b110-01edb1ed82b8
 heatmap(G' * G, yflip=true, title="Hessian Matrix")
 
+=======
+>>>>>>> 90f02f535b4c3a90b90acbdfdffcd66b67de501f
 # ╔═╡ 131f48ac-45fe-455a-a8f0-e99e9ce05d7a
 md"""
 ## Error Bowl
@@ -122,11 +136,14 @@ begin
     yintr = range(-2, stop=5, length=100) # range for y intercept
 end
 
+<<<<<<< HEAD
 # ╔═╡ e080a1f4-be4c-4512-bf16-ca4e32eb62b9
 md"""
 Curvature for the prediction error given by the second derivative 
 """
 
+=======
+>>>>>>> 90f02f535b4c3a90b90acbdfdffcd66b67de501f
 # ╔═╡ ad22aeb5-5366-434f-b735-98f8f7dd7101
 G' * G
 
@@ -184,6 +201,16 @@ h
 ```
 """
 
+<<<<<<< HEAD
+=======
+# ╔═╡ 9df00f45-71be-41b5-9bbd-3ecba2493ddd
+Markdown.MD(Markdown.Admonition("warning", "Intuition",
+[md"""
+
+"""]
+))
+
+>>>>>>> 90f02f535b4c3a90b90acbdfdffcd66b67de501f
 # ╔═╡ 967f9eda-b39b-46b6-914b-c84d9acc056b
 y_nonoise = G * mtrue
 
@@ -211,7 +238,11 @@ begin
 end
 
 # ╔═╡ ff5eddb8-b1f3-4d12-91bf-96438078f3cd
+<<<<<<< HEAD
 mest = G⁻ᵍ * y
+=======
+mest = inv(transpose(G) * G) * (transpose(G) * y)
+>>>>>>> 90f02f535b4c3a90b90acbdfdffcd66b67de501f
 
 # ╔═╡ b2766b9a-1287-42f1-bcc7-d0656a4a5f26
 Jbowl = broadcast(Iterators.product(sloper, yintr)) do (m1, m2)
@@ -244,6 +275,7 @@ mestc = inv(transpose(Gc) * Gc) * (transpose(Gc) * yc)
 # ╔═╡ fc6049b4-0312-4135-ad7b-26851708a156
 md"## Appendix"
 
+<<<<<<< HEAD
 # ╔═╡ 9df00f45-71be-41b5-9bbd-3ecba2493ddd
 Markdown.MD(Markdown.Admonition("formula", "Gradient and Hessian of Linear and Quadratic Functions",
 [md"""
@@ -262,6 +294,8 @@ These results can be derived by utilizing summation notation, taking partial der
 """]
 ))
 
+=======
+>>>>>>> 90f02f535b4c3a90b90acbdfdffcd66b67de501f
 # ╔═╡ a62159c8-f4a3-46cb-82a2-fd92f8711382
 md"### Plots"
 
@@ -1719,12 +1753,17 @@ version = "1.4.1+0"
 # ╟─4dbd9bb4-9354-47d5-ae0d-cc192c4ad28b
 # ╟─3e9cfdd1-e2f2-4c75-be6a-b15540054871
 # ╟─6e8b13cc-f5f5-462f-94bd-06042cc9a7ad
+<<<<<<< HEAD
 # ╠═725659ff-77f1-46b5-9783-24100b3bc2c5
+=======
+# ╟─725659ff-77f1-46b5-9783-24100b3bc2c5
+>>>>>>> 90f02f535b4c3a90b90acbdfdffcd66b67de501f
 # ╟─23a93c6b-b53b-4433-8345-ab63e36e8a66
 # ╠═2d0a1baf-a070-4da6-8a86-e927dc0ff7f0
 # ╠═79c4f0a8-53b5-460a-a210-1a683709cbc6
 # ╠═a9701326-dd26-473f-8534-d7400e4bc489
 # ╟─b5b75d3d-d67d-4e38-819d-8315bed6aef4
+<<<<<<< HEAD
 # ╠═371db73a-9093-4fa1-8ebd-953ac4e5e090
 # ╠═419f6827-1dfd-40c9-bb73-53a9d5600edd
 # ╠═ff5eddb8-b1f3-4d12-91bf-96438078f3cd
@@ -1739,6 +1778,13 @@ version = "1.4.1+0"
 # ╠═38106955-da38-4cbd-9d40-7e641acf9015
 # ╠═b2766b9a-1287-42f1-bcc7-d0656a4a5f26
 # ╠═e080a1f4-be4c-4512-bf16-ca4e32eb62b9
+=======
+# ╟─371db73a-9093-4fa1-8ebd-953ac4e5e090
+# ╠═ff5eddb8-b1f3-4d12-91bf-96438078f3cd
+# ╟─131f48ac-45fe-455a-a8f0-e99e9ce05d7a
+# ╠═38106955-da38-4cbd-9d40-7e641acf9015
+# ╠═b2766b9a-1287-42f1-bcc7-d0656a4a5f26
+>>>>>>> 90f02f535b4c3a90b90acbdfdffcd66b67de501f
 # ╠═ad22aeb5-5366-434f-b735-98f8f7dd7101
 # ╠═33242a72-589f-47de-8127-b419957ca974
 # ╠═dceb94d9-4819-4d76-99d6-badbf8371469
@@ -1748,6 +1794,10 @@ version = "1.4.1+0"
 # ╟─f7e14126-37f2-4811-b1c6-b095f549d198
 # ╟─c5a8e002-35cd-4761-aa16-c2fdd1d7d270
 # ╟─ff402573-bc3b-4b52-8549-2204d707aabe
+<<<<<<< HEAD
+=======
+# ╠═9df00f45-71be-41b5-9bbd-3ecba2493ddd
+>>>>>>> 90f02f535b4c3a90b90acbdfdffcd66b67de501f
 # ╠═ba7192d7-1973-4776-b44b-afd47727dbcd
 # ╠═d520f33f-2347-4568-8b1e-7f0784ad515f
 # ╠═61875817-4452-492d-b0f8-6d013ba414ef
@@ -1756,7 +1806,10 @@ version = "1.4.1+0"
 # ╠═3db949ff-1b4f-484f-b5b8-2ab78b54fd51
 # ╟─fc6049b4-0312-4135-ad7b-26851708a156
 # ╠═c9edde32-a12b-11ed-3dea-3be5d6546919
+<<<<<<< HEAD
 # ╟─9df00f45-71be-41b5-9bbd-3ecba2493ddd
+=======
+>>>>>>> 90f02f535b4c3a90b90acbdfdffcd66b67de501f
 # ╟─a62159c8-f4a3-46cb-82a2-fd92f8711382
 # ╠═6e6ac006-b078-4972-af27-ab24e3454e46
 # ╠═cd6e1a7b-c46a-4611-a662-4fd576669e55
