@@ -15,7 +15,7 @@ macro bind(def, element)
 end
 
 # ╔═╡ 04d19c81-08f8-4f07-a0c7-f51c1b39d271
-using PlutoUI, Plots, Distributions, Measures, PlutoTeachingTools, StatsPlots, Symbolics
+using PlutoUI, Plots, Distributions, Measures, PlutoTeachingTools, StatsPlots, Symbolics, LaTeXStrings, TikzPictures
 
 # ╔═╡ 02cd8bb4-d403-47f9-9de9-35d7b2b82bb8
 ChooseDisplayMode()
@@ -54,16 +54,16 @@ Independent if the conditional distribution is in.
 md"Are the elements of the data vector independent? Most likely not."
 
 # ╔═╡ 29bf0e42-8dd0-41e9-a646-a7714440d09b
-A = randn(2,2) # mixing matrix, lets call this op 
+A = randn(2, 2) # mixing matrix, lets call this op 
 
 # ╔═╡ e5d5ac74-bbfd-42e1-aeaf-5fbd17d59625
 md"## Coordinate Transformation"
 
 # ╔═╡ a2461a13-76f4-4a18-bcf4-fc9e7a18e5bb
-plot(histogram(rand(Uniform(0.5, 4), 10000), normalize=true, label=nothing, xlabel="bulk modulus", c=:gray, xlim=(0, 5)), histogram(inv.(rand(Uniform(0.5, 4), 10000)), normalize=true, label=nothing, xlabel="compressibility", c=:gray), size=(700,300), margin=1cm)
+plot(histogram(rand(Uniform(0.5, 4), 10000), normalize=true, label=nothing, xlabel="bulk modulus", c=:gray, xlim=(0, 5)), histogram(inv.(rand(Uniform(0.5, 4), 10000)), normalize=true, label=nothing, xlabel="compressibility", c=:gray), size=(700, 300), margin=1cm)
 
 # ╔═╡ 54085478-12df-4d02-b2ed-ac9a373f1b91
-mrange=range(0, 5, length=100)
+mrange = range(0, 5, length=100)
 
 # ╔═╡ 4465ed36-d7f8-4407-9270-0ec20dd7e08c
 md"""
@@ -77,14 +77,14 @@ md"""
 @bind cov12 Slider(range(-0.7, stop=0.7, length=100), show_value=true)
 
 # ╔═╡ 88060b9a-3c70-4bed-8b0c-ce6c5b9a3061
-Cₘ = [1  cov12;
-	     cov12 1]
+Cₘ = [1 cov12
+    cov12 1]
 
 # ╔═╡ 47c3f46f-158e-4eb6-aa8d-49c018168826
-pm2D = MvNormal([3,2], Cₘ)
+pm2D = MvNormal([3, 2], Cₘ)
 
 # ╔═╡ 43363cb2-98d5-41d3-b276-97478829391a
-Z = [pdf(pm2D, [x,y]) for y in mrange, x in mrange];
+Z = [pdf(pm2D, [x, y]) for y in mrange, x in mrange];
 
 # ╔═╡ b2c008d8-48aa-4c32-b988-3552404a25b6
 md"""
@@ -99,15 +99,15 @@ is the marginal probability density that contains all the information on $m_1$ t
 
 # ╔═╡ ab6453f1-9746-4825-84bc-32b552538e23
 begin
-	x, y = rand(Normal(), 1000), rand(Uniform(-10, 15), 1000)
-	
-	layout = @layout [a            _
-	                  b{0.8w,0.8h} c]
-	
-	default()
-	plot(layout = layout, link = :both, size = (500, 500), margin = 0.3cm)
-	scatter!(x,y, subplot = 2, framestyle = :box, fillcolor = :lightgrey, markercolor = :gray, grid = false, legend = false, xlabel="m₁", ylabel="m₂")
-	histogram!([x y], subplot = [1 3], orientation = [:v :h], framestyle = :none, label=nothing, c=:gray)
+    x, y = rand(Normal(), 1000), rand(Uniform(-10, 15), 1000)
+
+    layout = @layout [a _
+        b{0.8w,0.8h} c]
+
+    default()
+    plot(layout=layout, link=:both, size=(500, 500), margin=0.3cm)
+    scatter!(x, y, subplot=2, framestyle=:box, fillcolor=:lightgrey, markercolor=:gray, grid=false, legend=false, xlabel="m₁", ylabel="m₂")
+    histogram!([x y], subplot=[1 3], orientation=[:v :h], framestyle=:none, label=nothing, c=:gray)
 end
 
 # ╔═╡ d4123859-1228-444f-ac49-ec861aae3bdb
@@ -117,16 +117,60 @@ Consider the mean of measurements that were collected by repeating the experimen
 """
 
 # ╔═╡ c7b84588-8e3a-4206-8ca5-0a7a85d395d5
-@bind d_distribution Select([Normal(1,1), Uniform(-2,2)])
+@bind d_distribution Select([Normal(1, 1), Uniform(-2, 2)])
 
 # ╔═╡ e8967bc9-daff-48b0-9846-f839848e3142
 @bind nm Slider(range(1, stop=25, step=1), show_value=true)
 
 # ╔═╡ 9e0ff7a6-3984-4be0-858c-b08e95bd46b1
-dobs_mean = mean( [rand(d_distribution, 1000) for i in 1:nm]);
+dobs_mean = mean([rand(d_distribution, 1000) for i in 1:nm]);
 
 # ╔═╡ 7b66bc33-4d0c-4f21-9a9c-7a208708d95d
-histogram(dobs_mean, normalize=true, size=(500,250), label=nothing, xlabel="Measurement", c=:gray, xlim=(-5,5)); vline!([1.0], w=3, c=:blue, label="True Measurement", margin=1cm, legend=:topleft)
+begin
+	histogram(dobs_mean, normalize=true, size=(500, 250), label=nothing, xlabel="Measurement", c=:gray, xlim=(-5, 5));
+	vline!([1.0], w=3, c=:blue, label="True Measurement", margin=1cm, legend=:topleft);
+end
+
+# ╔═╡ 263c76d0-051b-4349-9f2f-c6ee82ad02f6
+md"""## Theoretical Information
+Θ(d, m) is the joint probability desnity  describing the correlations that correspond to our physical theory , together with inherent uncertainites of the theory (in this case, knowledge on the the outgoing wavenumber vector is uncertain, which is attributed to the raytracing)
+"""
+
+# ╔═╡ 3add2ee1-1de6-490d-a9b7-1f01d968cf29
+md"""
+```math
+\Theta(d, m) = \theta(d\,|\,m)\,μ_m(m)
+```
+"""
+
+# ╔═╡ 70df73b9-e418-47da-81e1-735fda13f131
+md"""
+```math
+\theta(d\,|\,m) = 
+\text{const.}\,\exp\left(-\frac{1}{2}\,(d-g(m))^\top\,C_T^{-1}\,(d-g(m))\right)
+```
+"""
+
+# ╔═╡ a7c12637-c990-49a8-b60e-ddae71fda3e3
+md"## Measurements"
+
+# ╔═╡ a305940b-6699-4e04-a1d8-8182266b14a4
+md"""
+$\rho_D(d)$
+"""
+
+# ╔═╡ bedc65e0-e4bb-47c6-82cd-10f1cac4d9db
+md"""## Prior Information
+```math
+\rho_M(m)
+```
+"""
+
+# ╔═╡ 3cd564e1-cd99-4c25-8ae4-85904f997a4c
+md"## Joint Prior Information
+```math
+\rho(d, m) = \rho_D(d)\,\rho_M(m)
+```"
 
 # ╔═╡ ac9bbed8-9d8f-461e-bea5-9337cec3ec80
 md"""
@@ -146,117 +190,19 @@ homogeneous (uninformative) probability density in equation (3.47) ensures that 
 """
 
 # ╔═╡ da70f650-c306-461d-a607-8d2384946088
-pm2D_1 = MvNormal([1,1], [1 0; 0 1])
+pm2D_1 = MvNormal([1, 1], [1 0; 0 1])
 
 # ╔═╡ 8dca7b1e-7142-4bdc-81bf-645cc8c264c3
 pm2D_2 = MvNormal([3, 3], [1 0.5; 0.5 1])
 
 # ╔═╡ 6f7955f7-99fa-482c-8544-9f5bb9e75452
-Z1 = [pdf(pm2D_1, [x,y]) for y in mrange, x in mrange];
+Z1 = [pdf(pm2D_1, [x, y]) for y in mrange, x in mrange];
 
 # ╔═╡ 7610159c-f519-4dd6-bf49-e9015dfda7d5
-Z2 = [pdf(pm2D_2, [x,y]) for y in mrange, x in mrange];
+Z2 = [pdf(pm2D_2, [x, y]) for y in mrange, x in mrange];
 
 # ╔═╡ 83f55514-4c1e-4587-9dc9-576351dc0379
 md"## Shannon's Measure"
-
-# ╔═╡ 3059104d-a644-437c-b300-fbdcf87a1e92
-md"## Example"
-
-# ╔═╡ 7cfe6798-9c28-410a-88ca-b02b2b56eb77
-md"In probability theory and directional statistics, the von Mises distribution (also known as the circular
-normal distribution or Tikhonov distribution) is a continuous probability distribution on the circle.
-See Distributions.jl package for more details.
-In our case, we model the uncertainty of the direction
-distribution.
-"
-
-# ╔═╡ d4ca1678-947d-41d1-90ec-3a99c1479bd6
-begin
- p1=plot(title="Circular Normal Distribution", xlabel="angle")
- foreach(k->plot!(p1, VonMises(0, k), label=k), [5.0, 10.0, 20.0, 50.0])
- p1
-end
-
-# ╔═╡ 82306f3d-2cb2-47e0-8b84-d5f1dda14003
-begin
-	 ktrue = 5
-	 xtrue = 5
-	 ytrue = 2
-	 # number of observations
-	 N = 10
-	 ppsi=VonMises(0, 5.0)
-	 psitrue = rand(ppsi, N)
-	 dobs = xtrue .+ ytrue .* psitrue
-	 plot(dobs, xlabel="observation index", ylabel="observation")
-end
-
-# ╔═╡ dfcd18f2-1462-42ee-b1a0-f945a69313c3
-G(x, y, ψ) = x + y * ψ
-
-# ╔═╡ 3332d7c6-8971-404b-86ae-7eaf03d0768d
-@syms T 𝐱 Ψ 𝐳
-
-# ╔═╡ 263c76d0-051b-4349-9f2f-c6ee82ad02f6
-md"""### Physics
-Θ(d, m) is the joint probability desnity  describing the correlations that correspond to our physical theory , together with inherent uncertainites of the theory (in this case, knowledge on the the outgoing wavenumber vector is uncertain, which is attributed to the raytracing)
-"""
-
-# ╔═╡ 3137672a-1aff-4272-a553-01f8301a6a92
-md"""
-#### Certain Physics
-"""
-
-# ╔═╡ 3add2ee1-1de6-490d-a9b7-1f01d968cf29
-md"""
-```math
-\Theta(d, m) = \theta(d\,|\,m)\,μ_m(m)
-```
-"""
-
-# ╔═╡ 70df73b9-e418-47da-81e1-735fda13f131
-md"""
-```math
-\theta(d\,|\,m) = 
-\text{const.}\,\exp\left(-\frac{1}{2}\,(d-g(m))^\top\,C_T^{-1}\,(d-g(m))\right)
-```
-"""
-
-# ╔═╡ 56b684f0-67d7-45cb-befe-9c251d179750
-begin
-	
-	 logpostx=zeros(length(xgrid))
-	
-	 for i in 1:N
-	
-	 logpostx .+= log.(map(x->pdf(ppsi, x), atan.((dobs[i] .- xgrid) ./ ytrue))
-	* ytrue ./ (ytrue^2 .+ (dobs[i] .- xgrid).^2))
-	
-	 end
-	
-	 postx = exp.(logpostx .- maximum(logpostx))
-	
-	 postx = postx ./ sum(postx) * step(xgrid)
-	
-	 plot(xgrid, postx)
-end
-
-# ╔═╡ a7c12637-c990-49a8-b60e-ddae71fda3e3
-md"## Measurements"
-
-# ╔═╡ a305940b-6699-4e04-a1d8-8182266b14a4
-md"""
-$\rho_D(d)$
-"""
-
-# ╔═╡ bedc65e0-e4bb-47c6-82cd-10f1cac4d9db
-md"A Priori Information"
-
-# ╔═╡ 3cd564e1-cd99-4c25-8ae4-85904f997a4c
-md"## Joint Prior Information
-```math
-\rho(d, m) = \rho_D(d)\,\rho_M(m)
-```"
 
 # ╔═╡ 849ecb20-7d5b-48da-9fbc-3a8bfcb4fa9b
 md"""
@@ -265,7 +211,7 @@ md"""
 
 # ╔═╡ 90a4f7a0-7a94-4522-a4e9-99f8777e8f53
 # make a list of interesting distributions
-dist_choices1 = Select([Normal(1, 0.1)=>"Normal distribution", Normal(1.1, 0.1)=>"Normal with bias", Uniform(0.9, 1.1)=>"Uniform distribution (ignorance)", Dirac(1.0)=>"δ distribution (perfect knowledge)"]);
+dist_choices1 = Select([Normal(1, 0.1) => "Normal distribution", Normal(1.1, 0.1) => "Normal with bias", Uniform(0.9, 1.1) => "Uniform distribution (ignorance)", Dirac(1.0) => "δ distribution (perfect knowledge)"]);
 
 # ╔═╡ 56c7e80d-068e-4c4a-a1fa-64e26daf147f
 md"""
@@ -273,13 +219,17 @@ The distribution of each of the random variables in the data is usually unknown,
 """
 
 # ╔═╡ 760ad648-a0cf-4ec7-96bf-362346e34ba6
-scatter(rand(pdata1, 10), ylim=(0.5, 1.5), xlabel="# Experiment", ylabel="Traveltime (s)", label=nothing, size=(500,250), c=:gray)
+scatter(rand(pdata1, 10), ylim=(0.5, 1.5), xlabel="# Experiment", ylabel="Travel time (s)", label=nothing, size=(500, 250), c=:gray)
 
 # ╔═╡ 9b3ac9a2-5bc0-43e3-a8f9-688490e19674
 d1obs = rand(pdata1, 10000) # sample some data from a given distribution
 
 # ╔═╡ f460a7f2-f812-4bdf-ba13-8a905f51ea55
-pd1=histogram(d1obs, normalize=true, size=(500,250), label=nothing, xlabel="Measurement", c=:gray); plot!(range(0.6, 1.4, step=0.01), pdf.(pdata1, range(0.6, 1.4, step=0.01)), w=2, label="pdf"); vline!([1.0], w=3, c=:blue, label="True Measurement", margin=1cm)
+begin
+	pd1 = histogram(d1obs, normalize=true, size=(500, 250), label=nothing, xlabel="Measurement", c=:gray);
+	plot!(range(0.6, 1.4, step=0.01), pdf.(pdata1, range(0.6, 1.4, step=0.01)), w=2, label="pdf");
+	vline!([1.0], w=3, c=:blue, label="True Measurement", margin=1cm);
+end
 
 # ╔═╡ 58e5869f-03a7-4698-863b-c6eab02e927f
 @bind pdata2 dist_choices1
@@ -288,12 +238,12 @@ pd1=histogram(d1obs, normalize=true, size=(500,250), label=nothing, xlabel="Meas
 d2obs = rand(pdata2, 10000)
 
 # ╔═╡ 859865b7-a2f8-4890-a127-7b96ec0513c7
-dmix = mapslices(x->A*x, hcat(d1obs, d2obs), dims=2);
+dmix = mapslices(x -> A * x, hcat(d1obs, d2obs), dims=2);
 
 # ╔═╡ 0eac2ee9-ce0c-46e2-9796-d3bb1b0eb40f
 begin
-	X = range(-8, 8, length=100)
-	Y = range(-8, 8, length=100)
+    X = range(-8, 8, length=100)
+    Y = range(-8, 8, length=100)
 end
 
 # ╔═╡ 22c3fe50-0ace-4a6b-a4b4-7e6f63a45941
@@ -308,22 +258,25 @@ Tgrid = range(0.95, 1.05, length=250)
 # ╔═╡ 7a0bf6ba-0353-42b5-b86b-1d43e22a22b9
 cex = 5 # velocity in (km/sec)
 
+# ╔═╡ 3332d7c6-8971-404b-86ae-7eaf03d0768d
+@syms T 𝐱 𝐳
+
 # ╔═╡ 1c2abe11-ac0f-413c-93da-e521ebf5ae36
 T_expression = sqrt(abs2(𝐱) + abs2(𝐳)) * inv(cex)
 
 # ╔═╡ b447013f-4e0c-44b1-ba17-167a34cd3f7b
-get_traveltime=build_function(T_expression, 𝐱, 𝐳; expression = Val{false})
+get_traveltime = build_function(T_expression, 𝐱, 𝐳; expression=Val{false})
 
 # ╔═╡ 459e9902-05c5-4c53-ad99-7f68143e205a
-sz_expression = sqrt(abs2(cex*T) - abs2(𝐱))
+sz_expression = sqrt(abs2(cex * T) - abs2(𝐱))
 
 # ╔═╡ 925c71dd-530f-4bd8-8685-d66747c277ec
 # return sz for a given T and sx
-get_sz=build_function(sz_expression, T, 𝐱; expression = Val{false})
+get_sz = build_function(sz_expression, T, 𝐱; expression=Val{false})
 
 # ╔═╡ 646a9806-dc7a-4814-b1f4-877e804055ce
 # returns the derivative of sz w.r.t. T
-get_dsz_dT=build_function(Symbolics.derivative(sz_expression, T), 𝐱, T; expression = Val{false})
+get_dsz_dT = build_function(Symbolics.derivative(sz_expression, T), 𝐱, T; expression=Val{false})
 
 # ╔═╡ 40797264-1787-459a-b554-79bf2b9cd8a6
 sz_true = 5.0
@@ -336,28 +289,32 @@ function source_loc_ex_input()
     nsx = length(sxgrid)
     nT = length(Tgrid)
     return PlutoUI.combine() do Child
-        p = [            md"""
-        x= $(Child("x", Slider(range(-1.5, stop=1.5, length=100), default=1.2, show_value=true)))
-                     """,
+        p = [md"""
+True x location of source = $(Child("x", Slider(range(-1.5, stop=1.5, length=100), default=1.2, show_value=true))) and known mean of 
+z location = $(Child("μz", Slider(range(1, stop=5, length=100), default=5, show_value=true)))
+             """,
         ]
-        σ = [            md"""
-            mean in x = $(Child("μx", Slider(sxgrid, default=sxgrid[div(nsx,2)], show_value=true)))
-			 
-            variance in x = $(Child("σx", Slider(range(0.5, stop=10, length=100), default=10, show_value=true)))
-			
-            and variance in z = $(Child("σz", Slider(range(0.001, stop=.5, length=10), default=0.05, show_value=true)))
-            """,]
-		priorT = [
+        σ = [md"""
+mean in x = $(Child("μx", Slider(sxgrid, default=sxgrid[div(nsx,2)], show_value=true)))
+
+and standard deviation in x = $(Child("σx", Slider(range(0.05, stop=10, length=100), default=10, show_value=true)))
+
+and standard deviation in z = $(Child("σz", Slider(range(0.001, stop=.5, length=10), default=0.05, show_value=true)))
+""",]
+        priorT = [
             md"""
             variance in observed traveltime = $(Child("σT", Slider(range(0.01, stop=0.5, length=100), default=0.01, show_value=true)))
             """,]
 
         md"""### Locate The Source!
-The mean of z is assumed to be accurately known. 
+Consider a hypothetical experiment, where the x-coordinate of the source has to be estimated given the (P or S arrival) travel time measured at a single receiver. Here, luckily, the z-coordinate of the source has a known mean, and it has a given standard deviation  
+
 True source location is $(p) Prior information is assumed to be of Gaussian type with $(σ)
-		The uncertainty in the observed data has a variance 
-		$(priorT)
- """ 
+
+		
+The uncertainty in the observed data has a standard deviation 
+$(priorT)
+ """
     end
 end
 
@@ -366,31 +323,37 @@ end
 
 # ╔═╡ 1c78616a-d5ef-49b3-954b-7b8fcefdb1b9
 # uncertainity in sz, with a fixed mean sz_true
-pz = Normal(5.0, sex.σz)
+pz = Normal(sex.μz, sex.σz)
 
 # ╔═╡ 93d2b4ec-516d-4cea-a1c2-49ff84dfd6d0
+# theoretical information 
 Θex = broadcast(Iterators.product(sxgrid, Tgrid)) do (sx, T)
-	pdf(pz, get_sz(T, sx)) * get_dsz_dT(sx, T)
+    pdf(pz, get_sz(T, sx)) * get_dsz_dT(sx, T)
 end;
 
 # ╔═╡ 7bb8a2e6-6e67-4fc2-84fc-15e2e5b52e8a
+# prior on sx
 ρsx = Normal(sex.μx, sex.σx)
 
 # ╔═╡ 2e8c23bc-3281-414d-b1db-113e6c2ee5a9
+# generate observed traveltime
 Tobs = get_traveltime(sex.x, sz_true)
 
 # ╔═╡ 48653288-ebab-47cf-93d5-c7c44615c49a
+# Gaussian uncertainty for observed traveltime
 ρT = Normal(Tobs, sex.σT)
 
 # ╔═╡ 834918a4-e2ee-4445-8068-d85e04a17580
+# prior information
 ρex = broadcast(Iterators.product(sxgrid, Tgrid)) do (sx, T)
-	pdf(ρsx, sx) * pdf(ρT, T)
+    pdf(ρsx, sx) * pdf(ρT, T)
 end;
 
 # ╔═╡ 94125b78-3ffc-4c9d-bd47-eba34bdee94d
-plot(sxgrid, sum(ρex .* Θex, dims=2), w=2, c=:black, title="Marginalized Posterior Model Information", xlabel="x source location", size=(500, 250))
+plot(sxgrid, sum(ρex .* Θex, dims=2), w=2, c=:black, title="Marginalized Posterior Model Information", xlabel="Source x location", size=(500, 250), label=nothing)
 
 # ╔═╡ 1dc77f6a-daaa-44bf-9eee-c94b807eac9f
+# posterior information
 σex = ρex .* Θex;
 
 # ╔═╡ b90dda2c-4dc3-445d-a11a-2b878dcc0baf
@@ -401,35 +364,26 @@ md"### Plots"
 
 # ╔═╡ f8fa0021-eef0-4c13-9178-33a86fd8ba4c
 begin
-		@userplot pheat2d
-	
-		@recipe function f(h::pheat2d)
-		    grid := true
-			size --> (500, 400)
-			margin := 1cm
-			color := :amp
-		    seriestype := :contourf
-			colorbar := nothing
-		    @series begin
-		        h.args
-		    end
-		end
-end
+    @userplot pheat2d
 
-# ╔═╡ cf109d4b-9205-4cd2-95f7-00c709a3e1bc
-# same ranges in x and y, p is the pdf evaluated at each (x,y)
-function mycontour(xrange, yrange, p)
-	contourf(xrange, yrange, p, color=:viridis, margin=1cm, size=(500,400), colorbar=nothing)
+    @recipe function f(h::pheat2d)
+        grid := true
+        size --> (500, 400)
+        margin := 2cm
+        color := :amp
+        seriestype := :contourf
+        colorbar := nothing
+        @series begin
+            h.args
+        end
+    end
 end
 
 # ╔═╡ 06bcd777-c41c-4a51-97c4-e1771b72a2f6
-mycontour(mrange, Z)
-
-# ╔═╡ b0debe80-b3d5-41ac-925e-6e99cd3ee5b5
-plot(mycontour(mrange,Z1), mycontour(mrange,Z2), mycontour(mrange,Z1.*Z2), layout=(1,3), size=(690,220))
+pheat2d(mrange, mrange, Z, aspect_ratio = 1, title="2-D Gaussian Density Function")
 
 # ╔═╡ f3eb3392-787b-4cb0-b177-580e2a1456cc
-scatter2D(d1, d2, lim=:auto, title="") = scatter(collect(zip(d1, d2)), xlabel="Measurement 1", ylabel="Measurement 2", label=nothing, size=(500,500), c=:gray, title=title, lim=lim, margin=1cm, framestyle=:box)
+scatter2D(d1, d2, lim=:auto, title="") = scatter(collect(zip(d1, d2)), xlabel="Measurement 1", ylabel="Measurement 2", label=nothing, size=(500, 500), c=:gray, title=title, lim=lim, margin=1cm, framestyle=:box)
 
 # ╔═╡ ee622609-7a34-4943-a64d-4e632c327158
 scatter2D(d1obs, d2obs, (0.5, 1.5), "Independent Measurements")
@@ -438,16 +392,85 @@ scatter2D(d1obs, d2obs, (0.5, 1.5), "Independent Measurements")
 scatter2D(dmix[:, 1], dmix[:, 2], :auto, "Dependent Measurements")
 
 # ╔═╡ 7fd8f37a-a26a-42ce-a3a4-9466093052d2
-Θ_plot=pheat2d(Tgrid, sxgrid, Θex, xlabel="traveltime",  title="Theoretical Information");
+Θ_plot = pheat2d(Tgrid, sxgrid, Θex, xlabel="Travel time", title="Theoretical Information: Θ(d, m)");
 
 # ╔═╡ cef06dca-9cad-48cb-bca6-1277c8da221a
-σ_plot = pheat2d(Tgrid, sxgrid, σex, xlabel="traveltime", title="Posterior Information");
+σ_plot = pheat2d(Tgrid, sxgrid, σex, xlabel="Travel time", title="Posterior Information: σ(d, m)");
 
 # ╔═╡ 36201994-8321-4b90-a7ae-931341543b6c
-ρ_plot=pheat2d(Tgrid, sxgrid, ρex, xlabel="traveltime", ylabel="x source location", title="Prior Information");
+ρ_plot = pheat2d(Tgrid, sxgrid, ρex, xlabel="Travel time", ylabel="Source x location", title="Prior Information: ρ(d, m)");
 
 # ╔═╡ 9b64082d-b04e-4eff-bd0e-f5897544b2d0
-plot(ρ_plot, Θ_plot, σ_plot, layout=(1,3), size=(1000,350), margin = 5mm)
+plot(ρ_plot, Θ_plot, σ_plot, layout=(1, 3), size=(1000, 350), margin=4mm)
+
+# ╔═╡ d68c2f8b-7389-4cf3-827b-2edf79ae0dc7
+md"### Tikz"
+
+# ╔═╡ 1872d922-94f0-4168-b440-cf6965200aef
+tikz_default_options = raw"""
+  background rectangle/.style={fill=white}, show background rectangle,
+  """
+
+# ╔═╡ 2313405a-c587-478c-bac4-de4cbfe2e99f
+tikz_preamble = raw"""
+  \usepackage{tikz}
+  \usepackage{tikz}
+  \usetikzlibrary{fit, matrix, shapes.geometric}
+  \tikzset{% use tikzset, not tikzstyle
+      cell/.style={
+          rectangle, rounded corners=5pt, draw,
+      }
+  }
+  \tikzset{% use tikzset, not tikzstyle
+      cellv/.style={
+          rectangle, rounded corners=5pt, draw, rotate=90,
+      }
+  }
+  \usepackage{xifthen}
+  \usetikzlibrary{hobby}
+  \usepackage{pgfplots}
+  \usepackage{fontawesome}
+  \usepackage{bm,amsfonts,amsmath}
+  \usetikzlibrary{backgrounds,pgfplots.groupplots,snakes}
+  \usepgfplotslibrary{patchplots}
+  \pgfplotsset{try min ticks=2}
+  \usepackage{pgfplotstable} 
+  \usetikzlibrary{plotmarks,positioning,spy}
+  \usetikzlibrary{shapes.geometric, arrows, fadings}
+  \usepgfplotslibrary{groupplots, polar}
+  \usepackage[space]{grffile}
+
+  \usetikzlibrary{%
+              decorations.pathreplacing,%
+                  decorations.pathmorphing%
+                  }
+                  \usetikzlibrary{positioning,fit,backgrounds}
+
+
+
+  \usetikzlibrary{shapes,arrows}
+  \usetikzlibrary{decorations.markings}
+  \usetikzlibrary{patterns}
+  \usetikzlibrary{plotmarks}
+  \usetikzlibrary{fit}
+  \usetikzlibrary{intersections}
+  \usepgfplotslibrary{fillbetween}
+
+    \pgfplotsset{
+                axis line style={black!10},
+                    every axis label/.append style ={black!10},
+                    every axis title/.append style ={black!10},
+                        every tick label/.append style={black!10}  
+                          }
+
+  % need for pgfplots
+  \newcommand{\axisz}{0cm}
+  \newcommand{\axisx}{0cm}
+
+  \usetikzlibrary{positioning}
+  \usetikzlibrary{shapes.geometric}
+  \usetikzlibrary{backgrounds}
+  """
 
 # ╔═╡ e201a21a-d684-4359-bd8b-5c94fe56cd66
 md"""
@@ -460,21 +483,25 @@ md"""
 PLUTO_PROJECT_TOML_CONTENTS = """
 [deps]
 Distributions = "31c24e10-a181-5473-b8eb-7969acd0382f"
+LaTeXStrings = "b964fa9f-0449-5b57-a5c2-d3ea65f4040f"
 Measures = "442fdcdd-2543-5da2-b0f3-8c86c306513e"
 Plots = "91a5bcdd-55d7-5caf-9e0b-520d859cae80"
 PlutoTeachingTools = "661c6b06-c737-4d37-b85c-46df65de6f69"
 PlutoUI = "7f904dfe-b85e-4ff6-b463-dae2292396a8"
 StatsPlots = "f3b207a7-027a-5e70-b257-86293d7955fd"
 Symbolics = "0c5d862f-8b57-4792-8d23-62f2024744c7"
+TikzPictures = "37f6aa50-8035-52d0-81c2-5a1d08754b2d"
 
 [compat]
 Distributions = "~0.25.80"
+LaTeXStrings = "~1.3.0"
 Measures = "~0.3.2"
 Plots = "~1.38.4"
 PlutoTeachingTools = "~0.2.5"
 PlutoUI = "~0.7.49"
 StatsPlots = "~0.15.4"
 Symbolics = "~5.0.2"
+TikzPictures = "~3.4.2"
 """
 
 # ╔═╡ 00000000-0000-0000-0000-000000000002
@@ -483,7 +510,7 @@ PLUTO_MANIFEST_TOML_CONTENTS = """
 
 julia_version = "1.8.5"
 manifest_format = "2.0"
-project_hash = "287588a566a3e4b61f5a77352d85f9109bc7caba"
+project_hash = "6a35da6e6e3304cda3a2fee1269a6dfddb7f0935"
 
 [[deps.AbstractAlgebra]]
 deps = ["GroupsCore", "InteractiveUtils", "LinearAlgebra", "MacroTools", "Markdown", "Random", "RandomExtensions", "SparseArrays", "Test"]
@@ -1192,6 +1219,12 @@ version = "2.36.0+0"
 deps = ["Libdl", "libblastrampoline_jll"]
 uuid = "37e2e46d-f89d-539d-b4ee-838fcccc9c8e"
 
+[[deps.LittleCMS_jll]]
+deps = ["Artifacts", "JLLWrappers", "JpegTurbo_jll", "Libdl", "Libtiff_jll", "Pkg"]
+git-tree-sha1 = "110897e7db2d6836be22c18bffd9422218ee6284"
+uuid = "d3a379c0-f9a3-5b72-a4c0-6bf4d2e8af0f"
+version = "2.12.0+0"
+
 [[deps.LogExpFunctions]]
 deps = ["ChainRulesCore", "ChangesOfVariables", "DocStringExtensions", "InverseFunctions", "IrrationalConstants", "LinearAlgebra"]
 git-tree-sha1 = "680e733c3a0a9cea9e935c8c2184aea6a63fa0b5"
@@ -1319,6 +1352,12 @@ deps = ["Artifacts", "CompilerSupportLibraries_jll", "Libdl"]
 uuid = "4536629a-c528-5b80-bd46-f80d51c5b363"
 version = "0.3.20+0"
 
+[[deps.OpenJpeg_jll]]
+deps = ["Artifacts", "JLLWrappers", "Libdl", "Libtiff_jll", "LittleCMS_jll", "Pkg", "libpng_jll"]
+git-tree-sha1 = "76374b6e7f632c130e78100b166e5a48464256f8"
+uuid = "643b3616-a352-519d-856d-80112ee9badc"
+version = "2.4.0+0"
+
 [[deps.OpenLibm_jll]]
 deps = ["Artifacts", "Libdl"]
 uuid = "05823500-19ac-5b8b-9628-191a04bc5112"
@@ -1427,6 +1466,12 @@ deps = ["AbstractPlutoDingetjes", "Base64", "ColorTypes", "Dates", "FixedPointNu
 git-tree-sha1 = "eadad7b14cf046de6eb41f13c9275e5aa2711ab6"
 uuid = "7f904dfe-b85e-4ff6-b463-dae2292396a8"
 version = "0.7.49"
+
+[[deps.Poppler_jll]]
+deps = ["Artifacts", "Cairo_jll", "Fontconfig_jll", "Glib_jll", "JLLWrappers", "JpegTurbo_jll", "Libdl", "Libtiff_jll", "OpenJpeg_jll", "Pkg", "libpng_jll"]
+git-tree-sha1 = "e11443687ac151ac6ef6699eb75f964bed8e1faa"
+uuid = "9c32591e-4766-534b-9725-b71a8799265b"
+version = "0.87.0+2"
 
 [[deps.PreallocationTools]]
 deps = ["Adapt", "ArrayInterfaceCore", "ForwardDiff", "Requires"]
@@ -1713,6 +1758,12 @@ deps = ["ArgTools", "SHA"]
 uuid = "a4e569a6-e804-4fa4-b0f3-eef7a1d5b13e"
 version = "1.10.1"
 
+[[deps.Tectonic]]
+deps = ["Pkg"]
+git-tree-sha1 = "0b3881685ddb3ab066159b2ce294dc54fcf3b9ee"
+uuid = "9ac5f52a-99c6-489f-af81-462ef484790f"
+version = "0.8.0"
+
 [[deps.TensorCore]]
 deps = ["LinearAlgebra"]
 git-tree-sha1 = "1feb45f88d133a655e001435632f019a9a1bcdb6"
@@ -1722,6 +1773,12 @@ version = "0.1.1"
 [[deps.Test]]
 deps = ["InteractiveUtils", "Logging", "Random", "Serialization"]
 uuid = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
+
+[[deps.TikzPictures]]
+deps = ["LaTeXStrings", "Poppler_jll", "Requires", "Tectonic"]
+git-tree-sha1 = "4e75374d207fefb21105074100034236fceed7cb"
+uuid = "37f6aa50-8035-52d0-81c2-5a1d08754b2d"
+version = "3.4.2"
 
 [[deps.TimerOutputs]]
 deps = ["ExprTools", "Printf"]
@@ -2029,10 +2086,10 @@ version = "1.4.1+0"
 # ╠═4c8ba5dc-a019-46ab-b7cc-b03cf4cee5f8
 # ╟─91c82c81-8cfc-4b54-bed7-0592f5b39351
 # ╟─8ea4d826-1aa4-4756-817c-b0ddb1fc29e4
-# ╠═9b64082d-b04e-4eff-bd0e-f5897544b2d0
-# ╠═94125b78-3ffc-4c9d-bd47-eba34bdee94d
+# ╟─9b64082d-b04e-4eff-bd0e-f5897544b2d0
+# ╟─94125b78-3ffc-4c9d-bd47-eba34bdee94d
 # ╟─1b14a442-211e-40a6-b8d1-3854a69ef682
-# ╟─760ad648-a0cf-4ec7-96bf-362346e34ba6
+# ╠═760ad648-a0cf-4ec7-96bf-362346e34ba6
 # ╟─c57d72de-920d-48b5-b768-661cd2435bcd
 # ╠═9b3ac9a2-5bc0-43e3-a8f9-688490e19674
 # ╟─f460a7f2-f812-4bdf-ba13-8a905f51ea55
@@ -2045,14 +2102,14 @@ version = "1.4.1+0"
 # ╠═29bf0e42-8dd0-41e9-a646-a7714440d09b
 # ╠═859865b7-a2f8-4890-a127-7b96ec0513c7
 # ╠═99f08cc3-6bd9-40ee-a61e-86320a7c8a3e
-# ╠═e5d5ac74-bbfd-42e1-aeaf-5fbd17d59625
+# ╟─e5d5ac74-bbfd-42e1-aeaf-5fbd17d59625
 # ╠═a2461a13-76f4-4a18-bcf4-fc9e7a18e5bb
 # ╠═54085478-12df-4d02-b2ed-ac9a373f1b91
-# ╠═4465ed36-d7f8-4407-9270-0ec20dd7e08c
-# ╠═b3212b47-a114-4a25-88f7-5a3cd3cb6542
-# ╠═88060b9a-3c70-4bed-8b0c-ce6c5b9a3061
-# ╠═06bcd777-c41c-4a51-97c4-e1771b72a2f6
+# ╟─4465ed36-d7f8-4407-9270-0ec20dd7e08c
 # ╠═47c3f46f-158e-4eb6-aa8d-49c018168826
+# ╠═88060b9a-3c70-4bed-8b0c-ce6c5b9a3061
+# ╠═b3212b47-a114-4a25-88f7-5a3cd3cb6542
+# ╠═06bcd777-c41c-4a51-97c4-e1771b72a2f6
 # ╠═43363cb2-98d5-41d3-b276-97478829391a
 # ╟─b2c008d8-48aa-4c32-b988-3552404a25b6
 # ╠═ab6453f1-9746-4825-84bc-32b552538e23
@@ -2061,28 +2118,19 @@ version = "1.4.1+0"
 # ╠═e8967bc9-daff-48b0-9846-f839848e3142
 # ╠═9e0ff7a6-3984-4be0-858c-b08e95bd46b1
 # ╟─7b66bc33-4d0c-4f21-9a9c-7a208708d95d
+# ╟─263c76d0-051b-4349-9f2f-c6ee82ad02f6
+# ╟─3add2ee1-1de6-490d-a9b7-1f01d968cf29
+# ╟─70df73b9-e418-47da-81e1-735fda13f131
+# ╠═a7c12637-c990-49a8-b60e-ddae71fda3e3
+# ╠═a305940b-6699-4e04-a1d8-8182266b14a4
+# ╠═bedc65e0-e4bb-47c6-82cd-10f1cac4d9db
+# ╠═3cd564e1-cd99-4c25-8ae4-85904f997a4c
 # ╟─ac9bbed8-9d8f-461e-bea5-9337cec3ec80
 # ╠═da70f650-c306-461d-a607-8d2384946088
 # ╠═8dca7b1e-7142-4bdc-81bf-645cc8c264c3
 # ╠═6f7955f7-99fa-482c-8544-9f5bb9e75452
 # ╠═7610159c-f519-4dd6-bf49-e9015dfda7d5
-# ╠═b0debe80-b3d5-41ac-925e-6e99cd3ee5b5
-# ╠═83f55514-4c1e-4587-9dc9-576351dc0379
-# ╠═3059104d-a644-437c-b300-fbdcf87a1e92
-# ╠═7cfe6798-9c28-410a-88ca-b02b2b56eb77
-# ╠═d4ca1678-947d-41d1-90ec-3a99c1479bd6
-# ╠═82306f3d-2cb2-47e0-8b84-d5f1dda14003
-# ╠═dfcd18f2-1462-42ee-b1a0-f945a69313c3
-# ╠═3332d7c6-8971-404b-86ae-7eaf03d0768d
-# ╠═263c76d0-051b-4349-9f2f-c6ee82ad02f6
-# ╠═3137672a-1aff-4272-a553-01f8301a6a92
-# ╠═3add2ee1-1de6-490d-a9b7-1f01d968cf29
-# ╠═70df73b9-e418-47da-81e1-735fda13f131
-# ╠═56b684f0-67d7-45cb-befe-9c251d179750
-# ╠═a7c12637-c990-49a8-b60e-ddae71fda3e3
-# ╠═a305940b-6699-4e04-a1d8-8182266b14a4
-# ╠═bedc65e0-e4bb-47c6-82cd-10f1cac4d9db
-# ╠═3cd564e1-cd99-4c25-8ae4-85904f997a4c
+# ╟─83f55514-4c1e-4587-9dc9-576351dc0379
 # ╟─849ecb20-7d5b-48da-9fbc-3a8bfcb4fa9b
 # ╠═04d19c81-08f8-4f07-a0c7-f51c1b39d271
 # ╠═90a4f7a0-7a94-4522-a4e9-99f8777e8f53
@@ -2091,6 +2139,7 @@ version = "1.4.1+0"
 # ╠═0e768c08-c806-4de9-b459-f52065b6ce0a
 # ╠═72ddf27e-de41-41f4-aeae-12f2ead3d89c
 # ╠═7a0bf6ba-0353-42b5-b86b-1d43e22a22b9
+# ╠═3332d7c6-8971-404b-86ae-7eaf03d0768d
 # ╠═1c2abe11-ac0f-413c-93da-e521ebf5ae36
 # ╠═b447013f-4e0c-44b1-ba17-167a34cd3f7b
 # ╠═459e9902-05c5-4c53-ad99-7f68143e205a
@@ -2109,11 +2158,13 @@ version = "1.4.1+0"
 # ╠═a4435d5f-b1ce-492a-8836-1d5e847719ac
 # ╟─5ad29bb0-1002-4779-ba2d-7f2debcb86fa
 # ╠═f8fa0021-eef0-4c13-9178-33a86fd8ba4c
-# ╠═cf109d4b-9205-4cd2-95f7-00c709a3e1bc
 # ╠═f3eb3392-787b-4cb0-b177-580e2a1456cc
 # ╠═7fd8f37a-a26a-42ce-a3a4-9466093052d2
 # ╠═cef06dca-9cad-48cb-bca6-1277c8da221a
 # ╠═36201994-8321-4b90-a7ae-931341543b6c
+# ╟─d68c2f8b-7389-4cf3-827b-2edf79ae0dc7
+# ╟─1872d922-94f0-4168-b440-cf6965200aef
+# ╟─2313405a-c587-478c-bac4-de4cbfe2e99f
 # ╟─e201a21a-d684-4359-bd8b-5c94fe56cd66
 # ╟─00000000-0000-0000-0000-000000000001
 # ╟─00000000-0000-0000-0000-000000000002

@@ -37,11 +37,7 @@ Click to regenerate 1) $(@bind renoise Button("Noise")) 2) $(@bind reout Button(
 # ╔═╡ 725659ff-77f1-46b5-9783-24100b3bc2c5
 Markdown.MD(Markdown.Admonition("warning", "Intuition",
 [md"""
-<<<<<<< HEAD
 Regenerate noise   to notice that the variance along the y-intercept dimension is higher than the variance along the slope dimension. This means the estimate of the slope is less uncertain than the y-intercept. Notice the broad minimum along the y-intercept dimension compared to the sharp minimum along the slope dimension.
-=======
-Regenerate observations to notice that the variance along the y-intercept dimension is higher than the variance along the slope dimension. This means the estimate of the slope is less uncertain than the y-intercept.
->>>>>>> 90f02f535b4c3a90b90acbdfdffcd66b67de501f
 """]
 ))
 
