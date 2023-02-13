@@ -81,21 +81,69 @@ md"""
 ## Indexing
 """
 
+# ╔═╡ 60659376-b11e-4a50-8776-0b57d4d74115
+data[1:2]
+
+# ╔═╡ c7fd9244-a62d-4692-b1cd-7579f7ebd642
+data[end]
+
+# ╔═╡ b3764bcd-1543-464a-acbe-44e498a9942d
+first(data)
+
+# ╔═╡ 32f67661-a921-42c7-9533-9989bbb6b414
+last(data)
+
 # ╔═╡ b4d99d84-bb07-4a6c-a73d-b43759f2d3d8
 md"""
 ## Concatenate
 """
+
+# ╔═╡ 6908b1c4-c4fb-4771-b793-ebacef676858
+data2 = [1.2, 3.4, 4.5]
+
+# ╔═╡ 1c695805-f05f-47a5-aac9-5bc0c85b4104
+data_full = vcat(data, data2)
+
+# ╔═╡ 7685c3c2-67b7-491f-9b89-c9101a90d9f5
+cat(data, data2, dims=1)
+
+# ╔═╡ 588f453a-a155-472e-b4c0-3fbec130f5e0
+data3 = [1, 2, 3]
+
+# ╔═╡ 81926f06-523a-4b4e-aab6-f43499e0c486
+vcat(data, data3)
+
+# ╔═╡ c1b5d93e-5f66-4516-9a83-bf051ce7d197
+aaa = Float32.(data_full)
+
+# ╔═╡ d943d77b-549b-4b25-b8e0-6caf6f11dc57
+typeof(aaa)
 
 # ╔═╡ e7890fb8-15ce-42d5-a0ca-36ed53d24a5d
 md"""
 ## Special arrays
 """
 
+# ╔═╡ 7c90d63d-1a27-4438-a180-f3a882dda2fd
+typeof(zeros(5))
+
+# ╔═╡ 198bc38d-802f-42b0-8a0a-44d445cc1542
+typeof(zeros(Float32, 5))
+
+# ╔═╡ 0ce334b2-0198-4524-8ebf-da136a0a774f
+randn(Float32, 10)
+
 # ╔═╡ 2e290c1c-167e-4a2a-aeb9-5f78b0bcdc3a
 md"""
 ## Linear combination
 Two arrays of same size can be added together.
 """
+
+# ╔═╡ 00c23763-59c5-4cbd-b7d3-7ee4e962b680
+0.5 .* randn(5) .+ 0.3 * randn(5)
+
+# ╔═╡ 31b9a1e0-b097-45c9-b6e6-10da870addf6
+
 
 # ╔═╡ 7c52fd8a-d94b-4b37-9e70-13699636abf8
 md"""
@@ -130,7 +178,7 @@ g₁ = [0.2, 0.1, 3]
 g₂ = [1, 0.2, 0.1]
 
 # ╔═╡ 36781305-9c23-4ac4-ab51-996bd408a90f
-G = hcat(g₁, g₂)
+G = hcat(g₁, g₂) # simply a collection of vectors (columns)
 
 # ╔═╡ 8d4aa317-a78f-4da9-b9d7-310dd566e89c
 d = G * m
@@ -1344,9 +1392,25 @@ version = "17.4.0+0"
 # ╟─737aef17-3c28-4f5a-9e20-6df43a5973a6
 # ╠═c348b675-fb25-45ea-ade3-de1a340b7fc9
 # ╟─3e4c2e52-b1f8-48bf-b589-6f375d76ade8
+# ╠═60659376-b11e-4a50-8776-0b57d4d74115
+# ╠═c7fd9244-a62d-4692-b1cd-7579f7ebd642
+# ╠═b3764bcd-1543-464a-acbe-44e498a9942d
+# ╠═32f67661-a921-42c7-9533-9989bbb6b414
 # ╟─b4d99d84-bb07-4a6c-a73d-b43759f2d3d8
+# ╠═6908b1c4-c4fb-4771-b793-ebacef676858
+# ╠═1c695805-f05f-47a5-aac9-5bc0c85b4104
+# ╠═7685c3c2-67b7-491f-9b89-c9101a90d9f5
+# ╠═588f453a-a155-472e-b4c0-3fbec130f5e0
+# ╠═81926f06-523a-4b4e-aab6-f43499e0c486
+# ╠═c1b5d93e-5f66-4516-9a83-bf051ce7d197
+# ╠═d943d77b-549b-4b25-b8e0-6caf6f11dc57
 # ╟─e7890fb8-15ce-42d5-a0ca-36ed53d24a5d
+# ╠═7c90d63d-1a27-4438-a180-f3a882dda2fd
+# ╠═198bc38d-802f-42b0-8a0a-44d445cc1542
+# ╠═0ce334b2-0198-4524-8ebf-da136a0a774f
 # ╟─2e290c1c-167e-4a2a-aeb9-5f78b0bcdc3a
+# ╠═00c23763-59c5-4cbd-b7d3-7ee4e962b680
+# ╠═31b9a1e0-b097-45c9-b6e6-10da870addf6
 # ╟─7c52fd8a-d94b-4b37-9e70-13699636abf8
 # ╠═bda26e18-6ec8-4b2d-abc2-0fd17310f96c
 # ╠═5842ae5e-e575-47a1-8501-9b74967fb769
