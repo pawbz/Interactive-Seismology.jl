@@ -356,9 +356,6 @@ plot(sxgrid, sum(ρex .* Θex, dims=2), w=2, c=:black, title="Marginalized Poste
 # posterior information
 σex = ρex .* Θex;
 
-# ╔═╡ b90dda2c-4dc3-445d-a11a-2b878dcc0baf
-source_loc_ex_input()
-
 # ╔═╡ 5ad29bb0-1002-4779-ba2d-7f2debcb86fa
 md"### Plots"
 
@@ -510,7 +507,7 @@ PLUTO_MANIFEST_TOML_CONTENTS = """
 
 julia_version = "1.8.5"
 manifest_format = "2.0"
-project_hash = "6a35da6e6e3304cda3a2fee1269a6dfddb7f0935"
+project_hash = "e685ca9cbdf48d35f9275b8b92cd39e1bc0caa8c"
 
 [[deps.AbstractAlgebra]]
 deps = ["GroupsCore", "InteractiveUtils", "LinearAlgebra", "MacroTools", "Markdown", "Random", "RandomExtensions", "SparseArrays", "Test"]
@@ -2154,7 +2151,6 @@ version = "1.4.1+0"
 # ╠═2e8c23bc-3281-414d-b1db-113e6c2ee5a9
 # ╠═48653288-ebab-47cf-93d5-c7c44615c49a
 # ╟─ea8bfd4d-5cbc-42b2-a027-7eb568b40391
-# ╠═b90dda2c-4dc3-445d-a11a-2b878dcc0baf
 # ╠═a4435d5f-b1ce-492a-8836-1d5e847719ac
 # ╟─5ad29bb0-1002-4779-ba2d-7f2debcb86fa
 # ╠═f8fa0021-eef0-4c13-9178-33a86fd8ba4c
