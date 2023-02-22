@@ -188,20 +188,18 @@ by creating or destroying a new interface
 in the model.
 """
 
-# ╔═╡ a90a3fa3-7ac4-43fd-a0a2-ce1d67f6ab95
-randobs(1:100)
-
 # ╔═╡ 3b31458a-3c5d-46e1-a5e8-c08cb334e4cb
 md"""
 ### Physics
+We measure the horizontal derivative of the vertical component of the acceleration due to gravity.
 Contribution from a homogeneous half layer is given by
 ```math
-G\Delta\rho\,\log\left(\frac{D^2+x^2}{d^2+x^2}\right),
+G\Delta\rho\,\log\left(\frac{z_2^2+x^2}{z_1^2+x^2}\right),
 ```
 where
-- d is depth of the top pf the layer;
-- D is the depth of the bottom;
-- Δρ is horizontal density contrast.
+- depth of the top pf the layer is $z_1$;
+- the depth of the bottom is  $z_2$; 
+- horizontal density contrast is $\Delta\rho$.
 """
 
 # ╔═╡ 7997ef7f-47ba-419a-98af-0a5cdddb2915
@@ -239,16 +237,17 @@ pl = Exponential(4)
 function randomwalk_density_independent(m, pl=pl, pρ=pρ)
 
     l = Vector{Float64}(undef, 0)
-    d = 0
-    while d <= 100
+    d = 0 # cumulative sum of widths
+    while d <= 100 # less than 100 km
         l1 = rand(pl)
         push!(l, l1)
         d += l1
     end
     # change last layer to obey 100 km constraint
     l[end] = 100 - sum(l[1:end-1])
-
+    # pick density values
     ρ = rand(pρ, length(l))
+    # model vector is vcat of l and d
     return cat(l, ρ, dims=1)
 end
 
@@ -261,21 +260,27 @@ end
 # ╔═╡ 8dad04b1-0f7f-4e52-87b4-caaf0f120bdb
 dobs_ex2 = ggravity(mex2_true, xrange_ex2)
 
-# ╔═╡ 0acabf48-b136-4dbb-9393-a7260e01c75d
-pd_ex2 = MvNormal(dobs_ex2, 0.1e-7)
-
 # ╔═╡ 28a067e1-f814-4e77-bb8c-9285b6e7cb11
 msamples_ex2_prior = [randomwalk_density_independent(0) for i in 1:100]
 
 # ╔═╡ 460442fe-dc55-4f88-895b-3e1bddabdc9b
 function randomwalk_density_dependent(m, pl=pl, pρ=pρ)
-    l, ρ = splitobs(m, at=0.5)
+    mout = copy(m)
+    l, ρ = splitobs(mout, at=0.5)
     nlayers = length(l)
     if (rand(Bernoulli(0.5)))
         # change density of randomly chosen layer
         k = randobs(1:nlayers)
         ρ[k] = rand(pρ)
     else
+        for wait in 1:5
+            ib = randobs(2:nlayers)
+            L = l[ib] + l[ib-1]
+            l[ib] = rand(truncated(pl, 0, L))
+            l[ib-1] = L - l[ib]
+            ρ[ib] = rand(pρ)
+            ρ[ib-1] = rand(pρ)
+        end
     end
     return cat(l, ρ, dims=1)
 end
@@ -283,23 +288,8 @@ end
 # ╔═╡ 894be65f-61d9-4f9e-9cac-361ee4bf3e72
 plot(pl, w=2, label=nothing, title="Prior Layer Thickness Distribution", c=:black, size=(500, 250))
 
-# ╔═╡ 6e9cd1ee-ddbf-4e94-a4df-1642d0b859fa
-mean(pl)
-
 # ╔═╡ bec76e39-df37-4aa4-89eb-c59abc52d3bb
 md"### Likelihood"
-
-# ╔═╡ 69f0102a-0107-4c94-9423-6b5a63f88c2e
-function Lex2(m, pd=pd_ex2, xrange=xrange_ex2)
-    d = ggravity(m, xrange)
-    return pdf(pd_ex2, d)
-end
-
-# ╔═╡ 6f9a7f23-91d1-429e-a532-3f02bc8ea431
-msamples_ex2, acceptance_ex2 = generate_samples(randomwalk_density_independent(0), randomwalk_density_dependent, Lex2, N=10)
-
-# ╔═╡ 077cbd07-1b6f-41ac-9c50-23132484f5b1
-count(acceptance_ex2) / length(acceptance_ex2)
 
 # ╔═╡ eac5e9ca-1146-44bc-bd0d-39a11df3a215
 md"""## References
@@ -396,7 +386,7 @@ begin
 end
 
 # ╔═╡ b306ce65-792e-46e3-b522-a8e77d759a1d
-md"## Plots"
+md"### Plots"
 
 # ╔═╡ ab042213-8885-4715-8ddd-ba32b8289f24
 begin
@@ -436,6 +426,10 @@ begin
     end
 end
 
+# ╔═╡ 343699e4-bc2f-41e0-99b1-c8dc3f15cc40
+
+plot(pdensity_model(msamples_ex2_prior[1], false, title="Initial Sample"), pdensity_model(randomwalk_density_dependent(msamples_ex2_prior[1]), false, title="Perturbed Sample"), size=(500, 300))
+
 # ╔═╡ 5cb023fd-1835-45fb-bc26-4dc34fc5216a
 function plot_true_density_model()
     plot(pdensity_model(mex2_true, false, title="True Earth Model"), pdensity_model(mex2_true, true, title="Smoothed True Model"), size=(450, 300), margin=5mm)
@@ -445,10 +439,26 @@ end
 TwoColumnWideRight(md"""
 ## Gravity Inversion
 $(PlutoUI.LocalResource("./images/gravity_inversion_example.png", :width=>300))
-
+Standard deviation of normally distributed gravity measurements = 
+$(@bind σex2 Slider(range(0.1e-8, stop=3e-8, length=10), default=0.1e-6, show_value=true))
 """,
     md"$(plot_true_density_model())"
 )
+
+# ╔═╡ 0acabf48-b136-4dbb-9393-a7260e01c75d
+pd_ex2 = MvNormal(dobs_ex2, σex2)
+
+# ╔═╡ 69f0102a-0107-4c94-9423-6b5a63f88c2e
+function Lex2(m, pd=pd_ex2, xrange=xrange_ex2)
+    d = ggravity(m, xrange)
+    return pdf(pd_ex2, d)
+end
+
+# ╔═╡ 6f9a7f23-91d1-429e-a532-3f02bc8ea431
+msamples_ex2, acceptance_ex2 = generate_samples(randomwalk_density_independent(0), randomwalk_density_dependent, Lex2, N=100)
+
+# ╔═╡ 077cbd07-1b6f-41ac-9c50-23132484f5b1
+count(acceptance_ex2) / length(acceptance_ex2)
 
 # ╔═╡ 4ba948e5-5cbd-42f7-a31a-9d467485d4a8
 function plot_density_model(m)
@@ -472,7 +482,7 @@ end
 # ╔═╡ f8343641-b00c-4116-8aad-ab94af42b0c0
 begin
     sample_posterior_density
-    pdensity_models(randobs(msamples_ex2, 6), smooth_posterior_flag)
+    pdensity_models(randobs(msamples_ex2[end-20:end], 6), smooth_posterior_flag)
 end
 
 # ╔═╡ 5af97c29-6768-43f6-8adc-9e8e88d1f966
@@ -481,7 +491,7 @@ pdata_ex2 = plot(xrange_ex2, dobs_ex2, w=2, size=(500, 250), xlim=extrema(xrange
 # ╔═╡ 8c0fc32a-415a-4912-8453-c156ed8d8ba3
 function plot_prior_data_ex2()
     pdata_ex2_prior = deepcopy(pdata_ex2)
-    for i in 1:10
+    for i in 1:20
         plot!(pdata_ex2_prior, xrange_ex2, ggravity(randomwalk_density_independent(0), xrange_ex2), w=2, c=:black, alpha=0.3, label=nothing, title="Prior")
     end
     pdata_ex2_prior
@@ -490,7 +500,7 @@ end
 # ╔═╡ 32ebb870-4a43-432c-83c8-24c935fbecd6
 function plot_post_data_ex2()
     pdata_ex2_post = deepcopy(pdata_ex2)
-    for m in msamples_ex2
+    for m in msamples_ex2[end-20:end]
         plot!(pdata_ex2_post, xrange_ex2, ggravity(m, xrange_ex2), w=2, c=:black, alpha=0.3, label=nothing, title="Posterior")
     end
     pdata_ex2_post
@@ -2078,10 +2088,10 @@ version = "1.4.1+0"
 # ╠═9ee18955-a949-4e85-8157-5832c423f3e3
 # ╠═8e96a8d0-aca8-4018-8b3d-0706d9aa1cec
 # ╟─634db275-b82b-4439-9f1e-28f89bcfe2c1
-# ╟─e023d351-5560-4f08-8f5b-5252844b3e0a
 # ╠═fde40e79-70c4-464d-9f2c-b6eeb1b3446d
-# ╠═a90a3fa3-7ac4-43fd-a0a2-ce1d67f6ab95
+# ╟─e023d351-5560-4f08-8f5b-5252844b3e0a
 # ╠═460442fe-dc55-4f88-895b-3e1bddabdc9b
+# ╠═343699e4-bc2f-41e0-99b1-c8dc3f15cc40
 # ╟─3b31458a-3c5d-46e1-a5e8-c08cb334e4cb
 # ╠═7997ef7f-47ba-419a-98af-0a5cdddb2915
 # ╠═5af96d1b-e9c0-4cca-86b1-6f40c7497a73
@@ -2093,7 +2103,6 @@ version = "1.4.1+0"
 # ╠═90a0357c-e86e-4c63-a419-d83231654f96
 # ╠═d707553d-c917-42cc-b47f-eb6043aee0c3
 # ╠═894be65f-61d9-4f9e-9cac-361ee4bf3e72
-# ╠═6e9cd1ee-ddbf-4e94-a4df-1642d0b859fa
 # ╟─bec76e39-df37-4aa4-89eb-c59abc52d3bb
 # ╠═69f0102a-0107-4c94-9423-6b5a63f88c2e
 # ╠═6f9a7f23-91d1-429e-a532-3f02bc8ea431
