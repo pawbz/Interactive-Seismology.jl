@@ -44,6 +44,9 @@ $(@bind sample_posterior_density Button("Sample Posterior Density Models"))
 Smooth? $(@bind smooth_posterior_flag CheckBox(default=false))
 """
 
+# ╔═╡ 76558020-50a2-4de7-8ce3-823aaa35fde9
+md"### Simpler Demo"
+
 # ╔═╡ b61b56bc-1ed7-4603-9369-737f5f5c5c73
 md"## Striking the balance"
 
@@ -437,7 +440,7 @@ end
 
 # ╔═╡ 71f399d5-4d38-4b9b-9a3e-c9ca6c1f5cfe
 TwoColumnWideRight(md"""
-## Gravity Inversion
+### Gravity Inversion
 $(PlutoUI.LocalResource("./images/gravity_inversion_example.png", :width=>300))
 Standard deviation of normally distributed gravity measurements = 
 $(@bind σex2 Slider(range(0.1e-8, stop=3e-8, length=10), default=0.1e-6, show_value=true))
@@ -2063,6 +2066,7 @@ version = "1.4.1+0"
 # ╟─49a1286f-218f-4070-b708-b14c60238839
 # ╟─b1928ff1-b74e-4c05-8778-c9c57fc06b2a
 # ╟─f8343641-b00c-4116-8aad-ab94af42b0c0
+# ╟─76558020-50a2-4de7-8ce3-823aaa35fde9
 # ╟─d2427a6c-1014-4fea-a185-543a5f2e7b02
 # ╟─aa3e9da8-8053-47e8-b859-519bb87be58a
 # ╟─cd5826ab-8c86-4a8a-9eff-f6fbd241bdce
