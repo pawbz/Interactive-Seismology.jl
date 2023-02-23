@@ -21,9 +21,6 @@ PlutoUI.LocalResource("./movies/ES219-Traveltime-Tomography.gif", :width => 300,
 
 # ╔═╡ 1bb8813d-320f-49de-9ca8-92f858f7d512
 md"""
-##### [Introduction of Seismology](https://pawbz.github.io/ES218.jl/)
-ES218; August 2022
-
 **Pawan Bharadwaj**\
 [https://ceas.iisc.ac.in/~geophyinv/](https://ceas.iisc.ac.in/~geophyinv/)\
 *Indian Institute of Science, Bengaluru, India*
