@@ -62,7 +62,7 @@ notebook_files = filter(Pluto.is_pluto_notebook, readdir());
 
 # ╔═╡ 03ce0348-524c-4a76-a627-80b83208e68d
 html_files = broadcast(splitext.(notebook_files)) do f
-    "https://pawbz.github.io/ES218.jl/" * first(f) * ".html"
+    "https://pawbz.github.io/Interactive-Seismology.jl/" * first(f) * ".html"
 end;
 
 # ╔═╡ 3a0789b4-c66e-4ca9-9e1c-fd720d274947

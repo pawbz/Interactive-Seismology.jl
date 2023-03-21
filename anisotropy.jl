@@ -46,7 +46,7 @@ It is important to consider deviations from isotropy when imaging the Earth. Alt
 
 It is often difficult to distinguish the effects of anisotropy and those of medium heterogeneity. The presence of anisotropy results in non-circular wavefronts, even though the elastic constants are homogeneous. We can visualize wavefronts after projecting them along different planes by interacting with the plot below.
 
-##### [Introduction of Seismology](https://pawbz.github.io/ES218.jl/)
+##### [Interactive Seismology Notebooks](https://pawbz.github.io/Interactive-Seismology.jl/)
 ES218; August 2022
 
 Instructor: *Pawan Bharadwaj*,

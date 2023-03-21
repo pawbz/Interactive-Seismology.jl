@@ -42,8 +42,8 @@ As a result, the high frequencies are attenuated more than the low frequencies; 
 
 Attenuation is observed to be strongest in the upper mantle and inner core. Attenuation decreases rapidly with depth, with a high attenuation in the curst that is attributed to the effects of cracks and fluids. 
 
-##### [Introduction of Seismology](https://pawbz.github.io/ES218.jl/)
-ES218; August 2022;
+##### [Interactive Seismology Notebooks](https://pawbz.github.io/Interactive-Seismology.jl/)
+
 
 Instructor: *Pawan Bharadwaj*,
 Indian Institute of Science, Bengaluru, India

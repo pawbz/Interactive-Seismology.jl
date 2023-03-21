@@ -46,7 +46,7 @@ By interacting with this notebook, users will be able to:
 * Learn about the principle of backpropagation
 * And gain more insight into the field of seismic tomography
 
-##### [Introduction of Seismology](https://pawbz.github.io/ES218.jl/)
+##### [Interactive Seismology Notebooks](https://pawbz.github.io/Interactive-Seismology.jl/)
 ES218; August 2022
 
 Instructor: *Pawan Bharadwaj*,
@@ -65,9 +65,6 @@ md"""
 ### Row Picture
 The row picture of $G \times s$ illustrates the relationship between the slowness vector and the traveltime errors. It shows that the raypaths (rows of $G$) that have the strongest correlation with the slowness vector will have a higher traveltime error when compared to the others. This is because when a raypath passes through all the perturbed pixels of the medium, it will experience a greater delay, leading to a higher traveltime residual. In other words, the higher the correlation of a raypath with slowness vector, the more it is affected by the perturbations in the medium and hence higher traveltime residual.
 """
-
-# ╔═╡ 8037f78d-8938-42fc-98a2-210b442c00f0
-plot_tikzrow("raypath 1", "raypath 2", "raypath K", "slowness vector", s1="K×N", s2="N×1")
 
 # ╔═╡ 7883ecc5-b01f-49d3-98c0-67676701e90e
 md"### Column Picture
@@ -90,9 +87,6 @@ The column picture of $G^{\text{T}} \times \Delta d$ illustrates how the travelt
 md"""### Row Picture
 The row picture of $G^{\text{T}} \times \Delta d$ represents the correlation between the model pixels and the data residuals. It shows that the model pixels whose ray distribution corresponds with the data residuals are given a larger weight. In other words, pixels that are intersected by high-residual rays are highlighted, or this means that the pixels in the model that are most responsible for the residuals in the data will be given more weight in the image.
 """
-
-# ╔═╡ cad88757-7a23-4c99-84fe-219d9337a1f7
-plot_tikzrow("model pixel 1", "model pixel 2", "model pixel N", "data residual", s1="N×K", s2="K×1")
 
 # ╔═╡ 924555b0-5ddc-4ee5-ad32-4696f9fb47e4
 md"""
@@ -511,50 +505,49 @@ tikz_preamble = raw"""
   \usetikzlibrary{backgrounds}
   """
 
-# ╔═╡ 081bb665-8661-40e8-a4a1-64f8c32a039b
-plot_expt() = TikzPicture(L"""
-\tikzstyle{vector}=[->,very thick,xcol,line cap=round]
-\tikzstyle{xline}=[myblue,very thick]
-\colorlet{myblue}{blue!65!black}
-\colorlet{mydarkblue}{blue!50!black}
-\colorlet{myred}{red!65!black}
-\colorlet{mydarkred}{red!40!black}
-\colorlet{veccol}{green!70!black}
-  \def\xmax{2.0}
-  \def\ymax{1.6}
-  \def\R{1.9}
-  \def\ang{35}
-  \coordinate (O) at (0,0);
-  \coordinate (R) at (\ang:\R);
-  \coordinate (-R) at (-\ang:\R);
-  \coordinate (X) at ({\R*cos(\ang)},0);
-  \coordinate (Y) at (0,{\R*sin(\ang)});
-  \coordinate (-Y) at (0,{-\R*sin(\ang)});
-  \node[fill=mydarkblue,circle,inner sep=0.8] (R') at (R) {};
-  \node[fill=mydarkred,circle,inner sep=0.8] (-R') at (-R) {};
-  \node[mydarkblue,above right=-2] at (R') {$z=x+iy=re^{i\theta}$};
-  \node[mydarkred,below right=-1] at (-R') {$\overline{z}=x-iy=re^{-i\theta}$};
-  \draw[dashed,mydarkblue]
-    (Y) -- (R') --++ (0,{0.1-\R*sin(\ang)});
-  \draw[dashed,mydarkred]
-    (-Y) -- (-R') --++ (0,{\R*sin(\ang)-0.45});
-  \draw[->,line width=0.9] (-0.65*\xmax,0) -- (\xmax+0.05,0) node[right] {Re};
-  \draw[->,line width=0.9] (0,-\ymax) -- (0,\ymax+0.05) node[left] {Im};
-  \draw[vector] (O) -- (R') node[pos=0.55,above left=-2] {$r$};
-  \draw[vector,myred] (O) -- (-R') node[pos=0.55,below left=-2] {$r$};
-  \draw pic[->,"$\theta$",mydarkblue,draw=mydarkblue,angle radius=23,angle eccentricity=1.24]
-    {angle = X--O--R};
-  \draw pic[<-,"$-\theta$"{right=-1},mydarkred,draw=mydarkred,angle radius=20,angle eccentricity=1]
-    {angle = -R--O--X};
-  %\tick{X}{90} node[scale=0.9,left=6,below right=-2] {$x = r\cos\theta$};
-  \tick{X}{90} node[scale=1,below=-1] {$x$};
-  \tick{Y}{ 0} node[mydarkblue,scale=1,left] {$y$}; %r\sin\theta = 
-  \tick{-Y}{ 0} node[mydarkred,scale=1,left] {$-y$};
+# ╔═╡ d06052d3-07c3-43b6-909d-b31b06097fd3
+# t1, t2, t3, tv are texts
+# s1 and s2 are labels with sizes
+plot_tikzrow(t1, t2, tn, tv; s1="", s2="") = TikzPicture(L"""
+   \matrix[
+              matrix of nodes, nodes in empty cells,
+              minimum width=4cm,
+              column sep=4pt,
+              row sep=10pt,
+              text height=2ex, text depth=.25ex,
+              minimum height=4ex,
+  left delimiter={[},
+          right delimiter={]},
+              ] (m) {
+              |[cell]| %$(t1) \\
+  |[cell]| %$(t2) \\
+  |[cell]| $\cdots$ \\
+   			|[cell]| %$(tn) \\
+          } ; 
+  \matrix[
+   right=of m,
+              matrix of nodes, nodes in empty cells,
+              %minimum width=4cm,
+              column sep=4pt,
+              row sep=10pt,
+              text height=2ex, text depth=.25ex,
+              %minimum height=4cm,
+  left delimiter={[},
+          right delimiter={]},
+  ] (m2) {
+           |[rotate=90]| %$(tv) \\
+          } ;
+
+  \node [below of=m2, node distance = 5em,] () {%$(s2)}; 
+  \node [below of=m, node distance = 6em,] () {%$(s1)}; 
 
   """, options=tikz_default_options, preamble=tikz_preamble, width="12cm")
 
-# ╔═╡ 0031bdb6-8e28-4111-9748-c82f8e9449de
-plot_expt()
+# ╔═╡ 8037f78d-8938-42fc-98a2-210b442c00f0
+plot_tikzrow("raypath 1", "raypath 2", "raypath K", "slowness vector", s1="K×N", s2="N×1")
+
+# ╔═╡ cad88757-7a23-4c99-84fe-219d9337a1f7
+plot_tikzrow("model pixel 1", "model pixel 2", "model pixel N", "data residual", s1="N×K", s2="K×1")
 
 # ╔═╡ 0d000f59-ecb2-4fc9-9f21-c60eac17b3bf
 # t1, t2, t3, tv are texts
@@ -1480,9 +1473,9 @@ version = "17.4.0+0"
 # ╟─d9d53d21-09ee-47cd-b661-8787de32f2c1
 # ╟─7608a5c1-20b1-4d49-b12b-a8f2daef192b
 # ╟─842ec98f-505a-4873-9c64-725e2f92cbb9
+# ╟─78da0510-bf64-460e-82e7-59ba51c7c7f5
 # ╟─b741a0ec-726e-4ca5-98bf-10a03cdd2d57
 # ╟─4509e5b8-8d54-47e1-9ba7-b4929fd2d2fc
-# ╟─78da0510-bf64-460e-82e7-59ba51c7c7f5
 # ╟─32a104fe-bf42-4980-887e-213b904e4d9b
 # ╟─f9089736-3744-4382-8bc0-68fc04b3cddb
 # ╠═aa9782b5-88be-43a2-b1e1-d68f289a8fec
@@ -1550,8 +1543,7 @@ version = "17.4.0+0"
 # ╟─ce416101-f2e1-4b67-a166-b099325c3be2
 # ╟─6428269b-4821-48a3-b46b-38a06bf9aa1a
 # ╟─d974f740-2c3e-4225-bed8-f444bccde910
-# ╠═0031bdb6-8e28-4111-9748-c82f8e9449de
-# ╠═081bb665-8661-40e8-a4a1-64f8c32a039b
+# ╟─d06052d3-07c3-43b6-909d-b31b06097fd3
 # ╟─0d000f59-ecb2-4fc9-9f21-c60eac17b3bf
 # ╟─00000000-0000-0000-0000-000000000001
 # ╟─00000000-0000-0000-0000-000000000002

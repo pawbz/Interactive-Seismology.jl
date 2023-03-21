@@ -56,7 +56,7 @@ We use the method of separation of variables to arrive at a Sturm–Liouville ei
 
 Similarly, there are two methods we use to solve for surface waves in seismology: one where we extrapolate in depth using a shooting method to match the boundary conditions; or alternatively, solve an eigenvalue problem. 
 
-##### [Introduction of Seismology](https://pawbz.github.io/ES218.jl/)
+##### [Interactive Seismology Notebooks](https://pawbz.github.io/Interactive-Seismology.jl/)
 ES218; August 2022
 
 Instructor: *Pawan Bharadwaj*,
