@@ -89,7 +89,7 @@ begin
 
     # Numerics
     nx, nz = length(xgrid), length(zgrid)
-    nout = 10  # plotting frequency
+    nout = 1  # plotting frequency
 
     # Derived numerics
     dx, dz = step(xgrid), step(zgrid) # cell sizes
@@ -101,30 +101,25 @@ end
 
 # ╔═╡ 8b3776bd-509b-4232-9737-36c9ae003350
 begin
-    # Physics
-    # Medium parameters
-    μ = ones(nz, nx)         # shear modulus
-    ρ = ones(nz, nx)         # density
-
+    # Physics of medium
+    # Unperturbed
+    μ1 = ones(nz, nx)         # shear modulus
+    ρ1 = ones(nz, nx)         # density
+	ref_medium = (;μ=μ1,ρ=ρ1,invρ=inv.(ρ1))
+	
 	# lets add density perturbation
-	ρ[1:50, :] .= 2.0
-	nothing
-end
-
-# ╔═╡ 53a2069e-eaf9-41d7-b08b-cdd4f85f367b
-begin
-	# initial conditions on vy
-	vy0 = zeros(nz, nx)
-	vy0 .= [exp(-((x - 0.0)^2 /11) - ((z - 0.0)^2 /1)) for z in zgrid, x in xgrid];
-	nothing
-end
+	μ2 = ones(nz,nx)
+	ρ2 = ones(nz,nx)
+	ρ2[450:512, :] .= 2.0
+	act_medium = (;μ=μ2,ρ=ρ2,invρ=inv.(ρ2))
+end;
 
 # ╔═╡ b4085356-62a1-4388-96ae-8b2a8fd7de0f
 begin
 	# choose time stepping dt to satisfy Courant condition
 	courant_number = 0.2
-	dt = courant_number*step(xgrid)*minimum(inv.(sqrt.(μ./ρ)))
-	nt = Int(floor(r/(mean(sqrt.(μ./ρ))*dt)));
+	dt = courant_number*step(xgrid)*minimum(inv.(sqrt.(ref_medium.μ./ref_medium.ρ)))
+	nt = Int(floor(r/(mean(sqrt.(ref_medium.μ./ref_medium.ρ))*dt)));
 	tgrid=range(0, length=nt, step=dt)
 	nothing
 end
@@ -209,6 +204,24 @@ we can write
 Notice that the temporal grid of stress and velocity are staggered. Finally, let's write a function now that leaps by a given number of steps.
 """
 
+# ╔═╡ ad23f8d8-2cbd-4aac-82ba-d72392f747e4
+md"""
+##### Forward Simulation
+"""
+
+# ╔═╡ 53a2069e-eaf9-41d7-b08b-cdd4f85f367b
+begin
+	# initial conditions on vy
+	vy0 = zeros(nz, nx)
+	#vy0 .= [exp(-((x - 0.0)^2 /11) - ((z - 0.0)^2 /1)) for z in zgrid, x in xgrid];
+	nothing
+end
+
+# ╔═╡ 68b3fcb6-5f99-4fc1-a9d2-27cdf95f12b1
+md"""
+##### Adjoint simulation
+"""
+
 # ╔═╡ 9b744e72-07a2-4f8c-b88c-e0b1131794d0
 function initialize_fields(pa)
 	nz, nx = pa.nz, pa.nx
@@ -221,26 +234,48 @@ function initialize_fields(pa)
     	dσyzdz = zeros(nz, nx))
 end
 
-# ╔═╡ ad23f8d8-2cbd-4aac-82ba-d72392f747e4
-
-
 # ╔═╡ 3acf672e-6269-446d-baa2-d1fd89b6bd50
+# ╠═╡ disabled = true
+#=╠═╡
 begin
 	forw_fields = initialize_fields(pa);
 	copyto!(forw_fields.vy, vy0);
+end
+  ╠═╡ =#
+
+# ╔═╡ e7b65566-a79e-4101-9471-3656a92e95e6
+function conv_pos_cartind(zpos,xpos,zgrid,xgrid)
+	np = length(zpos)
+	cart_ind = []
+	for i = 1:np
+		zindex = findall(zgrid .== zpos[i])[1]
+		xindex = findall(xgrid .== xpos[i])[1]
+		push!(cart_ind,CartesianIndex(zindex,xindex))
+	end
+	return(cart_ind)
 end
 
 # ╔═╡ 15bbf544-34bd-4d38-bac5-0f43b1305df3
 
 	# number of timesteps
-	function propagate!(fields, pa)
+	function propagate!(fields, pa, medium, forcing)
 		vy, dvydx, dvydz, σyx, σyz, dσyxdx, dσyzdz = fields
 		nx, nz = pa
 		dt= step(pa.tgrid)
 		nt=length(pa.tgrid)
 		
+		μ = medium.μ
+		ρ = medium.ρ
+		invρ =  medium.invρ
+
+		src_ind = forcing.pos
+		src_spec = forcing.spec
+		ns = length(src_ind)
+		
     	# time loop
-		snaps_store = []
+		snaps_store_vy = []
+		snaps_store_σyx = []
+		snaps_store_σyz = []
 
 		@progress for it = 1:nt
         	Dx!(dvydx, vy)
@@ -252,25 +287,24 @@ end
         	Dx!(dσyxdx, σyx)
         	Dz!(dσyzdz, σyz)
 		
-        	@. vy = vy + inv(ρ) * (dσyxdx + dσyzdz) * dt
-		
-        	# t = t + dt # keep account of time
-        	# Storage for visualisation
-        	if mod(it, nout) == 0
-	            push!(snaps_store, copy(vy))
+        	@. vy = vy + invρ * (dσyxdx + dσyzdz) * dt
+
+			for is = 1:ns
+				vy[src_ind[is]] = vy[src_ind[is]] + src_spec[is][it]
+			end
+
+			if mod(it, nout) == 0
+	            push!(snaps_store_vy, copy(vy))
+				push!(snaps_store_σyx,copy(σyx))
+				push!(snaps_store_σyz,copy(σyz))
     	    end
     	end
+		snaps_store = (; vy=snaps_store_vy,σyx=snaps_store_σyx,σyz=snaps_store_σyz)
 		return snaps_store
 	end
-	
 
+# ╔═╡ 79688914-d34a-467f-8c7e-f03408680b7c
 
-# ╔═╡ 8bdf1e36-8b0c-4a35-8ee9-262205b4b4ad
-begin
-
-	snaps_store = propagate!(forw_fields, pa);
-	nothing
-end
 
 # ╔═╡ 8cd76f36-7f2a-4142-a04e-158a1884386c
 begin
@@ -295,11 +329,14 @@ Observer 2
 """
 
 # ╔═╡ b88aed3d-9cb0-4377-8797-65385ab59436
+# ╠═╡ disabled = true
+#=╠═╡
 @bind tsnap PlutoUI.combine() do Child
 	md"""
 	Snapshot Number: $(Child(Slider(1:length(snaps_store), default=length(snaps_store),show_value=true)))
 	"""
 end
+  ╠═╡ =#
 
 # ╔═╡ fc49a6d7-a1b1-458a-a9ad-e120282bbabc
 md"""
@@ -342,14 +379,14 @@ end
 @bind obs2 confirm(position_input())
 
 # ╔═╡ 0e149101-a9f8-4dc7-89b9-93c494fadc1b
+# ╠═╡ disabled = true
+#=╠═╡
 begin
 	myheat(snaps_store[tsnap[1]], L"Particle Velocity $v_y$")
 	scatter!([obs1[:xpos]],[obs1[:zpos]],label="Observer 1",legendfontsize=6,c="cyan")
 	scatter!([obs2[:xpos]],[obs2[:zpos]],label="Observer 2",legendfontsize=6,c="orange")
 end
-
-# ╔═╡ 36257510-4c5a-4e79-8150-5c43e316b0d1
-ricker(tgrid
+  ╠═╡ =#
 
 # ╔═╡ 90953c64-8a87-4065-8c34-d0ead540b728
 md"""
@@ -361,6 +398,9 @@ Its bandwidth is roughly 1.2 * fpeak.
 * `tgrid`: time-domain grid
 * `tpeak::Float64=tgrid[1]+1.5/fqdom`: the peak of the ricker in time (has a default)
 """
+
+# ╔═╡ eef4d0e0-7b80-4f2e-beb4-1b2f80eca69d
+
 
 # ╔═╡ b993e3e6-8d4e-4de7-aa4b-6a2e3bd12212
 function ricker(fqdom::Float64,
@@ -393,6 +433,78 @@ function ricker(fqdom::Float64,
 	return wav
 end
 
+# ╔═╡ 7c6f199b-93ed-47e7-8901-287b0f0997dc
+begin
+	# Source distribution in the medium
+	### Line of sources placed in adjacent grids at the origin
+	ns = 10 # Number of sources
+	source_zpos = zeros(ns); source_zpos .= zgrid[256];
+	source_xpos =  xgrid[Int(256-ns/2+1):Int(256+ns/2)] # Location of the source
+	source_spec = [ricker(1.0,tgrid) for i=1:ns] # Ricker spectrum for the source
+
+	# Creating the forcing object
+	source_cartind = conv_pos_cartind(source_zpos,source_xpos,zgrid,xgrid)
+	source_forcing = (; pos=source_cartind, spec=source_spec)
+end;
+
+# ╔═╡ 57653f8f-dff1-41e2-a0b2-89a6f3204a75
+begin
+	forw_fields_ref = initialize_fields(pa);
+	copyto!(forw_fields_ref.vy, vy0);
+	snaps_store_ref = propagate!(forw_fields_ref, pa, ref_medium, source_forcing)
+end;
+
+# ╔═╡ dde549a0-a655-4fab-8cad-7320ce08495f
+@bind tsnap_forw PlutoUI.combine() do Child
+	md"""
+	Snapshot Number: $(Child(Slider(1:length(snaps_store_ref.vy), default=length(snaps_store_ref.vy),show_value=true)))
+	"""
+end
+
+# ╔═╡ 897f60b6-fad7-4167-bc5a-f5b48b1f159c
+begin
+	forw_fields_act = initialize_fields(pa);
+	copyto!(forw_fields_act.vy, vy0);
+	snaps_store_act = propagate!(forw_fields_act, pa, act_medium, source_forcing)
+end;
+
+# ╔═╡ d8bf631c-375c-4c54-b674-a724e240b9b2
+begin
+	fig1 = myheat(snaps_store_ref.vy[tsnap_forw[1]], L"Particle Velocity $v_y$ Reference")
+	fig2 = myheat(snaps_store_act.vy[tsnap_forw[1]], L"Particle Velocity $v_y$ Actual")
+	plot(fig1,fig2)
+end
+
+# ╔═╡ 5e95de10-b8df-40ce-8965-bf3761ef599d
+begin
+	# Receiver distribution
+	nr = 10 # Number of receivers
+	rec_zpos = [maximum(zgrid) for i=1:nr]; rec_xpos = [xgrid[Int(floor(i*length(xgrid)/nr))] for i=1:nr]; # Location of receiver
+
+	rec_cartind = conv_pos_cartind(rec_zpos,rec_xpos,zgrid,xgrid)
+	rec_spec = [[snaps_store_ref.vy[it][rec_cartind[ir]] -  snaps_store_act.vy[it][rec_cartind[ir]] for it=length(snaps_store_ref.vy):-1:1] for ir=1:nr] ##### Replace with Aswini's function
+	rec_forcing = (;pos=rec_cartind,spec=rec_spec)
+end;
+
+# ╔═╡ 1b6e41ed-75a0-4b12-b390-78538566ce43
+begin
+	adj_fields = initialize_fields(pa);
+	copyto!(adj_fields.vy, vy0);
+	snaps_store_adj = propagate!(adj_fields, pa, ref_medium, rec_forcing)
+end;
+
+# ╔═╡ 7833c2b6-52a8-489e-adcf-9f7e5c082515
+@bind tsnap_adj PlutoUI.combine() do Child
+	md"""
+	Snapshot Number: $(Child(Slider(1:length(snaps_store_adj.vy), default=length(snaps_store_adj.vy),show_value=true)))
+	"""
+end
+
+# ╔═╡ ee569466-0ced-4818-8fda-a98730fa5a24
+begin
+	fig3 = myheat(snaps_store_adj.vy[tsnap_adj[1]], L"Adjoint Field $λ_1$")
+end
+
 # ╔═╡ c48792ac-ed09-4ed0-acc5-c2635ab9b908
 begin
 	# Function to get the velocity profiles
@@ -414,18 +526,24 @@ begin
 end
 
 # ╔═╡ 8a334359-5320-4a8e-b7eb-18b8f3c81609
+# ╠═╡ disabled = true
+#=╠═╡
 begin
 	vel_prof_obs1 = get_velocity_profile(snaps_store,obs1)
 	vel_prof_obs2 = get_velocity_profile(snaps_store,obs2)
 	nothing
 end
+  ╠═╡ =#
 
 # ╔═╡ c2d109b0-32f2-4063-b954-1f79640dcfc4
+# ╠═╡ disabled = true
+#=╠═╡
 begin
 	plot(1:1:length(snaps_store),vel_prof_obs1,c="cyan",label="Observer 1",xlabel="Time step",ylabel="Particle velocity")
 	plot!(1:1:length(snaps_store),vel_prof_obs2,c="orange",label="Observer 2")
 	vline!(tsnap,c="magenta",label="",linestyle=:dash)
 end
+  ╠═╡ =#
 
 # ╔═╡ 00000000-0000-0000-0000-000000000001
 PLUTO_PROJECT_TOML_CONTENTS = """
@@ -450,9 +568,8 @@ ProgressLogging = "~0.1.4"
 PLUTO_MANIFEST_TOML_CONTENTS = """
 # This file is machine-generated - editing it directly is not advised
 
-julia_version = "1.8.5"
+julia_version = "1.7.3"
 manifest_format = "2.0"
-project_hash = "10768bfbdf2bdfef102d20c50cd1d540724aa51b"
 
 [[deps.AbstractFFTs]]
 deps = ["ChainRulesCore", "LinearAlgebra"]
@@ -474,7 +591,6 @@ version = "3.6.1"
 
 [[deps.ArgTools]]
 uuid = "0dad84c5-d112-42e6-8d28-ef12dabb789f"
-version = "1.1.1"
 
 [[deps.Artifacts]]
 uuid = "56f22d72-fd6d-98f1-02f0-08ddc0907c33"
@@ -539,7 +655,6 @@ version = "4.6.1"
 [[deps.CompilerSupportLibraries_jll]]
 deps = ["Artifacts", "Libdl"]
 uuid = "e66e0078-7015-5450-92f7-15fbd957f2ae"
-version = "1.0.1+0"
 
 [[deps.Contour]]
 deps = ["StaticArrays"]
@@ -580,7 +695,6 @@ version = "0.9.3"
 [[deps.Downloads]]
 deps = ["ArgTools", "FileWatching", "LibCURL", "NetworkOptions"]
 uuid = "f43a241f-c20a-4ad4-852c-f6b1247861c6"
-version = "1.6.0"
 
 [[deps.EarCut_jll]]
 deps = ["Artifacts", "JLLWrappers", "Libdl", "Pkg"]
@@ -688,9 +802,9 @@ version = "1.2.1"
 
 [[deps.GeometryBasics]]
 deps = ["EarCut_jll", "GeoInterface", "IterTools", "LinearAlgebra", "StaticArrays", "StructArrays", "Tables"]
-git-tree-sha1 = "fe9aea4ed3ec6afdfbeb5a4f39a2208909b162a6"
+git-tree-sha1 = "303202358e38d2b01ba46844b92e48a3c238fd9e"
 uuid = "5c1252a2-5f33-56bf-86c9-59e7332b4326"
-version = "0.4.5"
+version = "0.4.6"
 
 [[deps.Gettext_jll]]
 deps = ["Artifacts", "CompilerSupportLibraries_jll", "JLLWrappers", "Libdl", "Libiconv_jll", "Pkg", "XML2_jll"]
@@ -835,12 +949,10 @@ uuid = "4af54fe1-eca0-43a8-85a7-787d91b784e3"
 [[deps.LibCURL]]
 deps = ["LibCURL_jll", "MozillaCACerts_jll"]
 uuid = "b27032c2-a3e7-50c8-80cd-2d36dbcbfd21"
-version = "0.6.3"
 
 [[deps.LibCURL_jll]]
 deps = ["Artifacts", "LibSSH2_jll", "Libdl", "MbedTLS_jll", "Zlib_jll", "nghttp2_jll"]
 uuid = "deac9b47-8bc7-5906-a0fe-35ac56dc84c0"
-version = "7.84.0+0"
 
 [[deps.LibGit2]]
 deps = ["Base64", "NetworkOptions", "Printf", "SHA"]
@@ -849,7 +961,6 @@ uuid = "76f85450-5226-5b5a-8eaa-529ad045b433"
 [[deps.LibSSH2_jll]]
 deps = ["Artifacts", "Libdl", "MbedTLS_jll"]
 uuid = "29816b5a-b9ab-546f-933c-edad1886dfa8"
-version = "1.10.2+0"
 
 [[deps.Libdl]]
 uuid = "8f399da3-3557-5675-b5ff-fb832c97cbdb"
@@ -945,7 +1056,6 @@ version = "1.1.7"
 [[deps.MbedTLS_jll]]
 deps = ["Artifacts", "Libdl"]
 uuid = "c8ffd9c3-330d-5841-b78e-0817d7145fa1"
-version = "2.28.0+0"
 
 [[deps.Measures]]
 git-tree-sha1 = "c13304c81eec1ed3af7fc20e75fb6b26092a1102"
@@ -963,7 +1073,6 @@ uuid = "a63ad114-7e13-5084-954f-fe012c677804"
 
 [[deps.MozillaCACerts_jll]]
 uuid = "14a3606d-f60d-562e-9121-12d972cd8159"
-version = "2022.2.1"
 
 [[deps.NaNMath]]
 deps = ["OpenLibm_jll"]
@@ -973,7 +1082,6 @@ version = "1.0.2"
 
 [[deps.NetworkOptions]]
 uuid = "ca575930-c2e3-43a9-ace4-1e988b2c1908"
-version = "1.2.0"
 
 [[deps.Ogg_jll]]
 deps = ["Artifacts", "JLLWrappers", "Libdl", "Pkg"]
@@ -984,12 +1092,10 @@ version = "1.3.5+1"
 [[deps.OpenBLAS_jll]]
 deps = ["Artifacts", "CompilerSupportLibraries_jll", "Libdl"]
 uuid = "4536629a-c528-5b80-bd46-f80d51c5b363"
-version = "0.3.20+0"
 
 [[deps.OpenLibm_jll]]
 deps = ["Artifacts", "Libdl"]
 uuid = "05823500-19ac-5b8b-9628-191a04bc5112"
-version = "0.8.1+0"
 
 [[deps.OpenSSL_jll]]
 deps = ["Artifacts", "JLLWrappers", "Libdl", "Pkg"]
@@ -1017,7 +1123,6 @@ version = "1.4.1"
 [[deps.PCRE2_jll]]
 deps = ["Artifacts", "Libdl"]
 uuid = "efcefdf7-47ab-520b-bdef-62a2eaa19f15"
-version = "10.40.0+0"
 
 [[deps.Parsers]]
 deps = ["Dates", "SnoopPrecompile"]
@@ -1034,7 +1139,6 @@ version = "0.40.1+0"
 [[deps.Pkg]]
 deps = ["Artifacts", "Dates", "Downloads", "LibGit2", "Libdl", "Logging", "Markdown", "Printf", "REPL", "Random", "SHA", "Serialization", "TOML", "Tar", "UUIDs", "p7zip_jll"]
 uuid = "44cfe95a-1eb2-52ea-b672-e2afdf69b78f"
-version = "1.8.0"
 
 [[deps.PlotThemes]]
 deps = ["PlotUtils", "Requires", "Statistics"]
@@ -1121,7 +1225,6 @@ version = "1.3.0"
 
 [[deps.SHA]]
 uuid = "ea8e919c-243c-51af-8825-aaa63cd721ce"
-version = "0.7.0"
 
 [[deps.Scratch]]
 deps = ["Dates"]
@@ -1165,9 +1268,9 @@ version = "2.2.0"
 
 [[deps.StaticArrays]]
 deps = ["LinearAlgebra", "Random", "StaticArraysCore", "Statistics"]
-git-tree-sha1 = "6aa098ef1012364f2ede6b17bf358c7f1fbe90d4"
+git-tree-sha1 = "b8d897fe7fa688e93aef573711cb207c08c9e11e"
 uuid = "90137ffa-7385-5640-81b9-e52037218182"
-version = "1.5.17"
+version = "1.5.19"
 
 [[deps.StaticArraysCore]]
 git-tree-sha1 = "6b7ba252635a5eff6a0b0664a41ee140a1c9e72a"
@@ -1199,7 +1302,6 @@ version = "0.6.15"
 [[deps.TOML]]
 deps = ["Dates"]
 uuid = "fa267f1f-6049-4f14-aa54-33bafae1ed76"
-version = "1.0.0"
 
 [[deps.TableTraits]]
 deps = ["IteratorInterfaceExtensions"]
@@ -1216,7 +1318,6 @@ version = "1.10.1"
 [[deps.Tar]]
 deps = ["ArgTools", "SHA"]
 uuid = "a4e569a6-e804-4fa4-b0f3-eef7a1d5b13e"
-version = "1.10.1"
 
 [[deps.TensorCore]]
 deps = ["LinearAlgebra"]
@@ -1409,7 +1510,6 @@ version = "1.4.0+3"
 [[deps.Zlib_jll]]
 deps = ["Libdl"]
 uuid = "83775a58-1f1d-513f-b197-d71354ab007a"
-version = "1.2.12+3"
 
 [[deps.Zstd_jll]]
 deps = ["Artifacts", "JLLWrappers", "Libdl"]
@@ -1432,7 +1532,6 @@ version = "0.15.1+0"
 [[deps.libblastrampoline_jll]]
 deps = ["Artifacts", "Libdl", "OpenBLAS_jll"]
 uuid = "8e850b90-86db-534c-a0d3-1478176c7d93"
-version = "5.1.1+0"
 
 [[deps.libfdk_aac_jll]]
 deps = ["Artifacts", "JLLWrappers", "Libdl", "Pkg"]
@@ -1455,12 +1554,10 @@ version = "1.3.7+1"
 [[deps.nghttp2_jll]]
 deps = ["Artifacts", "Libdl"]
 uuid = "8e850ede-7688-5339-a07c-302acd2aaf8d"
-version = "1.48.0+0"
 
 [[deps.p7zip_jll]]
 deps = ["Artifacts", "Libdl"]
 uuid = "3f19e933-33d8-53b3-aaab-bd5110c3b7a0"
-version = "17.4.0+0"
 
 [[deps.x264_jll]]
 deps = ["Artifacts", "JLLWrappers", "Libdl", "Pkg"]
@@ -1487,19 +1584,30 @@ version = "1.4.1+0"
 # ╟─4adbb7f0-7927-470d-8c00-07d3b3c0cd78
 # ╟─fe821a3c-f528-4773-bcf9-f71513a1eace
 # ╠═7928a88c-f217-4338-a6a5-50ab2d422480
-# ╠═8b3776bd-509b-4232-9737-36c9ae003350
-# ╠═53a2069e-eaf9-41d7-b08b-cdd4f85f367b
-# ╠═a120a929-d989-4b88-86af-e735a577db18
 # ╠═b4085356-62a1-4388-96ae-8b2a8fd7de0f
-# ╟─f9f36d76-6e4e-4cf4-ac7a-ef9980b94936
+# ╠═8b3776bd-509b-4232-9737-36c9ae003350
+# ╠═a120a929-d989-4b88-86af-e735a577db18
+# ╠═f9f36d76-6e4e-4cf4-ac7a-ef9980b94936
 # ╟─6be2f4c2-e9ed-43c2-b66c-ef3176bb9000
 # ╠═aa19e992-2735-4324-8fd7-15eacadf0faa
 # ╟─802d9652-7597-43c4-b13a-3c60682d0a69
-# ╠═9b744e72-07a2-4f8c-b88c-e0b1131794d0
-# ╠═ad23f8d8-2cbd-4aac-82ba-d72392f747e4
+# ╟─ad23f8d8-2cbd-4aac-82ba-d72392f747e4
+# ╠═53a2069e-eaf9-41d7-b08b-cdd4f85f367b
+# ╠═7c6f199b-93ed-47e7-8901-287b0f0997dc
+# ╠═57653f8f-dff1-41e2-a0b2-89a6f3204a75
+# ╠═897f60b6-fad7-4167-bc5a-f5b48b1f159c
+# ╟─dde549a0-a655-4fab-8cad-7320ce08495f
+# ╟─d8bf631c-375c-4c54-b674-a724e240b9b2
+# ╟─68b3fcb6-5f99-4fc1-a9d2-27cdf95f12b1
+# ╠═5e95de10-b8df-40ce-8965-bf3761ef599d
+# ╠═1b6e41ed-75a0-4b12-b390-78538566ce43
+# ╟─7833c2b6-52a8-489e-adcf-9f7e5c082515
+# ╠═ee569466-0ced-4818-8fda-a98730fa5a24
 # ╠═3acf672e-6269-446d-baa2-d1fd89b6bd50
+# ╠═9b744e72-07a2-4f8c-b88c-e0b1131794d0
+# ╠═e7b65566-a79e-4101-9471-3656a92e95e6
 # ╠═15bbf544-34bd-4d38-bac5-0f43b1305df3
-# ╠═8bdf1e36-8b0c-4a35-8ee9-262205b4b4ad
+# ╠═79688914-d34a-467f-8c7e-f03408680b7c
 # ╠═8cd76f36-7f2a-4142-a04e-158a1884386c
 # ╟─7f204b81-98c1-4a18-9622-6d015fbce8c2
 # ╟─cb18109c-0a33-4b86-9074-8c2b6d789c1a
@@ -1515,8 +1623,8 @@ version = "1.4.1+0"
 # ╠═36408698-f85c-4529-972f-6389534fcb88
 # ╠═521fbcc7-9078-48bc-b61d-749e94053a9b
 # ╠═75862e20-54e9-40d1-8760-8e00759ff7a0
-# ╠═36257510-4c5a-4e79-8150-5c43e316b0d1
 # ╟─90953c64-8a87-4065-8c34-d0ead540b728
+# ╠═eef4d0e0-7b80-4f2e-beb4-1b2f80eca69d
 # ╠═b993e3e6-8d4e-4de7-aa4b-6a2e3bd12212
 # ╠═c48792ac-ed09-4ed0-acc5-c2635ab9b908
 # ╟─00000000-0000-0000-0000-000000000001
