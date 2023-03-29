@@ -7,7 +7,11 @@ using InteractiveUtils
 # This Pluto notebook uses @bind for interactivity. When running this notebook outside of Pluto, the following 'mock version' of @bind gives bound variables a default value (instead of an error).
 macro bind(def, element)
     quote
-        local iv = try Base.loaded_modules[Base.PkgId(Base.UUID("6e696c72-6542-2067-7265-42206c756150"), "AbstractPlutoDingetjes")].Bonds.initial_value catch; b -> missing; end
+        local iv = try
+            Base.loaded_modules[Base.PkgId(Base.UUID("6e696c72-6542-2067-7265-42206c756150"), "AbstractPlutoDingetjes")].Bonds.initial_value
+        catch
+            b -> missing
+        end
         local el = $(esc(element))
         global $(esc(def)) = Core.applicable(Base.get, el) ? Base.get(el) : iv(el)
         el
@@ -120,7 +124,7 @@ md"""
 md"## Body Forces"
 
 # ╔═╡ 12db5316-90e4-4582-9303-7ff362c32cea
-source_fpeak = 0.5 # in Hz
+source_fpeak = 1.0 # in Hz
 
 # ╔═╡ e233afec-6049-4277-8be9-95687c4589b5
 md"""
@@ -369,7 +373,7 @@ initial_medium = bundle_medium(μref, ρref)
 vsmean(medium) = mean(sqrt.(medium.μ ./ medium.ρ))
 
 # ╔═╡ 8bc93109-4f3d-43c8-9fed-e30d90e54068
-dx, dz, vsmean(medium_true)/source_fpeak
+dx, dz, vsmean(medium_true) / source_fpeak
 
 # ╔═╡ e8333b23-53c3-445e-9ca3-6b278359f8ab
 md"### Acquisition"
@@ -446,7 +450,7 @@ end
 
 # ╔═╡ 15bbf544-34bd-4d38-bac5-0f43b1305df3
 function propagate!(data, fields, pa, medium, ageom, forcing)
-	reset_fields!(fields)
+    reset_fields!(fields)
     vy, dvydx, dvydz, σyx, σyz, dσyxdx, dσyzdz = fields
     (; nx, nz, tarray, tgrid) = pa
     dt = step(tgrid)
@@ -619,21 +623,6 @@ end
 # ╔═╡ a22ab168-ee9c-4433-b890-b46e9849f127
 source_wavelet = ricker(source_fpeak, tgrid)
 
-# ╔═╡ 7c6f199b-93ed-47e7-8901-287b0f0997dc
-begin
-    # Source distribution in the medium
-    ### Line of sources placed in adjacent grids at the origin
-    ns = 10 # Number of sources
-    source_zpos = zeros(ns)
-    source_zpos .= zgrid[256]
-    source_xpos = xgrid[Int(256 - ns / 2 + 1):Int(256 + ns / 2)] # Location of the source
-    source_spec = [source_wavelet for i = 1:ns] # Ricker spectrum for the source
-
-    # Creating the forcing object
-    source_cartind = get_cartesian_indices(source_zpos, source_xpos, zgrid, xgrid)
-    # source_forcing = (; pos=source_cartind, spec=source_spec)
-end;
-
 # ╔═╡ d812711d-d02f-44bb-9e73-accd1623dea1
 plot(tgrid, source_wavelet, size=(500, 200), w=2, label="Source Wavelet")
 
@@ -718,23 +707,6 @@ fields_forw = initialize_fields(grid_param, nt, snap_store=true);
 # ╔═╡ 57653f8f-dff1-41e2-a0b2-89a6f3204a75
 begin
     snaps_store_ref = propagate!(fields_forw, pa, initial_medium, source_forcing)
-end;
-
-# ╔═╡ 5e95de10-b8df-40ce-8965-bf3761ef599d
-begin
-    # Receiver distribution
-    nr = 10 # Number of receivers
-    rec_zpos = [zgrid[floor(Int, nz * 0.75)] for i = 1:nr]
-    rec_xpos = [xgrid[Int(floor(i * length(xgrid) / nr))] for i = 1:nr] # Location of receiver
-
-    rec_cartind = get_cartesian_indices(rec_zpos, rec_xpos, zgrid, xgrid)
-    #rec_spec = [[snaps_store_ref.vy[it][rec_cartind[ir]] -  snaps_store_act.vy[it][rec_cartind[ir]] for it=length(snaps_store_ref.vy):-1:1] for ir=1:nr] ##### Replace with Aswini's function
-
-    rec_spec1 = get_R_matrix(rec_cartind) * reshape_data(snaps_store_ref.vy) - get_R_matrix(rec_cartind) * reshape_data(snaps_store_act.vy)
-
-    rec_sp = [[rec_spec1[ir, it] for it = length(snaps_store_ref.vy):-1:1] for ir = 1:nr]
-    #rec_forcing = (;pos=rec_cartind,spec=rec_spec)
-    rec_forcing1 = (; pos=rec_cartind, spec=rec_sp)
 end;
 
 # ╔═╡ c34b1a5d-5078-4b8f-94d1-a088cbe5ab3e
@@ -1847,8 +1819,6 @@ version = "1.4.1+0"
 # ╠═f9f36d76-6e4e-4cf4-ac7a-ef9980b94936
 # ╟─cb83dbd1-c423-4b27-b29e-7dc8051f43d5
 # ╠═d39753e2-5986-4394-9293-9e394f2807f0
-# ╠═7c6f199b-93ed-47e7-8901-287b0f0997dc
-# ╠═5e95de10-b8df-40ce-8965-bf3761ef599d
 # ╟─2855c8cf-8364-4c6c-a122-781b99440e89
 # ╠═12db5316-90e4-4582-9303-7ff362c32cea
 # ╠═a22ab168-ee9c-4433-b890-b46e9849f127
