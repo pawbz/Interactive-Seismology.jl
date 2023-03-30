@@ -7,11 +7,7 @@ using InteractiveUtils
 # This Pluto notebook uses @bind for interactivity. When running this notebook outside of Pluto, the following 'mock version' of @bind gives bound variables a default value (instead of an error).
 macro bind(def, element)
     quote
-        local iv = try
-            Base.loaded_modules[Base.PkgId(Base.UUID("6e696c72-6542-2067-7265-42206c756150"), "AbstractPlutoDingetjes")].Bonds.initial_value
-        catch
-            b -> missing
-        end
+        local iv = try Base.loaded_modules[Base.PkgId(Base.UUID("6e696c72-6542-2067-7265-42206c756150"), "AbstractPlutoDingetjes")].Bonds.initial_value catch; b -> missing; end
         local el = $(esc(element))
         global $(esc(def)) = Core.applicable(Base.get, el) ? Base.get(el) : iv(el)
         el
@@ -113,7 +109,7 @@ md"## Time Grid"
 r = min(xgrid[end] - xgrid[1], zgrid[end] - zgrid[1]) * 0.5
 
 # ╔═╡ 45bd4e43-b703-4bbc-8dfa-07bb835e4117
-courant_number = 0.5
+courant_number = 0.1
 
 # ╔═╡ cb83dbd1-c423-4b27-b29e-7dc8051f43d5
 md"""
@@ -167,6 +163,10 @@ begin
     ρref = ones(nz, nx) * 2000       # density in kg/m3
 
 end;
+
+# ╔═╡ 6fd7a62a-a5b9-4c06-b7f4-d0a4263eecfd
+function test!(x, y, z, xx, tyy, zz)
+end
 
 # ╔═╡ 53a2069e-eaf9-41d7-b08b-cdd4f85f367b
 begin
@@ -232,24 +232,6 @@ md"## Adjoint Simulation"
 #copyto!(adj_fields.vy, vy0);
 #snaps_store_adj = propagate!(adj_fields, pa, initial_medium, rec_forcing)
 #end;
-
-# ╔═╡ dde549a0-a655-4fab-8cad-7320ce08495f
-#=╠═╡
-@bind tsnap_forw PlutoUI.combine() do Child
-	md"""
-	Snapshot Number: $(Child(Slider(1:length(snaps_store_act.vy), default=length(snaps_store_act.vy),show_value=true)))
-	"""
-end
-  ╠═╡ =#
-
-# ╔═╡ d8bf631c-375c-4c54-b674-a724e240b9b2
-#=╠═╡
-begin
-	# fig1 = myheat(snaps_store_ref.vy[tsnap_forw[1]], L"Particle Velocity $v_y$ Reference")
-	fig2 = myheat(snaps_store_act.vy[tsnap_forw[1]], L"Particle Velocity $v_y$ Actual")
-	# plot(fig1,fig2)
-end
-  ╠═╡ =#
 
 # ╔═╡ ca037fb0-b5cf-496d-8157-14e52f1e8bd6
 #=╠═╡
@@ -357,15 +339,6 @@ begin
     medium_true = bundle_medium(μtrue, ρtrue)
 end
 
-# ╔═╡ b4085356-62a1-4388-96ae-8b2a8fd7de0f
-begin
-    # choose time stepping dt to satisfy Courant condition
-    dt = courant_number * step(xgrid) * minimum(inv.(sqrt.(medium_true.μ ./ medium_true.ρ)))
-    nt = Int(floor(r / (mean(sqrt.(medium_true.μ ./ medium_true.ρ)) * dt)))
-    tgrid = range(0, length=nt, step=dt)
-    nothing
-end
-
 # ╔═╡ 48bc453f-b1c0-4757-b9d0-d3e10e2a4618
 initial_medium = bundle_medium(μref, ρref)
 
@@ -374,6 +347,34 @@ vsmean(medium) = mean(sqrt.(medium.μ ./ medium.ρ))
 
 # ╔═╡ 8bc93109-4f3d-43c8-9fed-e30d90e54068
 dx, dz, vsmean(medium_true) / source_fpeak
+
+# ╔═╡ 08b3ef58-605b-4d61-9f53-6a11e1cce302
+vsminimum(medium) = minimum(sqrt.(medium.μ ./ medium.ρ))
+
+# ╔═╡ b4085356-62a1-4388-96ae-8b2a8fd7de0f
+begin
+    # choose time stepping dt to satisfy Courant condition
+    dt = courant_number * step(xgrid) * inv(vsminimum(medium_true))
+    nt = Int(floor(r / (mean(sqrt.(medium_true.μ ./ medium_true.ρ)) * dt)))
+    tgrid = range(0, length=nt, step=dt)
+    nothing
+end
+
+# ╔═╡ 58b862d9-738e-4ba2-bf2b-e195a586a51e
+length(tgrid)
+
+# ╔═╡ dde549a0-a655-4fab-8cad-7320ce08495f
+@bind tsnap_forw PlutoUI.combine() do Child
+    md"""
+    Snapshot Number: $(Child(Slider(1:length(tgrid), default=length(tgrid),show_value=true)))
+    """
+end
+
+# ╔═╡ 9714270a-d543-4ad3-9353-76c3bd081791
+vsmaximum(medium) = minimum(sqrt.(medium.μ ./ medium.ρ))
+
+# ╔═╡ b3ee8d6c-652f-4953-9037-4fbdf3c9f2aa
+vsmaximum(medium_true)
 
 # ╔═╡ e8333b23-53c3-445e-9ca3-6b278359f8ab
 md"### Acquisition"
@@ -468,9 +469,9 @@ function propagate!(data, fields, pa, medium, ageom, forcing)
         Dz!(dvydz, vy)
 
         @. σyx = σyx + μ * dvydx * dt
-        # @. σyx = σyx * pa.tarray
+        @. σyx = σyx * pa.tarray
         @. σyz = σyz + μ * dvydz * dt
-        # @. σyz = σyz * pa.tarray
+        @. σyz = σyz * pa.tarray
 
         Dx!(dσyxdx, σyx)
         Dz!(dσyzdz, σyz)
@@ -488,9 +489,9 @@ function propagate!(data, fields, pa, medium, ageom, forcing)
         d = data[it]
         mul!(d, Rr, vyv)
 
-        (:vys ∈ keys(fields)) && copyto!(fields.vys, vy)
-        (:σyx ∈ keys(fields)) && copyto!(fields.σyx, σyx)
-        (:σyz ∈ keys(fields)) && copyto!(fields.σyz, σyz)
+        (:vys ∈ keys(fields)) && copyto!(fields.vys[it], vy)
+        (:σyxs ∈ keys(fields)) && copyto!(fields.σyxs[it], σyx)
+        (:σyzs ∈ keys(fields)) && copyto!(fields.σyzs[it], σyz)
     end
 
     return nothing
@@ -677,7 +678,7 @@ end
 
 # ╔═╡ a120a929-d989-4b88-86af-e735a577db18
 # a NamedTuple for grid-related parameters
-grid_param = (; xgrid, zgrid, tgrid, nx, nz, tarray=get_taper_array(nx, nz, tapfact=0.3,))
+grid_param = (; xgrid, zgrid, tgrid, nx, nz, tarray=get_taper_array(nx, nz, np=np,))
 
 # ╔═╡ 62a18fa1-b4d6-4fde-b4a7-09fad6b16a22
 fields_true = initialize_fields(grid_param, nt);
@@ -686,7 +687,7 @@ fields_true = initialize_fields(grid_param, nt);
 begin
     # fields_true = initialize_fields(pa)
     copyto!(fields_true.vy, vy0)
-    snaps_store_act = propagate!(fields_true, pa, medium_true, source_forcing)
+    propagate!(fields_true, pa, medium_true, source_forcing)
 end;
 
 # ╔═╡ ba4c4fd5-56d0-4004-8858-377139cc3d3c
@@ -704,10 +705,29 @@ propagate!(dobs, fields_true, grid_param, medium_true, ageom, source_forcing)
 # ╔═╡ af1389bb-b13a-496d-914d-fc99a0b904c9
 fields_forw = initialize_fields(grid_param, nt, snap_store=true);
 
+# ╔═╡ d8bf631c-375c-4c54-b674-a724e240b9b2
+begin
+    # fig1 = myheat(snaps_store_ref.vy[tsnap_forw[1]], L"Particle Velocity $v_y$ Reference")
+    seisheat(fields_forw.vys[tsnap_forw[1]], title=L"Particle Velocity $v_y$ Actual")
+    # plot(fig1,fig2)
+end
+
 # ╔═╡ 57653f8f-dff1-41e2-a0b2-89a6f3204a75
 begin
     snaps_store_ref = propagate!(fields_forw, pa, initial_medium, source_forcing)
 end;
+
+# ╔═╡ e81c7792-c99f-4473-bbdb-e167a3fb6a88
+@time reset_fields!(fields_forw)
+
+# ╔═╡ 1ac5f26c-756b-4369-8eb1-8ed36d34a5e7
+dcal = initialize_data(grid_param, ageom)
+
+# ╔═╡ f1098f54-ebea-48cb-98bf-fd11397f0dd1
+@time test!(dcal, fields_forw, grid_param, medium_true, ageom, source_forcing)
+
+# ╔═╡ d30bcb1c-594a-4f3e-98dd-46e3caed3fa3
+propagate!(dcal, fields_forw, grid_param, medium_true, ageom, source_forcing)
 
 # ╔═╡ c34b1a5d-5078-4b8f-94d1-a088cbe5ab3e
 heatmap(get_taper_array(512, 512, tapfact=0.9, np=np), aspect_ratio=:equal)
@@ -1814,6 +1834,8 @@ version = "1.4.1+0"
 # ╟─5b271e5f-879c-4c43-825a-9660f322febd
 # ╠═a5db1d99-24e5-41d1-a804-c5dd1d6db94c
 # ╠═45bd4e43-b703-4bbc-8dfa-07bb835e4117
+# ╠═b3ee8d6c-652f-4953-9037-4fbdf3c9f2aa
+# ╠═58b862d9-738e-4ba2-bf2b-e195a586a51e
 # ╠═b4085356-62a1-4388-96ae-8b2a8fd7de0f
 # ╠═a120a929-d989-4b88-86af-e735a577db18
 # ╠═f9f36d76-6e4e-4cf4-ac7a-ef9980b94936
@@ -1839,6 +1861,12 @@ version = "1.4.1+0"
 # ╠═8b3776bd-509b-4232-9737-36c9ae003350
 # ╠═48bc453f-b1c0-4757-b9d0-d3e10e2a4618
 # ╠═af1389bb-b13a-496d-914d-fc99a0b904c9
+# ╠═1ac5f26c-756b-4369-8eb1-8ed36d34a5e7
+# ╠═6fd7a62a-a5b9-4c06-b7f4-d0a4263eecfd
+# ╠═f1098f54-ebea-48cb-98bf-fd11397f0dd1
+# ╠═d30bcb1c-594a-4f3e-98dd-46e3caed3fa3
+# ╠═dde549a0-a655-4fab-8cad-7320ce08495f
+# ╠═d8bf631c-375c-4c54-b674-a724e240b9b2
 # ╠═53a2069e-eaf9-41d7-b08b-cdd4f85f367b
 # ╠═57653f8f-dff1-41e2-a0b2-89a6f3204a75
 # ╠═ab04a26d-895c-4409-8725-e3e24bca40aa
@@ -1852,8 +1880,6 @@ version = "1.4.1+0"
 # ╟─a3a9deea-e2d6-4d58-90d7-5a54be176289
 # ╠═1b6e41ed-75a0-4b12-b390-78538566ce43
 # ╠═bcc11013-e185-4b22-b109-6bd4532462d2
-# ╠═dde549a0-a655-4fab-8cad-7320ce08495f
-# ╠═d8bf631c-375c-4c54-b674-a724e240b9b2
 # ╠═ca037fb0-b5cf-496d-8157-14e52f1e8bd6
 # ╠═7833c2b6-52a8-489e-adcf-9f7e5c082515
 # ╠═f1016895-ea41-44c9-aa27-aae921427a8d
@@ -1869,10 +1895,13 @@ version = "1.4.1+0"
 # ╟─6be2f4c2-e9ed-43c2-b66c-ef3176bb9000
 # ╠═aa19e992-2735-4324-8fd7-15eacadf0faa
 # ╟─93090680-2380-412d-9752-df18251c7dbf
+# ╠═e81c7792-c99f-4473-bbdb-e167a3fb6a88
 # ╠═15bbf544-34bd-4d38-bac5-0f43b1305df3
 # ╟─9bc38d55-285b-4b83-98d9-d7f9e03405d1
 # ╠═27844886-0b54-4b08-a592-a1a38e4b0be2
 # ╠═d880f005-381a-4c72-a9a1-ae3eb84a90eb
+# ╠═08b3ef58-605b-4d61-9f53-6a11e1cce302
+# ╠═9714270a-d543-4ad3-9353-76c3bd081791
 # ╟─e8333b23-53c3-445e-9ca3-6b278359f8ab
 # ╠═d952edc9-0e28-4c21-a1a9-6f022c98ba65
 # ╠═e7b65566-a79e-4101-9471-3656a92e95e6
