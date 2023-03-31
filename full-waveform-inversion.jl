@@ -87,8 +87,8 @@ md"## Spatial Grids"
 # ╔═╡ 7928a88c-f217-4338-a6a5-50ab2d422480
 begin
     # domain extends
-    zgrid = range(0, stop=40000, length=256)
-    xgrid = range(-40000, stop=40000, length=512)
+    zgrid = range(0, stop=40, length=256)
+    xgrid = range(-40, stop=40, length=512)
 
     # Numerics
     nx, nz = length(xgrid), length(zgrid)
@@ -109,7 +109,8 @@ md"## Time Grid"
 r = min(xgrid[end] - xgrid[1], zgrid[end] - zgrid[1]) * 0.5
 
 # ╔═╡ 45bd4e43-b703-4bbc-8dfa-07bb835e4117
-courant_number = 0.1
+
+courant_number = 0.2
 
 # ╔═╡ cb83dbd1-c423-4b27-b29e-7dc8051f43d5
 md"""
@@ -127,6 +128,7 @@ md"""
 ## Generate Observed Data
 """
 
+
 # ╔═╡ a5cba7a8-bfd2-4a86-84e6-34b7f966321b
 @bind rec_obs PlutoUI.combine() do Child
     md"""
@@ -137,11 +139,13 @@ end
 # ╔═╡ e15cc25c-8880-4f36-bf08-a997a79d78fc
 # plot the observed data ntxnr
 
+
 # ╔═╡ 22b8db91-73a0-46df-87fd-7cf0b66ee37d
 md"""
 ## Reference Medium
 This will also serve as an initial model during inversion.
 """
+
 
 # ╔═╡ 8b3776bd-509b-4232-9737-36c9ae003350
 begin
@@ -170,10 +174,18 @@ end
 # ╔═╡ ac33b7b1-d042-48ba-ba31-b303029b820a
 # plot the modelled data 
 
+
 # ╔═╡ c73f69d0-69e6-47f1-97b0-3e81218776e6
 md"""
 ## Data Error
 """
+
+
+# ╔═╡ a3a9deea-e2d6-4d58-90d7-5a54be176289
+md"## Adjoint Simulation"
+
+# ╔═╡ 54242145-429f-4480-8e5b-e3b51e347097
+
 
 # ╔═╡ 97e8f3df-b352-4892-99bb-fa668b3470f7
 # plot d - dobs
@@ -227,6 +239,7 @@ Observer 1
 md"""
 Observer 2
 """
+
 
 # ╔═╡ fc49a6d7-a1b1-458a-a9ad-e120282bbabc
 md"""
@@ -291,11 +304,11 @@ end
 # ╔═╡ 1c67cda8-7712-4d5b-a2aa-af47f290f745
 begin
     # lets add density perturbation
-    μtrue = ones(nz, nx) .* 1e10
-    ρtrue = ones(nz, nx) .* 2000  # density in kg/m3
-    # ρtrue[450:512, :] .= 5000  # density in kg/m3
+    μtrue = ones(nz, nx) .* 82 * 10^9 * 10^3
+    ρtrue = ones(nz, nx) .* 3.22 * 10^-3 * 10^15 # density in kg/km3
+    ρtrue[120:256, :] .= 5 * 10^-3 * 10^15  # density in kg/km3
     medium_true = bundle_medium(μtrue, ρtrue)
-end
+end;
 
 # ╔═╡ 48bc453f-b1c0-4757-b9d0-d3e10e2a4618
 initial_medium = bundle_medium(μref, ρref)
@@ -318,8 +331,21 @@ begin
     nothing
 end
 
+# ╔═╡ 9a77180b-0bfa-4401-af30-d95f14e10d2c
+@bind t_forw Slider(range(1,nt),show_value=true)
+
+# ╔═╡ 8b3776bd-509b-4232-9737-36c9ae003350
+begin
+    # Physics of medium
+    # Unperturbed
+    μref = ones(nz, nx) * 82 * 10^9 * 10^3      # shear modulus in kg / km/s^2
+    ρref = ones(nz, nx) *  3.22 * 10^-3 * 10^15 # density in kg/km3
+	initial_medium = bundle_medium(μref, ρref)
+end;
+
 # ╔═╡ 58b862d9-738e-4ba2-bf2b-e195a586a51e
 length(tgrid)
+
 
 # ╔═╡ dde549a0-a655-4fab-8cad-7320ce08495f
 @bind tsnap_forw PlutoUI.combine() do Child
@@ -337,6 +363,18 @@ vsmaximum(medium_true)
 # ╔═╡ e8333b23-53c3-445e-9ca3-6b278359f8ab
 md"### Acquisition"
 
+# ╔═╡ 9248af7f-dc1a-4bf6-8f3f-304db73fc604
+function get_ageom(xgrid, zgrid, ns, nr; zs=quantile(zgrid, 0.25), zr=quantile(zgrid, 0.25))
+    A = (; ns, nr, zs=fill(zs, ns), zr=fill(zr, nr),
+        xr=(nr == 1) ? quantile(xgrid, 0.25) : range(quantile(xgrid, 0.25), stop=quantile(xgrid, 0.75), length=nr),
+        xs=(ns == 1) ? quantile(xgrid, 0.25) : range(quantile(xgrid, 0.25), stop=quantile(xgrid, 0.75), length=ns)
+    )
+    return A
+end;
+
+# ╔═╡ d39753e2-5986-4394-9293-9e394f2807f0
+ageom = get_ageom(xgrid, zgrid, 1, 10);
+
 # ╔═╡ e7b65566-a79e-4101-9471-3656a92e95e6
 function get_restriction_matrix(xpos, zpos, xgrid, zgrid, transpose_flag=false)
     l = LinearIndices((length(zgrid), length(xgrid)))
@@ -353,22 +391,38 @@ function get_restriction_matrix(xpos, zpos, xgrid, zgrid, transpose_flag=false)
     return transpose_flag ? sparse(J, I, V, n, N) : sparse(I, J, V, N, n)
 end
 
-# ╔═╡ d952edc9-0e28-4c21-a1a9-6f022c98ba65
-function get_ageom(xgrid, zgrid, ns, nr; zs=quantile(zgrid, 0.25), zr=quantile(zgrid, 0.25))
-    A = (; ns, nr, zs=fill(zs, ns), zr=fill(zr, nr),
-        xr=(nr == 1) ? quantile(xgrid, 0.25) : range(quantile(xgrid, 0.25), stop=quantile(xgrid, 0.75), length=nr),
-        xs=(ns == 1) ? quantile(xgrid, 0.25) : range(quantile(xgrid, 0.25), stop=quantile(xgrid, 0.75), length=ns)
-    )
-    return merge(A, (; Rs=get_restriction_matrix(A.xs, A.zs, xgrid, zgrid),
-        Rr=get_restriction_matrix(A.xr, A.zr, xgrid, zgrid, true)))
+# ╔═╡ e08bf013-00c7-4870-82d8-19b899e7208d
+function get_restriction_matrix_density(medium, xpos, zpos, xgrid, zgrid, transpose_flag=false)
+    l = LinearIndices((length(zgrid), length(xgrid)))
+    @assert length(xpos) == length(zpos)
+    n = length(xpos)
+    N = length(xgrid) * length(zgrid)
+    I = broadcast(zpos, xpos) do z, x
+        iz = argmin(abs.(zgrid .- z))[1]
+        ix = argmin(abs.(xgrid .- x))[1]
+        return l[iz, ix]
+    end
+	
+    J = collect(1:n)
+    V = medium_true.invρ[I]
+    return transpose_flag ? sparse(J, I, V, n, N) : sparse(I, J, V, N, n)
 end
 
-# ╔═╡ d39753e2-5986-4394-9293-9e394f2807f0
-ageom = get_ageom(xgrid, zgrid, 1, 10)
+# ╔═╡ dd626606-2a4d-494d-ab74-92753072c773
+function get_forcing_transform(ageom,medium,xgrid,zgrid,medium_flag=false)
+	if medium_flag
+		return (; Rs=get_restriction_matrix_density(medium,ageom.xs, ageom.zs, xgrid, zgrid),
+        Rr=get_restriction_matrix(ageom.xr, ageom.zr, xgrid, zgrid, true), Rr_t=get_restriction_matrix_density(medium,ageom.xr, ageom.zr, xgrid, zgrid))
+	else
+		return (; Rs=get_restriction_matrix_density(medium,ageom.xs, ageom.zs, xgrid, zgrid), Rr=get_restriction_matrix(ageom.xr, ageom.zr, xgrid, zgrid, true))
+	end
+end;
 
-# ╔═╡ 1c8d09cc-6ea7-4ce7-97c1-da8d61835d8f
-# testing restriction matrix
-reshape(get_restriction_matrix([2], [5], range(0, stop=10, length=5), range(0, stop=10, length=7))[:, 1], 5, 7)
+# ╔═╡ 3fd67421-1c00-4632-8ca4-181dd1656355
+true_forcing_transform = get_forcing_transform(ageom,medium_true,xgrid,zgrid);
+
+# ╔═╡ cfb83df9-1e43-418f-870e-806a57c46407
+ref_forcing_transform = get_forcing_transform(ageom,initial_medium,xgrid,zgrid,true);
 
 # ╔═╡ 9494e2a6-e2fd-4728-94d4-d68816a00e72
 md"""
@@ -393,13 +447,6 @@ function initialize_fields(pa, nt; snap_store=false)
     end
 end
 
-# ╔═╡ bcc11013-e185-4b22-b109-6bd4532462d2
-begin
-    adj_fields1 = initialize_fields(pa)
-    copyto!(adj_fields1.vy, vy0)
-    # snaps_store_adj1 = propagate!(adj_fields1, pa, initial_medium, rec_forcing1)
-end;
-
 # ╔═╡ 31d742a4-100f-4744-afe5-381b265b6f4c
 function reset_fields!(fields)
     fill!(fields.vy, zero(Float64))
@@ -417,15 +464,22 @@ function test!(x, y, z, xx, tyy, zz)
 end
 
 # ╔═╡ 15bbf544-34bd-4d38-bac5-0f43b1305df3
-function propagate!(data, fields, pa, medium, ageom, forcing)
+function propagate!(data, fields, pa, medium, forcing_transform_mat, forcing, adj=false)
     reset_fields!(fields)
+
+	f_grid = zeros(nz*nx)
+
     (; vy, dvydx, dvydz, σyx, σyz, dσyxdx, dσyzdz) = fields
     (; nx, nz, tarray, tgrid, dt, nt) = pa
 
+
     (; μ, ρ, invρ) = medium
 
-
-    (; Rs, Rr) = ageom
+	if adj
+		(; Rs, Rr, Rr_t) = forcing_transform_mat
+	else
+		(; Rs, Rr) = forcing_transform_mat
+	end
 
     # time loop
     # @progress 
@@ -433,10 +487,12 @@ function propagate!(data, fields, pa, medium, ageom, forcing)
         Dx!(dvydx, vy)
         # # Dz!(dvydz, vy)
 
-        # @. σyx = σyx + μ * dvydx * dt
-        # @. σyx = σyx * pa.tarray
-        # @. σyz = σyz + μ * dvydz * dt
-        # @. σyz = σyz * pa.tarray
+
+        @. σyx = σyx + μ * dvydx * dt
+        @. σyx = σyx * pa.tarray
+        @. σyz = σyz + μ * dvydz * dt
+        @. σyz = σyz * pa.tarray
+
 
         # # Dx!(dσyxdx, σyx)
         # # Dz!(dσyzdz, σyz)
@@ -446,17 +502,26 @@ function propagate!(data, fields, pa, medium, ageom, forcing)
         # # need to view vy as a vector for source/recording operations
         # vyv = view(vy, :)
 
-        # # add body force
-        # f = forcing[it]
-        # mul!(vyv, Rs, f, 1.0, 1.0)
+
+        # add body force
+        f = forcing[it]
+		if adj
+			mul!(vyv, Rr_t, f, dt, 1.0)
+		else
+			mul!(vyv, Rs, f, dt, 1.0)
+		end
+
+            # mul!(vyv, Rs, f, 1.0, 1.0)
+
 
         # # record data
         # d = data[it]
         # mul!(d, Rr, vyv)
 
-        # (:vys ∈ keys(fields)) && copyto!(fields.vys[it], vy)
-        # (:σyxs ∈ keys(fields)) && copyto!(fields.σyxs[it], σyx)
-        # (:σyzs ∈ keys(fields)) && copyto!(fields.σyzs[it], σyz)
+        (:vys ∈ keys(fields)) && copyto!(fields.vys[it], vy)
+        (:σyxs ∈ keys(fields)) && copyto!(fields.σyxs[it], σyx)
+        (:σyzs ∈ keys(fields)) && copyto!(fields.σyzs[it], σyz)
+
     end
 
     return nothing
@@ -477,9 +542,14 @@ md"""
 
 # ╔═╡ a5cd8e7a-380f-4203-a856-f9e56e04b092
 # plot vs and density heatmaps of a given medium
-function plot_medium(medium)
+function plot_medium(medium,grid)
+	(; μ, ρ) = medium
+	vel = sqrt.(μ./ρ)
 
-end
+	fig1 = heatmap(grid.xgrid,grid.zgrid,ρ*1e-12,c=:seismic,xlabel="Distance (x km)",ylabel="Depth (z km)",title="Density (g/cc)",yflip=true)
+	fig2 = heatmap(grid.xgrid,grid.zgrid,vel,c=:seismic,xlabel="Distance (x km)",ylabel="Depth (z km)",title="Velocity (km/s)",yflip=true)
+	return plot(fig1,fig2,size=(1000,600))
+end;
 
 # ╔═╡ 43a77919-d880-40c9-95c9-aaa429a65fb7
 begin
@@ -503,43 +573,8 @@ end
 # ╔═╡ 36408698-f85c-4529-972f-6389534fcb88
 myheat(x, t="") = heatmap(xgrid, zgrid, x, c=:grays, aspect_ratio=1, title=t, ylim=extrema(zgrid))
 
-# ╔═╡ f9f36d76-6e4e-4cf4-ac7a-ef9980b94936
-myheat(vy0, "Initial \$v_y\$")
-
-# ╔═╡ f1016895-ea41-44c9-aa27-aae921427a8d
-begin
-    fig3 = myheat(snaps_store_adj1.vy[tsnap_adj[1]], L"Adjoint Field $λ_1$")
-end
-
-# ╔═╡ 521fbcc7-9078-48bc-b61d-749e94053a9b
-# Lets check the derivative operators
-plot(seisheat(xgrid, zgrid, Dx(vy0), title="Dx"), seisheat(xgrid, zgrid, Dz(vy0), title="Dz"), size=(800, 300),)
-
 # ╔═╡ a62839d5-837b-4c37-996f-33659c34911c
 md"### UI"
-
-# ╔═╡ 75862e20-54e9-40d1-8760-8e00759ff7a0
-
-# Function to get the positions of the observer
-function position_input()
-    return PlutoUI.combine() do Child
-        inputs = [
-            md""" $(x): $(
-            	Child(string(x, "pos"), Slider(grid, default=10,show_value=true))
-            )"""
-            for (x, grid) in zip(["x", "z"], [xgrid, zgrid])
-        ]
-        md"""
-        $(inputs)
-        """
-    end
-end
-
-# ╔═╡ ebcaf0f0-83ed-436e-938f-9e29c0f3fa38
-@bind obs1 confirm(position_input())
-
-# ╔═╡ 35b8eb3c-0364-44a3-9404-6933c7703ebc
-@bind obs2 confirm(position_input())
 
 # ╔═╡ f95a08ce-a38d-4b7f-b478-4dbfa607740e
 md"### Wavelets"
@@ -595,37 +630,8 @@ plot(tgrid, source_wavelet, size=(500, 200), w=2, label="Source Wavelet")
 # ╔═╡ c3c0aabd-9df4-41af-9512-bdbb7d4f8700
 source_forcing = [fill(source_wavelet[it], 1) for it in 1:nt]
 
-# ╔═╡ c48792ac-ed09-4ed0-acc5-c2635ab9b908
-begin
-    # Function to get the velocity profiles
-    function get_velocity_profile(snaps, observer)
-        index_x = 1:1:nx
-        index_x = index_x[xgrid.==observer[:xpos]][1]
-        index_z = 1:1:nz
-        index_z = index_z[zgrid.==observer[:zpos]][1]
-
-        n_times = length(snaps)
-        velocity_profile = zeros(n_times)
-        for i in 1:n_times
-            tmp = snaps[i]
-            velocity_profile[i] = tmp[index_z, index_x]
-        end
-        return velocity_profile
-    end
-    nothing
-end
-
 # ╔═╡ ae8012be-e7ab-4e85-a27f-febf08b3380b
 md"### Absorbing Boundaries"
-
-# ╔═╡ 7a36b957-de6b-4ed6-8965-f69ecd043ae1
-# used for plotting
-function clip_edges(medium, np, xgrid, zgrid)
-
-end
-
-# ╔═╡ 09bc2dac-a767-45cf-99f5-847f1b4fb22d
-np = 5 * floor(Int, vsmean(medium_true) / source_fpeak / mean([step(xgrid), step(zgrid)]))
 
 # ╔═╡ ce89710a-48d8-46d4-83b4-163a7eb0a2e5
 function get_taper_array(nx, nz; np=50, tapfact=0.20)
@@ -645,8 +651,14 @@ end
 # a NamedTuple for grid-related parameters
 grid_param = (; xgrid, zgrid, tgrid, dt=step(tgrid), nt=length(tgrid), nx=length(xgrid), nz=length(zgrid), tarray=get_taper_array(nx, nz, np=np,))
 
+# ╔═╡ 55c7f981-96a7-40e9-811f-37334622565b
+plot_medium(medium_true,grid_param)
+
 # ╔═╡ 62a18fa1-b4d6-4fde-b4a7-09fad6b16a22
 fields_true = initialize_fields(grid_param, nt);
+
+# ╔═╡ ba4c4fd5-56d0-4004-8858-377139cc3d3c
+dobs = initialize_data(grid_param, ageom);
 
 # ╔═╡ 897f60b6-fad7-4167-bc5a-f5b48b1f159c
 begin
@@ -655,20 +667,53 @@ begin
     propagate!(fields_true, pa, medium_true, source_forcing)
 end;
 
-# ╔═╡ 6ece24cb-adc1-4aea-93c2-cc74167b26f6
-heatmap(cat(dobs..., dims=2))
 
-# ╔═╡ 91be8954-2cf9-45f4-b286-804935ff9f9e
-dobs
+# ╔═╡ 6ece24cb-adc1-4aea-93c2-cc74167b26f6
+heatmap(tgrid,range(1,ageom.nr),cat(dobs..., dims=2),xlabel="Time(s)",ylabel="Receiver",title="Observed data",legend=:none)
 
 # ╔═╡ bc014038-7ea1-45be-b9da-3f9b14397f55
 plot(dobs[rec_obs[1], :], label=nothing)
 
 # ╔═╡ 7b84af8f-939a-47ed-8a0b-5721ce026d79
+
+@time propagate!(dobs, fields_true, grid_param, medium_true, true_forcing_transform, source_forcing)
+
+# ╔═╡ 11ca5d78-1434-41ce-9e3b-88ed63474128
+plot_medium(initial_medium,grid_param)
+
 @time propagate!(dobs, fields_true, grid_param, medium_true, ageom, source_forcing)
+
 
 # ╔═╡ af1389bb-b13a-496d-914d-fc99a0b904c9
 fields_forw = initialize_fields(grid_param, nt, snap_store=true);
+
+
+# ╔═╡ 804e23ee-d7bc-4ed9-8b46-ad462442bccc
+dref = initialize_data(grid_param, ageom);
+
+# ╔═╡ f2e77de4-f1a7-4cb8-a6b7-f9db0d807720
+heatmap(tgrid,range(1,ageom.nr),cat(dref..., dims=2),xlabel="Time(s)",ylabel="Receiver",title="Modelled data",legend=:none)
+
+# ╔═╡ 59155ad5-d341-4e16-b7cc-b6a3def51992
+data_error = dref .- dobs;
+
+# ╔═╡ bdd9e0d1-9f99-4957-85fa-ef9e258637d5
+heatmap(tgrid,range(1,ageom.nr),cat(data_error..., dims=2),xlabel="Time(s)",ylabel="Receiver",title="Modelled - Observed",legend=:none)
+
+# ╔═╡ 1b6e41ed-75a0-4b12-b390-78538566ce43
+rec_forcing = reverse(dref - dobs);
+
+# ╔═╡ b075b29b-0be2-467e-9e27-0280fad35520
+@time propagate!(dref, fields_forw, grid_param, initial_medium, ref_forcing_transform, source_forcing)
+
+# ╔═╡ e32d0418-6e18-485b-a6ea-0a982d63e1d2
+fields_adj = initialize_fields(grid_param, nt, snap_store=true);
+
+# ╔═╡ 4e5a992d-303a-431c-a2c2-e5f3214a1da6
+dadj = initialize_data(grid_param, ageom);
+
+# ╔═╡ f129bfac-b0d5-482b-98e5-856c26c0fc3f
+@time propagate!(dadj, fields_adj, grid_param, initial_medium, ref_forcing_transform, rec_forcing, true)
 
 # ╔═╡ d8bf631c-375c-4c54-b674-a724e240b9b2
 begin
@@ -681,6 +726,7 @@ end
 begin
     snaps_store_ref = propagate!(fields_forw, pa, initial_medium, source_forcing)
 end;
+
 
 # ╔═╡ c14a41a4-fb74-4e23-b513-f3bd213f5057
 begin
@@ -710,7 +756,21 @@ dcal = initialize_data(grid_param, ageom)
 @time propagate!(dcal, fields_forw, grid_param, medium_true, ageom, source_forcing)
 
 # ╔═╡ c34b1a5d-5078-4b8f-94d1-a088cbe5ab3e
-heatmap(get_taper_array(512, 512, tapfact=0.9, np=np), aspect_ratio=:equal)
+heatmap(xgrid,zgrid,grid_param.tarray,yflip=true)
+
+# ╔═╡ b7f4078a-ead0-4d42-8b44-4f471eefc6fc
+function clip_edges(mat,grid_param)
+	dum = mat
+	dum[grid_param.tarray .!= 1] .= NaN
+	return(dum)
+end;
+
+# ╔═╡ ae2391be-a7c7-4612-a58b-909c6d5eac0d
+begin
+	figv = heatmap(xgrid,zgrid,clip_edges(fields_forw.vys[t_forw[1]],grid_param),yflip=true,xlabel="Distance (x km)", ylabel="Depth (z km)", title="Velocity field",legend=:none)
+	figadj = heatmap(xgrid,zgrid,clip_edges(fields_adj.vys[nt-t_forw[1]+1],grid_param),yflip=true,xlabel="Distance (x km)", ylabel="Depth (z km)", title="Adjoint field",legend=:none)
+	plot(figv,figadj,size=(700,500))
+end
 
 # ╔═╡ 802d9652-7597-43c4-b13a-3c60682d0a69
 md"""
@@ -776,9 +836,8 @@ ProgressLogging = "~0.1.4"
 PLUTO_MANIFEST_TOML_CONTENTS = """
 # This file is machine-generated - editing it directly is not advised
 
-julia_version = "1.8.5"
+julia_version = "1.7.3"
 manifest_format = "2.0"
-project_hash = "dfbed4f959a5021850f10211b42df764c189fbab"
 
 [[deps.AbstractFFTs]]
 deps = ["ChainRulesCore", "LinearAlgebra"]
@@ -800,7 +859,6 @@ version = "3.6.1"
 
 [[deps.ArgTools]]
 uuid = "0dad84c5-d112-42e6-8d28-ef12dabb789f"
-version = "1.1.1"
 
 [[deps.Artifacts]]
 uuid = "56f22d72-fd6d-98f1-02f0-08ddc0907c33"
@@ -865,7 +923,6 @@ version = "4.6.1"
 [[deps.CompilerSupportLibraries_jll]]
 deps = ["Artifacts", "Libdl"]
 uuid = "e66e0078-7015-5450-92f7-15fbd957f2ae"
-version = "1.0.1+0"
 
 [[deps.Contour]]
 deps = ["StaticArrays"]
@@ -906,7 +963,6 @@ version = "0.9.3"
 [[deps.Downloads]]
 deps = ["ArgTools", "FileWatching", "LibCURL", "NetworkOptions"]
 uuid = "f43a241f-c20a-4ad4-852c-f6b1247861c6"
-version = "1.6.0"
 
 [[deps.EarCut_jll]]
 deps = ["Artifacts", "JLLWrappers", "Libdl", "Pkg"]
@@ -1161,12 +1217,10 @@ uuid = "4af54fe1-eca0-43a8-85a7-787d91b784e3"
 [[deps.LibCURL]]
 deps = ["LibCURL_jll", "MozillaCACerts_jll"]
 uuid = "b27032c2-a3e7-50c8-80cd-2d36dbcbfd21"
-version = "0.6.3"
 
 [[deps.LibCURL_jll]]
 deps = ["Artifacts", "LibSSH2_jll", "Libdl", "MbedTLS_jll", "Zlib_jll", "nghttp2_jll"]
 uuid = "deac9b47-8bc7-5906-a0fe-35ac56dc84c0"
-version = "7.84.0+0"
 
 [[deps.LibGit2]]
 deps = ["Base64", "NetworkOptions", "Printf", "SHA"]
@@ -1175,7 +1229,6 @@ uuid = "76f85450-5226-5b5a-8eaa-529ad045b433"
 [[deps.LibSSH2_jll]]
 deps = ["Artifacts", "Libdl", "MbedTLS_jll"]
 uuid = "29816b5a-b9ab-546f-933c-edad1886dfa8"
-version = "1.10.2+0"
 
 [[deps.Libdl]]
 uuid = "8f399da3-3557-5675-b5ff-fb832c97cbdb"
@@ -1271,7 +1324,6 @@ version = "1.1.7"
 [[deps.MbedTLS_jll]]
 deps = ["Artifacts", "Libdl"]
 uuid = "c8ffd9c3-330d-5841-b78e-0817d7145fa1"
-version = "2.28.0+0"
 
 [[deps.Measures]]
 git-tree-sha1 = "c13304c81eec1ed3af7fc20e75fb6b26092a1102"
@@ -1289,7 +1341,6 @@ uuid = "a63ad114-7e13-5084-954f-fe012c677804"
 
 [[deps.MozillaCACerts_jll]]
 uuid = "14a3606d-f60d-562e-9121-12d972cd8159"
-version = "2022.2.1"
 
 [[deps.NaNMath]]
 deps = ["OpenLibm_jll"]
@@ -1299,7 +1350,6 @@ version = "1.0.2"
 
 [[deps.NetworkOptions]]
 uuid = "ca575930-c2e3-43a9-ace4-1e988b2c1908"
-version = "1.2.0"
 
 [[deps.Ogg_jll]]
 deps = ["Artifacts", "JLLWrappers", "Libdl", "Pkg"]
@@ -1310,12 +1360,10 @@ version = "1.3.5+1"
 [[deps.OpenBLAS_jll]]
 deps = ["Artifacts", "CompilerSupportLibraries_jll", "Libdl"]
 uuid = "4536629a-c528-5b80-bd46-f80d51c5b363"
-version = "0.3.20+0"
 
 [[deps.OpenLibm_jll]]
 deps = ["Artifacts", "Libdl"]
 uuid = "05823500-19ac-5b8b-9628-191a04bc5112"
-version = "0.8.1+0"
 
 [[deps.OpenSSL_jll]]
 deps = ["Artifacts", "JLLWrappers", "Libdl", "Pkg"]
@@ -1343,7 +1391,6 @@ version = "1.4.1"
 [[deps.PCRE2_jll]]
 deps = ["Artifacts", "Libdl"]
 uuid = "efcefdf7-47ab-520b-bdef-62a2eaa19f15"
-version = "10.40.0+0"
 
 [[deps.Parsers]]
 deps = ["Dates", "SnoopPrecompile"]
@@ -1360,7 +1407,6 @@ version = "0.40.1+0"
 [[deps.Pkg]]
 deps = ["Artifacts", "Dates", "Downloads", "LibGit2", "Libdl", "Logging", "Markdown", "Printf", "REPL", "Random", "SHA", "Serialization", "TOML", "Tar", "UUIDs", "p7zip_jll"]
 uuid = "44cfe95a-1eb2-52ea-b672-e2afdf69b78f"
-version = "1.8.0"
 
 [[deps.PlotThemes]]
 deps = ["PlotUtils", "Requires", "Statistics"]
@@ -1447,7 +1493,6 @@ version = "1.3.0"
 
 [[deps.SHA]]
 uuid = "ea8e919c-243c-51af-8825-aaa63cd721ce"
-version = "0.7.0"
 
 [[deps.Scratch]]
 deps = ["Dates"]
@@ -1525,7 +1570,6 @@ version = "0.6.15"
 [[deps.TOML]]
 deps = ["Dates"]
 uuid = "fa267f1f-6049-4f14-aa54-33bafae1ed76"
-version = "1.0.0"
 
 [[deps.TableTraits]]
 deps = ["IteratorInterfaceExtensions"]
@@ -1542,7 +1586,6 @@ version = "1.10.1"
 [[deps.Tar]]
 deps = ["ArgTools", "SHA"]
 uuid = "a4e569a6-e804-4fa4-b0f3-eef7a1d5b13e"
-version = "1.10.1"
 
 [[deps.TensorCore]]
 deps = ["LinearAlgebra"]
@@ -1735,7 +1778,6 @@ version = "1.4.0+3"
 [[deps.Zlib_jll]]
 deps = ["Libdl"]
 uuid = "83775a58-1f1d-513f-b197-d71354ab007a"
-version = "1.2.12+3"
 
 [[deps.Zstd_jll]]
 deps = ["Artifacts", "JLLWrappers", "Libdl"]
@@ -1758,7 +1800,6 @@ version = "0.15.1+0"
 [[deps.libblastrampoline_jll]]
 deps = ["Artifacts", "Libdl", "OpenBLAS_jll"]
 uuid = "8e850b90-86db-534c-a0d3-1478176c7d93"
-version = "5.1.1+0"
 
 [[deps.libfdk_aac_jll]]
 deps = ["Artifacts", "JLLWrappers", "Libdl", "Pkg"]
@@ -1781,12 +1822,10 @@ version = "1.3.7+1"
 [[deps.nghttp2_jll]]
 deps = ["Artifacts", "Libdl"]
 uuid = "8e850ede-7688-5339-a07c-302acd2aaf8d"
-version = "1.48.0+0"
 
 [[deps.p7zip_jll]]
 deps = ["Artifacts", "Libdl"]
 uuid = "3f19e933-33d8-53b3-aaab-bd5110c3b7a0"
-version = "17.4.0+0"
 
 [[deps.x264_jll]]
 deps = ["Artifacts", "JLLWrappers", "Libdl", "Pkg"]
@@ -1817,6 +1856,7 @@ version = "1.4.1+0"
 # ╠═8bc93109-4f3d-43c8-9fed-e30d90e54068
 # ╟─881c7368-57df-469a-96ec-821512cf98e0
 # ╠═1c67cda8-7712-4d5b-a2aa-af47f290f745
+# ╠═55c7f981-96a7-40e9-811f-37334622565b
 # ╟─5b271e5f-879c-4c43-825a-9660f322febd
 # ╠═a5db1d99-24e5-41d1-a804-c5dd1d6db94c
 # ╠═45bd4e43-b703-4bbc-8dfa-07bb835e4117
@@ -1824,7 +1864,6 @@ version = "1.4.1+0"
 # ╠═58b862d9-738e-4ba2-bf2b-e195a586a51e
 # ╠═b4085356-62a1-4388-96ae-8b2a8fd7de0f
 # ╠═a120a929-d989-4b88-86af-e735a577db18
-# ╠═f9f36d76-6e4e-4cf4-ac7a-ef9980b94936
 # ╟─cb83dbd1-c423-4b27-b29e-7dc8051f43d5
 # ╠═d39753e2-5986-4394-9293-9e394f2807f0
 # ╟─2855c8cf-8364-4c6c-a122-781b99440e89
@@ -1833,20 +1872,21 @@ version = "1.4.1+0"
 # ╠═d812711d-d02f-44bb-9e73-accd1623dea1
 # ╠═c3c0aabd-9df4-41af-9512-bdbb7d4f8700
 # ╟─e233afec-6049-4277-8be9-95687c4589b5
+# ╠═3fd67421-1c00-4632-8ca4-181dd1656355
 # ╠═62a18fa1-b4d6-4fde-b4a7-09fad6b16a22
 # ╠═ba4c4fd5-56d0-4004-8858-377139cc3d3c
 # ╠═7b84af8f-939a-47ed-8a0b-5721ce026d79
 # ╠═6ece24cb-adc1-4aea-93c2-cc74167b26f6
-# ╠═91be8954-2cf9-45f4-b286-804935ff9f9e
-# ╠═897f60b6-fad7-4167-bc5a-f5b48b1f159c
-# ╠═bcdf20f8-d5ac-4fd9-8fa1-1f8f50e52359
-# ╠═a5cba7a8-bfd2-4a86-84e6-34b7f966321b
-# ╠═e15cc25c-8880-4f36-bf08-a997a79d78fc
-# ╠═bc014038-7ea1-45be-b9da-3f9b14397f55
 # ╟─22b8db91-73a0-46df-87fd-7cf0b66ee37d
 # ╠═8b3776bd-509b-4232-9737-36c9ae003350
-# ╠═48bc453f-b1c0-4757-b9d0-d3e10e2a4618
+# ╠═11ca5d78-1434-41ce-9e3b-88ed63474128
+# ╠═cfb83df9-1e43-418f-870e-806a57c46407
 # ╠═af1389bb-b13a-496d-914d-fc99a0b904c9
+# ╠═804e23ee-d7bc-4ed9-8b46-ad462442bccc
+# ╠═b075b29b-0be2-467e-9e27-0280fad35520
+# ╠═f2e77de4-f1a7-4cb8-a6b7-f9db0d807720
+# ╠═9a77180b-0bfa-4401-af30-d95f14e10d2c
+# ╠═ae2391be-a7c7-4612-a58b-909c6d5eac0d
 # ╠═1ac5f26c-756b-4369-8eb1-8ed36d34a5e7
 # ╠═6fd7a62a-a5b9-4c06-b7f4-d0a4263eecfd
 # ╠═f1098f54-ebea-48cb-98bf-fd11397f0dd1
@@ -1859,12 +1899,14 @@ version = "1.4.1+0"
 # ╠═ac33b7b1-d042-48ba-ba31-b303029b820a
 # ╠═479e8710-4b1d-4223-a405-9d0bcde8fded
 # ╟─c73f69d0-69e6-47f1-97b0-3e81218776e6
-# ╠═c14a41a4-fb74-4e23-b513-f3bd213f5057
-# ╠═97e8f3df-b352-4892-99bb-fa668b3470f7
-# ╠═25a52452-9f13-4016-9fa1-def69e51e8d5
-# ╠═09be9653-6da0-4614-bd2d-7bad8d413f37
+# ╠═59155ad5-d341-4e16-b7cc-b6a3def51992
+# ╠═bdd9e0d1-9f99-4957-85fa-ef9e258637d5
 # ╟─a3a9deea-e2d6-4d58-90d7-5a54be176289
 # ╠═1b6e41ed-75a0-4b12-b390-78538566ce43
+# ╠═e32d0418-6e18-485b-a6ea-0a982d63e1d2
+# ╠═4e5a992d-303a-431c-a2c2-e5f3214a1da6
+# ╠═f129bfac-b0d5-482b-98e5-856c26c0fc3f
+# ╠═54242145-429f-4480-8e5b-e3b51e347097
 # ╠═bcc11013-e185-4b22-b109-6bd4532462d2
 # ╠═ca037fb0-b5cf-496d-8157-14e52f1e8bd6
 # ╠═7833c2b6-52a8-489e-adcf-9f7e5c082515
@@ -1890,9 +1932,10 @@ version = "1.4.1+0"
 # ╠═08b3ef58-605b-4d61-9f53-6a11e1cce302
 # ╠═9714270a-d543-4ad3-9353-76c3bd081791
 # ╟─e8333b23-53c3-445e-9ca3-6b278359f8ab
-# ╠═d952edc9-0e28-4c21-a1a9-6f022c98ba65
+# ╠═9248af7f-dc1a-4bf6-8f3f-304db73fc604
+# ╠═dd626606-2a4d-494d-ab74-92753072c773
 # ╠═e7b65566-a79e-4101-9471-3656a92e95e6
-# ╠═1c8d09cc-6ea7-4ce7-97c1-da8d61835d8f
+# ╠═e08bf013-00c7-4870-82d8-19b899e7208d
 # ╟─9494e2a6-e2fd-4728-94d4-d68816a00e72
 # ╠═9b744e72-07a2-4f8c-b88c-e0b1131794d0
 # ╠═31d742a4-100f-4744-afe5-381b265b6f4c
@@ -1902,18 +1945,14 @@ version = "1.4.1+0"
 # ╠═a5cd8e7a-380f-4203-a856-f9e56e04b092
 # ╠═43a77919-d880-40c9-95c9-aaa429a65fb7
 # ╠═36408698-f85c-4529-972f-6389534fcb88
-# ╠═521fbcc7-9078-48bc-b61d-749e94053a9b
 # ╟─a62839d5-837b-4c37-996f-33659c34911c
-# ╠═75862e20-54e9-40d1-8760-8e00759ff7a0
 # ╟─f95a08ce-a38d-4b7f-b478-4dbfa607740e
 # ╟─90953c64-8a87-4065-8c34-d0ead540b728
 # ╠═b993e3e6-8d4e-4de7-aa4b-6a2e3bd12212
-# ╠═c48792ac-ed09-4ed0-acc5-c2635ab9b908
 # ╟─ae8012be-e7ab-4e85-a27f-febf08b3380b
-# ╠═7a36b957-de6b-4ed6-8965-f69ecd043ae1
-# ╠═09bc2dac-a767-45cf-99f5-847f1b4fb22d
 # ╠═ce89710a-48d8-46d4-83b4-163a7eb0a2e5
 # ╠═c34b1a5d-5078-4b8f-94d1-a088cbe5ab3e
+# ╠═b7f4078a-ead0-4d42-8b44-4f471eefc6fc
 # ╟─802d9652-7597-43c4-b13a-3c60682d0a69
 # ╟─00000000-0000-0000-0000-000000000001
 # ╟─00000000-0000-0000-0000-000000000002
