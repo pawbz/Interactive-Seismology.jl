@@ -127,27 +127,15 @@ md"""
 ## Generate Observed Data
 """
 
-# ╔═╡ bcdf20f8-d5ac-4fd9-8fa1-1f8f50e52359
-#=╠═╡
-dobs = get_R_matrix(rec_cartind) * reshape_data(snaps_store_act.vy);
-  ╠═╡ =#
-
 # ╔═╡ a5cba7a8-bfd2-4a86-84e6-34b7f966321b
-#=╠═╡
 @bind rec_obs PlutoUI.combine() do Child
-	md"""
-	Receiver Number: $(Child(Slider(1:nr , default=2,show_value=true)))
-	"""
+    md"""
+    Receiver Number: $(Child(Slider(1:nr , default=2,show_value=true)))
+    """
 end
-  ╠═╡ =#
 
 # ╔═╡ e15cc25c-8880-4f36-bf08-a997a79d78fc
 # plot the observed data ntxnr
-
-# ╔═╡ bc014038-7ea1-45be-b9da-3f9b14397f55
-#=╠═╡
-plot(dobs[rec_obs[1],:], label=nothing)
-  ╠═╡ =#
 
 # ╔═╡ 22b8db91-73a0-46df-87fd-7cf0b66ee37d
 md"""
@@ -164,10 +152,6 @@ begin
 
 end;
 
-# ╔═╡ 6fd7a62a-a5b9-4c06-b7f4-d0a4263eecfd
-function test!(x, y, z, xx, tyy, zz)
-end
-
 # ╔═╡ 53a2069e-eaf9-41d7-b08b-cdd4f85f367b
 begin
     # initial conditions on vy
@@ -177,51 +161,29 @@ begin
 end
 
 # ╔═╡ ab04a26d-895c-4409-8725-e3e24bca40aa
-#=╠═╡
 @bind rec_mod PlutoUI.combine() do Child
-	md"""
-	Receiver Number: $(Child(Slider(1:nr , default=2,show_value=true)))
-	"""
+    md"""
+    Receiver Number: $(Child(Slider(1:nr , default=2,show_value=true)))
+    """
 end
-  ╠═╡ =#
 
 # ╔═╡ ac33b7b1-d042-48ba-ba31-b303029b820a
 # plot the modelled data 
-
-# ╔═╡ 479e8710-4b1d-4223-a405-9d0bcde8fded
-#=╠═╡
-plot(d[rec_mod[1],:], label=nothing)
-  ╠═╡ =#
 
 # ╔═╡ c73f69d0-69e6-47f1-97b0-3e81218776e6
 md"""
 ## Data Error
 """
 
-# ╔═╡ c14a41a4-fb74-4e23-b513-f3bd213f5057
-#=╠═╡
-begin
-	d = get_R_matrix(rec_cartind) * reshape_data(snaps_store_ref.vy)
-	misfit = d-dobs
-end;
-  ╠═╡ =#
-
 # ╔═╡ 97e8f3df-b352-4892-99bb-fa668b3470f7
 # plot d - dobs
 
 # ╔═╡ 25a52452-9f13-4016-9fa1-def69e51e8d5
-#=╠═╡
 @bind misfit_rec PlutoUI.combine() do Child
-	md"""
-	Receiver Number: $(Child(Slider(1:nr , default=2,show_value=true)))
-	"""
+    md"""
+    Receiver Number: $(Child(Slider(1:nr , default=2,show_value=true)))
+    """
 end
-  ╠═╡ =#
-
-# ╔═╡ 09be9653-6da0-4614-bd2d-7bad8d413f37
-#=╠═╡
-plot(misfit[misfit_rec[1],:])
-  ╠═╡ =#
 
 # ╔═╡ a3a9deea-e2d6-4d58-90d7-5a54be176289
 md"## Adjoint Simulation"
@@ -234,9 +196,7 @@ md"## Adjoint Simulation"
 #end;
 
 # ╔═╡ ca037fb0-b5cf-496d-8157-14e52f1e8bd6
-#=╠═╡
 snaps_store_act.vy[1] |> size
-  ╠═╡ =#
 
 # ╔═╡ 7833c2b6-52a8-489e-adcf-9f7e5c082515
 @bind tsnap_adj PlutoUI.combine() do Child
@@ -251,9 +211,7 @@ end
 #end
 
 # ╔═╡ feaeef30-f262-4913-bea7-438b50e42e56
-#=╠═╡
-DvyJ=get_Rt_matrix(rec_cartind)*rec_spec1
-  ╠═╡ =#
+DvyJ = get_Rt_matrix(rec_cartind) * rec_spec1
 
 # ╔═╡ 7f204b81-98c1-4a18-9622-6d015fbce8c2
 md"""
@@ -444,19 +402,25 @@ end;
 
 # ╔═╡ 31d742a4-100f-4744-afe5-381b265b6f4c
 function reset_fields!(fields)
-    for k in [:vy, :dvydx, :dvydz, :σyx, :σyz, :dσyxdx, :dσyzdz]
-        fill!(getfield(fields, k), 0.0)
-    end
+    fill!(fields.vy, zero(Float64))
+    fill!(fields.dvydx, zero(Float64))
+    fill!(fields.dvydz, zero(Float64))
+    fill!(fields.σyx, zero(Float64))
+    fill!(fields.σyz, zero(Float64))
+    fill!(fields.dσyxdx, zero(Float64))
+    fill!(fields.dσyzdz, zero(Float64))
+end
+
+# ╔═╡ 6fd7a62a-a5b9-4c06-b7f4-d0a4263eecfd
+function test!(x, y, z, xx, tyy, zz)
+    reset_fields!(y)
 end
 
 # ╔═╡ 15bbf544-34bd-4d38-bac5-0f43b1305df3
 function propagate!(data, fields, pa, medium, ageom, forcing)
     reset_fields!(fields)
-    vy, dvydx, dvydz, σyx, σyz, dσyxdx, dσyzdz = fields
-    (; nx, nz, tarray, tgrid) = pa
-    dt = step(tgrid)
-    nt = length(tgrid)
-
+    (; vy, dvydx, dvydz, σyx, σyz, dσyxdx, dσyzdz) = fields
+    (; nx, nz, tarray, tgrid, dt, nt) = pa
 
     (; μ, ρ, invρ) = medium
 
@@ -464,34 +428,35 @@ function propagate!(data, fields, pa, medium, ageom, forcing)
     (; Rs, Rr) = ageom
 
     # time loop
-    @progress for it = 1:nt
+    # @progress 
+    for it = 1:nt
         Dx!(dvydx, vy)
-        Dz!(dvydz, vy)
+        # # Dz!(dvydz, vy)
 
-        @. σyx = σyx + μ * dvydx * dt
-        @. σyx = σyx * pa.tarray
-        @. σyz = σyz + μ * dvydz * dt
-        @. σyz = σyz * pa.tarray
+        # @. σyx = σyx + μ * dvydx * dt
+        # @. σyx = σyx * pa.tarray
+        # @. σyz = σyz + μ * dvydz * dt
+        # @. σyz = σyz * pa.tarray
 
-        Dx!(dσyxdx, σyx)
-        Dz!(dσyzdz, σyz)
+        # # Dx!(dσyxdx, σyx)
+        # # Dz!(dσyzdz, σyz)
 
-        @. vy = vy + invρ * (dσyxdx + dσyzdz) * dt
+        # @. vy = vy + invρ * (dσyxdx + dσyzdz) * dt
 
-        # need to view vy as a vector for source/recording operations
-        vyv = view(vy, :)
+        # # need to view vy as a vector for source/recording operations
+        # vyv = view(vy, :)
 
-        # add body force
-        f = forcing[it]
-        mul!(vyv, Rs, f, 1.0, 1.0)
+        # # add body force
+        # f = forcing[it]
+        # mul!(vyv, Rs, f, 1.0, 1.0)
 
-        # record data
-        d = data[it]
-        mul!(d, Rr, vyv)
+        # # record data
+        # d = data[it]
+        # mul!(d, Rr, vyv)
 
-        (:vys ∈ keys(fields)) && copyto!(fields.vys[it], vy)
-        (:σyxs ∈ keys(fields)) && copyto!(fields.σyxs[it], σyx)
-        (:σyzs ∈ keys(fields)) && copyto!(fields.σyzs[it], σyz)
+        # (:vys ∈ keys(fields)) && copyto!(fields.vys[it], vy)
+        # (:σyxs ∈ keys(fields)) && copyto!(fields.σyxs[it], σyx)
+        # (:σyzs ∈ keys(fields)) && copyto!(fields.σyzs[it], σyz)
     end
 
     return nothing
@@ -678,7 +643,7 @@ end
 
 # ╔═╡ a120a929-d989-4b88-86af-e735a577db18
 # a NamedTuple for grid-related parameters
-grid_param = (; xgrid, zgrid, tgrid, nx, nz, tarray=get_taper_array(nx, nz, np=np,))
+grid_param = (; xgrid, zgrid, tgrid, dt=step(tgrid), nt=length(tgrid), nx=length(xgrid), nz=length(zgrid), tarray=get_taper_array(nx, nz, np=np,))
 
 # ╔═╡ 62a18fa1-b4d6-4fde-b4a7-09fad6b16a22
 fields_true = initialize_fields(grid_param, nt);
@@ -690,17 +655,17 @@ begin
     propagate!(fields_true, pa, medium_true, source_forcing)
 end;
 
-# ╔═╡ ba4c4fd5-56d0-4004-8858-377139cc3d3c
-dobs = initialize_data(grid_param, ageom)
-
 # ╔═╡ 6ece24cb-adc1-4aea-93c2-cc74167b26f6
 heatmap(cat(dobs..., dims=2))
 
 # ╔═╡ 91be8954-2cf9-45f4-b286-804935ff9f9e
 dobs
 
+# ╔═╡ bc014038-7ea1-45be-b9da-3f9b14397f55
+plot(dobs[rec_obs[1], :], label=nothing)
+
 # ╔═╡ 7b84af8f-939a-47ed-8a0b-5721ce026d79
-propagate!(dobs, fields_true, grid_param, medium_true, ageom, source_forcing)
+@time propagate!(dobs, fields_true, grid_param, medium_true, ageom, source_forcing)
 
 # ╔═╡ af1389bb-b13a-496d-914d-fc99a0b904c9
 fields_forw = initialize_fields(grid_param, nt, snap_store=true);
@@ -717,8 +682,23 @@ begin
     snaps_store_ref = propagate!(fields_forw, pa, initial_medium, source_forcing)
 end;
 
+# ╔═╡ c14a41a4-fb74-4e23-b513-f3bd213f5057
+begin
+    d = get_R_matrix(rec_cartind) * reshape_data(snaps_store_ref.vy)
+    misfit = d - dobs
+end;
+
+# ╔═╡ 479e8710-4b1d-4223-a405-9d0bcde8fded
+plot(d[rec_mod[1], :], label=nothing)
+
+# ╔═╡ 09be9653-6da0-4614-bd2d-7bad8d413f37
+plot(misfit[misfit_rec[1], :])
+
 # ╔═╡ e81c7792-c99f-4473-bbdb-e167a3fb6a88
 @time reset_fields!(fields_forw)
+
+# ╔═╡ 16a794a3-40e4-4763-bca4-3c6ff044766e
+@time Dx!(fields_forw.dvydx, fields_forw.vy)
 
 # ╔═╡ 1ac5f26c-756b-4369-8eb1-8ed36d34a5e7
 dcal = initialize_data(grid_param, ageom)
@@ -727,7 +707,7 @@ dcal = initialize_data(grid_param, ageom)
 @time test!(dcal, fields_forw, grid_param, medium_true, ageom, source_forcing)
 
 # ╔═╡ d30bcb1c-594a-4f3e-98dd-46e3caed3fa3
-propagate!(dcal, fields_forw, grid_param, medium_true, ageom, source_forcing)
+@time propagate!(dcal, fields_forw, grid_param, medium_true, ageom, source_forcing)
 
 # ╔═╡ c34b1a5d-5078-4b8f-94d1-a088cbe5ab3e
 heatmap(get_taper_array(512, 512, tapfact=0.9, np=np), aspect_ratio=:equal)
@@ -765,6 +745,12 @@ we can write
 ```
 Notice that the temporal grid of stress and velocity are staggered. Finally, let's write a function now that leaps by a given number of steps.
 """
+
+# ╔═╡ ba4c4fd5-56d0-4004-8858-377139cc3d3c
+dobs = initialize_data(grid_param, ageom)
+
+# ╔═╡ bcdf20f8-d5ac-4fd9-8fa1-1f8f50e52359
+dobs = get_R_matrix(rec_cartind) * reshape_data(snaps_store_act.vy);
 
 # ╔═╡ 00000000-0000-0000-0000-000000000001
 PLUTO_PROJECT_TOML_CONTENTS = """
@@ -1896,6 +1882,7 @@ version = "1.4.1+0"
 # ╠═aa19e992-2735-4324-8fd7-15eacadf0faa
 # ╟─93090680-2380-412d-9752-df18251c7dbf
 # ╠═e81c7792-c99f-4473-bbdb-e167a3fb6a88
+# ╠═16a794a3-40e4-4763-bca4-3c6ff044766e
 # ╠═15bbf544-34bd-4d38-bac5-0f43b1305df3
 # ╟─9bc38d55-285b-4b83-98d9-d7f9e03405d1
 # ╠═27844886-0b54-4b08-a592-a1a38e4b0be2
