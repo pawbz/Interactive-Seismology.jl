@@ -109,8 +109,10 @@ md"## Time Grid"
 r = min(xgrid[end] - xgrid[1], zgrid[end] - zgrid[1]) * 0.5
 
 # ╔═╡ 45bd4e43-b703-4bbc-8dfa-07bb835e4117
-
 courant_number = 0.2
+
+# ╔═╡ 577930ee-7c59-4c99-ad49-fee383d89706
+# np = 5*
 
 # ╔═╡ cb83dbd1-c423-4b27-b29e-7dc8051f43d5
 md"""
@@ -129,17 +131,6 @@ md"""
 """
 
 
-# ╔═╡ a5cba7a8-bfd2-4a86-84e6-34b7f966321b
-@bind rec_obs PlutoUI.combine() do Child
-    md"""
-    Receiver Number: $(Child(Slider(1:nr , default=2,show_value=true)))
-    """
-end
-
-# ╔═╡ e15cc25c-8880-4f36-bf08-a997a79d78fc
-# plot the observed data ntxnr
-
-
 # ╔═╡ 22b8db91-73a0-46df-87fd-7cf0b66ee37d
 md"""
 ## Reference Medium
@@ -147,33 +138,18 @@ This will also serve as an initial model during inversion.
 """
 
 
-# ╔═╡ 8b3776bd-509b-4232-9737-36c9ae003350
-begin
-    # Physics of medium
-    # Unperturbed
-    μref = ones(nz, nx) * 1e10      # shear modulus
-    ρref = ones(nz, nx) * 2000       # density in kg/m3
-
-end;
-
-# ╔═╡ 53a2069e-eaf9-41d7-b08b-cdd4f85f367b
-begin
-    # initial conditions on vy
-    vy0 = zeros(nz, nx)
-    #vy0 .= [exp(-((x - 0.0)^2 /11) - ((z - 0.0)^2 /1)) for z in zgrid, x in xgrid];
-    nothing
+# ╔═╡ 44c67e33-b9b6-4244-bb1b-3821009bff18
+function gradρ(fields_forw, fields_adj, pa)
+    (; nx, nz, tarray, tgrid, dt, nt) = pa
+    g = zeros(nz, nx)
+    for it in nt - 1
+        v1 = fields_forw.vys[it+1]
+        v2 = fields_forw.vys[it]
+        v3 = fields_adj.vys[nt-it]
+        @. g = g + v1 * v3 #(v2 - v1) *  v3
+    end
+    return g
 end
-
-# ╔═╡ ab04a26d-895c-4409-8725-e3e24bca40aa
-@bind rec_mod PlutoUI.combine() do Child
-    md"""
-    Receiver Number: $(Child(Slider(1:nr , default=2,show_value=true)))
-    """
-end
-
-# ╔═╡ ac33b7b1-d042-48ba-ba31-b303029b820a
-# plot the modelled data 
-
 
 # ╔═╡ c73f69d0-69e6-47f1-97b0-3e81218776e6
 md"""
@@ -186,44 +162,6 @@ md"## Adjoint Simulation"
 
 # ╔═╡ 54242145-429f-4480-8e5b-e3b51e347097
 
-
-# ╔═╡ 97e8f3df-b352-4892-99bb-fa668b3470f7
-# plot d - dobs
-
-# ╔═╡ 25a52452-9f13-4016-9fa1-def69e51e8d5
-@bind misfit_rec PlutoUI.combine() do Child
-    md"""
-    Receiver Number: $(Child(Slider(1:nr , default=2,show_value=true)))
-    """
-end
-
-# ╔═╡ a3a9deea-e2d6-4d58-90d7-5a54be176289
-md"## Adjoint Simulation"
-
-# ╔═╡ 1b6e41ed-75a0-4b12-b390-78538566ce43
-#begin
-#adj_fields = initialize_fields(pa);
-#copyto!(adj_fields.vy, vy0);
-#snaps_store_adj = propagate!(adj_fields, pa, initial_medium, rec_forcing)
-#end;
-
-# ╔═╡ ca037fb0-b5cf-496d-8157-14e52f1e8bd6
-snaps_store_act.vy[1] |> size
-
-# ╔═╡ 7833c2b6-52a8-489e-adcf-9f7e5c082515
-@bind tsnap_adj PlutoUI.combine() do Child
-    md"""
-    Snapshot Number: $(Child(Slider(1:length(snaps_store_adj1.vy), default=length(snaps_store_adj1.vy),show_value=true)))
-    """
-end
-
-# ╔═╡ ee569466-0ced-4818-8fda-a98730fa5a24
-#begin
-#fig3 = myheat(snaps_store_adj.vy[tsnap_adj[1]], L"Adjoint Field $λ_1$")
-#end
-
-# ╔═╡ feaeef30-f262-4913-bea7-438b50e42e56
-DvyJ = get_Rt_matrix(rec_cartind) * rec_spec1
 
 # ╔═╡ 7f204b81-98c1-4a18-9622-6d015fbce8c2
 md"""
@@ -303,15 +241,21 @@ end
 
 # ╔═╡ 1c67cda8-7712-4d5b-a2aa-af47f290f745
 begin
-    # lets add density perturbation
+    # lets add density perturbation (olivine)
     μtrue = ones(nz, nx) .* 82 * 10^9 * 10^3
     ρtrue = ones(nz, nx) .* 3.22 * 10^-3 * 10^15 # density in kg/km3
     ρtrue[120:256, :] .= 5 * 10^-3 * 10^15  # density in kg/km3
     medium_true = bundle_medium(μtrue, ρtrue)
 end;
 
-# ╔═╡ 48bc453f-b1c0-4757-b9d0-d3e10e2a4618
-initial_medium = bundle_medium(μref, ρref)
+# ╔═╡ 8b3776bd-509b-4232-9737-36c9ae003350
+begin
+    # Physics of medium
+    # Unperturbed
+    μref = ones(nz, nx) * 82 * 10^9 * 10^3      # shear modulus in kg / km/s^2
+    ρref = ones(nz, nx) * 3.22 * 10^-3 * 10^15 # density in kg/km3
+    medium_ref = bundle_medium(μref, ρref)
+end;
 
 # ╔═╡ d880f005-381a-4c72-a9a1-ae3eb84a90eb
 vsmean(medium) = mean(sqrt.(medium.μ ./ medium.ρ))
@@ -326,33 +270,17 @@ vsminimum(medium) = minimum(sqrt.(medium.μ ./ medium.ρ))
 begin
     # choose time stepping dt to satisfy Courant condition
     dt = courant_number * step(xgrid) * inv(vsminimum(medium_true))
-    nt = Int(floor(r / (mean(sqrt.(medium_true.μ ./ medium_true.ρ)) * dt)))
+    nt = Int(floor(r / (mean(sqrt.(medium_true.μ ./ medium_true.ρ)) * dt))) * 2
     tgrid = range(0, length=nt, step=dt)
     nothing
 end
-
-# ╔═╡ 9a77180b-0bfa-4401-af30-d95f14e10d2c
-@bind t_forw Slider(range(1,nt),show_value=true)
-
-# ╔═╡ 8b3776bd-509b-4232-9737-36c9ae003350
-begin
-    # Physics of medium
-    # Unperturbed
-    μref = ones(nz, nx) * 82 * 10^9 * 10^3      # shear modulus in kg / km/s^2
-    ρref = ones(nz, nx) *  3.22 * 10^-3 * 10^15 # density in kg/km3
-	initial_medium = bundle_medium(μref, ρref)
-end;
 
 # ╔═╡ 58b862d9-738e-4ba2-bf2b-e195a586a51e
 length(tgrid)
 
 
-# ╔═╡ dde549a0-a655-4fab-8cad-7320ce08495f
-@bind tsnap_forw PlutoUI.combine() do Child
-    md"""
-    Snapshot Number: $(Child(Slider(1:length(tgrid), default=length(tgrid),show_value=true)))
-    """
-end
+# ╔═╡ 9a77180b-0bfa-4401-af30-d95f14e10d2c
+@bind t_forw Slider(range(1, nt), show_value=true)
 
 # ╔═╡ 9714270a-d543-4ad3-9353-76c3bd081791
 vsmaximum(medium) = minimum(sqrt.(medium.μ ./ medium.ρ))
@@ -375,24 +303,12 @@ end;
 # ╔═╡ d39753e2-5986-4394-9293-9e394f2807f0
 ageom = get_ageom(xgrid, zgrid, 1, 10);
 
-# ╔═╡ e7b65566-a79e-4101-9471-3656a92e95e6
-function get_restriction_matrix(xpos, zpos, xgrid, zgrid, transpose_flag=false)
-    l = LinearIndices((length(zgrid), length(xgrid)))
-    @assert length(xpos) == length(zpos)
-    n = length(xpos)
-    N = length(xgrid) * length(zgrid)
-    I = broadcast(zpos, xpos) do z, x
-        iz = argmin(abs.(zgrid .- z))[1]
-        ix = argmin(abs.(xgrid .- x))[1]
-        return l[iz, ix]
-    end
-    J = collect(1:n)
-    V = ones(n)
-    return transpose_flag ? sparse(J, I, V, n, N) : sparse(I, J, V, N, n)
-end
+# ╔═╡ 3839b4f9-111c-43a5-a9d9-00d400e13a1f
+ageom
 
 # ╔═╡ e08bf013-00c7-4870-82d8-19b899e7208d
-function get_restriction_matrix_density(medium, xpos, zpos, xgrid, zgrid, transpose_flag=false)
+# m are the medium properties that will be used 
+function get_restriction_matrix(xpos, zpos, xgrid, zgrid, transpose_flag=false; m=ones(length(zgrid), length(xgrid)))
     l = LinearIndices((length(zgrid), length(xgrid)))
     @assert length(xpos) == length(zpos)
     n = length(xpos)
@@ -402,27 +318,26 @@ function get_restriction_matrix_density(medium, xpos, zpos, xgrid, zgrid, transp
         ix = argmin(abs.(xgrid .- x))[1]
         return l[iz, ix]
     end
-	
     J = collect(1:n)
-    V = medium_true.invρ[I]
+    V = m[I]
     return transpose_flag ? sparse(J, I, V, n, N) : sparse(I, J, V, N, n)
 end
 
 # ╔═╡ dd626606-2a4d-494d-ab74-92753072c773
-function get_forcing_transform(ageom,medium,xgrid,zgrid,medium_flag=false)
-	if medium_flag
-		return (; Rs=get_restriction_matrix_density(medium,ageom.xs, ageom.zs, xgrid, zgrid),
-        Rr=get_restriction_matrix(ageom.xr, ageom.zr, xgrid, zgrid, true), Rr_t=get_restriction_matrix_density(medium,ageom.xr, ageom.zr, xgrid, zgrid))
-	else
-		return (; Rs=get_restriction_matrix_density(medium,ageom.xs, ageom.zs, xgrid, zgrid), Rr=get_restriction_matrix(ageom.xr, ageom.zr, xgrid, zgrid, true))
-	end
+function get_forcing_transform(ageom, medium, xgrid, zgrid, medium_flag=false)
+    if medium_flag
+        return (; Rs=get_restriction_matrix(ageom.xs, ageom.zs, xgrid, zgrid, false, m=medium.invρ),
+            Rr=get_restriction_matrix(ageom.xr, ageom.zr, xgrid, zgrid, true), Rr_t=get_restriction_matrix(ageom.xr, ageom.zr, xgrid, zgrid, false, m=medium.invρ))
+    else
+        return (; Rs=get_restriction_matrix(ageom.xs, ageom.zs, xgrid, zgrid, false, m=medium.invρ), Rr=get_restriction_matrix(ageom.xr, ageom.zr, xgrid, zgrid, true))
+    end
 end;
 
 # ╔═╡ 3fd67421-1c00-4632-8ca4-181dd1656355
-true_forcing_transform = get_forcing_transform(ageom,medium_true,xgrid,zgrid);
+true_forcing_transform = get_forcing_transform(ageom, medium_true, xgrid, zgrid);
 
 # ╔═╡ cfb83df9-1e43-418f-870e-806a57c46407
-ref_forcing_transform = get_forcing_transform(ageom,initial_medium,xgrid,zgrid,true);
+ref_forcing_transform = get_forcing_transform(ageom, medium_ref, xgrid, zgrid, true);
 
 # ╔═╡ 9494e2a6-e2fd-4728-94d4-d68816a00e72
 md"""
@@ -467,25 +382,23 @@ end
 function propagate!(data, fields, pa, medium, forcing_transform_mat, forcing, adj=false)
     reset_fields!(fields)
 
-	f_grid = zeros(nz*nx)
-
     (; vy, dvydx, dvydz, σyx, σyz, dσyxdx, dσyzdz) = fields
     (; nx, nz, tarray, tgrid, dt, nt) = pa
 
 
     (; μ, ρ, invρ) = medium
 
-	if adj
-		(; Rs, Rr, Rr_t) = forcing_transform_mat
-	else
-		(; Rs, Rr) = forcing_transform_mat
-	end
+    if adj
+        (; Rs, Rr, Rr_t) = forcing_transform_mat
+    else
+        (; Rs, Rr) = forcing_transform_mat
+    end
 
     # time loop
-    # @progress 
-    for it = 1:nt
+    # @progress
+    @progress for it = 1:nt
         Dx!(dvydx, vy)
-        # # Dz!(dvydz, vy)
+        Dz!(dvydz, vy)
 
 
         @. σyx = σyx + μ * dvydx * dt
@@ -494,29 +407,25 @@ function propagate!(data, fields, pa, medium, forcing_transform_mat, forcing, ad
         @. σyz = σyz * pa.tarray
 
 
-        # # Dx!(dσyxdx, σyx)
-        # # Dz!(dσyzdz, σyz)
+        Dx!(dσyxdx, σyx)
+        Dz!(dσyzdz, σyz)
 
-        # @. vy = vy + invρ * (dσyxdx + dσyzdz) * dt
+        @. vy = vy + invρ * (dσyxdx + dσyzdz) * dt
 
-        # # need to view vy as a vector for source/recording operations
-        # vyv = view(vy, :)
-
+        # need to view vy as a vector for source/recording operations
+        vyv = view(vy, :)
 
         # add body force
         f = forcing[it]
-		if adj
-			mul!(vyv, Rr_t, f, dt, 1.0)
-		else
-			mul!(vyv, Rs, f, dt, 1.0)
-		end
+        if adj
+            mul!(vyv, Rr_t, f, dt, 1.0)
+        else
+            mul!(vyv, Rs, f, dt, 1.0)
+        end
 
-            # mul!(vyv, Rs, f, 1.0, 1.0)
-
-
-        # # record data
-        # d = data[it]
-        # mul!(d, Rr, vyv)
+        # record data
+        d = data[it]
+        mul!(d, Rr, vyv)
 
         (:vys ∈ keys(fields)) && copyto!(fields.vys[it], vy)
         (:σyxs ∈ keys(fields)) && copyto!(fields.σyxs[it], σyx)
@@ -535,6 +444,11 @@ function initialize_data(grid_param, ageom)
     [zeros(length(ageom.xr)) for t in grid_param.tgrid]
 end
 
+# ╔═╡ 66f9c698-61e3-4b61-aff3-dfc67eb2f6af
+md"""
+## Gradients
+"""
+
 # ╔═╡ fbe44944-499a-4881-94b6-07855d1165aa
 md"""
 ### Plots
@@ -542,13 +456,13 @@ md"""
 
 # ╔═╡ a5cd8e7a-380f-4203-a856-f9e56e04b092
 # plot vs and density heatmaps of a given medium
-function plot_medium(medium,grid)
-	(; μ, ρ) = medium
-	vel = sqrt.(μ./ρ)
+function plot_medium(medium, grid)
+    (; μ, ρ) = medium
+    vel = sqrt.(μ ./ ρ)
 
-	fig1 = heatmap(grid.xgrid,grid.zgrid,ρ*1e-12,c=:seismic,xlabel="Distance (x km)",ylabel="Depth (z km)",title="Density (g/cc)",yflip=true)
-	fig2 = heatmap(grid.xgrid,grid.zgrid,vel,c=:seismic,xlabel="Distance (x km)",ylabel="Depth (z km)",title="Velocity (km/s)",yflip=true)
-	return plot(fig1,fig2,size=(1000,600))
+    fig1 = heatmap(grid.xgrid, grid.zgrid, ρ * 1e-12, c=:seismic, xlabel="Distance (x km)", ylabel="Depth (z km)", title="Density (g/cc)", yflip=true)
+    fig2 = heatmap(grid.xgrid, grid.zgrid, vel, c=:seismic, xlabel="Distance (x km)", ylabel="Depth (z km)", title="Velocity (km/s)", yflip=true)
+    return plot(fig1, fig2, size=(1000, 600))
 end;
 
 # ╔═╡ 43a77919-d880-40c9-95c9-aaa429a65fb7
@@ -649,96 +563,28 @@ end
 
 # ╔═╡ a120a929-d989-4b88-86af-e735a577db18
 # a NamedTuple for grid-related parameters
-grid_param = (; xgrid, zgrid, tgrid, dt=step(tgrid), nt=length(tgrid), nx=length(xgrid), nz=length(zgrid), tarray=get_taper_array(nx, nz, np=np,))
+grid_param = (; xgrid, zgrid, tgrid, dt=step(tgrid), nt=length(tgrid), nx=length(xgrid), nz=length(zgrid), tarray=get_taper_array(nx, nz, np=50,))
 
 # ╔═╡ 55c7f981-96a7-40e9-811f-37334622565b
-plot_medium(medium_true,grid_param)
+plot_medium(medium_true, grid_param)
 
 # ╔═╡ 62a18fa1-b4d6-4fde-b4a7-09fad6b16a22
 fields_true = initialize_fields(grid_param, nt);
 
 # ╔═╡ ba4c4fd5-56d0-4004-8858-377139cc3d3c
-dobs = initialize_data(grid_param, ageom);
-
-# ╔═╡ 897f60b6-fad7-4167-bc5a-f5b48b1f159c
-begin
-    # fields_true = initialize_fields(pa)
-    copyto!(fields_true.vy, vy0)
-    propagate!(fields_true, pa, medium_true, source_forcing)
-end;
-
+dobs = initialize_data(grid_param, ageom)
 
 # ╔═╡ 6ece24cb-adc1-4aea-93c2-cc74167b26f6
-heatmap(tgrid,range(1,ageom.nr),cat(dobs..., dims=2),xlabel="Time(s)",ylabel="Receiver",title="Observed data",legend=:none)
-
-# ╔═╡ bc014038-7ea1-45be-b9da-3f9b14397f55
-plot(dobs[rec_obs[1], :], label=nothing)
+heatmap(tgrid, range(1, ageom.nr), cat(dobs..., dims=2), xlabel="Time(s)", ylabel="Receiver", title="Observed data", legend=:none)
 
 # ╔═╡ 7b84af8f-939a-47ed-8a0b-5721ce026d79
-
 @time propagate!(dobs, fields_true, grid_param, medium_true, true_forcing_transform, source_forcing)
 
-# ╔═╡ 11ca5d78-1434-41ce-9e3b-88ed63474128
-plot_medium(initial_medium,grid_param)
-
-@time propagate!(dobs, fields_true, grid_param, medium_true, ageom, source_forcing)
-
+# ╔═╡ f35e2689-63e0-400e-b8fc-04e6576581e0
+plot_medium(medium_ref, grid_param)
 
 # ╔═╡ af1389bb-b13a-496d-914d-fc99a0b904c9
 fields_forw = initialize_fields(grid_param, nt, snap_store=true);
-
-
-# ╔═╡ 804e23ee-d7bc-4ed9-8b46-ad462442bccc
-dref = initialize_data(grid_param, ageom);
-
-# ╔═╡ f2e77de4-f1a7-4cb8-a6b7-f9db0d807720
-heatmap(tgrid,range(1,ageom.nr),cat(dref..., dims=2),xlabel="Time(s)",ylabel="Receiver",title="Modelled data",legend=:none)
-
-# ╔═╡ 59155ad5-d341-4e16-b7cc-b6a3def51992
-data_error = dref .- dobs;
-
-# ╔═╡ bdd9e0d1-9f99-4957-85fa-ef9e258637d5
-heatmap(tgrid,range(1,ageom.nr),cat(data_error..., dims=2),xlabel="Time(s)",ylabel="Receiver",title="Modelled - Observed",legend=:none)
-
-# ╔═╡ 1b6e41ed-75a0-4b12-b390-78538566ce43
-rec_forcing = reverse(dref - dobs);
-
-# ╔═╡ b075b29b-0be2-467e-9e27-0280fad35520
-@time propagate!(dref, fields_forw, grid_param, initial_medium, ref_forcing_transform, source_forcing)
-
-# ╔═╡ e32d0418-6e18-485b-a6ea-0a982d63e1d2
-fields_adj = initialize_fields(grid_param, nt, snap_store=true);
-
-# ╔═╡ 4e5a992d-303a-431c-a2c2-e5f3214a1da6
-dadj = initialize_data(grid_param, ageom);
-
-# ╔═╡ f129bfac-b0d5-482b-98e5-856c26c0fc3f
-@time propagate!(dadj, fields_adj, grid_param, initial_medium, ref_forcing_transform, rec_forcing, true)
-
-# ╔═╡ d8bf631c-375c-4c54-b674-a724e240b9b2
-begin
-    # fig1 = myheat(snaps_store_ref.vy[tsnap_forw[1]], L"Particle Velocity $v_y$ Reference")
-    seisheat(fields_forw.vys[tsnap_forw[1]], title=L"Particle Velocity $v_y$ Actual")
-    # plot(fig1,fig2)
-end
-
-# ╔═╡ 57653f8f-dff1-41e2-a0b2-89a6f3204a75
-begin
-    snaps_store_ref = propagate!(fields_forw, pa, initial_medium, source_forcing)
-end;
-
-
-# ╔═╡ c14a41a4-fb74-4e23-b513-f3bd213f5057
-begin
-    d = get_R_matrix(rec_cartind) * reshape_data(snaps_store_ref.vy)
-    misfit = d - dobs
-end;
-
-# ╔═╡ 479e8710-4b1d-4223-a405-9d0bcde8fded
-plot(d[rec_mod[1], :], label=nothing)
-
-# ╔═╡ 09be9653-6da0-4614-bd2d-7bad8d413f37
-plot(misfit[misfit_rec[1], :])
 
 # ╔═╡ e81c7792-c99f-4473-bbdb-e167a3fb6a88
 @time reset_fields!(fields_forw)
@@ -746,30 +592,66 @@ plot(misfit[misfit_rec[1], :])
 # ╔═╡ 16a794a3-40e4-4763-bca4-3c6ff044766e
 @time Dx!(fields_forw.dvydx, fields_forw.vy)
 
+# ╔═╡ 804e23ee-d7bc-4ed9-8b46-ad462442bccc
+dref = initialize_data(grid_param, ageom);
+
+# ╔═╡ b6d345b4-5ff1-4615-9ac8-21ea880b043f
+iszero.(dobs - dref)
+
+# ╔═╡ f2e77de4-f1a7-4cb8-a6b7-f9db0d807720
+heatmap(tgrid, range(1, ageom.nr), cat(dref..., dims=2), xlabel="Time(s)", ylabel="Receiver", title="Modelled data", legend=:none)
+
+# ╔═╡ 59155ad5-d341-4e16-b7cc-b6a3def51992
+data_error = dref .- dobs;
+
+# ╔═╡ bdd9e0d1-9f99-4957-85fa-ef9e258637d5
+heatmap(tgrid, range(1, ageom.nr), cat(data_error..., dims=2), xlabel="Time(s)", ylabel="Receiver", title="Modelled - Observed", legend=:none)
+
+# ╔═╡ 1b6e41ed-75a0-4b12-b390-78538566ce43
+rec_forcing = reverse(dref - dobs);
+
+# ╔═╡ b075b29b-0be2-467e-9e27-0280fad35520
+@time propagate!(dref, fields_forw, grid_param, medium_ref, ref_forcing_transform, source_forcing)
+
 # ╔═╡ 1ac5f26c-756b-4369-8eb1-8ed36d34a5e7
 dcal = initialize_data(grid_param, ageom)
 
 # ╔═╡ f1098f54-ebea-48cb-98bf-fd11397f0dd1
 @time test!(dcal, fields_forw, grid_param, medium_true, ageom, source_forcing)
 
-# ╔═╡ d30bcb1c-594a-4f3e-98dd-46e3caed3fa3
-@time propagate!(dcal, fields_forw, grid_param, medium_true, ageom, source_forcing)
+# ╔═╡ e32d0418-6e18-485b-a6ea-0a982d63e1d2
+fields_adj = initialize_fields(grid_param, nt, snap_store=true);
+
+# ╔═╡ 04aa2535-245c-421c-8ff2-44c32e16a236
+g = gradρ(fields_forw, fields_adj, grid_param)
+
+# ╔═╡ 3cecbafe-9e46-4b3e-b49e-9aeb3f060851
+count(abs.(g) .== 0), nx * nz
+
+# ╔═╡ 9eef0a52-f7fa-4bd4-9beb-2afe547a4853
+seisheat(g, clim=(1e-80, 1e-100))
+
+# ╔═╡ 4e5a992d-303a-431c-a2c2-e5f3214a1da6
+dadj = initialize_data(grid_param, ageom);
+
+# ╔═╡ f129bfac-b0d5-482b-98e5-856c26c0fc3f
+@time propagate!(dadj, fields_adj, grid_param, medium_ref, ref_forcing_transform, rec_forcing, true)
 
 # ╔═╡ c34b1a5d-5078-4b8f-94d1-a088cbe5ab3e
-heatmap(xgrid,zgrid,grid_param.tarray,yflip=true)
+heatmap(xgrid, zgrid, grid_param.tarray, yflip=true)
 
 # ╔═╡ b7f4078a-ead0-4d42-8b44-4f471eefc6fc
-function clip_edges(mat,grid_param)
-	dum = mat
-	dum[grid_param.tarray .!= 1] .= NaN
-	return(dum)
+function clip_edges(mat, grid_param)
+    dum = copy(mat)
+    dum[grid_param.tarray.!=1] .= NaN
+    return (dum)
 end;
 
 # ╔═╡ ae2391be-a7c7-4612-a58b-909c6d5eac0d
 begin
-	figv = heatmap(xgrid,zgrid,clip_edges(fields_forw.vys[t_forw[1]],grid_param),yflip=true,xlabel="Distance (x km)", ylabel="Depth (z km)", title="Velocity field",legend=:none)
-	figadj = heatmap(xgrid,zgrid,clip_edges(fields_adj.vys[nt-t_forw[1]+1],grid_param),yflip=true,xlabel="Distance (x km)", ylabel="Depth (z km)", title="Adjoint field",legend=:none)
-	plot(figv,figadj,size=(700,500))
+    figv = heatmap(xgrid, zgrid, clip_edges(fields_forw.vys[t_forw[1]], grid_param), yflip=true, xlabel="Distance (x km)", ylabel="Depth (z km)", title="Velocity field", legend=:none)
+    figadj = heatmap(xgrid, zgrid, clip_edges(fields_adj.vys[nt-t_forw[1]], grid_param), yflip=true, xlabel="Distance (x km)", ylabel="Depth (z km)", title="Adjoint field", legend=:none)
+    plot(figv, figadj, size=(700, 500))
 end
 
 # ╔═╡ 802d9652-7597-43c4-b13a-3c60682d0a69
@@ -806,11 +688,52 @@ we can write
 Notice that the temporal grid of stress and velocity are staggered. Finally, let's write a function now that leaps by a given number of steps.
 """
 
-# ╔═╡ ba4c4fd5-56d0-4004-8858-377139cc3d3c
-dobs = initialize_data(grid_param, ageom)
+# ╔═╡ e15cc25c-8880-4f36-bf08-a997a79d78fc
+# plot the observed data ntxnr
+
+
+# ╔═╡ c14a41a4-fb74-4e23-b513-f3bd213f5057
+# begin
+#     d = get_R_matrix(rec_cartind) * reshape_data(snaps_store_ref.vy)
+#     misfit = d - dobs
+# end;
+
+# ╔═╡ 48bc453f-b1c0-4757-b9d0-d3e10e2a4618
+# medium_ref = bundle_medium(μref, ρref)
+
+# ╔═╡ a5cba7a8-bfd2-4a86-84e6-34b7f966321b
+# @bind rec_obs PlutoUI.combine() do Child
+#     md"""
+#     Receiver Number: $(Child(Slider(1:nr , default=2,show_value=true)))
+#     """
+# end
+
+# ╔═╡ 25a52452-9f13-4016-9fa1-def69e51e8d5
+# @bind misfit_rec PlutoUI.combine() do Child
+#     md"""
+#     Receiver Number: $(Child(Slider(1:nr , default=2,show_value=true)))
+#     """
+# end
+
+# ╔═╡ 897f60b6-fad7-4167-bc5a-f5b48b1f159c
+# begin
+#     # fields_true = initialize_fields(pa)
+#     copyto!(fields_true.vy, vy0)
+#     propagate!(fields_true, pa, medium_true, source_forcing)
+# end;
+
+
+# ╔═╡ 09be9653-6da0-4614-bd2d-7bad8d413f37
+# plot(misfit[misfit_rec[1], :])
+
+# ╔═╡ bc014038-7ea1-45be-b9da-3f9b14397f55
+# plot(dobs[rec_obs[1], :], label=nothing)
+
+# ╔═╡ 97e8f3df-b352-4892-99bb-fa668b3470f7
+# plot d - dobs
 
 # ╔═╡ bcdf20f8-d5ac-4fd9-8fa1-1f8f50e52359
-dobs = get_R_matrix(rec_cartind) * reshape_data(snaps_store_act.vy);
+# dobs = get_R_matrix(rec_cartind) * reshape_data(snaps_store_act.vy);
 
 # ╔═╡ 00000000-0000-0000-0000-000000000001
 PLUTO_PROJECT_TOML_CONTENTS = """
@@ -836,8 +759,9 @@ ProgressLogging = "~0.1.4"
 PLUTO_MANIFEST_TOML_CONTENTS = """
 # This file is machine-generated - editing it directly is not advised
 
-julia_version = "1.7.3"
+julia_version = "1.8.5"
 manifest_format = "2.0"
+project_hash = "dfbed4f959a5021850f10211b42df764c189fbab"
 
 [[deps.AbstractFFTs]]
 deps = ["ChainRulesCore", "LinearAlgebra"]
@@ -859,6 +783,7 @@ version = "3.6.1"
 
 [[deps.ArgTools]]
 uuid = "0dad84c5-d112-42e6-8d28-ef12dabb789f"
+version = "1.1.1"
 
 [[deps.Artifacts]]
 uuid = "56f22d72-fd6d-98f1-02f0-08ddc0907c33"
@@ -923,6 +848,7 @@ version = "4.6.1"
 [[deps.CompilerSupportLibraries_jll]]
 deps = ["Artifacts", "Libdl"]
 uuid = "e66e0078-7015-5450-92f7-15fbd957f2ae"
+version = "1.0.1+0"
 
 [[deps.Contour]]
 deps = ["StaticArrays"]
@@ -963,6 +889,7 @@ version = "0.9.3"
 [[deps.Downloads]]
 deps = ["ArgTools", "FileWatching", "LibCURL", "NetworkOptions"]
 uuid = "f43a241f-c20a-4ad4-852c-f6b1247861c6"
+version = "1.6.0"
 
 [[deps.EarCut_jll]]
 deps = ["Artifacts", "JLLWrappers", "Libdl", "Pkg"]
@@ -1217,10 +1144,12 @@ uuid = "4af54fe1-eca0-43a8-85a7-787d91b784e3"
 [[deps.LibCURL]]
 deps = ["LibCURL_jll", "MozillaCACerts_jll"]
 uuid = "b27032c2-a3e7-50c8-80cd-2d36dbcbfd21"
+version = "0.6.3"
 
 [[deps.LibCURL_jll]]
 deps = ["Artifacts", "LibSSH2_jll", "Libdl", "MbedTLS_jll", "Zlib_jll", "nghttp2_jll"]
 uuid = "deac9b47-8bc7-5906-a0fe-35ac56dc84c0"
+version = "7.84.0+0"
 
 [[deps.LibGit2]]
 deps = ["Base64", "NetworkOptions", "Printf", "SHA"]
@@ -1229,6 +1158,7 @@ uuid = "76f85450-5226-5b5a-8eaa-529ad045b433"
 [[deps.LibSSH2_jll]]
 deps = ["Artifacts", "Libdl", "MbedTLS_jll"]
 uuid = "29816b5a-b9ab-546f-933c-edad1886dfa8"
+version = "1.10.2+0"
 
 [[deps.Libdl]]
 uuid = "8f399da3-3557-5675-b5ff-fb832c97cbdb"
@@ -1324,6 +1254,7 @@ version = "1.1.7"
 [[deps.MbedTLS_jll]]
 deps = ["Artifacts", "Libdl"]
 uuid = "c8ffd9c3-330d-5841-b78e-0817d7145fa1"
+version = "2.28.0+0"
 
 [[deps.Measures]]
 git-tree-sha1 = "c13304c81eec1ed3af7fc20e75fb6b26092a1102"
@@ -1341,6 +1272,7 @@ uuid = "a63ad114-7e13-5084-954f-fe012c677804"
 
 [[deps.MozillaCACerts_jll]]
 uuid = "14a3606d-f60d-562e-9121-12d972cd8159"
+version = "2022.2.1"
 
 [[deps.NaNMath]]
 deps = ["OpenLibm_jll"]
@@ -1350,6 +1282,7 @@ version = "1.0.2"
 
 [[deps.NetworkOptions]]
 uuid = "ca575930-c2e3-43a9-ace4-1e988b2c1908"
+version = "1.2.0"
 
 [[deps.Ogg_jll]]
 deps = ["Artifacts", "JLLWrappers", "Libdl", "Pkg"]
@@ -1360,10 +1293,12 @@ version = "1.3.5+1"
 [[deps.OpenBLAS_jll]]
 deps = ["Artifacts", "CompilerSupportLibraries_jll", "Libdl"]
 uuid = "4536629a-c528-5b80-bd46-f80d51c5b363"
+version = "0.3.20+0"
 
 [[deps.OpenLibm_jll]]
 deps = ["Artifacts", "Libdl"]
 uuid = "05823500-19ac-5b8b-9628-191a04bc5112"
+version = "0.8.1+0"
 
 [[deps.OpenSSL_jll]]
 deps = ["Artifacts", "JLLWrappers", "Libdl", "Pkg"]
@@ -1391,6 +1326,7 @@ version = "1.4.1"
 [[deps.PCRE2_jll]]
 deps = ["Artifacts", "Libdl"]
 uuid = "efcefdf7-47ab-520b-bdef-62a2eaa19f15"
+version = "10.40.0+0"
 
 [[deps.Parsers]]
 deps = ["Dates", "SnoopPrecompile"]
@@ -1407,6 +1343,7 @@ version = "0.40.1+0"
 [[deps.Pkg]]
 deps = ["Artifacts", "Dates", "Downloads", "LibGit2", "Libdl", "Logging", "Markdown", "Printf", "REPL", "Random", "SHA", "Serialization", "TOML", "Tar", "UUIDs", "p7zip_jll"]
 uuid = "44cfe95a-1eb2-52ea-b672-e2afdf69b78f"
+version = "1.8.0"
 
 [[deps.PlotThemes]]
 deps = ["PlotUtils", "Requires", "Statistics"]
@@ -1493,6 +1430,7 @@ version = "1.3.0"
 
 [[deps.SHA]]
 uuid = "ea8e919c-243c-51af-8825-aaa63cd721ce"
+version = "0.7.0"
 
 [[deps.Scratch]]
 deps = ["Dates"]
@@ -1570,6 +1508,7 @@ version = "0.6.15"
 [[deps.TOML]]
 deps = ["Dates"]
 uuid = "fa267f1f-6049-4f14-aa54-33bafae1ed76"
+version = "1.0.0"
 
 [[deps.TableTraits]]
 deps = ["IteratorInterfaceExtensions"]
@@ -1586,6 +1525,7 @@ version = "1.10.1"
 [[deps.Tar]]
 deps = ["ArgTools", "SHA"]
 uuid = "a4e569a6-e804-4fa4-b0f3-eef7a1d5b13e"
+version = "1.10.1"
 
 [[deps.TensorCore]]
 deps = ["LinearAlgebra"]
@@ -1778,6 +1718,7 @@ version = "1.4.0+3"
 [[deps.Zlib_jll]]
 deps = ["Libdl"]
 uuid = "83775a58-1f1d-513f-b197-d71354ab007a"
+version = "1.2.12+3"
 
 [[deps.Zstd_jll]]
 deps = ["Artifacts", "JLLWrappers", "Libdl"]
@@ -1800,6 +1741,7 @@ version = "0.15.1+0"
 [[deps.libblastrampoline_jll]]
 deps = ["Artifacts", "Libdl", "OpenBLAS_jll"]
 uuid = "8e850b90-86db-534c-a0d3-1478176c7d93"
+version = "5.1.1+0"
 
 [[deps.libfdk_aac_jll]]
 deps = ["Artifacts", "JLLWrappers", "Libdl", "Pkg"]
@@ -1822,10 +1764,12 @@ version = "1.3.7+1"
 [[deps.nghttp2_jll]]
 deps = ["Artifacts", "Libdl"]
 uuid = "8e850ede-7688-5339-a07c-302acd2aaf8d"
+version = "1.48.0+0"
 
 [[deps.p7zip_jll]]
 deps = ["Artifacts", "Libdl"]
 uuid = "3f19e933-33d8-53b3-aaab-bd5110c3b7a0"
+version = "17.4.0+0"
 
 [[deps.x264_jll]]
 deps = ["Artifacts", "JLLWrappers", "Libdl", "Pkg"]
@@ -1863,6 +1807,7 @@ version = "1.4.1+0"
 # ╠═b3ee8d6c-652f-4953-9037-4fbdf3c9f2aa
 # ╠═58b862d9-738e-4ba2-bf2b-e195a586a51e
 # ╠═b4085356-62a1-4388-96ae-8b2a8fd7de0f
+# ╠═577930ee-7c59-4c99-ad49-fee383d89706
 # ╠═a120a929-d989-4b88-86af-e735a577db18
 # ╟─cb83dbd1-c423-4b27-b29e-7dc8051f43d5
 # ╠═d39753e2-5986-4394-9293-9e394f2807f0
@@ -1877,9 +1822,10 @@ version = "1.4.1+0"
 # ╠═ba4c4fd5-56d0-4004-8858-377139cc3d3c
 # ╠═7b84af8f-939a-47ed-8a0b-5721ce026d79
 # ╠═6ece24cb-adc1-4aea-93c2-cc74167b26f6
+# ╠═b6d345b4-5ff1-4615-9ac8-21ea880b043f
 # ╟─22b8db91-73a0-46df-87fd-7cf0b66ee37d
 # ╠═8b3776bd-509b-4232-9737-36c9ae003350
-# ╠═11ca5d78-1434-41ce-9e3b-88ed63474128
+# ╠═f35e2689-63e0-400e-b8fc-04e6576581e0
 # ╠═cfb83df9-1e43-418f-870e-806a57c46407
 # ╠═af1389bb-b13a-496d-914d-fc99a0b904c9
 # ╠═804e23ee-d7bc-4ed9-8b46-ad462442bccc
@@ -1887,17 +1833,13 @@ version = "1.4.1+0"
 # ╠═f2e77de4-f1a7-4cb8-a6b7-f9db0d807720
 # ╠═9a77180b-0bfa-4401-af30-d95f14e10d2c
 # ╠═ae2391be-a7c7-4612-a58b-909c6d5eac0d
+# ╠═44c67e33-b9b6-4244-bb1b-3821009bff18
+# ╠═04aa2535-245c-421c-8ff2-44c32e16a236
+# ╠═3cecbafe-9e46-4b3e-b49e-9aeb3f060851
+# ╠═9eef0a52-f7fa-4bd4-9beb-2afe547a4853
 # ╠═1ac5f26c-756b-4369-8eb1-8ed36d34a5e7
 # ╠═6fd7a62a-a5b9-4c06-b7f4-d0a4263eecfd
 # ╠═f1098f54-ebea-48cb-98bf-fd11397f0dd1
-# ╠═d30bcb1c-594a-4f3e-98dd-46e3caed3fa3
-# ╠═dde549a0-a655-4fab-8cad-7320ce08495f
-# ╠═d8bf631c-375c-4c54-b674-a724e240b9b2
-# ╠═53a2069e-eaf9-41d7-b08b-cdd4f85f367b
-# ╠═57653f8f-dff1-41e2-a0b2-89a6f3204a75
-# ╠═ab04a26d-895c-4409-8725-e3e24bca40aa
-# ╠═ac33b7b1-d042-48ba-ba31-b303029b820a
-# ╠═479e8710-4b1d-4223-a405-9d0bcde8fded
 # ╟─c73f69d0-69e6-47f1-97b0-3e81218776e6
 # ╠═59155ad5-d341-4e16-b7cc-b6a3def51992
 # ╠═bdd9e0d1-9f99-4957-85fa-ef9e258637d5
@@ -1907,17 +1849,9 @@ version = "1.4.1+0"
 # ╠═4e5a992d-303a-431c-a2c2-e5f3214a1da6
 # ╠═f129bfac-b0d5-482b-98e5-856c26c0fc3f
 # ╠═54242145-429f-4480-8e5b-e3b51e347097
-# ╠═bcc11013-e185-4b22-b109-6bd4532462d2
-# ╠═ca037fb0-b5cf-496d-8157-14e52f1e8bd6
-# ╠═7833c2b6-52a8-489e-adcf-9f7e5c082515
-# ╠═f1016895-ea41-44c9-aa27-aae921427a8d
-# ╠═ee569466-0ced-4818-8fda-a98730fa5a24
-# ╠═feaeef30-f262-4913-bea7-438b50e42e56
 # ╟─7f204b81-98c1-4a18-9622-6d015fbce8c2
 # ╟─cb18109c-0a33-4b86-9074-8c2b6d789c1a
-# ╟─ebcaf0f0-83ed-436e-938f-9e29c0f3fa38
 # ╟─26cebdf0-84f2-4df8-8fe2-b3ad1844c786
-# ╟─35b8eb3c-0364-44a3-9404-6933c7703ebc
 # ╟─fc49a6d7-a1b1-458a-a9ad-e120282bbabc
 # ╠═c5815f5e-9164-11ec-10e1-691834761dff
 # ╟─6be2f4c2-e9ed-43c2-b66c-ef3176bb9000
@@ -1933,14 +1867,15 @@ version = "1.4.1+0"
 # ╠═9714270a-d543-4ad3-9353-76c3bd081791
 # ╟─e8333b23-53c3-445e-9ca3-6b278359f8ab
 # ╠═9248af7f-dc1a-4bf6-8f3f-304db73fc604
+# ╠═3839b4f9-111c-43a5-a9d9-00d400e13a1f
 # ╠═dd626606-2a4d-494d-ab74-92753072c773
-# ╠═e7b65566-a79e-4101-9471-3656a92e95e6
 # ╠═e08bf013-00c7-4870-82d8-19b899e7208d
 # ╟─9494e2a6-e2fd-4728-94d4-d68816a00e72
 # ╠═9b744e72-07a2-4f8c-b88c-e0b1131794d0
 # ╠═31d742a4-100f-4744-afe5-381b265b6f4c
 # ╟─ab8b1a22-ca7a-409e-832e-8d5d08a29a1e
 # ╠═f4d91971-f806-4c5c-8548-b58a20acfb2c
+# ╟─66f9c698-61e3-4b61-aff3-dfc67eb2f6af
 # ╟─fbe44944-499a-4881-94b6-07855d1165aa
 # ╠═a5cd8e7a-380f-4203-a856-f9e56e04b092
 # ╠═43a77919-d880-40c9-95c9-aaa429a65fb7
@@ -1954,5 +1889,15 @@ version = "1.4.1+0"
 # ╠═c34b1a5d-5078-4b8f-94d1-a088cbe5ab3e
 # ╠═b7f4078a-ead0-4d42-8b44-4f471eefc6fc
 # ╟─802d9652-7597-43c4-b13a-3c60682d0a69
+# ╠═e15cc25c-8880-4f36-bf08-a997a79d78fc
+# ╠═c14a41a4-fb74-4e23-b513-f3bd213f5057
+# ╠═48bc453f-b1c0-4757-b9d0-d3e10e2a4618
+# ╠═a5cba7a8-bfd2-4a86-84e6-34b7f966321b
+# ╠═25a52452-9f13-4016-9fa1-def69e51e8d5
+# ╠═897f60b6-fad7-4167-bc5a-f5b48b1f159c
+# ╠═09be9653-6da0-4614-bd2d-7bad8d413f37
+# ╠═bc014038-7ea1-45be-b9da-3f9b14397f55
+# ╠═97e8f3df-b352-4892-99bb-fa668b3470f7
+# ╠═bcdf20f8-d5ac-4fd9-8fa1-1f8f50e52359
 # ╟─00000000-0000-0000-0000-000000000001
 # ╟─00000000-0000-0000-0000-000000000002
