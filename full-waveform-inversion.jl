@@ -109,6 +109,7 @@ md"## Time Grid"
 r = min(xgrid[end] - xgrid[1], zgrid[end] - zgrid[1]) * 0.5
 
 # ╔═╡ 45bd4e43-b703-4bbc-8dfa-07bb835e4117
+
 courant_number = 0.2
 
 # ╔═╡ cb83dbd1-c423-4b27-b29e-7dc8051f43d5
@@ -127,21 +128,117 @@ md"""
 ## Generate Observed Data
 """
 
+
+# ╔═╡ a5cba7a8-bfd2-4a86-84e6-34b7f966321b
+@bind rec_obs PlutoUI.combine() do Child
+    md"""
+    Receiver Number: $(Child(Slider(1:nr , default=2,show_value=true)))
+    """
+end
+
+# ╔═╡ e15cc25c-8880-4f36-bf08-a997a79d78fc
+# plot the observed data ntxnr
+
+
 # ╔═╡ 22b8db91-73a0-46df-87fd-7cf0b66ee37d
 md"""
 ## Reference Medium
 This will also serve as an initial model during inversion.
 """
 
+
+# ╔═╡ 8b3776bd-509b-4232-9737-36c9ae003350
+begin
+    # Physics of medium
+    # Unperturbed
+    μref = ones(nz, nx) * 1e10      # shear modulus
+    ρref = ones(nz, nx) * 2000       # density in kg/m3
+
+end;
+
+# ╔═╡ 53a2069e-eaf9-41d7-b08b-cdd4f85f367b
+begin
+    # initial conditions on vy
+    vy0 = zeros(nz, nx)
+    #vy0 .= [exp(-((x - 0.0)^2 /11) - ((z - 0.0)^2 /1)) for z in zgrid, x in xgrid];
+    nothing
+end
+
+# ╔═╡ ab04a26d-895c-4409-8725-e3e24bca40aa
+@bind rec_mod PlutoUI.combine() do Child
+    md"""
+    Receiver Number: $(Child(Slider(1:nr , default=2,show_value=true)))
+    """
+end
+
+# ╔═╡ ac33b7b1-d042-48ba-ba31-b303029b820a
+# plot the modelled data 
+
+
 # ╔═╡ c73f69d0-69e6-47f1-97b0-3e81218776e6
 md"""
 ## Data Error
 """
 
+
 # ╔═╡ a3a9deea-e2d6-4d58-90d7-5a54be176289
 md"## Adjoint Simulation"
 
 # ╔═╡ 54242145-429f-4480-8e5b-e3b51e347097
+
+
+# ╔═╡ 97e8f3df-b352-4892-99bb-fa668b3470f7
+# plot d - dobs
+
+# ╔═╡ 25a52452-9f13-4016-9fa1-def69e51e8d5
+@bind misfit_rec PlutoUI.combine() do Child
+    md"""
+    Receiver Number: $(Child(Slider(1:nr , default=2,show_value=true)))
+    """
+end
+
+# ╔═╡ a3a9deea-e2d6-4d58-90d7-5a54be176289
+md"## Adjoint Simulation"
+
+# ╔═╡ 1b6e41ed-75a0-4b12-b390-78538566ce43
+#begin
+#adj_fields = initialize_fields(pa);
+#copyto!(adj_fields.vy, vy0);
+#snaps_store_adj = propagate!(adj_fields, pa, initial_medium, rec_forcing)
+#end;
+
+# ╔═╡ ca037fb0-b5cf-496d-8157-14e52f1e8bd6
+snaps_store_act.vy[1] |> size
+
+# ╔═╡ 7833c2b6-52a8-489e-adcf-9f7e5c082515
+@bind tsnap_adj PlutoUI.combine() do Child
+    md"""
+    Snapshot Number: $(Child(Slider(1:length(snaps_store_adj1.vy), default=length(snaps_store_adj1.vy),show_value=true)))
+    """
+end
+
+# ╔═╡ ee569466-0ced-4818-8fda-a98730fa5a24
+#begin
+#fig3 = myheat(snaps_store_adj.vy[tsnap_adj[1]], L"Adjoint Field $λ_1$")
+#end
+
+# ╔═╡ feaeef30-f262-4913-bea7-438b50e42e56
+DvyJ = get_Rt_matrix(rec_cartind) * rec_spec1
+
+# ╔═╡ 7f204b81-98c1-4a18-9622-6d015fbce8c2
+md"""
+Let's look at the results by visualizing the propagation of the wavefront and the displacements as a function of time at observer locations of your choice.
+"""
+
+# ╔═╡ cb18109c-0a33-4b86-9074-8c2b6d789c1a
+md"""
+Observer 1
+"""
+
+# ╔═╡ 26cebdf0-84f2-4df8-8fe2-b3ad1844c786
+md"""
+Observer 2
+"""
 
 
 # ╔═╡ fc49a6d7-a1b1-458a-a9ad-e120282bbabc
@@ -213,10 +310,22 @@ begin
     medium_true = bundle_medium(μtrue, ρtrue)
 end;
 
+# ╔═╡ 48bc453f-b1c0-4757-b9d0-d3e10e2a4618
+initial_medium = bundle_medium(μref, ρref)
+
+# ╔═╡ d880f005-381a-4c72-a9a1-ae3eb84a90eb
+vsmean(medium) = mean(sqrt.(medium.μ ./ medium.ρ))
+
+# ╔═╡ 8bc93109-4f3d-43c8-9fed-e30d90e54068
+dx, dz, vsmean(medium_true) / source_fpeak
+
+# ╔═╡ 08b3ef58-605b-4d61-9f53-6a11e1cce302
+vsminimum(medium) = minimum(sqrt.(medium.μ ./ medium.ρ))
+
 # ╔═╡ b4085356-62a1-4388-96ae-8b2a8fd7de0f
 begin
     # choose time stepping dt to satisfy Courant condition
-    dt = courant_number * step(xgrid) * minimum(inv.(sqrt.(medium_true.μ ./ medium_true.ρ)))
+    dt = courant_number * step(xgrid) * inv(vsminimum(medium_true))
     nt = Int(floor(r / (mean(sqrt.(medium_true.μ ./ medium_true.ρ)) * dt)))
     tgrid = range(0, length=nt, step=dt)
     nothing
@@ -234,11 +343,22 @@ begin
 	initial_medium = bundle_medium(μref, ρref)
 end;
 
-# ╔═╡ d880f005-381a-4c72-a9a1-ae3eb84a90eb
-vsmean(medium) = mean(sqrt.(medium.μ ./ medium.ρ))
+# ╔═╡ 58b862d9-738e-4ba2-bf2b-e195a586a51e
+length(tgrid)
 
-# ╔═╡ 8bc93109-4f3d-43c8-9fed-e30d90e54068
-dx, dz, vsmean(medium_true) / source_fpeak
+
+# ╔═╡ dde549a0-a655-4fab-8cad-7320ce08495f
+@bind tsnap_forw PlutoUI.combine() do Child
+    md"""
+    Snapshot Number: $(Child(Slider(1:length(tgrid), default=length(tgrid),show_value=true)))
+    """
+end
+
+# ╔═╡ 9714270a-d543-4ad3-9353-76c3bd081791
+vsmaximum(medium) = minimum(sqrt.(medium.μ ./ medium.ρ))
+
+# ╔═╡ b3ee8d6c-652f-4953-9037-4fbdf3c9f2aa
+vsmaximum(medium_true)
 
 # ╔═╡ e8333b23-53c3-445e-9ca3-6b278359f8ab
 md"### Acquisition"
@@ -329,19 +449,29 @@ end
 
 # ╔═╡ 31d742a4-100f-4744-afe5-381b265b6f4c
 function reset_fields!(fields)
-    for k in [:vy, :dvydx, :dvydz, :σyx, :σyz, :dσyxdx, :dσyzdz]
-        fill!(getfield(fields, k), 0.0)
-    end
+    fill!(fields.vy, zero(Float64))
+    fill!(fields.dvydx, zero(Float64))
+    fill!(fields.dvydz, zero(Float64))
+    fill!(fields.σyx, zero(Float64))
+    fill!(fields.σyz, zero(Float64))
+    fill!(fields.dσyxdx, zero(Float64))
+    fill!(fields.dσyzdz, zero(Float64))
+end
+
+# ╔═╡ 6fd7a62a-a5b9-4c06-b7f4-d0a4263eecfd
+function test!(x, y, z, xx, tyy, zz)
+    reset_fields!(y)
 end
 
 # ╔═╡ 15bbf544-34bd-4d38-bac5-0f43b1305df3
 function propagate!(data, fields, pa, medium, forcing_transform_mat, forcing, adj=false)
     reset_fields!(fields)
-    vy, dvydx, dvydz, σyx, σyz, dσyxdx, dσyzdz = fields
-    (; nx, nz, tarray, tgrid) = pa
-    dt = step(tgrid)
-    nt = length(tgrid)
+
 	f_grid = zeros(nz*nx)
+
+    (; vy, dvydx, dvydz, σyx, σyz, dσyxdx, dσyzdz) = fields
+    (; nx, nz, tarray, tgrid, dt, nt) = pa
+
 
     (; μ, ρ, invρ) = medium
 
@@ -352,22 +482,26 @@ function propagate!(data, fields, pa, medium, forcing_transform_mat, forcing, ad
 	end
 
     # time loop
-    @progress for it = 1:nt
+    # @progress 
+    for it = 1:nt
         Dx!(dvydx, vy)
-        Dz!(dvydz, vy)
+        # # Dz!(dvydz, vy)
+
 
         @. σyx = σyx + μ * dvydx * dt
         @. σyx = σyx * pa.tarray
         @. σyz = σyz + μ * dvydz * dt
         @. σyz = σyz * pa.tarray
 
-        Dx!(dσyxdx, σyx)
-        Dz!(dσyzdz, σyz)
 
-        @. vy = vy + invρ * (dσyxdx + dσyzdz) * dt
+        # # Dx!(dσyxdx, σyx)
+        # # Dz!(dσyzdz, σyz)
 
-        # need to view vy as a vector for source/recording operations
-        vyv = view(vy, :)
+        # @. vy = vy + invρ * (dσyxdx + dσyzdz) * dt
+
+        # # need to view vy as a vector for source/recording operations
+        # vyv = view(vy, :)
+
 
         # add body force
         f = forcing[it]
@@ -377,13 +511,17 @@ function propagate!(data, fields, pa, medium, forcing_transform_mat, forcing, ad
 			mul!(vyv, Rs, f, dt, 1.0)
 		end
 
-        # record data
-        d = data[it]
-        mul!(d, Rr, vyv)
+            # mul!(vyv, Rs, f, 1.0, 1.0)
+
+
+        # # record data
+        # d = data[it]
+        # mul!(d, Rr, vyv)
 
         (:vys ∈ keys(fields)) && copyto!(fields.vys[it], vy)
         (:σyxs ∈ keys(fields)) && copyto!(fields.σyxs[it], σyx)
         (:σyzs ∈ keys(fields)) && copyto!(fields.σyzs[it], σyz)
+
     end
 
     return nothing
@@ -511,7 +649,7 @@ end
 
 # ╔═╡ a120a929-d989-4b88-86af-e735a577db18
 # a NamedTuple for grid-related parameters
-grid_param = (; xgrid, zgrid, tgrid, nx, nz, tarray=get_taper_array(nx, nz, tapfact=0.3,))
+grid_param = (; xgrid, zgrid, tgrid, dt=step(tgrid), nt=length(tgrid), nx=length(xgrid), nz=length(zgrid), tarray=get_taper_array(nx, nz, np=np,))
 
 # ╔═╡ 55c7f981-96a7-40e9-811f-37334622565b
 plot_medium(medium_true,grid_param)
@@ -522,17 +660,33 @@ fields_true = initialize_fields(grid_param, nt);
 # ╔═╡ ba4c4fd5-56d0-4004-8858-377139cc3d3c
 dobs = initialize_data(grid_param, ageom);
 
+# ╔═╡ 897f60b6-fad7-4167-bc5a-f5b48b1f159c
+begin
+    # fields_true = initialize_fields(pa)
+    copyto!(fields_true.vy, vy0)
+    propagate!(fields_true, pa, medium_true, source_forcing)
+end;
+
+
 # ╔═╡ 6ece24cb-adc1-4aea-93c2-cc74167b26f6
 heatmap(tgrid,range(1,ageom.nr),cat(dobs..., dims=2),xlabel="Time(s)",ylabel="Receiver",title="Observed data",legend=:none)
 
+# ╔═╡ bc014038-7ea1-45be-b9da-3f9b14397f55
+plot(dobs[rec_obs[1], :], label=nothing)
+
 # ╔═╡ 7b84af8f-939a-47ed-8a0b-5721ce026d79
+
 @time propagate!(dobs, fields_true, grid_param, medium_true, true_forcing_transform, source_forcing)
 
 # ╔═╡ 11ca5d78-1434-41ce-9e3b-88ed63474128
 plot_medium(initial_medium,grid_param)
 
+@time propagate!(dobs, fields_true, grid_param, medium_true, ageom, source_forcing)
+
+
 # ╔═╡ af1389bb-b13a-496d-914d-fc99a0b904c9
 fields_forw = initialize_fields(grid_param, nt, snap_store=true);
+
 
 # ╔═╡ 804e23ee-d7bc-4ed9-8b46-ad462442bccc
 dref = initialize_data(grid_param, ageom);
@@ -560,6 +714,46 @@ dadj = initialize_data(grid_param, ageom);
 
 # ╔═╡ f129bfac-b0d5-482b-98e5-856c26c0fc3f
 @time propagate!(dadj, fields_adj, grid_param, initial_medium, ref_forcing_transform, rec_forcing, true)
+
+# ╔═╡ d8bf631c-375c-4c54-b674-a724e240b9b2
+begin
+    # fig1 = myheat(snaps_store_ref.vy[tsnap_forw[1]], L"Particle Velocity $v_y$ Reference")
+    seisheat(fields_forw.vys[tsnap_forw[1]], title=L"Particle Velocity $v_y$ Actual")
+    # plot(fig1,fig2)
+end
+
+# ╔═╡ 57653f8f-dff1-41e2-a0b2-89a6f3204a75
+begin
+    snaps_store_ref = propagate!(fields_forw, pa, initial_medium, source_forcing)
+end;
+
+
+# ╔═╡ c14a41a4-fb74-4e23-b513-f3bd213f5057
+begin
+    d = get_R_matrix(rec_cartind) * reshape_data(snaps_store_ref.vy)
+    misfit = d - dobs
+end;
+
+# ╔═╡ 479e8710-4b1d-4223-a405-9d0bcde8fded
+plot(d[rec_mod[1], :], label=nothing)
+
+# ╔═╡ 09be9653-6da0-4614-bd2d-7bad8d413f37
+plot(misfit[misfit_rec[1], :])
+
+# ╔═╡ e81c7792-c99f-4473-bbdb-e167a3fb6a88
+@time reset_fields!(fields_forw)
+
+# ╔═╡ 16a794a3-40e4-4763-bca4-3c6ff044766e
+@time Dx!(fields_forw.dvydx, fields_forw.vy)
+
+# ╔═╡ 1ac5f26c-756b-4369-8eb1-8ed36d34a5e7
+dcal = initialize_data(grid_param, ageom)
+
+# ╔═╡ f1098f54-ebea-48cb-98bf-fd11397f0dd1
+@time test!(dcal, fields_forw, grid_param, medium_true, ageom, source_forcing)
+
+# ╔═╡ d30bcb1c-594a-4f3e-98dd-46e3caed3fa3
+@time propagate!(dcal, fields_forw, grid_param, medium_true, ageom, source_forcing)
 
 # ╔═╡ c34b1a5d-5078-4b8f-94d1-a088cbe5ab3e
 heatmap(xgrid,zgrid,grid_param.tarray,yflip=true)
@@ -611,6 +805,12 @@ we can write
 ```
 Notice that the temporal grid of stress and velocity are staggered. Finally, let's write a function now that leaps by a given number of steps.
 """
+
+# ╔═╡ ba4c4fd5-56d0-4004-8858-377139cc3d3c
+dobs = initialize_data(grid_param, ageom)
+
+# ╔═╡ bcdf20f8-d5ac-4fd9-8fa1-1f8f50e52359
+dobs = get_R_matrix(rec_cartind) * reshape_data(snaps_store_act.vy);
 
 # ╔═╡ 00000000-0000-0000-0000-000000000001
 PLUTO_PROJECT_TOML_CONTENTS = """
@@ -1660,6 +1860,8 @@ version = "1.4.1+0"
 # ╟─5b271e5f-879c-4c43-825a-9660f322febd
 # ╠═a5db1d99-24e5-41d1-a804-c5dd1d6db94c
 # ╠═45bd4e43-b703-4bbc-8dfa-07bb835e4117
+# ╠═b3ee8d6c-652f-4953-9037-4fbdf3c9f2aa
+# ╠═58b862d9-738e-4ba2-bf2b-e195a586a51e
 # ╠═b4085356-62a1-4388-96ae-8b2a8fd7de0f
 # ╠═a120a929-d989-4b88-86af-e735a577db18
 # ╟─cb83dbd1-c423-4b27-b29e-7dc8051f43d5
@@ -1685,6 +1887,17 @@ version = "1.4.1+0"
 # ╠═f2e77de4-f1a7-4cb8-a6b7-f9db0d807720
 # ╠═9a77180b-0bfa-4401-af30-d95f14e10d2c
 # ╠═ae2391be-a7c7-4612-a58b-909c6d5eac0d
+# ╠═1ac5f26c-756b-4369-8eb1-8ed36d34a5e7
+# ╠═6fd7a62a-a5b9-4c06-b7f4-d0a4263eecfd
+# ╠═f1098f54-ebea-48cb-98bf-fd11397f0dd1
+# ╠═d30bcb1c-594a-4f3e-98dd-46e3caed3fa3
+# ╠═dde549a0-a655-4fab-8cad-7320ce08495f
+# ╠═d8bf631c-375c-4c54-b674-a724e240b9b2
+# ╠═53a2069e-eaf9-41d7-b08b-cdd4f85f367b
+# ╠═57653f8f-dff1-41e2-a0b2-89a6f3204a75
+# ╠═ab04a26d-895c-4409-8725-e3e24bca40aa
+# ╠═ac33b7b1-d042-48ba-ba31-b303029b820a
+# ╠═479e8710-4b1d-4223-a405-9d0bcde8fded
 # ╟─c73f69d0-69e6-47f1-97b0-3e81218776e6
 # ╠═59155ad5-d341-4e16-b7cc-b6a3def51992
 # ╠═bdd9e0d1-9f99-4957-85fa-ef9e258637d5
@@ -1694,15 +1907,30 @@ version = "1.4.1+0"
 # ╠═4e5a992d-303a-431c-a2c2-e5f3214a1da6
 # ╠═f129bfac-b0d5-482b-98e5-856c26c0fc3f
 # ╠═54242145-429f-4480-8e5b-e3b51e347097
+# ╠═bcc11013-e185-4b22-b109-6bd4532462d2
+# ╠═ca037fb0-b5cf-496d-8157-14e52f1e8bd6
+# ╠═7833c2b6-52a8-489e-adcf-9f7e5c082515
+# ╠═f1016895-ea41-44c9-aa27-aae921427a8d
+# ╠═ee569466-0ced-4818-8fda-a98730fa5a24
+# ╠═feaeef30-f262-4913-bea7-438b50e42e56
+# ╟─7f204b81-98c1-4a18-9622-6d015fbce8c2
+# ╟─cb18109c-0a33-4b86-9074-8c2b6d789c1a
+# ╟─ebcaf0f0-83ed-436e-938f-9e29c0f3fa38
+# ╟─26cebdf0-84f2-4df8-8fe2-b3ad1844c786
+# ╟─35b8eb3c-0364-44a3-9404-6933c7703ebc
 # ╟─fc49a6d7-a1b1-458a-a9ad-e120282bbabc
 # ╠═c5815f5e-9164-11ec-10e1-691834761dff
 # ╟─6be2f4c2-e9ed-43c2-b66c-ef3176bb9000
 # ╠═aa19e992-2735-4324-8fd7-15eacadf0faa
 # ╟─93090680-2380-412d-9752-df18251c7dbf
+# ╠═e81c7792-c99f-4473-bbdb-e167a3fb6a88
+# ╠═16a794a3-40e4-4763-bca4-3c6ff044766e
 # ╠═15bbf544-34bd-4d38-bac5-0f43b1305df3
 # ╟─9bc38d55-285b-4b83-98d9-d7f9e03405d1
 # ╠═27844886-0b54-4b08-a592-a1a38e4b0be2
 # ╠═d880f005-381a-4c72-a9a1-ae3eb84a90eb
+# ╠═08b3ef58-605b-4d61-9f53-6a11e1cce302
+# ╠═9714270a-d543-4ad3-9353-76c3bd081791
 # ╟─e8333b23-53c3-445e-9ca3-6b278359f8ab
 # ╠═9248af7f-dc1a-4bf6-8f3f-304db73fc604
 # ╠═dd626606-2a4d-494d-ab74-92753072c773
