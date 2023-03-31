@@ -142,11 +142,11 @@ This will also serve as an initial model during inversion.
 function gradρ(fields_forw, fields_adj, pa)
     (; nx, nz, tarray, tgrid, dt, nt) = pa
     g = zeros(nz, nx)
-    for it in nt - 1
+    for it in 1:nt-1
         v1 = fields_forw.vys[it+1]
         v2 = fields_forw.vys[it]
         v3 = fields_adj.vys[nt-it]
-        @. g = g + v1 * v3 #(v2 - v1) *  v3
+        @. g = g + (v2 - v1) * v3
     end
     return g
 end
@@ -626,10 +626,10 @@ fields_adj = initialize_fields(grid_param, nt, snap_store=true);
 g = gradρ(fields_forw, fields_adj, grid_param)
 
 # ╔═╡ 3cecbafe-9e46-4b3e-b49e-9aeb3f060851
-count(abs.(g) .== 0), nx * nz
+extrema(g)
 
 # ╔═╡ 9eef0a52-f7fa-4bd4-9beb-2afe547a4853
-seisheat(g, clim=(1e-80, 1e-100))
+seisheat(g, clim=(-1e-48, 1e-48))
 
 # ╔═╡ 4e5a992d-303a-431c-a2c2-e5f3214a1da6
 dadj = initialize_data(grid_param, ageom);
