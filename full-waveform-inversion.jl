@@ -24,7 +24,7 @@ begin
     using Statistics
     using ProgressLogging
     using SparseArrays
-	using DSP
+    using DSP
 end
 
 # ╔═╡ 3c540889-49dc-415c-acbc-3494897b260c
@@ -142,22 +142,6 @@ This will also serve as an initial model during inversion.
 """
 
 
-# ╔═╡ 44c67e33-b9b6-4244-bb1b-3821009bff18
-# ╠═╡ disabled = true
-#=╠═╡
-function gradρ(fields_forw, fields_adj, pa)
-    (; nx, nz, tarray, tgrid, dt, nt) = pa
-    g = zeros(nz, nx)
-    for it in 1:nt-1
-        v1 = fields_forw.vys[it+1]
-        v2 = fields_forw.vys[it]
-        v3 = fields_adj.vys[nt-it]
-        @. g = g + (v2 - v1) * v3
-    end
-    return g
-end
-  ╠═╡ =#
-
 # ╔═╡ 04aa2535-245c-421c-8ff2-44c32e16a236
 #=╠═╡
 g = gradρ(fields_forw, fields_adj, grid_param)
@@ -228,11 +212,11 @@ In the following cell, the derivatives are calculated using the functions `Dx!` 
 # ╔═╡ aa19e992-2735-4324-8fd7-15eacadf0faa
 begin
     Fz = plan_rfft(zeros(nz, nx), (1))
-	Fx = plan_rfft(zeros(nz, nx), (2))
+    Fx = plan_rfft(zeros(nz, nx), (2))
     kx = reshape(collect(rfftfreq(nx, inv(step(xgrid)))), 1, :) * 2 * pi
     kz = reshape(collect(rfftfreq(nz, inv(step(zgrid)))), :, 1) * 2 * pi
     storagex = zero(Fx * zeros(nz, nx))
-	storagez = zero(Fz * zeros(nz, nx))
+    storagez = zero(Fz * zeros(nz, nx))
     fp = (; Fx, Fz, kx, kz, storagex, storagez)
     function Dx!(dPdx, P, fp)
         mul!(fp.storagex, fp.Fx, P)
@@ -464,6 +448,22 @@ end
 md"""
 ### Gradients
 """
+
+# ╔═╡ 44c67e33-b9b6-4244-bb1b-3821009bff18
+# ╠═╡ disabled = true
+#=╠═╡
+function gradρ(fields_forw, fields_adj, pa)
+    (; nx, nz, tarray, tgrid, dt, nt) = pa
+    g = zeros(nz, nx)
+    for it in 1:nt-1
+        v1 = fields_forw.vys[it+1]
+        v2 = fields_forw.vys[it]
+        v3 = fields_adj.vys[nt-it]
+        @. g = g + (v2 - v1) * v3
+    end
+    return g
+end
+  ╠═╡ =#
 
 # ╔═╡ fbe44944-499a-4881-94b6-07855d1165aa
 md"""
@@ -719,11 +719,11 @@ heatmap(xgrid, zgrid, (grid_param.tarray), yflip=true)
 
 # ╔═╡ b7f4078a-ead0-4d42-8b44-4f471eefc6fc
 function clip_edges(m, grid_param)
-	(; xgrid, zgrid) = grid_param
-	I = findall(x->isequal(x, 1), grid_param.tarray)
-	xs = extrema(unique(getindex.(I, 2)))
-	zs =  extrema(unique(getindex.(I, 1)))
-	return xgrid[range(xs...)], zgrid[range(zs...)], m[range(zs...), range(xs...)]
+    (; xgrid, zgrid) = grid_param
+    I = findall(x -> isequal(x, 1), grid_param.tarray)
+    xs = extrema(unique(getindex.(I, 2)))
+    zs = extrema(unique(getindex.(I, 1)))
+    return xgrid[range(xs...)], zgrid[range(zs...)], m[range(zs...), range(xs...)]
 end
 
 # ╔═╡ ae2391be-a7c7-4612-a58b-909c6d5eac0d
@@ -1936,7 +1936,6 @@ version = "1.4.1+0"
 # ╠═804e23ee-d7bc-4ed9-8b46-ad462442bccc
 # ╠═b075b29b-0be2-467e-9e27-0280fad35520
 # ╠═f2e77de4-f1a7-4cb8-a6b7-f9db0d807720
-# ╠═44c67e33-b9b6-4244-bb1b-3821009bff18
 # ╠═04aa2535-245c-421c-8ff2-44c32e16a236
 # ╠═3cecbafe-9e46-4b3e-b49e-9aeb3f060851
 # ╠═9eef0a52-f7fa-4bd4-9beb-2afe547a4853
@@ -1971,7 +1970,8 @@ version = "1.4.1+0"
 # ╠═31d742a4-100f-4744-afe5-381b265b6f4c
 # ╟─ab8b1a22-ca7a-409e-832e-8d5d08a29a1e
 # ╠═f4d91971-f806-4c5c-8548-b58a20acfb2c
-# ╠═66f9c698-61e3-4b61-aff3-dfc67eb2f6af
+# ╟─66f9c698-61e3-4b61-aff3-dfc67eb2f6af
+# ╠═44c67e33-b9b6-4244-bb1b-3821009bff18
 # ╟─fbe44944-499a-4881-94b6-07855d1165aa
 # ╠═a5cd8e7a-380f-4203-a856-f9e56e04b092
 # ╠═0ac22478-42a1-4a5d-b6b4-7d6d12735443
