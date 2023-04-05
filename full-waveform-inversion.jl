@@ -263,12 +263,16 @@ function propagate_gradients(grad, forwfields, adjfields, pa)
 		@. ▽ρ = ▽ρ * pa.tarray
 
 		# for gradμ
+		
 		μ1 = forwfields.dvydx[it]
 		μ2 = adjfields.σyxs[nt-it]
-		@. ▽μ = ▽μ + μ2*μ1
-		@. ▽μ = ▽μ * pa.tarray
-
 		
+		μ3 = forwfields.dvydz[it]
+		μ4 = adjfields.σyzs[nt-it]
+		
+		@. ▽μ = ▽μ + μ2*μ1 + μ3*μ4
+		@. ▽μ = ▽μ * pa.tarray
+	
         (:▽ρs ∈ keys(grad)) && copyto!(grad.▽ρs[it], ▽ρ )
         (:▽μs ∈ keys(grad)) && copyto!(grad.▽μs[it],▽μ)
 
