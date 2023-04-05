@@ -1,5 +1,5 @@
 ### A Pluto.jl notebook ###
-# v0.19.14
+# v0.19.22
 
 using Markdown
 using InteractiveUtils
@@ -91,6 +91,9 @@ v̄a = [va(x, t[1]), va(x, t[2]), va(x, t[3]), va(x, t[4])]
 # ╔═╡ 0c4c03da-82e4-4351-8d6b-a065bcaee045
 @syms Dx(a)
 
+# ╔═╡ b19344d2-d872-4bf5-a75f-1ca481779835
+md"## Lagrangian"
+
 # ╔═╡ fee19d3e-2235-4382-82d6-5a3cb452d317
 L1 = sum(v̄a .* (Dtv̄ .* ρ(x) - Dx.(σ̄) - f̄))
 
@@ -116,6 +119,9 @@ end
 # ╔═╡ 7d7db129-4524-48ec-a9a9-61d7b1ee967d
 # This gives the final condition
 Differential(σ(x, T))(L) |> expand_derivatives
+
+# ╔═╡ be1c590d-d70b-40f1-8370-bc294fb29c09
+md"## Gradients"
 
 # ╔═╡ 7e56d621-a572-4077-83be-d3b002f4e808
 # gradient w.r.t. ρ
@@ -165,7 +171,7 @@ TikzPictures = "~3.4.2"
 PLUTO_MANIFEST_TOML_CONTENTS = """
 # This file is machine-generated - editing it directly is not advised
 
-julia_version = "1.8.2"
+julia_version = "1.8.5"
 manifest_format = "2.0"
 project_hash = "dd13e594d2b8f4581870454a2dfe17b6c69156bb"
 
@@ -286,7 +292,7 @@ version = "4.6.1"
 [[deps.CompilerSupportLibraries_jll]]
 deps = ["Artifacts", "Libdl"]
 uuid = "e66e0078-7015-5450-92f7-15fbd957f2ae"
-version = "0.5.2+0"
+version = "1.0.1+0"
 
 [[deps.CompositeTypes]]
 git-tree-sha1 = "02d2316b7ffceff992f3096ae48c7829a8aa0638"
@@ -1239,6 +1245,7 @@ version = "17.4.0+0"
 # ╠═cc3a1c12-25b9-450a-a23d-8557fe351f83
 # ╠═61d84850-b92b-44d5-b903-5650d2930c0f
 # ╠═0c4c03da-82e4-4351-8d6b-a065bcaee045
+# ╟─b19344d2-d872-4bf5-a75f-1ca481779835
 # ╠═fee19d3e-2235-4382-82d6-5a3cb452d317
 # ╠═55c08fb9-e29d-4500-84e7-46de7979639e
 # ╠═3b8a80a7-4ab5-4b74-9aaa-3603e0ecccb5
@@ -1246,6 +1253,7 @@ version = "17.4.0+0"
 # ╠═6a2bafca-e4cb-4ce9-b322-783c8e10fbfd
 # ╠═2613e6c6-ec09-4574-aecf-bf2a2266bc55
 # ╠═7d7db129-4524-48ec-a9a9-61d7b1ee967d
+# ╟─be1c590d-d70b-40f1-8370-bc294fb29c09
 # ╠═7e56d621-a572-4077-83be-d3b002f4e808
 # ╠═c150327f-b950-4a70-af44-722beee2069c
 # ╠═d0016463-7878-4a54-b25d-0c463ad294ff
