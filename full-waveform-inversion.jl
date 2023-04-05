@@ -139,9 +139,19 @@ This will also serve as an initial model during inversion. Medium without the re
 """
 
 # ╔═╡ 93090680-2380-412d-9752-df18251c7dbf
+# ╔═╡ 8b426c61-4ceb-48e8-844f-439c58c372ec
+
+
+# ╔═╡ eabda261-b4dd-4769-a4ca-8bd42642285d
 md"""
 ### Propagate
 """
+
+# ╔═╡ 3cecbafe-9e46-4b3e-b49e-9aeb3f060851
+# ╠═╡ disabled = true
+#=╠═╡
+extrema(g)
+  ╠═╡ =#
 
 # ╔═╡ c73f69d0-69e6-47f1-97b0-3e81218776e6
 md"""
@@ -587,6 +597,177 @@ function propagate!(data, fields, pa, medium, forcing_transform_mat, forcing, ad
     return nothing
 end
 
+# ╔═╡ ab8b1a22-ca7a-409e-832e-8d5d08a29a1e
+md"### Data"
+
+# ╔═╡ f4d91971-f806-4c5c-8548-b58a20acfb2c
+function initialize_data(grid_param, ageom)
+    [zeros(length(ageom.xr)) for t in grid_param.tgrid]
+end
+
+# ╔═╡ fbe44944-499a-4881-94b6-07855d1165aa
+md"""
+### Plots
+"""
+
+# ╔═╡ a62839d5-837b-4c37-996f-33659c34911c
+md"### UI"
+
+# ╔═╡ 7f797571-055e-4975-9c26-fc968bbc0094
+md"""
+Function to choose the parameters of the true medium. Z-location of the reflector as the well as the density of the medium below the reflector can be chosen.
+"""
+
+# ╔═╡ d7b37c59-e0b3-4e47-86d3-7f1df7400f09
+function choose_param_truemed()
+	return PlutoUI.combine() do Child
+		zloc = [md"""Z location (km) = $(Child("z", Slider(zgrid[floor(Int,0.3*nz):end], default=zgrid[floor(Int,0.5*nz)], show_value=true)))
+		""",]
+
+		dens = [md"""Density (g/cc) = $(Child("ρ", Slider(range(start=4, stop=6, step=0.1), default=5, show_value=true)))
+		""",]
+
+		md"""
+		$(zloc)
+		$(dens)
+		"""
+	end
+end;
+
+# ╔═╡ 65efba3b-16b0-4113-a59e-809365e7bdd6
+@bind param_true_med choose_param_truemed()
+
+# ╔═╡ 1c67cda8-7712-4d5b-a2aa-af47f290f745
+begin
+    # lets add density perturbation (olivine)
+    μtrue = ones(nz, nx) .* 82 * 10^9 * 10^3
+    ρtrue = ones(nz, nx) .* 3.22 * 10^-3 * 10^15 # density in kg/km3
+	reflect_index = findall(zgrid .== param_true_med.z)[1]
+    ρtrue[reflect_index:end, :] .= param_true_med.ρ * 10^-3 * 10^15  # density in kg/km3
+    medium_true = bundle_medium(μtrue, ρtrue)
+end;
+
+# ╔═╡ 6a8139c4-12c1-4d18-bd1e-14334290aec1
+#=╠═╡
+begin
+	courant_number = 0.2
+
+	# lets calculate the min distance from the center to the edge of the domain
+	r = min(xgrid[end] - xgrid[1], zgrid[end] - zgrid[1]) * 0.5
+
+	# choose time stepping dt to satisfy Courant condition
+    dt = courant_number * step(xgrid) * inv(get_vs(minimum, medium_true))
+    nt = Int(floor(r / (mean(sqrt.(medium_true.μ ./ medium_true.ρ)) * dt))) * 2
+    tgrid = range(0, length=nt, step=dt)
+    nothing
+end;
+  ╠═╡ =#
+
+# ╔═╡ 43a77919-d880-40c9-95c9-aaa429a65fb7
+#=╠═╡
+begin
+    @userplot MediumHeat
+
+    @recipe function f(h::MediumHeat)
+        grid := true
+        xlabel := "Distance (x)"
+        ylabel := "Depth (z)"
+        title --> "Wavefield"
+        yflip := true
+        c := :thermal
+		aspect_ratio := 1
+        seriestype := :heatmap
+        @series begin
+            h.args
+        end
+    end
+
+	@userplot FieldHeat
+
+    @recipe function f(h::FieldHeat)
+		dmax = maximum(abs, h.args[3])
+        grid := true
+		colorbar := nothing
+        xlabel := "Distance (x)"
+        ylabel := "Depth (z)"
+        title --> "Wavefield"
+		xguidefontsize := 8
+		yguidefontsize := 8
+		titlefontsize := 20
+        yflip := true
+        c := :seismic
+		aspect_ratio := 1
+		clim := iszero(dmax) ? (-1, 1) : (-dmax, dmax)
+		size=(600, 300)
+        seriestype := :heatmap
+        @series begin
+           h.args
+        end
+    end
+
+	@userplot DataHeat
+
+    @recipe function f(h::DataHeat)
+		data = cat(h.args[1]..., dims=2)'
+		dmax = maximum(abs, data)
+        grid := true
+		clim := (-dmax, dmax)
+        xlabel := "Receiver #"
+        ylabel := "Time (s)"
+        title --> "Wavefield"
+		legend := :none
+        yflip := true
+        c := :seismic
+		aspect_ratio := 2
+		size := (300,450)
+        seriestype := :heatmap
+        @series begin
+            1:length(h.args[1][1]), tgrid, cat(h.args[1]..., dims=2)'
+        end
+    end
+end
+  ╠═╡ =#
+
+# ╔═╡ a5cd8e7a-380f-4203-a856-f9e56e04b092
+#=╠═╡
+# plot vs and density heatmaps of a given medium
+function plot_medium(medium, grid)
+    (; μ, ρ) = medium
+    vel = sqrt.(μ ./ ρ)
+
+    fig1 = mediumheat(grid.xgrid, grid.zgrid, ρ * 1e-12, title="Density (g/cc)")
+    fig2 = mediumheat(grid.xgrid, grid.zgrid, vel, title="Velocity (km/s)")
+    return plot(fig1, fig2, size=(400, 500), layout=(2,1))
+end;
+  ╠═╡ =#
+
+# ╔═╡ 3fc0e673-2fa3-489f-a56e-a867ea37cbce
+md"""
+Function to choose the number of sources and receivers
+"""
+
+# ╔═╡ 2ea24e92-d66e-4c60-ad0b-f671d894fef2
+function src_rec_ip()
+	return PlutoUI.combine() do Child
+		src = [md"""Number of sources = $(Child("ns", Slider(range(start=1,stop=10,step=1), default=1, show_value=true)))
+		""",]
+
+		rec = [md"""Number of receivers = $(Child("nr", Slider(range(start=5, stop=15, step=1), default=10, show_value=true)))
+		""",]
+
+		md"""
+		$(src)
+		$(rec)
+		"""
+	end
+end;
+
+# ╔═╡ 86ed93a1-c7b9-4b3a-8cb5-ca4405cff3df
+@bind acq src_rec_ip()
+
+# ╔═╡ d39753e2-5986-4394-9293-9e394f2807f0
+ageom = get_ageom(xgrid, zgrid, acq.ns, acq.nr);
+
 # ╔═╡ f95a08ce-a38d-4b7f-b478-4dbfa607740e
 md"### Wavelets"
 
@@ -717,9 +898,9 @@ begin
 end;
   ╠═╡ =#
 
-# ╔═╡ 3c006cbf-95ae-4a5b-8132-88c87eeb9dca
+# ╔═╡ 4171af00-1d14-45ba-9fd3-a2c30d0b759f
 #=╠═╡
-plot(dataheat(dobs), title="Observed data")
+dobs
   ╠═╡ =#
 
 # ╔═╡ 3be62716-f2d9-434c-a69a-ed272b89c85d
@@ -737,6 +918,16 @@ begin
 end;
   ╠═╡ =#
 
+# ╔═╡ 964395da-e128-4944-8309-733fd6d04d32
+#=╠═╡
+dref
+  ╠═╡ =#
+
+# ╔═╡ 233727e2-b288-4766-aab7-6e851b9dc1c9
+#=╠═╡
+plot(dataheat(dref), title="Modelled data")
+  ╠═╡ =#
+
 # ╔═╡ 59155ad5-d341-4e16-b7cc-b6a3def51992
 #=╠═╡
 data_error = dref .- dobs;
@@ -744,7 +935,7 @@ data_error = dref .- dobs;
 
 # ╔═╡ 270e5d4a-c666-43e7-8c64-02b9fed977e4
 #=╠═╡
-plot(dataheat(data_error), title="Data Error")
+dataheat(data_error)
   ╠═╡ =#
 
 # ╔═╡ 3f5f9d8a-3647-4a16-89ba-bd7a31c01064
@@ -763,11 +954,38 @@ end;
   ╠═╡ =#
 
 # ╔═╡ ae2391be-a7c7-4612-a58b-909c6d5eac0d
+# ╔═╡ ce4fe7c6-0050-4ca9-9fc5-bbc73c96c7cd
 #=╠═╡
 begin
-    figv = fieldheat(clip_edges(fields_forw.vys[t_forw], grid_param)...,  title="Forward Field")
+	# Initialisation of grad
+	fields_grad = initialize_grad(grid_param, grid_param.nt)
+	# Simulation to compute grad 
+	@time propagate_gradients(fields_grad, fields_forw, fields_adj, grid_param)
+end
+  ╠═╡ =#
+
+# ╔═╡ c34b1a5d-5078-4b8f-94d1-a088cbe5ab3e
+#=╠═╡
+heatmap(xgrid, zgrid, (grid_param.tarray), yflip=true)
+  ╠═╡ =#
+
+# ╔═╡ b7f4078a-ead0-4d42-8b44-4f471eefc6fc
+function clip_edges(m, grid_param)
+	(; xgrid, zgrid) = grid_param
+	I = findall(x->isequal(x, 1), grid_param.tarray)
+	xs = extrema(unique(getindex.(I, 2)))
+	zs =  extrema(unique(getindex.(I, 1)))
+	return xgrid[range(xs...)], zgrid[range(zs...)], m[range(zs...), range(xs...)]
+end
+
+# ╔═╡ c3f19ac6-92f5-4db9-abf1-f9725420abb6
+#=╠═╡
+begin
+	figv = fieldheat(clip_edges(fields_forw.vys[t_forw], grid_param)...,  title="Forward Field")
     figadj = fieldheat(clip_edges(fields_adj.vys[nt-t_forw], grid_param)..., title="Adjoint Field")
-    plot(figv, figadj, size=(400, 500), layout=(2,1))
+	figρ = fieldheat(clip_edges(fields_grad.▽ρs[t_forw], grid_param)...,  title="Gradient of ρ")
+	figμ = fieldheat(clip_edges(fields_grad.▽μs[t_forw], grid_param)...,  title="Gradient of μ")
+	 plot( figv, figadj, figρ, figμ, size=(800, 800), layout=4)
 end
   ╠═╡ =#
 
@@ -1871,8 +2089,8 @@ version = "1.4.1+0"
 # ╟─9c32f5bc-f6d1-4048-903a-27224aaa1f40
 # ╟─4adbb7f0-7927-470d-8c00-07d3b3c0cd78
 # ╟─fe821a3c-f528-4773-bcf9-f71513a1eace
-# ╟─9a77180b-0bfa-4401-af30-d95f14e10d2c
-# ╟─ae2391be-a7c7-4612-a58b-909c6d5eac0d
+# ╠═9a77180b-0bfa-4401-af30-d95f14e10d2c
+# ╠═c3f19ac6-92f5-4db9-abf1-f9725420abb6
 # ╟─122c2aa4-baec-4288-ab53-afa1d977c486
 # ╠═7913b296-3010-410d-942f-834a47d599c7
 # ╠═77fa76f3-ffda-4d95-8c12-7ccce6a7e52e
@@ -1898,7 +2116,7 @@ version = "1.4.1+0"
 # ╟─d812711d-d02f-44bb-9e73-accd1623dea1
 # ╟─e233afec-6049-4277-8be9-95687c4589b5
 # ╠═77c9696c-58c5-40bf-acd0-16d5cf877810
-# ╟─3c006cbf-95ae-4a5b-8132-88c87eeb9dca
+# ╠═4171af00-1d14-45ba-9fd3-a2c30d0b759f
 # ╟─22b8db91-73a0-46df-87fd-7cf0b66ee37d
 # ╠═8b3776bd-509b-4232-9737-36c9ae003350
 # ╠═3be62716-f2d9-434c-a69a-ed272b89c85d
