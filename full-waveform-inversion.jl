@@ -34,13 +34,10 @@ TableOfContents()
 md"""
 # Full Waveform Inversion (SH Waves)
 
-Pseudo-spectral methods are used in scientific computing for the solution of partial differential equations. The advantage of these methods is that the evaluation of spatial-derivative operators is considerably faster as we use algorithms such as the [Fast Fourier transform](https://en.wikipedia.org/wiki/Fast_Fourier_transform).
+Seismic full waveform inversion (FWI) is a powerful technique for imaging the Earth's subsurface using seismic waves. However, FWI can be computationally intensive and require a deep understanding of numerical methods and algorithms. This notebook demonstrates how interactivity makes FWI more accessible and intuitive.
+Pseudo-spectral methods are used to solve the 2-D SH stress-velocity system.
+The particle velocity and stress fields are staggered in time and we use a simple explicit time-stepping approach.
 
-The purpose of this notebook is to introduce these methods for solving the seismic-wave equation, specifically, a 2-D SH stress-velocity system. As discussed in the class, the particle velocity and stress fields are staggered in time and we use a simple explicit time-stepping approach.
-We shall assume a 2-D periodic domain and define methods to compute FFT, spatial derivative and iFFT. More efficient pseudo-spectral implementations (especially using GPUs and multiple CPU threads) are in the following packages:
-[Fourier Flows](https://fourierflows.github.io/FourierFlowsDocumentation/stable/),
-[Geophysical Flows](https://github.com/FourierFlows/GeophysicalFlows.jl).
-Importantly, equations are oftentimes time-stepped forward in Fourier space, which is faster, however, we avoid that in this notebook to facilitate storage of snapshots at arbit values of the time.
 
 ##### [Interactive Seismology Notebooks](https://pawbz.github.io/Interactive-Seismology.jl/)
 
@@ -76,11 +73,6 @@ The constitutive equations are:
 ```
 """
 
-
-# ╔═╡ fe821a3c-f528-4773-bcf9-f71513a1eace
-md"""
-Let the density (ρ) and shear modulus (μ) be equal to 1 at all the grid points. Let us also add a density perturbation i.e a high density region in the bottom portion of the grid. We then apply an initial impulsive velocity ($v_y$) that has a 2-D asymmetric gaussian profile. 
-"""
 
 # ╔═╡ 122c2aa4-baec-4288-ab53-afa1d977c486
 md"""## Spatial Grids
@@ -1936,7 +1928,6 @@ version = "1.4.1+0"
 # ╠═3c540889-49dc-415c-acbc-3494897b260c
 # ╟─9c32f5bc-f6d1-4048-903a-27224aaa1f40
 # ╟─4adbb7f0-7927-470d-8c00-07d3b3c0cd78
-# ╟─fe821a3c-f528-4773-bcf9-f71513a1eace
 # ╠═9a77180b-0bfa-4401-af30-d95f14e10d2c
 # ╠═c3f19ac6-92f5-4db9-abf1-f9725420abb6
 # ╟─122c2aa4-baec-4288-ab53-afa1d977c486
