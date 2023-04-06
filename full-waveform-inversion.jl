@@ -298,49 +298,6 @@ function get_restriction_matrix(xpos, zpos, xgrid, zgrid, transpose_flag=false; 
 end
 
 
-# ╔═╡ 44c67e33-b9b6-4244-bb1b-3821009bff18
-#function gradρ(fields_forw, fields_adj, pa)
-#    (; nx, nz, tarray, tgrid, dt, nt) = pa
-#    g = zeros(nz, nx)
-#    for it in 1:nt-1
-#        v1 = fields_forw.vys[it+1]
-#        v2 = fields_forw.vys[it]
-#        v3 = fields_adj.vys[nt-it]
-#        @. g = g + (v2 - v1) * v3
-#    end
-#    return g
-#end
-
-# ╔═╡ 4e1a0d4b-5f25-4b25-8dbb-4069e38dc5c4
-# create a function to compute grad_phi and grad_mu 
-function propagate_gradients(grad, forwfields, adjfields, pa)
-    reset_grad!(grad)
-
-    (; ▽ρ, ▽μ) = grad
-    (; nx, nz, tarray, tgrid, dt, nt) = pa
-
-    @progress for it = 1:nt-1
-		# for gradρ
-        ρ1 = forwfields.vys[it+1]
-        ρ2 = forwfields.vys[it]
-        ρ3 = adjfields.vys[nt-it]
-        @. ▽ρ = ▽ρ + (ρ2 - ρ1)* ρ3
-		@. ▽ρ = ▽ρ * pa.tarray
-
-		# for gradμ
-		
-		μ1 = forwfields.dvydx[it]
-		μ2 = adjfields.σyxs[nt-it]
-		
-		μ3 = forwfields.dvydz[it]
-		μ4 = adjfields.σyzs[nt-it]
-		
-		@. ▽μ = ▽μ + μ2*μ1 + μ3*μ4
-		@. ▽μ = ▽μ * pa.tarray
-	
-        (:▽ρs ∈ keys(grad)) && copyto!(grad.▽ρs[it], ▽ρ )
-        (:▽μs ∈ keys(grad)) && copyto!(grad.▽μs[it],▽μ)
-
 # ╔═╡ ab8b1a22-ca7a-409e-832e-8d5d08a29a1e
 md"### Data"
 
@@ -565,7 +522,8 @@ function initialize_grad(pa, nt, snap_store=true)
     end
 end
 
-# ╔═╡ 7dbf937f-f8ad-44fa-a85f-5ead8eda2f9f
+# ╔═╡ 4e1a0d4b-5f25-4b25-8dbb-4069e38dc5c4
+# create a function to compute grad_phi and grad_mu 
 function propagate_gradients(grad, forwfields, adjfields, pa)
     reset_grad!(grad)
 
@@ -581,17 +539,19 @@ function propagate_gradients(grad, forwfields, adjfields, pa)
 		@. ▽ρ = ▽ρ * pa.tarray
 
 		# for gradμ
+		
 		μ1 = forwfields.dvydx[it]
 		μ2 = adjfields.σyxs[nt-it]
-		@. ▽μ = ▽μ + μ2*μ1
-		@. ▽μ = ▽μ * pa.tarray
-
 		
+		μ3 = forwfields.dvydz[it]
+		μ4 = adjfields.σyzs[nt-it]
+		
+		@. ▽μ = ▽μ + μ2*μ1 + μ3*μ4
+		@. ▽μ = ▽μ * pa.tarray
+	
         (:▽ρs ∈ keys(grad)) && copyto!(grad.▽ρs[it], ▽ρ )
         (:▽μs ∈ keys(grad)) && copyto!(grad.▽μs[it],▽μ)
-
-    end
-    return nothing
+	end
 end
 
 # ╔═╡ f95a08ce-a38d-4b7f-b478-4dbfa607740e
@@ -911,36 +871,6 @@ we can write
 ```
 Notice that the temporal grid of stress and velocity are staggered. Finally, let's write a function now that leaps by a given number of steps.
 """
-
-# ╔═╡ 4e1a0d4b-5f25-4b25-8dbb-4069e38dc5c4
-# create a function to compute grad_phi and grad_mu 
-function propagate_gradients(grad, forwfields, adjfields, pa)
-    reset_grad!(grad)
-
-    (; ▽ρ, ▽μ) = grad
-    (; nx, nz, tarray, tgrid, dt, nt) = pa
-
-    @progress for it = 1:nt-1
-		# for gradρ
-        ρ1 = forwfields.vys[it+1]
-        ρ2 = forwfields.vys[it]
-        ρ3 = adjfields.vys[nt-it]
-        @. ▽ρ = ▽ρ + (ρ2 - ρ1)* ρ3
-		@. ▽ρ = ▽ρ * pa.tarray
-
-		# for gradμ
-		
-		μ1 = forwfields.dvydx[it]
-		μ2 = adjfields.σyxs[nt-it]
-		
-		μ3 = forwfields.dvydz[it]
-		μ4 = adjfields.σyzs[nt-it]
-		
-		@. ▽μ = ▽μ + μ2*μ1 + μ3*μ4
-		@. ▽μ = ▽μ * pa.tarray
-	
-        (:▽ρs ∈ keys(grad)) && copyto!(grad.▽ρs[it], ▽ρ )
-        (:▽μs ∈ keys(grad)) && copyto!(grad.▽μs[it],▽μ)
 
 # ╔═╡ 44c67e33-b9b6-4244-bb1b-3821009bff18
 #function gradρ(fields_forw, fields_adj, pa)
@@ -2090,14 +2020,13 @@ version = "1.4.1+0"
 # ╟─bd8b9a0c-6664-4ba8-9795-0a496e932d85
 # ╠═82116417-7a0e-4363-9b53-2bd5df250f17
 # ╠═7d00ecf7-80ba-4eee-99f6-b03f7b1f6e52
-# ╠═7dbf937f-f8ad-44fa-a85f-5ead8eda2f9f
+# ╠═4e1a0d4b-5f25-4b25-8dbb-4069e38dc5c4
 # ╟─f95a08ce-a38d-4b7f-b478-4dbfa607740e
 # ╟─90953c64-8a87-4065-8c34-d0ead540b728
 # ╠═b993e3e6-8d4e-4de7-aa4b-6a2e3bd12212
 # ╟─fbe44944-499a-4881-94b6-07855d1165aa
 # ╠═43a77919-d880-40c9-95c9-aaa429a65fb7
 # ╟─802d9652-7597-43c4-b13a-3c60682d0a69
-# ╠═4e1a0d4b-5f25-4b25-8dbb-4069e38dc5c4
 # ╠═44c67e33-b9b6-4244-bb1b-3821009bff18
 # ╟─00000000-0000-0000-0000-000000000001
 # ╟─00000000-0000-0000-0000-000000000002
