@@ -912,6 +912,49 @@ we can write
 Notice that the temporal grid of stress and velocity are staggered. Finally, let's write a function now that leaps by a given number of steps.
 """
 
+# ╔═╡ 4e1a0d4b-5f25-4b25-8dbb-4069e38dc5c4
+# create a function to compute grad_phi and grad_mu 
+function propagate_gradients(grad, forwfields, adjfields, pa)
+    reset_grad!(grad)
+
+    (; ▽ρ, ▽μ) = grad
+    (; nx, nz, tarray, tgrid, dt, nt) = pa
+
+    @progress for it = 1:nt-1
+		# for gradρ
+        ρ1 = forwfields.vys[it+1]
+        ρ2 = forwfields.vys[it]
+        ρ3 = adjfields.vys[nt-it]
+        @. ▽ρ = ▽ρ + (ρ2 - ρ1)* ρ3
+		@. ▽ρ = ▽ρ * pa.tarray
+
+		# for gradμ
+		
+		μ1 = forwfields.dvydx[it]
+		μ2 = adjfields.σyxs[nt-it]
+		
+		μ3 = forwfields.dvydz[it]
+		μ4 = adjfields.σyzs[nt-it]
+		
+		@. ▽μ = ▽μ + μ2*μ1 + μ3*μ4
+		@. ▽μ = ▽μ * pa.tarray
+	
+        (:▽ρs ∈ keys(grad)) && copyto!(grad.▽ρs[it], ▽ρ )
+        (:▽μs ∈ keys(grad)) && copyto!(grad.▽μs[it],▽μ)
+
+# ╔═╡ 44c67e33-b9b6-4244-bb1b-3821009bff18
+#function gradρ(fields_forw, fields_adj, pa)
+#    (; nx, nz, tarray, tgrid, dt, nt) = pa
+#    g = zeros(nz, nx)
+#    for it in 1:nt-1
+#        v1 = fields_forw.vys[it+1]
+#        v2 = fields_forw.vys[it]
+#        v3 = fields_adj.vys[nt-it]
+#        @. g = g + (v2 - v1) * v3
+#    end
+#    return g
+#end
+
 # ╔═╡ 00000000-0000-0000-0000-000000000001
 PLUTO_PROJECT_TOML_CONTENTS = """
 [deps]
@@ -2054,5 +2097,7 @@ version = "1.4.1+0"
 # ╟─fbe44944-499a-4881-94b6-07855d1165aa
 # ╠═43a77919-d880-40c9-95c9-aaa429a65fb7
 # ╟─802d9652-7597-43c4-b13a-3c60682d0a69
+# ╠═4e1a0d4b-5f25-4b25-8dbb-4069e38dc5c4
+# ╠═44c67e33-b9b6-4244-bb1b-3821009bff18
 # ╟─00000000-0000-0000-0000-000000000001
 # ╟─00000000-0000-0000-0000-000000000002
