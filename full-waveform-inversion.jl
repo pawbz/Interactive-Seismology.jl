@@ -1,5 +1,5 @@
 ### A Pluto.jl notebook ###
-# v0.19.22
+# v0.19.14
 
 using Markdown
 using InteractiveUtils
@@ -138,18 +138,6 @@ md"""
 This will also serve as an initial model during inversion. Medium without the reflector is considered.
 """
 
-# ╔═╡ 93090680-2380-412d-9752-df18251c7dbf
-# 8b426c61-4ceb-48e8-844f-439c58c372ec
-
-
-<<<<<<< Updated upstream
-=======
-# ╔═╡ eabda261-b4dd-4769-a4ca-8bd42642285d
-md"""
-Let us model the wavefields in the case of this reference medium.
-"""
-
->>>>>>> Stashed changes
 # ╔═╡ c73f69d0-69e6-47f1-97b0-3e81218776e6
 md"""
 ## Data Error
@@ -314,49 +302,6 @@ function get_restriction_matrix(xpos, zpos, xgrid, zgrid, transpose_flag=false; 
 end
 
 
-# ╔═╡ 44c67e33-b9b6-4244-bb1b-3821009bff18
-#function gradρ(fields_forw, fields_adj, pa)
-#    (; nx, nz, tarray, tgrid, dt, nt) = pa
-#    g = zeros(nz, nx)
-#    for it in 1:nt-1
-#        v1 = fields_forw.vys[it+1]
-#        v2 = fields_forw.vys[it]
-#        v3 = fields_adj.vys[nt-it]
-#        @. g = g + (v2 - v1) * v3
-#    end
-#    return g
-#end
-
-# ╔═╡ 4e1a0d4b-5f25-4b25-8dbb-4069e38dc5c4
-# create a function to compute grad_phi and grad_mu 
-function propagate_gradients(grad, forwfields, adjfields, pa)
-    reset_grad!(grad)
-
-    (; ▽ρ, ▽μ) = grad
-    (; nx, nz, tarray, tgrid, dt, nt) = pa
-
-    @progress for it = 1:nt-1
-		# for gradρ
-        ρ1 = forwfields.vys[it+1]
-        ρ2 = forwfields.vys[it]
-        ρ3 = adjfields.vys[nt-it]
-        @. ▽ρ = ▽ρ + (ρ2 - ρ1)* ρ3
-		@. ▽ρ = ▽ρ * pa.tarray
-
-		# for gradμ
-		
-		μ1 = forwfields.dvydx[it]
-		μ2 = adjfields.σyxs[nt-it]
-		
-		μ3 = forwfields.dvydz[it]
-		μ4 = adjfields.σyzs[nt-it]
-		
-		@. ▽μ = ▽μ + μ2*μ1 + μ3*μ4
-		@. ▽μ = ▽μ * pa.tarray
-	
-        (:▽ρs ∈ keys(grad)) && copyto!(grad.▽ρs[it], ▽ρ )
-        (:▽μs ∈ keys(grad)) && copyto!(grad.▽μs[it],▽μ)
-
 # ╔═╡ ab8b1a22-ca7a-409e-832e-8d5d08a29a1e
 md"### Data"
 
@@ -458,11 +403,11 @@ end
 
 # ╔═╡ b7f4078a-ead0-4d42-8b44-4f471eefc6fc
 function clip_edges(m, grid_param)
-    (; xgrid, zgrid) = grid_param
-    I = findall(x -> isequal(x, 1), grid_param.tarray)
-    xs = extrema(unique(getindex.(I, 2)))
-    zs = extrema(unique(getindex.(I, 1)))
-    return xgrid[range(xs...)], zgrid[range(zs...)], m[range(zs...), range(xs...)]
+	(; xgrid, zgrid) = grid_param
+	I = findall(x->isequal(x, 1), grid_param.tarray)
+	xs = extrema(unique(getindex.(I, 2)))
+	zs =  extrema(unique(getindex.(I, 1)))
+	return xgrid[range(xs...)], zgrid[range(zs...)], m[range(zs...), range(xs...)]
 end
 
 # ╔═╡ 9494e2a6-e2fd-4728-94d4-d68816a00e72
@@ -743,7 +688,7 @@ end;
 
 # ╔═╡ 59155ad5-d341-4e16-b7cc-b6a3def51992
 #=╠═╡
-data_error = dref .- dobs;
+data_error = dref .- dobs
   ╠═╡ =#
 
 # ╔═╡ 3f5f9d8a-3647-4a16-89ba-bd7a31c01064
@@ -759,16 +704,6 @@ begin
 	# Simulating the adjoint field
 	propagate!(dadj, fields_adj, grid_param, medium_ref, ref_forcing_transform, rec_forcing, true)
 end;
-  ╠═╡ =#
-
-# ╔═╡ 2df3bd5b-630e-451a-a207-2c3a1719916e
-#=╠═╡
-begin
-	# Initialisation of grad
-	fields_grad = initialize_grad(grid_param, grid_param.nt)
-	# Simulation to compute grad 
-	@time propagate_gradients(fields_grad, fields_forw, fields_adj, grid_param)
-end
   ╠═╡ =#
 
 # ╔═╡ fbe44944-499a-4881-94b6-07855d1165aa
@@ -841,17 +776,6 @@ begin
 end
   ╠═╡ =#
 
-# ╔═╡ c3f19ac6-92f5-4db9-abf1-f9725420abb6
-#=╠═╡
-begin
-	figv = fieldheat(clip_edges(fields_forw.vys[t_forw], grid_param)...,  title="Forward Field")
-    figadj = fieldheat(clip_edges(fields_adj.vys[nt-t_forw], grid_param)..., title="Adjoint Field")
-	figρ = fieldheat(clip_edges(fields_grad.▽ρs[t_forw], grid_param)...,  title="Gradient of ρ")
-	figμ = fieldheat(clip_edges(fields_grad.▽μs[t_forw], grid_param)...,  title="Gradient of μ")
-	 plot( figv, figadj, figρ, figμ, size=(800, 800), layout=4)
-end
-  ╠═╡ =#
-
 # ╔═╡ 15d4b7bf-f1a8-46c9-a15b-f6e2ca4f03c1
 #=╠═╡
 begin
@@ -894,69 +818,6 @@ plot_medium(medium_ref, grid_param)
 plot(dataheat(dref), title="Modelled data")
   ╠═╡ =#
 
-<<<<<<< Updated upstream
-=======
-# ╔═╡ 59155ad5-d341-4e16-b7cc-b6a3def51992
-#=╠═╡
-data_error = dref .- dobs
-  ╠═╡ =#
-
-# ╔═╡ 270e5d4a-c666-43e7-8c64-02b9fed977e4
-#=╠═╡
-dataheat(data_error)
-  ╠═╡ =#
-
-# ╔═╡ 3f5f9d8a-3647-4a16-89ba-bd7a31c01064
-#=╠═╡
-begin
-	# Forcing at receivers due to data error
-	rec_forcing = reverse(data_error)
-
-	# Initialisation of fields and data
-	fields_adj = initialize_fields(grid_param, nt, snap_store=true)
-	dadj = initialize_data(grid_param, ageom)
-
-	# Simulating the adjoint field
-	propagate!(dadj, fields_adj, grid_param, medium_ref, ref_forcing_transform, rec_forcing, true)
-end;
-  ╠═╡ =#
-
-# ╔═╡ ce4fe7c6-0050-4ca9-9fc5-bbc73c96c7cd
-#=╠═╡
-begin
-	# Initialisation of grad
-	fields_grad = initialize_grad(grid_param, grid_param.nt)
-	# Simulation to compute grad 
-	@time propagate_gradients(fields_grad, fields_forw, fields_adj, grid_param)
-end
-  ╠═╡ =#
-
-# ╔═╡ c34b1a5d-5078-4b8f-94d1-a088cbe5ab3e
-#=╠═╡
-heatmap(xgrid, zgrid, (grid_param.tarray), yflip=true)
-  ╠═╡ =#
-
-# ╔═╡ b7f4078a-ead0-4d42-8b44-4f471eefc6fc
-function clip_edges(m, grid_param)
-	(; xgrid, zgrid) = grid_param
-	I = findall(x->isequal(x, 1), grid_param.tarray)
-	xs = extrema(unique(getindex.(I, 2)))
-	zs =  extrema(unique(getindex.(I, 1)))
-	return xgrid[range(xs...)], zgrid[range(zs...)], m[range(zs...), range(xs...)]
-end
-
-# ╔═╡ c3f19ac6-92f5-4db9-abf1-f9725420abb6
-#=╠═╡
-begin
-	figv = fieldheat(clip_edges(fields_forw.vys[t_forw], grid_param)...,  title="Forward Field")
-    figadj = fieldheat(clip_edges(fields_adj.vys[nt-t_forw], grid_param)..., title="Adjoint Field")
-	figρ = fieldheat(clip_edges(fields_grad.▽ρs[t_forw], grid_param)...,  title="Gradient of ρ")
-	figμ = fieldheat(clip_edges(fields_grad.▽μs[t_forw], grid_param)...,  title="Gradient of μ")
-	 plot( figv, figadj, figρ, figμ, size=(800, 800), layout=4)
-end
-  ╠═╡ =#
-
->>>>>>> Stashed changes
 # ╔═╡ 802d9652-7597-43c4-b13a-3c60682d0a69
 md"""
 We now know how to calculate the derivatives using  functions `Dx` and `Dz`. Let's now discretize the time dimension and formulate an explicit time-stepping (leap-frog) scheme and alternatively update the velocity and stress fields. We will start with the velocity field
@@ -991,6 +852,81 @@ we can write
 Notice that the temporal grid of stress and velocity are staggered. Finally, let's write a function now that leaps by a given number of steps.
 """
 
+# ╔═╡ 4e1a0d4b-5f25-4b25-8dbb-4069e38dc5c4
+# create a function to compute grad_phi and grad_mu 
+function propagate_gradients(grad, forwfields, adjfields, pa)
+    reset_grad!(grad)
+
+    (; ▽ρ, ▽μ) = grad
+    (; nx, nz, tarray, tgrid, dt, nt) = pa
+
+    @progress for it = 1:nt-1
+		# for gradρ
+        ρ1 = forwfields.vys[it+1]
+        ρ2 = forwfields.vys[it]
+        ρ3 = adjfields.vys[nt-it]
+        @. ▽ρ = ▽ρ + (ρ2 - ρ1)* ρ3
+		@. ▽ρ = ▽ρ * pa.tarray
+
+		# for gradμ
+		
+		μ1 = forwfields.dvydx[it]
+		μ2 = adjfields.σyxs[nt-it]
+		
+		μ3 = forwfields.dvydz[it]
+		μ4 = adjfields.σyzs[nt-it]
+		
+		@. ▽μ = ▽μ + μ2*μ1 + μ3*μ4
+		@. ▽μ = ▽μ * pa.tarray
+	
+        (:▽ρs ∈ keys(grad)) && copyto!(grad.▽ρs[it], ▽ρ )
+        (:▽μs ∈ keys(grad)) && copyto!(grad.▽μs[it],▽μ)
+
+# ╔═╡ c3f19ac6-92f5-4db9-abf1-f9725420abb6
+#=╠═╡
+begin
+	figv = fieldheat(clip_edges(fields_forw.vys[t_forw], grid_param)...,  title="Forward Field")
+    figadj = fieldheat(clip_edges(fields_adj.vys[nt-t_forw], grid_param)..., title="Adjoint Field")
+	figρ = fieldheat(clip_edges(fields_grad.▽ρs[t_forw], grid_param)...,  title="Gradient of ρ")
+	figμ = fieldheat(clip_edges(fields_grad.▽μs[t_forw], grid_param)...,  title="Gradient of μ")
+	 plot( figv, figadj, figρ, figμ, size=(800, 800), layout=4)
+end
+  ╠═╡ =#
+
+# ╔═╡ 44c67e33-b9b6-4244-bb1b-3821009bff18
+#function gradρ(fields_forw, fields_adj, pa)
+#    (; nx, nz, tarray, tgrid, dt, nt) = pa
+#    g = zeros(nz, nx)
+#    for it in 1:nt-1
+#        v1 = fields_forw.vys[it+1]
+#        v2 = fields_forw.vys[it]
+#        v3 = fields_adj.vys[nt-it]
+#        @. g = g + (v2 - v1) * v3
+#    end
+#    return g
+#end
+
+# ╔═╡ 2df3bd5b-630e-451a-a207-2c3a1719916e
+#=╠═╡
+begin
+	# Initialisation of grad
+	fields_grad = initialize_grad(grid_param, grid_param.nt)
+	# Simulation to compute grad 
+	@time propagate_gradients(fields_grad, fields_forw, fields_adj, grid_param)
+end
+  ╠═╡ =#
+
+# ╔═╡ ce4fe7c6-0050-4ca9-9fc5-bbc73c96c7cd
+# ╠═╡ disabled = true
+#=╠═╡
+begin
+	# Initialisation of grad
+	fields_grad = initialize_grad(grid_param, grid_param.nt)
+	# Simulation to compute grad 
+	@time propagate_gradients(fields_grad, fields_forw, fields_adj, grid_param)
+end
+  ╠═╡ =#
+
 # ╔═╡ 00000000-0000-0000-0000-000000000001
 PLUTO_PROJECT_TOML_CONTENTS = """
 [deps]
@@ -1017,7 +953,7 @@ ProgressLogging = "~0.1.4"
 PLUTO_MANIFEST_TOML_CONTENTS = """
 # This file is machine-generated - editing it directly is not advised
 
-julia_version = "1.8.5"
+julia_version = "1.8.2"
 manifest_format = "2.0"
 project_hash = "28282a7affa772a5029653ace13ff5cba3834397"
 
@@ -1111,7 +1047,7 @@ version = "4.6.1"
 [[deps.CompilerSupportLibraries_jll]]
 deps = ["Artifacts", "Libdl"]
 uuid = "e66e0078-7015-5450-92f7-15fbd957f2ae"
-version = "1.0.1+0"
+version = "0.5.2+0"
 
 [[deps.Contour]]
 git-tree-sha1 = "d05d9e7b7aedff4e5b51a029dced05cfb6125781"
@@ -2083,7 +2019,6 @@ version = "1.4.1+0"
 # ╟─22b8db91-73a0-46df-87fd-7cf0b66ee37d
 # ╠═8b3776bd-509b-4232-9737-36c9ae003350
 # ╠═3be62716-f2d9-434c-a69a-ed272b89c85d
-# ╟─93090680-2380-412d-9752-df18251c7dbf
 # ╠═f35e2689-63e0-400e-b8fc-04e6576581e0
 # ╟─c73f69d0-69e6-47f1-97b0-3e81218776e6
 # ╠═59155ad5-d341-4e16-b7cc-b6a3def51992
@@ -2134,5 +2069,8 @@ version = "1.4.1+0"
 # ╟─fbe44944-499a-4881-94b6-07855d1165aa
 # ╠═43a77919-d880-40c9-95c9-aaa429a65fb7
 # ╟─802d9652-7597-43c4-b13a-3c60682d0a69
+# ╠═4e1a0d4b-5f25-4b25-8dbb-4069e38dc5c4
+# ╠═ce4fe7c6-0050-4ca9-9fc5-bbc73c96c7cd
+# ╠═44c67e33-b9b6-4244-bb1b-3821009bff18
 # ╟─00000000-0000-0000-0000-000000000001
 # ╟─00000000-0000-0000-0000-000000000002
