@@ -135,21 +135,27 @@ md"
 # ╔═╡ fbe84c92-bd71-417f-835c-b8fc9fbcf6c1
 md" ## Forward "
 
+# ╔═╡ b3ae70d6-7b92-4dd3-a12f-222274316430
+md"
+### Back Propogation
+"
+
 # ╔═╡ 0ad9289e-80c0-4542-ae48-c4acb5b6b887
 md" ## Inverse"
 
 # ╔═╡ 6b07012b-0d8e-4429-aadb-323e6438670d
 md" ### Linearized Inversion matrix"
 
-# ╔═╡ b3ae70d6-7b92-4dd3-a12f-222274316430
-md"
-### Back Propogation
-"
-
 # ╔═╡ 1552930f-bb48-46a8-a057-041fd283cede
 md"
 ### Inverse Image
 "
+
+# ╔═╡ 39540810-f3d3-4378-abbc-dab1f6ccf944
+md" ##### Without SVD noise reduction"
+
+# ╔═╡ 3ed9af89-7ddd-4fea-9650-2e330fcfbca5
+md" ##### With SVD noise reduction"
 
 # ╔═╡ 2032f6b2-cde7-47db-ba4d-c8082b0f5916
 md" ###  Scree Plot"
@@ -1963,7 +1969,7 @@ version = "1.4.1+0"
 # ╟─90d57253-3cf5-4ea0-8d2f-f37a6e89e3d2
 # ╠═2228a72d-eb22-4ebf-b339-76746b2811f7
 # ╠═f8c9f94a-91cd-4b97-90e6-4deeca1d47f3
-# ╠═fbe84c92-bd71-417f-835c-b8fc9fbcf6c1
+# ╟─fbe84c92-bd71-417f-835c-b8fc9fbcf6c1
 # ╠═2c3cad56-02b9-4a52-aee4-4a25455e0410
 # ╟─b3ae70d6-7b92-4dd3-a12f-222274316430
 # ╠═86620b6f-2da8-4f4c-abbd-29600762fc99
@@ -1973,8 +1979,10 @@ version = "1.4.1+0"
 # ╟─6b07012b-0d8e-4429-aadb-323e6438670d
 # ╠═1e0b326f-77b0-456d-812b-0d8bd75a45cc
 # ╟─1552930f-bb48-46a8-a057-041fd283cede
+# ╟─3ed9af89-7ddd-4fea-9650-2e330fcfbca5
 # ╠═e60377ab-b266-4057-a136-2f17dcc20929
 # ╠═165d499e-b771-41e3-85c7-c4519b0e8f57
+# ╟─39540810-f3d3-4378-abbc-dab1f6ccf944
 # ╠═db513c54-00f7-42de-9a9f-ae63e33448cb
 # ╠═def96b85-f130-4d6e-b193-88cab8b33616
 # ╠═b99c45f7-0dae-4efe-8a80-7974a6937ce4
