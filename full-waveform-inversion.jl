@@ -142,6 +142,14 @@ This will also serve as an initial model during inversion. Medium without the re
 # 8b426c61-4ceb-48e8-844f-439c58c372ec
 
 
+<<<<<<< Updated upstream
+=======
+# ╔═╡ eabda261-b4dd-4769-a4ca-8bd42642285d
+md"""
+Let us model the wavefields in the case of this reference medium.
+"""
+
+>>>>>>> Stashed changes
 # ╔═╡ c73f69d0-69e6-47f1-97b0-3e81218776e6
 md"""
 ## Data Error
@@ -886,6 +894,69 @@ plot_medium(medium_ref, grid_param)
 plot(dataheat(dref), title="Modelled data")
   ╠═╡ =#
 
+<<<<<<< Updated upstream
+=======
+# ╔═╡ 59155ad5-d341-4e16-b7cc-b6a3def51992
+#=╠═╡
+data_error = dref .- dobs
+  ╠═╡ =#
+
+# ╔═╡ 270e5d4a-c666-43e7-8c64-02b9fed977e4
+#=╠═╡
+dataheat(data_error)
+  ╠═╡ =#
+
+# ╔═╡ 3f5f9d8a-3647-4a16-89ba-bd7a31c01064
+#=╠═╡
+begin
+	# Forcing at receivers due to data error
+	rec_forcing = reverse(data_error)
+
+	# Initialisation of fields and data
+	fields_adj = initialize_fields(grid_param, nt, snap_store=true)
+	dadj = initialize_data(grid_param, ageom)
+
+	# Simulating the adjoint field
+	propagate!(dadj, fields_adj, grid_param, medium_ref, ref_forcing_transform, rec_forcing, true)
+end;
+  ╠═╡ =#
+
+# ╔═╡ ce4fe7c6-0050-4ca9-9fc5-bbc73c96c7cd
+#=╠═╡
+begin
+	# Initialisation of grad
+	fields_grad = initialize_grad(grid_param, grid_param.nt)
+	# Simulation to compute grad 
+	@time propagate_gradients(fields_grad, fields_forw, fields_adj, grid_param)
+end
+  ╠═╡ =#
+
+# ╔═╡ c34b1a5d-5078-4b8f-94d1-a088cbe5ab3e
+#=╠═╡
+heatmap(xgrid, zgrid, (grid_param.tarray), yflip=true)
+  ╠═╡ =#
+
+# ╔═╡ b7f4078a-ead0-4d42-8b44-4f471eefc6fc
+function clip_edges(m, grid_param)
+	(; xgrid, zgrid) = grid_param
+	I = findall(x->isequal(x, 1), grid_param.tarray)
+	xs = extrema(unique(getindex.(I, 2)))
+	zs =  extrema(unique(getindex.(I, 1)))
+	return xgrid[range(xs...)], zgrid[range(zs...)], m[range(zs...), range(xs...)]
+end
+
+# ╔═╡ c3f19ac6-92f5-4db9-abf1-f9725420abb6
+#=╠═╡
+begin
+	figv = fieldheat(clip_edges(fields_forw.vys[t_forw], grid_param)...,  title="Forward Field")
+    figadj = fieldheat(clip_edges(fields_adj.vys[nt-t_forw], grid_param)..., title="Adjoint Field")
+	figρ = fieldheat(clip_edges(fields_grad.▽ρs[t_forw], grid_param)...,  title="Gradient of ρ")
+	figμ = fieldheat(clip_edges(fields_grad.▽μs[t_forw], grid_param)...,  title="Gradient of μ")
+	 plot( figv, figadj, figρ, figμ, size=(800, 800), layout=4)
+end
+  ╠═╡ =#
+
+>>>>>>> Stashed changes
 # ╔═╡ 802d9652-7597-43c4-b13a-3c60682d0a69
 md"""
 We now know how to calculate the derivatives using  functions `Dx` and `Dz`. Let's now discretize the time dimension and formulate an explicit time-stepping (leap-frog) scheme and alternatively update the velocity and stress fields. We will start with the velocity field
