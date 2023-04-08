@@ -1,5 +1,5 @@
 ### A Pluto.jl notebook ###
-# v0.19.22
+# v0.19.23
 
 using Markdown
 using InteractiveUtils
@@ -18,6 +18,7 @@ md"""# Adjoint State Method
 In seismic imaging, the adjoint state method is a numerical method for efficiently computing the gradient of an objective function. 
 The notebook presents a discrete version of the adjoint state formulation involving the seismic wave equation so that it can act as a reference while implementing
 methods for full waveform inversion.
+We focus on the velocity-stress formulation, which is a widely used numerical method for solving wave propagation problems in geophysics. This method involves discretizing the governing equations of motion, such as the wave equation, using finite-difference techniques.
 
 [Interactive Seismology Notebooks](https://pawbz.github.io/Interactive-Seismology.jl/)
 
@@ -27,120 +28,354 @@ Instructor: Pawan Bharadwaj, Indian Institute of Science, Bengaluru, India
 # ╔═╡ 24e8eafe-e040-4173-b705-4ade869791ba
 @variables x z
 
-# ╔═╡ c9324a48-8cb8-45e1-909a-950333048d28
-@variables t[1:4]
+# ╔═╡ ec3bf735-5fff-44e6-8a79-a03d6eb4538f
+md"These commands create three symbolic time variables `t`, and staggered time variables `𝚝`. In this notebook, we will consider three time steps for the leap-frog scheme."
 
-# ╔═╡ 405d6a64-51df-42c6-a4fc-fe4d0a0aecba
-md"Let's now consider four time steps which are staggered in time, compared to $t."
+# ╔═╡ c9324a48-8cb8-45e1-909a-950333048d28
+@variables t[1:3]
 
 # ╔═╡ f479ca51-fd2a-4261-98b2-e281daf49c5b
-@variables t̂[1:4] # subtract half t̂[1] = t[1] - dt/2
+@variables 𝚝[1:3]
+
+# ╔═╡ 35909f2f-3787-4c6a-9e74-f284d5eea635
+md"## Medium
+Created two symbolic variables ρ and μ which can be used to represent the density and shear modulus of the medium as functions of position x."
 
 # ╔═╡ 764b4395-1a02-43b0-bbb9-0189d0d2a9b2
 @syms ρ(x) μ(x)
 
-# ╔═╡ a8bd5aae-552f-42c6-8fc8-92ef5bade2f1
-# objective function
-@syms obj(x)
-
 # ╔═╡ d38130e3-611d-42b2-96b6-a6ca6210308b
 md"## State Variables"
 
+# ╔═╡ b4e9aa30-a16c-4b3a-a7be-c2fcf28f0904
+md"In the velocity-stress formulation, the seismic wavefield is described in terms of two variables: the particle velocity and the stress. The `@syms` macro is used in the `Symbolics.jl` package to declare symbolic variables. In the given code snippet, the @syms macro is used to declare two symbolic variables `v(x, t)` and `σ(x, t)` representing velocity and stress, respectively, as functions of space (`x`) and time (`t`)."
+
 # ╔═╡ 857a5e06-2960-4ed4-826c-6bf3291387f0
-@syms v(x, t) σ(x, t) f(x, t)
+@syms v(x, t) σ(x, t)
 
-# ╔═╡ 0752a991-cada-42f0-a6e9-d7f949aec71f
-J = obj(v(x, t[1])) + obj(v(x, t[2])) + obj(v(x, t[3])) + obj(v(x, t[4]))
+# ╔═╡ 61505a55-fc9e-4077-8365-8e166871b482
+md"The symbol `f` represents the body force density, which is a quantity that describes the force per unit volume acting on a material."
 
-# ╔═╡ 80c1040c-88d2-45b5-89e1-b3cb8d6abaf7
-md"## Adjoint State Variables"
+# ╔═╡ 93ce7686-a297-438f-bfab-9ad1f9e9be10
+@syms f(x, t)
 
-# ╔═╡ 28a345b9-d911-486c-a715-7d32a4ea41e8
-@syms va(x, t) σa(x, t)
+# ╔═╡ 76fd526b-450a-4db1-bf9a-bc7ae59b895c
+md"Create vectors with velocity and stress fields at each time value in 𝚝 and t, respectively. "
+
+# ╔═╡ c0624ec9-1d80-461d-a10a-5ec669814fb5
+V = collect(map(t -> v(x, t), 𝚝)) # velocity
+
+# ╔═╡ 32009437-f2b8-4520-851b-a5929b52d272
+Σ = collect(map(t -> σ(x, t), t)) # stress
+
+# ╔═╡ c0bb57b5-9d62-40b1-9256-648a984dbbae
+md"## Forcing"
 
 # ╔═╡ ebefecd3-9dd2-457e-bf9b-97d4db9e983e
-f̄ = collect(map(t -> f(x, t), t̂))
+F = collect(map(t -> f(x, t), 𝚝))
 
-# ╔═╡ 726011d8-84f1-4972-a977-19400379c9a3
-f̄
+# ╔═╡ 5803bfab-354b-4f48-8864-7f3cb3ac3c08
+md"## State Equations"
 
-# ╔═╡ 3a1811c3-fd17-4e9a-8a3c-3fcc3a9704cf
-v̄ = [0, v(x, t[2]), v(x, t[3]), v(x, t[4])]
+# ╔═╡ bc20a677-5d50-4a80-b466-2b7edd5feac4
+md"### Momentum Equation"
+
+# ╔═╡ 33871626-5b9b-4718-a974-d94d7b048582
+md"""
+This line defines the initial momentum of the system, which is equal to the difference between the initial velocity of the particle v(x, 𝚝[1]) and its velocity at time t=0 (which is zero in this case) multiplied by the density of the medium ρ(x) and then subtracting the force acting on the particle at time t=0 f(0, x). It represents the balance of forces and momentum of the system at the initial time.
+"""
+
+# ╔═╡ e5a37530-a0f2-470d-aada-39eaf3cd6054
+M1 = (v(x, 𝚝[1]) - v(x, 0)) * ρ(x) - f(0, x)
+
+# ╔═╡ 84d8f063-2aad-4d57-9bdf-d44e37f173c7
+md"""
+We will now construct a vector that represents the time derivative of the velocity field. The first few elements can be computed using the `diff()` function applied to the `V` array. The last element is the time derivative of `v(x, t)` evaluated at the final time `𝚃`, which is computed as the difference between `v(x, 𝚃)` and `v(x, last(𝚝))`.
+"""
 
 # ╔═╡ 3d57d1f0-4595-48a0-934c-7bc1d5dc15fc
-@syms T
+@syms 𝚃 # final time
 
 # ╔═╡ 91f58348-d476-4799-ab01-a2b7b89a344c
-Dtv̄ = [0, diff(v̄)...] # lives on t̂
+DₜV = [diff(V)..., v(x, 𝚃) - v(x, last(𝚝))] # 
 
-# ╔═╡ eb0bfd0c-6e49-40b6-892f-898ccdccfe12
-σ̄ = [0, σ(x, t̂[2]), σ(x, t̂[3]), σ(x, t̂[4])]
+# ╔═╡ c959b590-aacf-4504-bb80-bd915acb0b3f
+@syms Dₓ(v) # a function to return spatial derivative (with respect to x)
+
+# ╔═╡ 9242d8be-a259-4a72-bbb7-4958884937c9
+Meqs = vcat(M1, (DₜV .* ρ(x) - Dₓ.(Σ) - F));
+
+# ╔═╡ f54c2aa7-2afb-4806-b932-417e3b4a41e5
+Meqs ~ 0
+
+# ╔═╡ c5e41f1c-a734-4502-a60f-4ec0f9819e89
+md"### Constitutive Relation
+In linear elasticity, for example, the constitutive relation is given by Hooke's law, which states that stress is proportional to strain. First, similar to velocity, we will construct a vector that represents the time derivative of the stress field."
 
 # ╔═╡ de66df57-c6d1-4dba-8e6f-d1d8fd6b59ff
-Dtσ̄ = [diff(σ̄)..., σ(x, T) - σ(x, last(t̂))] # lives on t
+DₜΣ = [σ(x, t[1]) - σ(x, 0), diff(Σ)...] # lives on t
+
+# ╔═╡ b2562463-09d0-40fc-9802-b49e105f946c
+md"This equation states that the time derivative of stress minus the gradient of the stress scaled by the shear modulus is equal to zero. This is a simplified form of the constitutive relation."
+
+# ╔═╡ e73aa232-e0a9-4c7e-b399-6b0dee065a25
+Ceqs = (DₜΣ - μ(x) .* Dₓ.(V));
+
+# ╔═╡ 9678bb33-8e15-49ad-95b8-c8d4ab75f14f
+Ceqs ~ 0
+
+# ╔═╡ 0b2ed009-e636-40d9-bf9c-8d600f3bae75
+md"The leap-frog scheme updates the values of the velocity and stress components at half-integer time steps, staggered in time and space. The first two steps (stress and velocity updates) of this scheme are marked here."
+
+# ╔═╡ 2b9eae49-a32d-4462-b5ff-8282d05a0a57
+md"## Objective Function"
+
+# ╔═╡ e301bd11-efb6-431f-a1fd-45b9a2922350
+md"Variable to define an observed velocity field, which is a function of space and time."
+
+# ╔═╡ 6332d014-79e2-451f-b65c-6a5179b7f85c
+@syms v₀(x, t);
+
+# ╔═╡ 110c5485-51c1-4837-89da-18854267ed7c
+md"This defines a simple quadratic objective function that measures the difference between the model-predicted velocity field v and the observed velocity field v₀. Squaring the difference ensures that all differences are positive and also gives more weight to larger differences. The goal is to minimize this objective function to find the velocity field that best matches the observed data."
+
+# ╔═╡ a8bd5aae-552f-42c6-8fc8-92ef5bade2f1
+obj(v, v₀) = (v - v₀)^2
+
+# ╔═╡ 65cc4d98-7cc8-400e-a41f-0c2cef5bde9e
+md"The final value of the objective function."
+
+# ╔═╡ a6f25519-efdb-4430-a014-6a7ee0360df6
+J = sum(collect(map(t -> obj(v(x, t), v₀(x, t)), 𝚝)))
+
+# ╔═╡ 80c1040c-88d2-45b5-89e1-b3cb8d6abaf7
+md"## Adjoint State Variables
+Adjoint state variables are introduced in the context of optimization problems. In this case, these variables are used to find gradients of an objective function with respect to the parameters mass density and shear modulus."
+
+# ╔═╡ 28a345b9-d911-486c-a715-7d32a4ea41e8
+@syms u(x, t) τ(x, t)
 
 # ╔═╡ d5095bc5-6a00-4e0e-9669-68e21deac773
-v̄a = [va(x, t[1]), va(x, t[2]), va(x, t[3]), va(x, t[4])]
+U = vcat(collect(map(t -> u(x, t), 𝚝)), u(x, 𝚃))  # one u for each of Meqs
 
 # ╔═╡ cc3a1c12-25b9-450a-a23d-8557fe351f83
-σ̄a = [σa(x, t̂[1]), σa(x, t̂[2]), σa(x, t̂[3]), σa(x, t̂[4])]
-
-# ╔═╡ 61d84850-b92b-44d5-b903-5650d2930c0f
-σ̄
-
-# ╔═╡ 0c4c03da-82e4-4351-8d6b-a065bcaee045
-@syms Dx(a)
+T = collect(map(t -> τ(x, t), 𝚝)) # one for each Ceqs
 
 # ╔═╡ b19344d2-d872-4bf5-a75f-1ca481779835
 md"## Lagrangian"
 
+# ╔═╡ e1048e24-e389-4e95-8157-00702f1b41a3
+md"The Lagrangian component, for momentum equations `Meqs`, is given by"
+
 # ╔═╡ fee19d3e-2235-4382-82d6-5a3cb452d317
-L1 = sum(v̄a .* (Dtv̄ .* ρ(x) - Dx.(σ̄) - f̄))
+L₁ = sum(U .* Meqs)
+
+# ╔═╡ 0eb7d977-29fc-4be1-9e2d-16285431dcfb
+md"The function `r_Dₓ_transpose` applies the transpose differential operator rule and returns the sum of the resulting terms after simplification."
+
+# ╔═╡ c2967e07-5d8b-4205-bb8b-add323494d86
+md"The Lagrangian component, for constitutive equations `Ceqs`, is given by"
 
 # ╔═╡ 55c08fb9-e29d-4500-84e7-46de7979639e
-L2 = sum(σ̄a .* (Dtσ̄ - μ(x) .* Dx.(v̄)))
+L₂ = sum(T .* Ceqs)
+
+# ╔═╡ 911c9966-e983-46fd-8ca0-8ca06ab42bf0
+md"Adding all the components of the Lagrangian together gives"
+
+# ╔═╡ 69e15594-1d8e-4ddc-a1da-f968e8b2ee91
+md"This code computes the gradient of the Lagrangian with respect to the  velocity field to obtain adjoint equations."
+
+# ╔═╡ 8d09bb0b-40d9-4d79-89a3-ad0d8679b08c
+md"This code computes the gradient of the Lagrangian with respect to the stress field to obtain adjoint equations."
+
+# ╔═╡ bfd6f8e4-ea3e-4c87-b7f7-eba889e751fd
+md"### Final Condition
+To obtain the final condition, we shall compute the gradient of the Lagrangian with respect to `v(x, 𝚃)`."
+
+# ╔═╡ 09c11c95-a82d-48e0-85ba-6db4a8c03f29
+md"The solution of these adjoint equations is often obtained by using a time-reversed version of the original numerical solver, known as the backpropagation."
+
+# ╔═╡ be1c590d-d70b-40f1-8370-bc294fb29c09
+md"## Parameter Gradients
+Lets compute the gradient of L with respect to ρ and μ."
+
+# ╔═╡ 3b2d5624-d365-4595-b95b-52825bc980d0
+md"## Appendix"
+
+# ╔═╡ 73cec834-0b81-4b93-a00f-4e953d93b5de
+md"This function implements the rule for transposing the spatial differential operator Dₓ in an expression using the adjoint relationship Dₓᵀ = -Dₓ. It takes as input a symbolic expression L that may contain Dₓ operators, and returns the expression with all Dₓ operators transposed using the Dₓᵀ operator."
+
+# ╔═╡ 3f7e7312-236c-4710-a901-fc88e4c5afca
+function r_Dₓ_transpose(L)
+  r1 = @rule (~~z) * Dₓ(~x) * (~~y) => -Dₓ(prod(~~z) * prod(~~y)) * ~x
+  return mapreduce(+, arguments(simplify(L, expand=true))) do l
+    return (r1(l) === nothing) ? l : r1(l)
+  end
+end
+
+# ╔═╡ 934ae935-70ad-439c-933c-2ef8a78ff5b4
+L1 = r_Dₓ_transpose(L₁)
+
+# ╔═╡ 5d69a093-d57d-499c-a5a4-a1248d1811c6
+L2 = r_Dₓ_transpose(L₂)
 
 # ╔═╡ 3b8a80a7-4ab5-4b74-9aaa-3603e0ecccb5
 L = L1 + L2 + J
 
-# ╔═╡ 880446ac-ac5a-4271-a384-91a6e47947ce
-
-
 # ╔═╡ 6a2bafca-e4cb-4ce9-b322-783c8e10fbfd
-broadcast(v̄[2:end]) do v
+∂vL = broadcast(V[1:end]) do v
   Differential(v)(L) |> expand_derivatives
-end
+end;
+
+# ╔═╡ 19dd77e9-4a88-4c06-9129-0c1391068900
+∂vL ~ 0
 
 # ╔═╡ 2613e6c6-ec09-4574-aecf-bf2a2266bc55
-broadcast(σ̄[2:end]) do σ̄1
-  Differential(σ̄1)(L) |> expand_derivatives
-end
+∂σL = broadcast(Σ[1:end]) do σ
+  Differential(σ)(L) |> expand_derivatives
+end;
+
+# ╔═╡ 3bb85c65-89ed-4113-a498-3a0da01be0b1
+∂σL ~ 0
 
 # ╔═╡ 7d7db129-4524-48ec-a9a9-61d7b1ee967d
-# This gives the final condition
-Differential(σ(x, T))(L) |> expand_derivatives
+∂vTL = Differential(v(x, 𝚃))(L) |> expand_derivatives;
 
-# ╔═╡ be1c590d-d70b-40f1-8370-bc294fb29c09
-md"## Gradients"
+# ╔═╡ 90b6fc69-0056-4971-9395-10c601ce4ef4
+∂vTL ~ 0
 
 # ╔═╡ 7e56d621-a572-4077-83be-d3b002f4e808
-# gradient w.r.t. ρ
+# gradient w.r.t. mass density
 Differential(ρ(x))(L) |> expand_derivatives
 
 # ╔═╡ c150327f-b950-4a70-af44-722beee2069c
+# gradient w.r.t. shear modulus
 Differential(μ(x))(L) |> expand_derivatives
 
-# ╔═╡ d0016463-7878-4a54-b25d-0c463ad294ff
-DDx=Differential(x)
+# ╔═╡ 38257847-5ae7-4a5a-a937-22a6729a3640
+md"### Tikz"
 
-# ╔═╡ 68a41f8f-1eb9-4aaa-817a-104d4be20120
-Differential(v(x, t[1]))(Dx(v(x, t[1]))) |> expand_derivatives
+# ╔═╡ 4483493d-cc6b-4e7a-b244-5409f1da013e
+get_field_tikz(v, s, f="f") = L"""
+    \tikzstyle{vertex}=[circle,minimum size=20pt,inner sep=0pt]
 
-# ╔═╡ e5b61b0b-cbd7-4190-ad96-7475582297fb
-Symbolics.derivative(::typeof(Dx), args::NTuple{1,Any}, ::Val{1}) = args[1]
+  \foreach \name/\x in {%$(v)(0)/1, %$(v)(\mathtt{t}_1)/5, %$(v)(\mathtt{t}_2)/9, %$(v)(\mathtt{t}_3)/13, %$(v)(\mathtt{T})/17}
+    \node[vertex,fill=black!25,] (v-\x) at (\x,0) {$\name$};
 
-# ╔═╡ 3b2d5624-d365-4595-b95b-52825bc980d0
-md"## Appendix"
+ \foreach \name/\x in {%$(s)(0)/3, %$(s)(t_1)/7, %$(s)(t_2)/11, %$(s)(t_3)/15}
+    \node[vertex,fill=red!25] (s-\x) at (\x,-1) {$\name$};
+
+ \foreach \name/\x in {%$(f)(0)/3, %$(f)(\mathtt{t}_1)/7, %$(f)(\mathtt{t}_2)/11, %$(f)(\mathtt{t}_3)/15}
+    \node[vertex,fill=blue!25] (f-\x) at (\x,1) {$\name$};
+  """
+
+# ╔═╡ 8e514e64-0172-4b47-974d-efaa8e1f4990
+tikz_default_options = raw"""
+  background rectangle/.style={fill=white}, show background rectangle,
+  """
+
+# ╔═╡ 00199670-40fd-4daa-979f-fb414b116bed
+tikz_preamble = raw"""
+  \usepackage{tikz}
+  \usepackage{tikz}
+  \usetikzlibrary{fit, matrix, shapes.geometric}
+  \tikzset{% use tikzset, not tikzstyle
+      cell/.style={
+          rectangle, rounded corners=5pt, draw,
+      }
+  }
+  \tikzset{% use tikzset, not tikzstyle
+      cellv/.style={
+          rectangle, rounded corners=5pt, draw, rotate=90,
+      }
+  }
+  \usepackage{xifthen}
+  \usetikzlibrary{hobby}
+  \usepackage{pgfplots}
+  \usepackage{fontawesome}
+  \usepackage{bm,amsfonts,amsmath}
+  \usetikzlibrary{backgrounds,pgfplots.groupplots,snakes}
+  \usepgfplotslibrary{patchplots}
+  \pgfplotsset{try min ticks=2}
+  \usepackage{pgfplotstable} 
+  \usetikzlibrary{plotmarks,positioning,spy}
+  \usetikzlibrary{shapes.geometric, arrows, fadings}
+  \usepgfplotslibrary{groupplots, polar}
+  \usepackage[space]{grffile}
+
+  \usetikzlibrary{%
+              decorations.pathreplacing,%
+                  decorations.pathmorphing%
+                  }
+                  \usetikzlibrary{positioning,fit,backgrounds}
+
+
+
+  \usetikzlibrary{shapes,arrows}
+  \usetikzlibrary{decorations.markings}
+  \usetikzlibrary{patterns}
+  \usetikzlibrary{plotmarks}
+  \usetikzlibrary{fit}
+  \usetikzlibrary{intersections}
+  \usepgfplotslibrary{fillbetween}
+
+    \pgfplotsset{
+                axis line style={black!10},
+                    every axis label/.append style ={black!10},
+                    every axis title/.append style ={black!10},
+                        every tick label/.append style={black!10}  
+                          }
+
+  % need for pgfplots
+  \newcommand{\axisz}{0cm}
+  \newcommand{\axisx}{0cm}
+
+  \usetikzlibrary{positioning}
+  \usetikzlibrary{shapes.geometric}
+  \usetikzlibrary{backgrounds}
+  """
+
+# ╔═╡ 5a9e17d9-2552-48fd-b3ad-0a1e50279953
+# t1, t2, t3, tv are texts
+# s1 and s2 are labels with sizes
+plot_state_tikz() = TikzPicture(L"""
+   %$(get_field_tikz("v", L"\sigma", "f"))
+
+
+ \draw[->,thick, red] (s-3) -- (s-7) node[above, midway, red] {1};
+\draw[->,thick, red] (v-5) -- (s-7) node[above, midway, red] {1};
+\draw[->,thick, blue] (s-7) -- (v-9) node[below, midway, blue] {2};
+	\draw[->,thick, blue] (v-5) -- (v-9) node[above, midway, blue] {2};
+
+\node[above right=-2mm of s-3] {=0};
+\node[above right=-2mm of v-1] {=0};
+  """, options=tikz_default_options, preamble=tikz_preamble, width="20cm")
+
+# ╔═╡ 4d71efc9-6bf5-4aa6-8e0f-132814350351
+plot_state_tikz()
+
+# ╔═╡ 21af98b7-712d-4b25-a9fa-41d008f97962
+# t1, t2, t3, tv are texts
+# s1 and s2 are labels with sizes
+plot_adjstate_tikz() = TikzPicture(L"""
+   %$(get_field_tikz("u", L"\tau", "g"))
+
+
+
+
+ \draw[->,thick, red] (s-15) -- (s-11) node[above, midway, red] {1};
+\draw[->,thick, red] (v-13) -- (s-11) node[above, midway, red] {1};
+\draw[->,thick, blue] (s-11) -- (v-9) node[below, midway, blue] {2};
+	\draw[->,thick, blue] (v-13) -- (v-9) node[above, midway, blue] {2};
+
+\node[above right=-2mm of s-15] {=0};
+\node[above right=-2mm of v-17] {=0};
+
+
+  """, options=tikz_default_options, preamble=tikz_preamble, width="20cm")
+
+# ╔═╡ 57ea4b25-0f40-4816-85ba-05669770885b
+plot_adjstate_tikz()
 
 # ╔═╡ f9f5cb83-ab6b-4de2-9ea4-4a4d984f0489
 md"""## References
@@ -1224,43 +1459,83 @@ version = "17.4.0+0"
 # ╠═69e5bc3b-494e-4b7d-9fea-ded035d544cc
 # ╟─33a3705c-1660-4df6-bfae-23225a55bdc6
 # ╠═24e8eafe-e040-4173-b705-4ade869791ba
+# ╟─ec3bf735-5fff-44e6-8a79-a03d6eb4538f
 # ╠═c9324a48-8cb8-45e1-909a-950333048d28
-# ╟─405d6a64-51df-42c6-a4fc-fe4d0a0aecba
 # ╠═f479ca51-fd2a-4261-98b2-e281daf49c5b
+# ╟─35909f2f-3787-4c6a-9e74-f284d5eea635
 # ╠═764b4395-1a02-43b0-bbb9-0189d0d2a9b2
-# ╠═a8bd5aae-552f-42c6-8fc8-92ef5bade2f1
-# ╠═0752a991-cada-42f0-a6e9-d7f949aec71f
 # ╟─d38130e3-611d-42b2-96b6-a6ca6210308b
+# ╟─b4e9aa30-a16c-4b3a-a7be-c2fcf28f0904
 # ╠═857a5e06-2960-4ed4-826c-6bf3291387f0
+# ╟─61505a55-fc9e-4077-8365-8e166871b482
+# ╠═93ce7686-a297-438f-bfab-9ad1f9e9be10
+# ╟─76fd526b-450a-4db1-bf9a-bc7ae59b895c
+# ╠═c0624ec9-1d80-461d-a10a-5ec669814fb5
+# ╠═32009437-f2b8-4520-851b-a5929b52d272
+# ╟─c0bb57b5-9d62-40b1-9256-648a984dbbae
+# ╠═ebefecd3-9dd2-457e-bf9b-97d4db9e983e
+# ╟─5803bfab-354b-4f48-8864-7f3cb3ac3c08
+# ╟─bc20a677-5d50-4a80-b466-2b7edd5feac4
+# ╟─33871626-5b9b-4718-a974-d94d7b048582
+# ╠═e5a37530-a0f2-470d-aada-39eaf3cd6054
+# ╟─84d8f063-2aad-4d57-9bdf-d44e37f173c7
+# ╠═91f58348-d476-4799-ab01-a2b7b89a344c
+# ╠═3d57d1f0-4595-48a0-934c-7bc1d5dc15fc
+# ╠═c959b590-aacf-4504-bb80-bd915acb0b3f
+# ╠═9242d8be-a259-4a72-bbb7-4958884937c9
+# ╠═f54c2aa7-2afb-4806-b932-417e3b4a41e5
+# ╟─c5e41f1c-a734-4502-a60f-4ec0f9819e89
+# ╠═de66df57-c6d1-4dba-8e6f-d1d8fd6b59ff
+# ╟─b2562463-09d0-40fc-9802-b49e105f946c
+# ╠═e73aa232-e0a9-4c7e-b399-6b0dee065a25
+# ╠═9678bb33-8e15-49ad-95b8-c8d4ab75f14f
+# ╟─0b2ed009-e636-40d9-bf9c-8d600f3bae75
+# ╟─4d71efc9-6bf5-4aa6-8e0f-132814350351
+# ╟─2b9eae49-a32d-4462-b5ff-8282d05a0a57
+# ╟─e301bd11-efb6-431f-a1fd-45b9a2922350
+# ╠═6332d014-79e2-451f-b65c-6a5179b7f85c
+# ╟─110c5485-51c1-4837-89da-18854267ed7c
+# ╠═a8bd5aae-552f-42c6-8fc8-92ef5bade2f1
+# ╟─65cc4d98-7cc8-400e-a41f-0c2cef5bde9e
+# ╠═a6f25519-efdb-4430-a014-6a7ee0360df6
 # ╟─80c1040c-88d2-45b5-89e1-b3cb8d6abaf7
 # ╠═28a345b9-d911-486c-a715-7d32a4ea41e8
-# ╠═ebefecd3-9dd2-457e-bf9b-97d4db9e983e
-# ╠═726011d8-84f1-4972-a977-19400379c9a3
-# ╠═3a1811c3-fd17-4e9a-8a3c-3fcc3a9704cf
-# ╠═de66df57-c6d1-4dba-8e6f-d1d8fd6b59ff
-# ╠═3d57d1f0-4595-48a0-934c-7bc1d5dc15fc
-# ╠═91f58348-d476-4799-ab01-a2b7b89a344c
-# ╠═eb0bfd0c-6e49-40b6-892f-898ccdccfe12
 # ╠═d5095bc5-6a00-4e0e-9669-68e21deac773
 # ╠═cc3a1c12-25b9-450a-a23d-8557fe351f83
-# ╠═61d84850-b92b-44d5-b903-5650d2930c0f
-# ╠═0c4c03da-82e4-4351-8d6b-a065bcaee045
 # ╟─b19344d2-d872-4bf5-a75f-1ca481779835
+# ╟─e1048e24-e389-4e95-8157-00702f1b41a3
 # ╠═fee19d3e-2235-4382-82d6-5a3cb452d317
+# ╟─0eb7d977-29fc-4be1-9e2d-16285431dcfb
+# ╠═934ae935-70ad-439c-933c-2ef8a78ff5b4
+# ╟─c2967e07-5d8b-4205-bb8b-add323494d86
 # ╠═55c08fb9-e29d-4500-84e7-46de7979639e
+# ╠═5d69a093-d57d-499c-a5a4-a1248d1811c6
+# ╟─911c9966-e983-46fd-8ca0-8ca06ab42bf0
 # ╠═3b8a80a7-4ab5-4b74-9aaa-3603e0ecccb5
-# ╠═880446ac-ac5a-4271-a384-91a6e47947ce
+# ╟─69e15594-1d8e-4ddc-a1da-f968e8b2ee91
 # ╠═6a2bafca-e4cb-4ce9-b322-783c8e10fbfd
+# ╠═19dd77e9-4a88-4c06-9129-0c1391068900
+# ╟─8d09bb0b-40d9-4d79-89a3-ad0d8679b08c
 # ╠═2613e6c6-ec09-4574-aecf-bf2a2266bc55
+# ╠═3bb85c65-89ed-4113-a498-3a0da01be0b1
+# ╟─bfd6f8e4-ea3e-4c87-b7f7-eba889e751fd
 # ╠═7d7db129-4524-48ec-a9a9-61d7b1ee967d
+# ╠═90b6fc69-0056-4971-9395-10c601ce4ef4
+# ╟─09c11c95-a82d-48e0-85ba-6db4a8c03f29
+# ╟─57ea4b25-0f40-4816-85ba-05669770885b
 # ╟─be1c590d-d70b-40f1-8370-bc294fb29c09
 # ╠═7e56d621-a572-4077-83be-d3b002f4e808
 # ╠═c150327f-b950-4a70-af44-722beee2069c
-# ╠═d0016463-7878-4a54-b25d-0c463ad294ff
-# ╠═68a41f8f-1eb9-4aaa-817a-104d4be20120
-# ╠═e5b61b0b-cbd7-4190-ad96-7475582297fb
 # ╟─3b2d5624-d365-4595-b95b-52825bc980d0
 # ╠═c0d3e1c8-77d9-4f69-8f1a-97b4bec409e4
+# ╟─73cec834-0b81-4b93-a00f-4e953d93b5de
+# ╠═3f7e7312-236c-4710-a901-fc88e4c5afca
+# ╟─38257847-5ae7-4a5a-a937-22a6729a3640
+# ╠═4483493d-cc6b-4e7a-b244-5409f1da013e
+# ╠═5a9e17d9-2552-48fd-b3ad-0a1e50279953
+# ╠═21af98b7-712d-4b25-a9fa-41d008f97962
+# ╟─8e514e64-0172-4b47-974d-efaa8e1f4990
+# ╟─00199670-40fd-4daa-979f-fb414b116bed
 # ╟─f9f5cb83-ab6b-4de2-9ea4-4a4d984f0489
 # ╟─00000000-0000-0000-0000-000000000001
 # ╟─00000000-0000-0000-0000-000000000002
