@@ -182,6 +182,9 @@ L₂ = sum(T .* Ceqs)
 # ╔═╡ 911c9966-e983-46fd-8ca0-8ca06ab42bf0
 md"Adding all the components of the Lagrangian together gives"
 
+# ╔═╡ 66ed7bf9-c5b7-4c27-a021-28bb5675c85f
+md"## Adjoint State Equations"
+
 # ╔═╡ 69e15594-1d8e-4ddc-a1da-f968e8b2ee91
 md"This code computes the gradient of the Lagrangian with respect to the  velocity field to obtain adjoint equations."
 
@@ -1512,6 +1515,7 @@ version = "17.4.0+0"
 # ╠═5d69a093-d57d-499c-a5a4-a1248d1811c6
 # ╟─911c9966-e983-46fd-8ca0-8ca06ab42bf0
 # ╠═3b8a80a7-4ab5-4b74-9aaa-3603e0ecccb5
+# ╟─66ed7bf9-c5b7-4c27-a021-28bb5675c85f
 # ╟─69e15594-1d8e-4ddc-a1da-f968e8b2ee91
 # ╠═6a2bafca-e4cb-4ce9-b322-783c8e10fbfd
 # ╠═19dd77e9-4a88-4c06-9129-0c1391068900
