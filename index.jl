@@ -1,5 +1,5 @@
 ### A Pluto.jl notebook ###
-# v0.19.22
+# v0.19.23
 
 #> [frontmatter]
 #> tags = ["seismology", "waves", "interactive", "julia", "pluto", "earth", "earthquakes", "seismic waves", "inversion", "geophysics", "Symbolics"]
@@ -11,7 +11,7 @@ using InteractiveUtils
 begin
     using Pluto
     using PlutoUI
-end
+end;
 
 # ╔═╡ 64625acb-b12e-4e95-b543-38d44b640e5d
 PlutoUI.LocalResource("./images/geophones_in_IISc.jpg", :width => 600)
@@ -67,7 +67,18 @@ end;
 
 # ╔═╡ 3a0789b4-c66e-4ca9-9e1c-fd720d274947
 function links()
-    return (broadcast(vcat, [Markdown.parse("[$(first.(splitext.(basename.(ht))))]($ht)") for ht in html_files]))
+    return mapreduce(vcat, html_files, notebook_files) do ht, nb
+		fm = Pluto.frontmatter(nb)
+		
+		if("title" ∈ keys(fm) && "description" ∈ keys(fm))
+			t = fm["title"]
+			d = fm["description"]
+			return Markdown.parse("""#### [$(t)]($ht) 
+			 $(d)""")
+		else
+			return md""
+		end
+	end
 end
 
 # ╔═╡ 9fcd3f72-388c-11ed-12c5-dd984fa4f529
@@ -93,7 +104,7 @@ PLUTO_MANIFEST_TOML_CONTENTS = """
 
 julia_version = "1.8.5"
 manifest_format = "2.0"
-project_hash = "c0a22d9f28803f071051c733f48c66e207e02082"
+project_hash = "d12140d8595bc07e5414ec383ea91d693c898db1"
 
 [[deps.AbstractPlutoDingetjes]]
 deps = ["Pkg"]

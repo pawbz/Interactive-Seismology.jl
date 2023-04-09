@@ -1,5 +1,9 @@
 ### A Pluto.jl notebook ###
-# v0.19.22
+# v0.19.23
+
+#> [frontmatter]
+#> title = "Seismic Full Waveform Inversion"
+#> description = "A notebook that demonstrates how interactivity makes seismic full waveform inversion more accessible and intuitive."
 
 using Markdown
 using InteractiveUtils

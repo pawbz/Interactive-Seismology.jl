@@ -1,6 +1,11 @@
 ### A Pluto.jl notebook ###
 # v0.19.12
 
+
+#> [frontmatter]
+#> title = "Rayleigh Function"
+#> description = "Particles may go round and round, but don't worry, let the Rayleigh wave pass by! This notebook will help you understand the physics behind it."
+
 using Markdown
 using InteractiveUtils
 

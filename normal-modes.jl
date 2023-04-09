@@ -1,6 +1,10 @@
 ### A Pluto.jl notebook ###
 # v0.19.14
 
+#> [frontmatter]
+#> title = "Normal Modes"
+#> description = "This notebook attempts to explain the free oscillations of the Earth using a Sturm–Liouville eigenvalue (violin-string) problem."
+
 using Markdown
 using InteractiveUtils
 

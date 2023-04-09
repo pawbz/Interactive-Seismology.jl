@@ -1,6 +1,11 @@
 ### A Pluto.jl notebook ###
 # v0.19.11
 
+  
+#> [frontmatter]
+#> title = "Seismic Attenuation"
+#> description = "This notebook helps us visualize these effects of attenuation on propagating seismic waves."
+
 using Markdown
 using InteractiveUtils
 

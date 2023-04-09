@@ -4,6 +4,12 @@
 using Markdown
 using InteractiveUtils
 
+
+
+#> [frontmatter]
+#> title = "Reflected and Transmitted Planewaves"
+#> description = "In this notebook, we shall investigate the behavior of waves that love to hop between two geological layers like kids in a bouncy castle."
+
 # This Pluto notebook uses @bind for interactivity. When running this notebook outside of Pluto, the following 'mock version' of @bind gives bound variables a default value (instead of an error).
 macro bind(def, element)
     quote

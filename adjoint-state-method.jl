@@ -1,6 +1,10 @@
 ### A Pluto.jl notebook ###
 # v0.19.23
 
+#> [frontmatter]
+#> title = "Adjoint State Method"
+#> description = "This notebook presents a discrete symbolic version of the adjoint state formulation involving the seismic wave equation so that it can act as a reference while implementing methods for full waveform inversion."
+
 using Markdown
 using InteractiveUtils
 
@@ -16,7 +20,7 @@ TableOfContents()
 # ╔═╡ 33a3705c-1660-4df6-bfae-23225a55bdc6
 md"""# Adjoint State Method
 In seismic imaging, the adjoint state method is a numerical method for efficiently computing the gradient of an objective function. 
-The notebook presents a discrete version of the adjoint state formulation involving the seismic wave equation so that it can act as a reference while implementing
+This notebook presents a discrete version of the adjoint state formulation involving the seismic wave equation so that it can act as a reference while implementing
 methods for full waveform inversion.
 We focus on the velocity-stress formulation, which is a widely used numerical method for solving wave propagation problems in geophysics. This method involves discretizing the governing equations of motion, such as the wave equation, using finite-difference techniques.
 

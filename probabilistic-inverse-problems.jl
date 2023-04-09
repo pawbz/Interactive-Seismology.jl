@@ -1,6 +1,11 @@
 ### A Pluto.jl notebook ###
 # v0.19.22
 
+
+#> [frontmatter]
+#> title = "Probabilistic Inverse Problems"
+#> description = "Posterior Information = Conjunction(Prior Information, Theoretical Information)."
+
 using Markdown
 using InteractiveUtils
 

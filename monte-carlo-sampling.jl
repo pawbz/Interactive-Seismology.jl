@@ -1,6 +1,10 @@
 ### A Pluto.jl notebook ###
 # v0.19.22
 
+#> [frontmatter]
+#> title = "Monte Carlo Methods"
+#> description = "How can we balance the trade-off between taking large steps with many rejections versus taking small steps with few rejections?"
+
 using Markdown
 using InteractiveUtils
 

@@ -1,6 +1,12 @@
 ### A Pluto.jl notebook ###
 # v0.19.22
 
+
+#> [frontmatter]
+#> title = "Love Waves"
+#> description = "Dive into the world of plane Love waves in a single homogeneous layer overlying a homogeneous half-space, offering a simple yet fascinating exploration of the topic."
+
+
 using Markdown
 using InteractiveUtils
 

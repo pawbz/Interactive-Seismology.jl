@@ -1,6 +1,11 @@
 ### A Pluto.jl notebook ###
 # v0.19.12
 
+
+#> [frontmatter]
+#> title = "Plane Waves"
+#> description = "Why did the planewave break up with the spherical wave? Because it wanted to stay flat, while the spherical wave was too curvy!"
+
 using Markdown
 using InteractiveUtils
 

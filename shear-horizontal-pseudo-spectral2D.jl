@@ -1,6 +1,10 @@
 ### A Pluto.jl notebook ###
 # v0.19.22
 
+#> [frontmatter]
+#> title = "Pseudo-spectral Method -- Seismic Wave Equation"
+#> description = "Lets get a serious numerical simulation done with shear-horizonal waves."
+
 using Markdown
 using InteractiveUtils
 

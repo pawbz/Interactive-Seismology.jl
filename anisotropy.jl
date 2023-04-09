@@ -4,6 +4,14 @@
 using Markdown
 using InteractiveUtils
 
+
+
+#> [frontmatter]
+#> title = "Seismic Anisotropy"
+#> description = "This notebook helps us visualize non-circular wavefronts in a homogenoeus Earth medium due to the presence of anisotropy."
+
+
+
 # This Pluto notebook uses @bind for interactivity. When running this notebook outside of Pluto, the following 'mock version' of @bind gives bound variables a default value (instead of an error).
 macro bind(def, element)
     quote

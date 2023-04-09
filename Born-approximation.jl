@@ -1,6 +1,12 @@
 ### A Pluto.jl notebook ###
 # v0.19.22
 
+#> [frontmatter]
+#> title = "Born Approximation"
+#> description = "Draw subsurface heterogeneities and model their linearized response using the notion of scattering theory."
+
+
+
 using Markdown
 using InteractiveUtils
 

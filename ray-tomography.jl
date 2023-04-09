@@ -1,6 +1,12 @@
 ### A Pluto.jl notebook ###
 # v0.19.22
 
+
+#> [frontmatter]
+#> title = "Ray Tomography"
+#> description = "This notebook focuses on the inverse formulation of 2-D first-arrival travel times."
+
+
 using Markdown
 using InteractiveUtils
 

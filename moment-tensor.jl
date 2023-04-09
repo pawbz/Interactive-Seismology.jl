@@ -3,6 +3,7 @@
 
 #> [frontmatter]
 #> title = "Radiation Patterns"
+#> description = "See how P and S waves are radiated due to point sources with specified moment tensors."
 
 using Markdown
 using InteractiveUtils

@@ -1,6 +1,11 @@
 ### A Pluto.jl notebook ###
 # v0.19.19
 
+
+#> [frontmatter]
+#> title = "Linear Algebra Primer"
+#> description = "Refresh your concepts of linear algebra. Thank you Gilbert Strang."
+
 using Markdown
 using InteractiveUtils
 

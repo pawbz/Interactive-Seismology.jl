@@ -3,7 +3,7 @@
 
 #> [frontmatter]
 #> title = "Ray Theory and The Eikonal Equation"
-#> description = ""
+#> description = "This interactive notebook explores the Eikonal equation under the high-frequency approximation and its applications in tracing seismic rays in heterogeneous Earth models."
 
 using Markdown
 using InteractiveUtils
