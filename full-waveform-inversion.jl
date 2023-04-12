@@ -49,6 +49,9 @@ Instructor: *Pawan Bharadwaj*,
 Indian Institute of Science, Bengaluru, India
 """
 
+# ╔═╡ 729689f3-7b76-4701-a60d-3471e1f20fce
+@bind t_forw Clock(0.1)
+
 # ╔═╡ 4adbb7f0-7927-470d-8c00-07d3b3c0cd78
 md"""
 We shall first consider the equation of motion and simplify it to derive the 2-D SH system
@@ -531,21 +534,23 @@ function propagate_gradients(grad, forwfields, adjfields, pa)
 
     @progress for it = 1:nt-1
         # for gradρ
-        ρ1 = forwfields.vys[it+1]
-        ρ2 = forwfields.vys[it]
-        ρ3 = adjfields.vys[nt-it]
-        @. ▽ρ = ▽ρ + (ρ2 - ρ1) * ρ3
+        v2 = forwfields.vys[it+1]
+        v3 = forwfields.vys[it]
+        u2 = adjfields.vys[nt-it]
+        @. ▽ρ = ▽ρ + (v2 - v3) * u2
         @. ▽ρ = ▽ρ * pa.tarray
 
         # for gradμ
 
-        μ1 = forwfields.dvydx[it]
-        μ2 = adjfields.σyxs[nt-it]
+        σx2 = forwfields.σyxs[it]
+        τx2 = adjfields.σyxs[nt-it]
+        τx3 = adjfields.σyxs[nt-it+1]
 
-        μ3 = forwfields.dvydz[it]
-        μ4 = adjfields.σyzs[nt-it]
+        σz2 = forwfields.σyzs[it]
+        τz2 = adjfields.σyzs[nt-it]
+        τz3 = adjfields.σyzs[nt-it+1]
 
-        @. ▽μ = ▽μ + μ2 * μ1 + μ3 * μ4
+        @. ▽μ = ▽μ + (σx2 * (τx2 - τx3)) + (σz2 * (τz2 - τz3))
         @. ▽μ = ▽μ * pa.tarray
 
         (:▽ρs ∈ keys(grad)) && copyto!(grad.▽ρs[it], ▽ρ)
@@ -617,11 +622,6 @@ begin
 	#NamedTuple for grid-related parameters
 	grid_param = (; xgrid, zgrid, tgrid, dt=step(tgrid), nt=length(tgrid), nx=length(xgrid), nz=length(zgrid), tarray=get_taper_array(nx, nz, np=taper_points, tapfact=0.1))
 end;
-  ╠═╡ =#
-
-# ╔═╡ 9a77180b-0bfa-4401-af30-d95f14e10d2c
-#=╠═╡
-@bind t_forw Slider(range(1, grid_param.nt-1), show_value=true, default=div(grid_param.nt,2))
   ╠═╡ =#
 
 # ╔═╡ 661c49e6-b5e0-4d85-a41f-b433936bc522
@@ -735,7 +735,7 @@ end
 # ╔═╡ f1b9f4a0-5554-48fd-9268-4d7b03d74688
 function fieldheat(fields, titles, grid_param, ageom=nothing)
 
-    @assert length(fields) == length(titles)
+    @assert length(fields) == length(titles) == 4
     fig = Plot(Layout(yaxis_autorange="reversed", title=attr(font_size=12,), font=attr(
             size=10), yaxis=attr(scaleanchor="x", scaleratio=1), Subplots(shared_xaxes=true, shared_yaxes=true, horizontal_spacing=0.04, vertical_spacing=0.04, rows=div(length(fields) - 1, 2) + 1, cols=2, subplot_titles=titles)))
     i = 0
@@ -759,9 +759,11 @@ end
 
 # ╔═╡ 77e134d8-bd8b-4303-8c44-a4920cf0ee81
 #=╠═╡
-fieldheat([fields_forw.vys[t_forw], fields_adj.vys[nt-t_forw], fields_grad.▽ρs[t_forw], fields_grad.▽μs[t_forw]], 
+let t=mod(t_forw, grid_param.nt-1)
+fieldheat([fields_forw.vys[t], fields_adj.vys[nt-t], fields_grad.▽ρs[t], fields_grad.▽μs[t]], 
 	["Forward Field" "Adjoint Field" "Gradient w.r.t. ρ" "Gradient w.r.t. μ"], 
-	grid_param)
+	grid_param, ageom)
+end
   ╠═╡ =#
 
 # ╔═╡ 99ba8f6a-551a-432b-abb1-a79be233fa46
@@ -1352,9 +1354,9 @@ version = "17.4.0+0"
 # ╔═╡ Cell order:
 # ╠═3c540889-49dc-415c-acbc-3494897b260c
 # ╟─9c32f5bc-f6d1-4048-903a-27224aaa1f40
+# ╟─729689f3-7b76-4701-a60d-3471e1f20fce
+# ╟─77e134d8-bd8b-4303-8c44-a4920cf0ee81
 # ╟─4adbb7f0-7927-470d-8c00-07d3b3c0cd78
-# ╠═9a77180b-0bfa-4401-af30-d95f14e10d2c
-# ╠═77e134d8-bd8b-4303-8c44-a4920cf0ee81
 # ╟─122c2aa4-baec-4288-ab53-afa1d977c486
 # ╠═7913b296-3010-410d-942f-834a47d599c7
 # ╠═77fa76f3-ffda-4d95-8c12-7ccce6a7e52e

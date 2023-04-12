@@ -163,7 +163,7 @@ Adjoint state variables are introduced in the context of optimization problems. 
 U = vcat(collect(map(t -> u(x, t), 𝚝)), u(x, 𝚃))  # one u for each of Meqs
 
 # ╔═╡ cc3a1c12-25b9-450a-a23d-8557fe351f83
-T = collect(map(t -> τ(x, t), 𝚝)) # one for each Ceqs
+T = collect(map(t -> τ(x, t), t)) # one for each Ceqs
 
 # ╔═╡ b19344d2-d872-4bf5-a75f-1ca481779835
 md"## Lagrangian"
@@ -205,6 +205,15 @@ md"The solution of these adjoint equations is often obtained by using a time-rev
 # ╔═╡ be1c590d-d70b-40f1-8370-bc294fb29c09
 md"## Parameter Gradients
 Lets compute the gradient of L with respect to ρ and μ."
+
+# ╔═╡ b2633ba5-2e42-4eb3-87c4-133148157ef4
+
+
+# ╔═╡ 10514a17-74ec-4cb7-8d76-20a8ea64d8a8
+simplify(sum([v(x, 𝚝[it])*(-u(x, 𝚝[it+1]) + u(x, 𝚝[it])) for it in 1:2]), expand=true)
+
+# ╔═╡ fc6d8287-3012-4cbb-9170-cb40fb89e78c
+simplify(sum([σ(x, t[it])*(-τ(x, t[it+1]) + τ(x, t[it])) for it in 1:2]), expand=true)
 
 # ╔═╡ 3b2d5624-d365-4595-b95b-52825bc980d0
 md"## Appendix"
@@ -253,11 +262,12 @@ end;
 
 # ╔═╡ 7e56d621-a572-4077-83be-d3b002f4e808
 # gradient w.r.t. mass density
-Differential(ρ(x))(L) |> expand_derivatives
+∇ρ = substitute(Differential(ρ(x))(L) |> expand_derivatives, [u(x, 𝚃)=>0, v(x, 0)=> 0])
+
 
 # ╔═╡ c150327f-b950-4a70-af44-722beee2069c
 # gradient w.r.t. shear modulus
-Differential(μ⁻¹(x))(L) |> expand_derivatives
+∇μ⁻¹ = substitute(Differential(μ⁻¹(x))(L) |> expand_derivatives, [σ(x, 0)=>0])
 
 # ╔═╡ 38257847-5ae7-4a5a-a937-22a6729a3640
 md"### Tikz"
@@ -1533,7 +1543,10 @@ version = "17.4.0+0"
 # ╟─57ea4b25-0f40-4816-85ba-05669770885b
 # ╟─be1c590d-d70b-40f1-8370-bc294fb29c09
 # ╠═7e56d621-a572-4077-83be-d3b002f4e808
+# ╠═b2633ba5-2e42-4eb3-87c4-133148157ef4
+# ╠═10514a17-74ec-4cb7-8d76-20a8ea64d8a8
 # ╠═c150327f-b950-4a70-af44-722beee2069c
+# ╠═fc6d8287-3012-4cbb-9170-cb40fb89e78c
 # ╟─3b2d5624-d365-4595-b95b-52825bc980d0
 # ╠═c0d3e1c8-77d9-4f69-8f1a-97b4bec409e4
 # ╟─73cec834-0b81-4b93-a00f-4e953d93b5de
