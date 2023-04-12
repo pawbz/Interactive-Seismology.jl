@@ -46,7 +46,7 @@ md"## Medium
 Created two symbolic variables ρ and μ which can be used to represent the density and shear modulus of the medium as functions of position x."
 
 # ╔═╡ 764b4395-1a02-43b0-bbb9-0189d0d2a9b2
-@syms ρ(x) μ(x)
+@syms ρ(x) μ(x) μ⁻¹(x)
 
 # ╔═╡ d38130e3-611d-42b2-96b6-a6ca6210308b
 md"## State Variables"
@@ -123,7 +123,7 @@ DₜΣ = [σ(x, t[1]) - σ(x, 0), diff(Σ)...] # lives on t
 md"This equation states that the time derivative of stress minus the gradient of the stress scaled by the shear modulus is equal to zero. This is a simplified form of the constitutive relation."
 
 # ╔═╡ e73aa232-e0a9-4c7e-b399-6b0dee065a25
-Ceqs = (DₜΣ - μ(x) .* Dₓ.(V));
+Ceqs = (DₜΣ * μ⁻¹(x) - Dₓ.(V));
 
 # ╔═╡ 9678bb33-8e15-49ad-95b8-c8d4ab75f14f
 Ceqs ~ 0
@@ -181,7 +181,7 @@ md"The function `r_Dₓ_transpose` applies the transpose differential operator r
 md"The Lagrangian component, for constitutive equations `Ceqs`, is given by"
 
 # ╔═╡ 55c08fb9-e29d-4500-84e7-46de7979639e
-L₂ = sum(T .* Ceqs)
+L₂ = simplify(sum(T .* Ceqs), expand=true)
 
 # ╔═╡ 911c9966-e983-46fd-8ca0-8ca06ab42bf0
 md"Adding all the components of the Lagrangian together gives"
@@ -257,7 +257,7 @@ Differential(ρ(x))(L) |> expand_derivatives
 
 # ╔═╡ c150327f-b950-4a70-af44-722beee2069c
 # gradient w.r.t. shear modulus
-Differential(μ(x))(L) |> expand_derivatives
+Differential(μ⁻¹(x))(L) |> expand_derivatives
 
 # ╔═╡ 38257847-5ae7-4a5a-a937-22a6729a3640
 md"### Tikz"
