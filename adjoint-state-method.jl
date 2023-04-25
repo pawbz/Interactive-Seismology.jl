@@ -1,5 +1,5 @@
 ### A Pluto.jl notebook ###
-# v0.19.23
+# v0.19.25
 
 #> [frontmatter]
 #> title = "Adjoint State Method"
@@ -76,7 +76,7 @@ V = collect(map(t -> v(x, t), 𝚝)) # velocity
 md"## Forcing"
 
 # ╔═╡ ebefecd3-9dd2-457e-bf9b-97d4db9e983e
-F = collect(map(t -> f(x, t), 𝚝))
+F = collect(map(t -> f(x, t), t))
 
 # ╔═╡ 5803bfab-354b-4f48-8864-7f3cb3ac3c08
 md"## State Equations"
@@ -116,14 +116,17 @@ Meqs ~ 0
 md"### Constitutive Relation
 In linear elasticity, for example, the constitutive relation is given by Hooke's law, which states that stress is proportional to strain. First, similar to velocity, we will construct a vector that represents the time derivative of the stress field."
 
+# ╔═╡ d42c3324-4517-4ac1-b9d9-1af0656bf70e
+𝚃
+
 # ╔═╡ de66df57-c6d1-4dba-8e6f-d1d8fd6b59ff
-DₜΣ = [σ(x, t[1]) - σ(x, 0), diff(Σ)...] # lives on t
+DₜΣ = [σ(x, t[1]) - σ(x, 0), diff(Σ)..., σ(x, 𝚃) - σ(x, t[3])] # lives on t
 
 # ╔═╡ b2562463-09d0-40fc-9802-b49e105f946c
 md"This equation states that the time derivative of stress minus the gradient of the stress scaled by the shear modulus is equal to zero. This is a simplified form of the constitutive relation."
 
 # ╔═╡ e73aa232-e0a9-4c7e-b399-6b0dee065a25
-Ceqs = (DₜΣ * μ⁻¹(x) - Dₓ.(V));
+Ceqs = (DₜΣ * μ⁻¹(x) - Dₓ.(vcat(V, v(x, 𝚃))));
 
 # ╔═╡ 9678bb33-8e15-49ad-95b8-c8d4ab75f14f
 Ceqs ~ 0
@@ -163,7 +166,7 @@ Adjoint state variables are introduced in the context of optimization problems. 
 U = vcat(collect(map(t -> u(x, t), 𝚝)), u(x, 𝚃))  # one u for each of Meqs
 
 # ╔═╡ cc3a1c12-25b9-450a-a23d-8557fe351f83
-T = collect(map(t -> τ(x, t), t)) # one for each Ceqs
+T = vcat(collect(map(t -> τ(x, t), t)), τ(x, 𝚃)) # one for each Ceqs
 
 # ╔═╡ b19344d2-d872-4bf5-a75f-1ca481779835
 md"## Lagrangian"
@@ -206,14 +209,17 @@ md"The solution of these adjoint equations is often obtained by using a time-rev
 md"## Parameter Gradients
 Lets compute the gradient of L with respect to ρ and μ."
 
-# ╔═╡ b2633ba5-2e42-4eb3-87c4-133148157ef4
+# ╔═╡ 653a7d32-d0cc-447f-95eb-3b8ee866b6dd
+Vs = [v(x, t[1]), v(x, t[2]), v(x, t[3])]
 
+# ╔═╡ fb82077d-43b8-4950-96ec-ffc72d400f26
+Us = [u(x, t[3]), u(x, t[2]), u(x, t[1])]
 
-# ╔═╡ 10514a17-74ec-4cb7-8d76-20a8ea64d8a8
-simplify(sum([v(x, 𝚝[it])*(-u(x, 𝚝[it+1]) + u(x, 𝚝[it])) for it in 1:2]), expand=true)
+# ╔═╡ a5d63b00-4520-4f0c-a2f2-bf6476c4a1a2
+nt = 3
 
-# ╔═╡ fc6d8287-3012-4cbb-9170-cb40fb89e78c
-simplify(sum([σ(x, t[it])*(-τ(x, t[it+1]) + τ(x, t[it])) for it in 1:2]), expand=true)
+# ╔═╡ f64849ef-b48f-4783-b213-c108454dcb9a
+simplify(sum([Us[it] * (-Vs[nt-it] + Vs[nt-it+1]) for it in 1:2]), expand=true) + Us[nt] * Vs[1]
 
 # ╔═╡ 3b2d5624-d365-4595-b95b-52825bc980d0
 md"## Appendix"
@@ -260,14 +266,20 @@ end;
 # ╔═╡ 90b6fc69-0056-4971-9395-10c601ce4ef4
 ∂vTL ~ 0
 
+# ╔═╡ a1f58735-5fb7-4920-ba2c-1821c013d4d9
+∂σTL = Differential(σ(x, 𝚃))(L) |> expand_derivatives;
+
+# ╔═╡ 1ede1ceb-f286-4a71-bea1-79e0fc3f74ff
+∂σTL ~ 0
+
 # ╔═╡ 7e56d621-a572-4077-83be-d3b002f4e808
 # gradient w.r.t. mass density
-∇ρ = substitute(Differential(ρ(x))(L) |> expand_derivatives, [u(x, 𝚃)=>0, v(x, 0)=> 0])
+∇ρ = substitute(Differential(ρ(x))(L) |> expand_derivatives, [u(x, 𝚃) => 0, v(x, 0) => 0])
 
 
 # ╔═╡ c150327f-b950-4a70-af44-722beee2069c
 # gradient w.r.t. shear modulus
-∇μ⁻¹ = substitute(Differential(μ⁻¹(x))(L) |> expand_derivatives, [σ(x, 0)=>0])
+∇μ⁻¹ = substitute(Differential(μ⁻¹(x))(L) |> expand_derivatives, [σ(x, 0) => 0])
 
 # ╔═╡ 38257847-5ae7-4a5a-a937-22a6729a3640
 md"### Tikz"
@@ -1502,6 +1514,7 @@ version = "17.4.0+0"
 # ╠═9242d8be-a259-4a72-bbb7-4958884937c9
 # ╠═f54c2aa7-2afb-4806-b932-417e3b4a41e5
 # ╟─c5e41f1c-a734-4502-a60f-4ec0f9819e89
+# ╠═d42c3324-4517-4ac1-b9d9-1af0656bf70e
 # ╠═de66df57-c6d1-4dba-8e6f-d1d8fd6b59ff
 # ╟─b2562463-09d0-40fc-9802-b49e105f946c
 # ╠═e73aa232-e0a9-4c7e-b399-6b0dee065a25
@@ -1538,15 +1551,18 @@ version = "17.4.0+0"
 # ╠═3bb85c65-89ed-4113-a498-3a0da01be0b1
 # ╟─bfd6f8e4-ea3e-4c87-b7f7-eba889e751fd
 # ╠═7d7db129-4524-48ec-a9a9-61d7b1ee967d
+# ╠═a1f58735-5fb7-4920-ba2c-1821c013d4d9
 # ╠═90b6fc69-0056-4971-9395-10c601ce4ef4
+# ╠═1ede1ceb-f286-4a71-bea1-79e0fc3f74ff
 # ╟─09c11c95-a82d-48e0-85ba-6db4a8c03f29
-# ╟─57ea4b25-0f40-4816-85ba-05669770885b
+# ╠═57ea4b25-0f40-4816-85ba-05669770885b
 # ╟─be1c590d-d70b-40f1-8370-bc294fb29c09
+# ╠═653a7d32-d0cc-447f-95eb-3b8ee866b6dd
+# ╠═fb82077d-43b8-4950-96ec-ffc72d400f26
+# ╠═a5d63b00-4520-4f0c-a2f2-bf6476c4a1a2
+# ╠═f64849ef-b48f-4783-b213-c108454dcb9a
 # ╠═7e56d621-a572-4077-83be-d3b002f4e808
-# ╠═b2633ba5-2e42-4eb3-87c4-133148157ef4
-# ╠═10514a17-74ec-4cb7-8d76-20a8ea64d8a8
 # ╠═c150327f-b950-4a70-af44-722beee2069c
-# ╠═fc6d8287-3012-4cbb-9170-cb40fb89e78c
 # ╟─3b2d5624-d365-4595-b95b-52825bc980d0
 # ╠═c0d3e1c8-77d9-4f69-8f1a-97b4bec409e4
 # ╟─73cec834-0b81-4b93-a00f-4e953d93b5de

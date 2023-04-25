@@ -1,5 +1,5 @@
 ### A Pluto.jl notebook ###
-# v0.19.23
+# v0.19.25
 
 #> [frontmatter]
 #> title = "Seismic Full Waveform Inversion"
@@ -20,15 +20,19 @@ end
 
 # ╔═╡ c5815f5e-9164-11ec-10e1-691834761dff
 begin
-    using FFTW
-    using LinearAlgebra
-    using LaTeXStrings
-    using PlutoUI
-    using Statistics
-    using ProgressLogging
-    using SparseArrays
-    using DSP
-    using PlutoPlotly
+  using FFTW
+  using LinearAlgebra
+  using LaTeXStrings
+  using PlutoUI
+  using Statistics
+  using ProgressLogging
+  using SparseArrays
+  using DSP
+  using PlutoPlotly
+  using LossFunctions
+  using MLUtils
+  using FiniteDifferences
+  using ForwardDiff
 end
 
 # ╔═╡ 3c540889-49dc-415c-acbc-3494897b260c
@@ -50,7 +54,10 @@ Indian Institute of Science, Bengaluru, India
 """
 
 # ╔═╡ 729689f3-7b76-4701-a60d-3471e1f20fce
+# ╠═╡ disabled = true
+#=╠═╡
 @bind t_forw Clock(0.1)
+  ╠═╡ =#
 
 # ╔═╡ 4adbb7f0-7927-470d-8c00-07d3b3c0cd78
 md"""
@@ -94,15 +101,15 @@ DSP.nextfastfft(106)
 
 # ╔═╡ 7928a88c-f217-4338-a6a5-50ab2d422480
 begin
-    # domain extends
-    zgrid = range(0, stop=40, length=107)
-    xgrid = range(-40, stop=40, length=221)
+  # domain extends
+  zgrid = range(0, stop=40, length=107)
+  xgrid = range(-40, stop=40, length=221)
 
-    # Numerics
-    nx, nz = length(xgrid), length(zgrid)
+  # Numerics
+  nx, nz = length(xgrid), length(zgrid)
 
-    # Derived numerics
-    dx, dz = step(xgrid), step(zgrid) # cell sizes
+  # Derived numerics
+  dx, dz = step(xgrid), step(zgrid) # cell sizes
 end;
 
 # ╔═╡ cb83dbd1-c423-4b27-b29e-7dc8051f43d5
@@ -137,19 +144,30 @@ md"""
 This will also serve as an initial model during inversion. Medium without the reflector is considered.
 """
 
-# ╔═╡ c73f69d0-69e6-47f1-97b0-3e81218776e6
-md"""
-## Data Error
-Deviation between the observed and model data is referred to as the data error and it acts as the forcing in the case of adjoint simulation.
-"""
+# ╔═╡ 0454ce0a-d6de-427f-bbdc-3bcec21327f2
+md"## Loss Function"
+
+# ╔═╡ f2fb92bb-33d6-4e15-8caf-b245e000ad69
+loss = L2DistLoss()
+
+# ╔═╡ 4a4f1300-94ba-4c1b-9d10-9e955d194ff6
+function Jdata(dobs, d, loss=loss)
+  return mapreduce(+, dobs, d) do d1, d2
+    value(loss, d1, d2)
+  end
+end
 
 # ╔═╡ a3a9deea-e2d6-4d58-90d7-5a54be176289
 md"## Adjoint Simulation"
 
-# ╔═╡ afca5e37-ebc0-45e7-b27b-53602dbf6672
-md"""
-## Objective Function
-"""
+# ╔═╡ 1dc2ca10-5ba3-4efa-b6d9-d203cf91598b
+md"Deviation between the observed and modelled data is referred to as the data error and it acts as the forcing in the case of adjoint simulation."
+
+# ╔═╡ ddb37082-cae0-4a68-ab55-19563d8727ed
+function get_adj_source(dobs, d)
+  adj_source = deriv.(loss, dobs, d)
+  reverse!(adj_source, dims=1)
+end
 
 # ╔═╡ 66f9c698-61e3-4b61-aff3-dfc67eb2f6af
 md"""
@@ -160,6 +178,9 @@ md"""
 md"""
 ## Finite-Difference Test (Hockey-Stick Test)
 """
+
+# ╔═╡ 006739fb-24a1-49b0-9619-fe8e2d3c8fca
+xs = zeros(3)
 
 # ╔═╡ fc49a6d7-a1b1-458a-a9ad-e120282bbabc
 md"""
@@ -176,18 +197,18 @@ Function to choose the number of sources and receivers
 
 # ╔═╡ 2ea24e92-d66e-4c60-ad0b-f671d894fef2
 function src_rec_ip()
-    return PlutoUI.combine() do Child
-        src = [md"""Number of sources = $(Child("ns", Slider(range(start=1,stop=10,step=1), default=1, show_value=true)))
-        """,]
+  return PlutoUI.combine() do Child
+    src = [md"""Number of sources = $(Child("ns", Slider(range(start=1,stop=10,step=1), default=1, show_value=true)))
+    """,]
 
-        rec = [md"""Number of receivers = $(Child("nr", Slider(range(start=5, stop=15, step=1), default=10, show_value=true)))
-        """,]
+    rec = [md"""Number of receivers = $(Child("nr", Slider(range(start=5, stop=15, step=1), default=10, show_value=true)))
+    """,]
 
-        md"""
-        $(src)
-        $(rec)
-        """
-    end
+    md"""
+    $(src)
+    $(rec)
+    """
+  end
 end;
 
 # ╔═╡ 86ed93a1-c7b9-4b3a-8cb5-ca4405cff3df
@@ -200,18 +221,18 @@ Function to choose the parameters of the true medium. Z-location of the reflecto
 
 # ╔═╡ d7b37c59-e0b3-4e47-86d3-7f1df7400f09
 function choose_param_truemed()
-    return PlutoUI.combine() do Child
-        zloc = [md"""Z location (km) = $(Child("z", Slider(zgrid[floor(Int,0.3*nz):end], default=zgrid[floor(Int,0.5*nz)], show_value=true)))
-        """,]
+  return PlutoUI.combine() do Child
+    zloc = [md"""Z location (km) = $(Child("z", Slider(zgrid[floor(Int,0.3*nz):end], default=zgrid[floor(Int,0.5*nz)], show_value=true)))
+    """,]
 
-        dens = [md"""Density (g/cc) = $(Child("ρ", Slider(range(start=4, stop=6, step=0.1), default=5, show_value=true)))
-        """,]
+    dens = [md"""Density (g/cc) = $(Child("ρ", Slider(range(start=4, stop=6, step=0.1), default=5, show_value=true)))
+    """,]
 
-        md"""
-        $(zloc)
-        $(dens)
-        """
-    end
+    md"""
+    $(zloc)
+    $(dens)
+    """
+  end
 end;
 
 # ╔═╡ 65efba3b-16b0-4113-a59e-809365e7bdd6
@@ -235,38 +256,38 @@ In the following cell, the derivatives are calculated using the functions `Dx!` 
 
 # ╔═╡ aa19e992-2735-4324-8fd7-15eacadf0faa
 begin
-    Fz = plan_rfft(zeros(nz, nx), (1))
-    Fx = plan_rfft(zeros(nz, nx), (2))
-    kx = reshape(collect(rfftfreq(nx, inv(step(xgrid)))), 1, :) * 2 * pi
-    kz = reshape(collect(rfftfreq(nz, inv(step(zgrid)))), :, 1) * 2 * pi
-    storagex = zero(Fx * zeros(nz, nx))
-    storagez = zero(Fz * zeros(nz, nx))
-    fp = (; Fx, Fz, kx, kz, storagex, storagez)
-    function Dx!(dPdx, P, fp)
-        mul!(fp.storagex, fp.Fx, P)
-        broadcast!(*, fp.storagex, fp.storagex, fp.kx)
-        rmul!(fp.storagex, im)
-        ldiv!(dPdx, fp.Fx, fp.storagex)
-    end
-    Dx!(dP, P) = Dx!(dP, P, fp)
-    Dx(P) = (dPdx = zero(P); Dx!(dPdx, P, fp); dPdx)
-    function Dz!(dPdz, P, fp)
-        mul!(fp.storagez, fp.Fz, P)
-        broadcast!(*, fp.storagez, fp.storagez, fp.kz)
-        rmul!(fp.storagez, im)
-        ldiv!(dPdz, fp.Fz, fp.storagez)
-    end
-    Dz!(dP, P) = Dz!(dP, P, fp)
-    Dz(P) = (dPdz = zero(P); Dz!(dPdz, P, fp); dPdz)
-    nothing
+  Fz = plan_rfft(zeros(nz, nx), (1))
+  Fx = plan_rfft(zeros(nz, nx), (2))
+  kx = reshape(collect(rfftfreq(nx, inv(step(xgrid)))), 1, :) * 2 * pi
+  kz = reshape(collect(rfftfreq(nz, inv(step(zgrid)))), :, 1) * 2 * pi
+  storagex = zero(Fx * zeros(nz, nx))
+  storagez = zero(Fz * zeros(nz, nx))
+  fp = (; Fx, Fz, kx, kz, storagex, storagez)
+  function Dx!(dPdx, P, fp)
+    mul!(fp.storagex, fp.Fx, P)
+    broadcast!(*, fp.storagex, fp.storagex, fp.kx)
+    rmul!(fp.storagex, im)
+    ldiv!(dPdx, fp.Fx, fp.storagex)
+  end
+  Dx!(dP, P) = Dx!(dP, P, fp)
+  Dx(P) = (dPdx = zero(P); Dx!(dPdx, P, fp); dPdx)
+  function Dz!(dPdz, P, fp)
+    mul!(fp.storagez, fp.Fz, P)
+    broadcast!(*, fp.storagez, fp.storagez, fp.kz)
+    rmul!(fp.storagez, im)
+    ldiv!(dPdz, fp.Fz, fp.storagez)
+  end
+  Dz!(dP, P) = Dz!(dP, P, fp)
+  Dz(P) = (dPdz = zero(P); Dz!(dPdz, P, fp); dPdz)
+  nothing
 end
 
 # ╔═╡ e2127d9b-f2a4-4970-a36e-5fa70c304ca7
 # test transpose of Dx
 begin
-    x1 = rand(nz, nx)
-    y1 = rand(nz, nx)
-    dot(Dx(x1), y1), dot(x1, -Dx(y1))
+  x1 = rand(nz, nx)
+  y1 = rand(nz, nx)
+  dot(Dx(x1), y1), dot(x1, -Dx(y1))
 end
 
 # ╔═╡ e8333b23-53c3-445e-9ca3-6b278359f8ab
@@ -274,50 +295,46 @@ md"### Acquisition"
 
 # ╔═╡ 9248af7f-dc1a-4bf6-8f3f-304db73fc604
 function get_ageom(xgrid, zgrid, ns, nr; zs=quantile(zgrid, 0.25), zr=quantile(zgrid, 0.25))
-    A = (; ns, nr, zs=fill(zs, ns), zr=fill(zr, nr),
-        xr=(nr == 1) ? [quantile(xgrid, 0.25)] : range(quantile(xgrid, 0.25), stop=quantile(xgrid, 0.75), length=nr),
-        xs=(ns == 1) ? [quantile(xgrid, 0.25)] : range(quantile(xgrid, 0.25), stop=quantile(xgrid, 0.75), length=ns)
-    )
-    return A
+  A = (; ns, nr, zs=fill(zs, ns), zr=fill(zr, nr),
+    xr=(nr == 1) ? [quantile(xgrid, 0.25)] : range(quantile(xgrid, 0.25), stop=quantile(xgrid, 0.75), length=nr),
+    xs=(ns == 1) ? [quantile(xgrid, 0.25)] : range(quantile(xgrid, 0.25), stop=quantile(xgrid, 0.75), length=ns)
+  )
+  return A
 end;
 
 # ╔═╡ d39753e2-5986-4394-9293-9e394f2807f0
 ageom = get_ageom(xgrid, zgrid, acq.ns, acq.nr);
 
+# ╔═╡ 00a637a6-ddc4-4830-be65-1891d3cb18bc
+get_adj_ageom(ageom) = (; nr=ageom.ns, ns=ageom.nr, xs=ageom.xr, zs=ageom.zr, xr=ageom.xs, zr=ageom.zs)
+
+# ╔═╡ e7e72f61-d79e-4a82-ad9c-129191c8a8c2
+adj_ageom = get_adj_ageom(ageom);
+
 # ╔═╡ e08bf013-00c7-4870-82d8-19b899e7208d
 # m are the medium properties that will be used 
-function get_restriction_matrix(xpos, zpos, xgrid, zgrid, transpose_flag=false; m=ones(length(zgrid), length(xgrid)))
-    l = LinearIndices((length(zgrid), length(xgrid)))
-    @assert length(xpos) == length(zpos)
-    n = length(xpos)
-    N = length(xgrid) * length(zgrid)
-    I = broadcast(zpos, xpos) do z, x
-        iz = argmin(abs.(zgrid .- z))[1]
-        ix = argmin(abs.(xgrid .- x))[1]
-        return l[iz, ix]
-    end
-    J = collect(1:n)
-    V = m[I]
-    return transpose_flag ? sparse(J, I, V, n, N) : sparse(I, J, V, N, n)
+function get_projection_matrix(xpos, zpos, xgrid, zgrid; transpose_flag=false, m=ones(length(zgrid), length(xgrid)))
+  l = LinearIndices((length(zgrid), length(xgrid)))
+  @assert length(xpos) == length(zpos)
+  n = length(xpos)
+  N = length(xgrid) * length(zgrid)
+  I = broadcast(zpos, xpos) do z, x
+    iz = argmin(abs.(zgrid .- z))[1]
+    ix = argmin(abs.(xgrid .- x))[1]
+    return l[iz, ix]
+  end
+  J = collect(1:n)
+  V = m[I]
+  return transpose_flag ? sparse(J, I, V, n, N) : sparse(I, J, V, N, n)
 end
 
-
-# ╔═╡ dd626606-2a4d-494d-ab74-92753072c773
-function get_forcing_transform(ageom, medium, xgrid, zgrid, medium_flag=false)
-    if medium_flag
-        return (; Rs=get_restriction_matrix(ageom.xs, ageom.zs, xgrid, zgrid, false, m=medium.invρ),
-            Rr=get_restriction_matrix(ageom.xr, ageom.zr, xgrid, zgrid, true), Rr_t=get_restriction_matrix(ageom.xr, ageom.zr, xgrid, zgrid, false, m=medium.invρ))
-    else
-        return (; Rs=get_restriction_matrix(ageom.xs, ageom.zs, xgrid, zgrid, false, m=medium.invρ), Rr=get_restriction_matrix(ageom.xr, ageom.zr, xgrid, zgrid, true))
-    end
-end;
 
 # ╔═╡ ab8b1a22-ca7a-409e-832e-8d5d08a29a1e
 md"### Data"
 
 # ╔═╡ f4d91971-f806-4c5c-8548-b58a20acfb2c
 function initialize_data(grid_param, ageom)
-    [zeros(length(ageom.xr)) for t in grid_param.tgrid]
+  zeros(length(grid_param.tgrid), length(ageom.xr))
 end
 
 # ╔═╡ 9bc38d55-285b-4b83-98d9-d7f9e03405d1
@@ -325,26 +342,44 @@ md"### Medium"
 
 # ╔═╡ 27844886-0b54-4b08-a592-a1a38e4b0be2
 function bundle_medium(μ, ρ)
-    return (; μ=μ, ρ=ρ, invρ=inv.(ρ))
+  return (; μ=μ, ρ=ρ, invρ=inv.(ρ))
 end
 
 # ╔═╡ 1c67cda8-7712-4d5b-a2aa-af47f290f745
 begin
-    # lets add density perturbation (olivine)
-    μtrue = ones(nz, nx) .* 82 * 10^9 * 10^3
-    ρtrue = ones(nz, nx) .* 3.22 * 10^-3 * 10^15 # density in kg/km3
-    reflect_index = findall(zgrid .== param_true_med.z)[1]
-    ρtrue[reflect_index:end, :] .= param_true_med.ρ * 10^-3 * 10^15  # density in kg/km3
-    medium_true = bundle_medium(μtrue, ρtrue)
+  # lets add density perturbation (olivine)
+  μtrue = ones(nz, nx) .* 82 * 10^9 * 10^3
+  ρtrue = ones(nz, nx) .* 3.22 * 10^-3 * 10^15 # density in kg/km3
+  reflect_index = findall(zgrid .== param_true_med.z)[1]
+  ρtrue[reflect_index:end, :] .= param_true_med.ρ * 10^-3 * 10^15  # density in kg/km3
+  medium_true = bundle_medium(μtrue, ρtrue)
 end;
 
 # ╔═╡ 8b3776bd-509b-4232-9737-36c9ae003350
 begin
-    # Unperturbed medium
-    μref = ones(nz, nx) * 82 * 10^9 * 10^3      # shear modulus in kg / km/s^2
-    ρref = ones(nz, nx) * 3.22 * 10^-3 * 10^15 # density in kg/km3
-    medium_ref = bundle_medium(μref, ρref)
+  # Unperturbed medium
+  μref = ones(nz, nx) * 82 * 10^9 * 10^3      # shear modulus in kg / km/s^2
+  ρref = ones(nz, nx) * 3.22 * 10^-3 * 10^15 # density in kg/km3
+  medium_ref = bundle_medium(μref, ρref)
 end;
+
+# ╔═╡ 489dcf10-b7f2-4544-b80d-3588ff00ff4a
+function update_xs!(x, xs)
+  xρ, xinvμ = chunk(x, 2)
+  N = length(xρ)
+  N2 = div(N, 2)
+  X = view(xρ, N2:N2+length(xs)-1)
+  copyto!(X, xs)
+  return xs
+end
+
+# ╔═╡ 199908d6-f5fd-4461-be53-39919a103835
+function get_xs(x, xs)
+  xρ, xinvμ = chunk(x, 2)
+  N = length(xρ)
+  N2 = div(N, 2)
+  return xρ[N2:N2+length(xs)-1]
+end
 
 # ╔═╡ ad21da29-f6ff-4a94-be87-4e88640cddbf
 # ╠═╡ skip_as_script = true
@@ -372,40 +407,96 @@ begin
 end;
   ╠═╡ =#
 
+# ╔═╡ 92d05447-6d0e-4ee0-a330-244b9c65c871
+#=╠═╡
+@bind t_forw Slider(1:length(tgrid)-1, show_value=true)
+  ╠═╡ =#
+
 # ╔═╡ 6937b103-9ce2-4189-8129-aae1e7936d4f
 #=╠═╡
 length(tgrid)
   ╠═╡ =#
 
-# ╔═╡ be94d0e7-e9a8-4021-a94c-a5b70bbcede7
-#=╠═╡
-length(tgrid)
-  ╠═╡ =#
+# ╔═╡ 2abfb6d5-a201-405e-99c3-42bf0ad5aad5
+χ(m, m0) = log(m / m0)
+
+# ╔═╡ a26a5bd6-f4b8-410a-b437-06587011093e
+invχ(x, m0) = exp(x) * m0
+
+# ╔═╡ 78c09864-1fb1-427e-b77d-db82945e850c
+ρ0 = 3.22 * 10^-3 * 10^15 # density in kg/km3
+
+# ╔═╡ 5648367f-8628-4859-a2a5-ab92bab54e9b
+μ0 = 82 * 10^9 * 10^3
+
+# ╔═╡ dc95afc5-0232-4c2a-801e-dccac012d2e6
+invρ0 = inv(ρ0)
+
+# ╔═╡ 13ffff0c-23cd-4a98-8ce8-31644b9429d3
+invμ0 = inv(μ0)
+
+# ╔═╡ 63a177c1-034e-4aa6-9951-367570c49850
+medium_ref_values = (; μ0, invμ0, ρ0, invρ0)
+
+# ╔═╡ 8298ae48-0ddc-49a9-a43f-8434e4cc3758
+function get_x(medium, ref=medium_ref_values)
+  return vcat(vec(χ.(medium.ρ, ref.ρ0)), vec(χ.(inv.(medium.μ), ref.invμ0)))
+end
+
+# ╔═╡ 22ac08a7-f4d7-4809-8ee3-903d96c96cd6
+x0 = get_x(medium_ref)
+
+# ╔═╡ ff1ba1f6-f127-4c47-8198-aeff5f051ad9
+function update_medium!(medium, x, ref=medium_ref_values)
+  xρ, xinvμ = chunk(x, 2)
+  map!(medium.μ, xinvμ) do xm
+    inv(invχ(xm, ref.invμ0))
+  end
+  map!(medium.ρ, xρ) do xm
+    invχ(xm, ref.ρ0)
+  end
+  map!(medium.invρ, medium.ρ) do ρ
+    inv(ρ)
+  end
+  return medium
+end
+
+# ╔═╡ cb6adea2-9ea2-4857-b969-540a3439e700
+function update_x!(x, medium, ref=medium_ref_values)
+  xρ, xinvμ = chunk(x, 2)
+  map!(xinvμ, medium.μ) do m
+    χ(inv(m), ref.invμ0)
+  end
+  map!(xρ, medium.ρ) do m
+    χ(m, ref.ρ0)
+  end
+  return x
+end
 
 # ╔═╡ ae8012be-e7ab-4e85-a27f-febf08b3380b
 md"### Absorbing Boundaries"
 
 # ╔═╡ ce89710a-48d8-46d4-83b4-163a7eb0a2e5
 function get_taper_array(nx, nz; np=50, tapfact=0.20)
-    tarray = ones(nz, nx)
-    for ix in 1:np
-        tarray[:, ix] .= tarray[:, ix] * abs2(exp(-tapfact * abs(np - ix + 1) / np))
-        tarray[:, nx-ix+1] .= tarray[:, nx-ix+1] * abs2(exp(-tapfact * abs(np - ix + 1) / np))
-    end
-    for iz in 1:np
-        tarray[iz, :] .= tarray[iz, :] * abs2(exp(-tapfact * abs(np - iz + 1) / np))
-        tarray[nz-iz+1, :] .= tarray[nz-iz+1, :] * abs2(exp(-tapfact * abs(np - iz + 1) / np))
-    end
-    return tarray
+  tarray = ones(nz, nx)
+  for ix in 1:np
+    tarray[:, ix] .= tarray[:, ix] * abs2(exp(-tapfact * abs(np - ix + 1) / np))
+    tarray[:, nx-ix+1] .= tarray[:, nx-ix+1] * abs2(exp(-tapfact * abs(np - ix + 1) / np))
+  end
+  for iz in 1:np
+    tarray[iz, :] .= tarray[iz, :] * abs2(exp(-tapfact * abs(np - iz + 1) / np))
+    tarray[nz-iz+1, :] .= tarray[nz-iz+1, :] * abs2(exp(-tapfact * abs(np - iz + 1) / np))
+  end
+  return tarray
 end
 
 # ╔═╡ b7f4078a-ead0-4d42-8b44-4f471eefc6fc
 function clip_edges(m, grid_param)
-    (; xgrid, zgrid) = grid_param
-    I = findall(x -> isequal(x, 1), grid_param.tarray)
-    xs = extrema(unique(getindex.(I, 2)))
-    zs = extrema(unique(getindex.(I, 1)))
-    return xgrid[range(xs...)], zgrid[range(zs...)], m[range(zs...), range(xs...)]
+  (; xgrid, zgrid) = grid_param
+  I = findall(x -> isequal(x, 1), grid_param.tarray)
+  xs = extrema(unique(getindex.(I, 2)))
+  zs = extrema(unique(getindex.(I, 1)))
+  return xgrid[range(xs...)], zgrid[range(zs...)], m[range(zs...), range(xs...)]
 end
 
 # ╔═╡ 9494e2a6-e2fd-4728-94d4-d68816a00e72
@@ -415,147 +506,116 @@ md"""
 
 # ╔═╡ 9b744e72-07a2-4f8c-b88c-e0b1131794d0
 function initialize_fields(pa, nt; snap_store=false)
-    nz, nx = pa.nz, pa.nx
-    f = (; vy=zeros(nz, nx),
-        dvydx=zeros(nz, nx),
-        dvydz=zeros(nz, nx),
-        σyx=zeros(nz, nx),
-        dσyxdx=zeros(nz, nx),
-        σyz=zeros(nz, nx),
-        dσyzdz=zeros(nz, nx))
-    if snap_store
-        fs = (; vys=[zeros(nz, nx) for i in 1:nt], σyxs=[zeros(nz, nx) for i in 1:nt], σyzs=[zeros(nz, nx) for i in 1:nt])
-        return merge(f, fs)
-    else
-        return f
-    end
+  nz, nx = pa.nz, pa.nx
+  f = (; vy=zeros(nz, nx),
+    dvydx=zeros(nz, nx),
+    dvydz=zeros(nz, nx),
+    σyx=zeros(nz, nx),
+    dσyxdx=zeros(nz, nx),
+    σyz=zeros(nz, nx),
+    dσyzdz=zeros(nz, nx))
+  if snap_store
+    fs = (; vys=[zeros(nz, nx) for i in 1:nt], σyxs=[zeros(nz, nx) for i in 1:nt], σyzs=[zeros(nz, nx) for i in 1:nt])
+    return merge(f, fs)
+  else
+    return f
+  end
 end
 
 # ╔═╡ 31d742a4-100f-4744-afe5-381b265b6f4c
 function reset_fields!(fields)
-    fill!(fields.vy, zero(Float64))
-    fill!(fields.dvydx, zero(Float64))
-    fill!(fields.dvydz, zero(Float64))
-    fill!(fields.σyx, zero(Float64))
-    fill!(fields.σyz, zero(Float64))
-    fill!(fields.dσyxdx, zero(Float64))
-    fill!(fields.dσyzdz, zero(Float64))
-end
-
-# ╔═╡ 15bbf544-34bd-4d38-bac5-0f43b1305df3
-function propagate!(data, fields, pa, medium, forcing_transform_mat, forcing, adj=false)
-    reset_fields!(fields)
-
-    (; vy, dvydx, dvydz, σyx, σyz, dσyxdx, dσyzdz) = fields
-    (; nx, nz, tarray, tgrid, dt, nt) = pa
-
-
-    (; μ, ρ, invρ) = medium
-
-    if adj
-        (; Rs, Rr, Rr_t) = forcing_transform_mat
-    else
-        (; Rs, Rr) = forcing_transform_mat
-    end
-
-    # time loop
-    # @progress
-    @progress for it = 1:nt
-        Dx!(dvydx, vy)
-        Dz!(dvydz, vy)
-
-
-        @. σyx = σyx + μ * dvydx * dt
-        @. σyx = σyx * pa.tarray
-        @. σyz = σyz + μ * dvydz * dt
-        @. σyz = σyz * pa.tarray
-
-
-        Dx!(dσyxdx, σyx)
-        Dz!(dσyzdz, σyz)
-
-        @. vy = vy + invρ * (dσyxdx + dσyzdz) * dt
-
-        # need to view vy as a vector for source/recording operations
-        vyv = view(vy, :)
-
-        # add body force
-        f = forcing[it]
-        if adj
-            mul!(vyv, Rr_t, f, dt, 1.0)
-        else
-            mul!(vyv, Rs, f, dt, 1.0)
-        end
-
-        # record data
-        d = data[it]
-        mul!(d, Rr, vyv)
-
-        (:vys ∈ keys(fields)) && copyto!(fields.vys[it], vy)
-        (:σyxs ∈ keys(fields)) && copyto!(fields.σyxs[it], σyx)
-        (:σyzs ∈ keys(fields)) && copyto!(fields.σyzs[it], σyz)
-
-    end
-
-    return nothing
+  fill!(fields.vy, zero(Float64))
+  fill!(fields.dvydx, zero(Float64))
+  fill!(fields.dvydz, zero(Float64))
+  fill!(fields.σyx, zero(Float64))
+  fill!(fields.σyz, zero(Float64))
+  fill!(fields.dσyxdx, zero(Float64))
+  fill!(fields.dσyzdz, zero(Float64))
 end
 
 # ╔═╡ bd8b9a0c-6664-4ba8-9795-0a496e932d85
 md"### Gradients"
 
-# ╔═╡ 82116417-7a0e-4363-9b53-2bd5df250f17
-function reset_grad!(grad)
-    fill!(grad.▽ρ, zero(Float64))
-    fill!(grad.▽μ, zero(Float64))
-end
-
 # ╔═╡ 7d00ecf7-80ba-4eee-99f6-b03f7b1f6e52
 function initialize_grad(pa, nt, snap_store=true)
-    nz, nx = pa.nz, pa.nx
-    f = (; ▽ρ=zeros(nz, nx),
-        ▽μ=zeros(nz, nx),
-        ▽ρs=zeros(nz, nx),
-        ▽μs=zeros(nz, nx))
-    if snap_store
-        fs = (; ▽ρs=[zeros(nz, nx) for i in 1:nt], ▽μs=[zeros(nz, nx) for i in 1:nt])
-        return merge(f, fs)
-    else
-        return f
-    end
+  nz, nx = pa.nz, pa.nx
+  f = (; g=zeros(2 * nz * nx))
+  if snap_store
+    fs = (; ▽ρs=[zeros(nz, nx) for i in 1:nt], ▽μs=[zeros(nz, nx) for i in 1:nt])
+    return merge(f, fs)
+  else
+    return f
+  end
+end
+
+# ╔═╡ 5d7d9a8d-0c96-4533-862b-98418b84566b
+function update_gx!(gx, g, x, ref=medium_ref_values)
+  xρ, xinvμ = chunk(x, 2)
+  gρ, ginvμ = chunk(g, 2)
+  gxρ, gxinvμ = chunk(gx, 2)
+  map!(gxinvμ, ginvμ, xinvμ) do g, m
+    ref.invμ0 * exp(m) * g
+  end
+  map!(gxρ, gρ, xρ) do g, m
+    ref.ρ0 * exp(m) * g
+  end
+  return x
 end
 
 # ╔═╡ 4e1a0d4b-5f25-4b25-8dbb-4069e38dc5c4
 # create a function to compute grad_phi and grad_mu 
-function propagate_gradients(grad, forwfields, adjfields, pa)
-    reset_grad!(grad)
+function reduce_gradients!(grad, x, forwfields, adjfields, pa)
 
-    (; ▽ρ, ▽μ) = grad
-    (; nx, nz, tarray, tgrid, dt, nt) = pa
+  (; g, ▽ρs, ▽μs) = grad
 
-    @progress for it = 1:nt-1
-        # for gradρ
-        v2 = forwfields.vys[it+1]
-        v3 = forwfields.vys[it]
-        u2 = adjfields.vys[nt-it]
-        @. ▽ρ = ▽ρ + (v2 - v3) * u2
-        @. ▽ρ = ▽ρ * pa.tarray
+  fill!(g, 0.0)
+  map(▽ρs) do g
+    fill!(g, 0.0)
+  end
+  map(▽μs) do g
+    fill!(g, 0.0)
+  end
+  ▽ρ, ▽μ = chunk(g, 2)
+  (; nx, nz, tarray, tgrid, dt, nt) = pa
 
-        # for gradμ
+  # term u[nt]*v[1]
+  map!(▽ρ, ▽ρ, adjfields.vys[nt], forwfields.vys[1]) do g, u, v
+    g + u * v
+  end
 
-        σx2 = forwfields.σyxs[it]
-        τx2 = adjfields.σyxs[nt-it]
-        τx3 = adjfields.σyxs[nt-it+1]
+  for it = 1:nt-1
+    # for gradρ
+    v2 = forwfields.vys[nt-it+1]
+    v3 = forwfields.vys[nt-it]
+    u2 = adjfields.vys[it]
 
-        σz2 = forwfields.σyzs[it]
-        τz2 = adjfields.σyzs[nt-it]
-        τz3 = adjfields.σyzs[nt-it+1]
-
-        @. ▽μ = ▽μ + (σx2 * (τx2 - τx3)) + (σz2 * (τz2 - τz3))
-        @. ▽μ = ▽μ * pa.tarray
-
-        (:▽ρs ∈ keys(grad)) && copyto!(grad.▽ρs[it], ▽ρ)
-        (:▽μs ∈ keys(grad)) && copyto!(grad.▽μs[it], ▽μ)
+    map!(▽ρ, ▽ρ, adjfields.vys[it], forwfields.vys[nt-it], forwfields.vys[nt-it+1]) do g, u2, v3, v2
+      g + (v2 - v3) * u2
     end
+    # @. ▽ρ = ▽ρ * pa.tarray
+
+    # for gradμ
+
+    # σx2 = forwfields.σyxs[it]
+    # τx2 = adjfields.σyxs[nt-it]
+    # τx3 = adjfields.σyxs[nt-it+1]
+
+    # σz2 = forwfields.σyzs[it]
+    # τz2 = adjfields.σyzs[nt-it]
+    # τz3 = adjfields.σyzs[nt-it+1]
+
+    # @. ▽μ = ▽μ + (σx2 * (τx2 - τx3)) + (σz2 * (τz2 - τz3))
+    # @. ▽μ = ▽μ * pa.tarray
+
+    (:▽ρs ∈ keys(grad)) && copyto!(grad.▽ρs[it], ▽ρ)
+    (:▽μs ∈ keys(grad)) && copyto!(grad.▽μs[it], ▽μ)
+  end
+  # multiply with dt
+  rmul!(g, inv(dt))
+
+
+  # parameterization
+  update_gx!(g, g, x)
 end
 
 # ╔═╡ f95a08ce-a38d-4b7f-b478-4dbfa607740e
@@ -574,41 +634,41 @@ Its bandwidth is roughly 1.2 * fpeak.
 
 # ╔═╡ b993e3e6-8d4e-4de7-aa4b-6a2e3bd12212
 function ricker(fqdom,
-    tgrid;
-    # tpeak is the location of the peak amplitude
-    tpeak=tgrid[1] + 1.5 / fqdom, # using approximate half width of ricker
-    trim_tol=0.0,
-    maxamp=1.0
+  tgrid;
+  # tpeak is the location of the peak amplitude
+  tpeak=tgrid[1] + 1.5 / fqdom, # using approximate half width of ricker
+  trim_tol=0.0,
+  maxamp=1.0
 )
-    (tpeak < tgrid[1] + 1.5 / fqdom) && error("cannot output Ricker for given tgrid and tpeak")
-    (tpeak > tgrid[end] - 1.5 / fqdom) && error("cannot output Ricker for given tgrid and tpeak")
+  (tpeak < tgrid[1] + 1.5 / fqdom) && error("cannot output Ricker for given tgrid and tpeak")
+  (tpeak > tgrid[end] - 1.5 / fqdom) && error("cannot output Ricker for given tgrid and tpeak")
 
-    isapprox(fqdom, 0.0) && error("dominant frequency cannot be zero")
+  isapprox(fqdom, 0.0) && error("dominant frequency cannot be zero")
 
-    # some constants
-    pf = (π * π) * (fqdom^2.0)
-    nt = length(tgrid)
-    δt = step(tgrid)
+  # some constants
+  pf = (π * π) * (fqdom^2.0)
+  nt = length(tgrid)
+  δt = step(tgrid)
 
-    # initialize
-    wav = zero(tgrid)
+  # initialize
+  wav = zero(tgrid)
 
-    #! ricker wavelet
-    for it = 1:nt
-        tsquare = (tgrid[it] - tpeak) * (tgrid[it] - tpeak)
-        wav[it] = (1.0 - 2.0 * pf * tsquare) * exp(-1.0e0 * pf * tsquare) * maxamp
-    end
+  #! ricker wavelet
+  for it = 1:nt
+    tsquare = (tgrid[it] - tpeak) * (tgrid[it] - tpeak)
+    wav[it] = (1.0 - 2.0 * pf * tsquare) * exp(-1.0e0 * pf * tsquare) * maxamp
+  end
 
-    isapprox(maximum(abs.(wav)), 0.0) && warn("wavelet is zeros")
-    return wav
+  isapprox(maximum(abs.(wav)), 0.0) && warn("wavelet is zeros")
+  return wav
 end
 
 # ╔═╡ 17dd3d57-d5ca-443c-b003-b3a97b963d57
 #=╠═╡
 begin
 	source_fpeak = 2.0 # in Hz
-	source_wavelet = ricker(source_fpeak, tgrid)
-	source_forcing = [fill(source_wavelet[it], ageom.ns) for it in 1:nt]
+	source_wavelet = ricker(source_fpeak, tgrid, maxamp=1e15)
+	source = repeat(source_wavelet, 1, ageom.ns)
 end;
   ╠═╡ =#
 
@@ -644,6 +704,60 @@ taper_points
 plot(heatmap(x=xgrid, y=zgrid, z=(grid_param.tarray)))
   ╠═╡ =#
 
+# ╔═╡ 15bbf544-34bd-4d38-bac5-0f43b1305df3
+#=╠═╡
+function propagate!(data, fields, pa, medium, ageom, source)
+
+	# source spray and receiver projection matrix
+	Rs=get_projection_matrix(ageom.xs, ageom.zs, grid_param.xgrid, grid_param.zgrid, transpose_flag=false, m=medium.invρ)
+	Rr=get_projection_matrix(ageom.xr, ageom.zr, grid_param.xgrid, grid_param.zgrid, transpose_flag=true)
+
+    reset_fields!(fields)
+
+    (; vy, dvydx, dvydz, σyx, σyz, dσyxdx, dσyzdz) = fields
+    (; nx, nz, tarray, tgrid, dt, nt) = pa
+
+    (; μ, ρ, invρ) = medium
+
+    # time loop
+    # @progress 
+	for it = 1:nt
+		# ============= update vy ================
+        Dx!(dσyxdx, σyx)
+        Dz!(dσyzdz, σyz)
+
+        @. vy = vy + invρ * (dσyxdx + dσyzdz) * dt
+
+		# ============== body force ==============
+		# need to view vy as a vector for source/recording operations
+        vyv = view(vy, :)
+        f = view(source, it, :)
+	    mul!(vyv, Rs, f, dt, 1.0)
+
+		# ============= update σ ================
+        Dx!(dvydx, vy)
+        Dz!(dvydz, vy)
+
+        @. σyx = σyx + μ * dvydx * dt
+        @. σyx = σyx * pa.tarray
+        @. σyz = σyz + μ * dvydz * dt
+        @. σyz = σyz * pa.tarray
+
+
+        # ============= record fields ===========
+        d = view(data, it, :)
+        mul!(d, Rr, vyv)
+
+        (:vys ∈ keys(fields)) && copyto!(fields.vys[it], vy)
+        (:σyxs ∈ keys(fields)) && copyto!(fields.σyxs[it], σyx)
+        (:σyzs ∈ keys(fields)) && copyto!(fields.σyzs[it], σyz)
+
+    end
+
+    return nothing
+end
+  ╠═╡ =#
+
 # ╔═╡ d812711d-d02f-44bb-9e73-accd1623dea1
 #=╠═╡
 plot(tgrid, source_wavelet, size=(500, 200), w=2, label="Source Wavelet", Layout(width=500, height=250))
@@ -652,50 +766,41 @@ plot(tgrid, source_wavelet, size=(500, 200), w=2, label="Source Wavelet", Layout
 # ╔═╡ 77c9696c-58c5-40bf-acd0-16d5cf877810
 #=╠═╡
 begin
-	# Getting the forcing due to sources
-	true_forcing_transform = get_forcing_transform(ageom, medium_true, grid_param.xgrid, grid_param.zgrid)
-
 	# Initialisation of fields and data
 	fields_true = initialize_fields(grid_param, grid_param.nt)
 	dobs = initialize_data(grid_param, ageom)
 
 	# Running the simulation to generate observed data
-	@time propagate!(dobs, fields_true, grid_param, medium_true, true_forcing_transform, source_forcing)	
+	@time propagate!(dobs, fields_true, grid_param, medium_true, ageom, source)	
 end;
   ╠═╡ =#
 
 # ╔═╡ 3be62716-f2d9-434c-a69a-ed272b89c85d
 #=╠═╡
 begin
-	# Getting the forcing due to sources
-	ref_forcing_transform = get_forcing_transform(ageom, medium_ref, grid_param.xgrid, grid_param.zgrid, true)
-
 	# Initialisation of fields and data
 	fields_forw = initialize_fields(grid_param, grid_param.nt, snap_store=true)
 	dref = initialize_data(grid_param, ageom)
 
 	# Simulation to compute wavefields
-	propagate!(dref, fields_forw, grid_param, medium_ref, ref_forcing_transform, source_forcing)
+	propagate!(dref, fields_forw, grid_param, medium_ref, ageom, source)
 end;
   ╠═╡ =#
 
-# ╔═╡ 59155ad5-d341-4e16-b7cc-b6a3def51992
+# ╔═╡ ee679ef2-3cf8-4b3d-a717-ae2d088b5fe8
 #=╠═╡
-data_error = dref .- dobs;
+adj_source = get_adj_source(dobs, dref);
   ╠═╡ =#
 
 # ╔═╡ 3f5f9d8a-3647-4a16-89ba-bd7a31c01064
 #=╠═╡
 begin
-	# Forcing at receivers due to data error
-	rec_forcing = reverse(data_error)
-
 	# Initialisation of fields and data
 	fields_adj = initialize_fields(grid_param, nt, snap_store=true)
-	dadj = initialize_data(grid_param, ageom)
+	dadj = initialize_data(grid_param, adj_ageom)
 
 	# Simulating the adjoint field
-	propagate!(dadj, fields_adj, grid_param, medium_ref, ref_forcing_transform, rec_forcing, true)
+	propagate!(dadj, fields_adj, grid_param, medium_ref, adj_ageom, adj_source)
 end;
   ╠═╡ =#
 
@@ -703,10 +808,65 @@ end;
 #=╠═╡
 begin
 	# Initialisation of grad
-	fields_grad = initialize_grad(grid_param, grid_param.nt)
+	gradient = initialize_grad(grid_param, grid_param.nt)
 	# Simulation to compute grad 
-	@time propagate_gradients(fields_grad, fields_forw, fields_adj, grid_param)
+	reduce_gradients!(gradient, x0, fields_forw, fields_adj, grid_param)
 end
+  ╠═╡ =#
+
+# ╔═╡ f39990be-9414-46bf-9c52-097b171479e9
+#=╠═╡
+plot(heatmap(z=reshape(chunk(gradient.g, 2)[1], length(zgrid), length(xgrid))))
+  ╠═╡ =#
+
+# ╔═╡ d5085897-e39d-489d-9e58-acbdb6226d57
+#=╠═╡
+gradient
+  ╠═╡ =#
+
+# ╔═╡ c1ab23f9-2adb-433d-a8c3-6cad4917ac30
+#=╠═╡
+g2=get_xs(gradient.g, xs)
+  ╠═╡ =#
+
+# ╔═╡ a42d3b46-ae60-41d1-8b2d-e85af895ec14
+#=╠═╡
+fwi_param = (; fields_forw = initialize_fields(grid_param, nt, snap_store=true), fields_adj = initialize_fields(grid_param, nt, snap_store=true), medium=deepcopy(medium_ref), dref, ageom, adj_ageom, source, adj_source, dobs, grid_param, xbuffer=get_x(medium_ref))
+  ╠═╡ =#
+
+# ╔═╡ a24bfc41-8e50-4a68-b5cf-3973f4003221
+#=╠═╡
+function J(x; fwi_param=fwi_param)
+
+	(; dref, fields_forw, grid_param, medium, ageom, source) = fwi_param
+	update_medium!(medium, x)
+	propagate!(dref, fields_forw, grid_param, medium, ageom, source)
+
+	return Jdata(dref, dobs)
+end
+  ╠═╡ =#
+
+# ╔═╡ 008b99f2-c9f3-4d30-a234-393e1ed69840
+#=╠═╡
+function Js(xs; fwi_param=fwi_param)
+	update_xs!(fwi_param.xbuffer, xs)
+	return J(fwi_param.xbuffer, fwi_param=fwi_param)
+end
+  ╠═╡ =#
+
+# ╔═╡ 12a089f0-23b5-4091-8861-d3ba2d0073a0
+#=╠═╡
+@time Js(xs)
+  ╠═╡ =#
+
+# ╔═╡ e88a71b9-6e63-4b3d-86d1-e5f8dd30274c
+#=╠═╡
+g1=grad(central_fdm(2, 1), Js, xs)
+  ╠═╡ =#
+
+# ╔═╡ b525408f-0d7d-4333-a789-def42565520c
+#=╠═╡
+g1[1] ./ g2
   ╠═╡ =#
 
 # ╔═╡ fbe44944-499a-4881-94b6-07855d1165aa
@@ -719,48 +879,48 @@ md"This function plots the wavefield after clipping the edges."
 
 # ╔═╡ a72184ba-f642-4bed-8a31-c70d5fdb88e2
 function add_ageom!(fig, ageom, row, col)
-    if (!(ageom === nothing))
-        add_trace!(fig, scatter(
-                x=ageom.xr,
-                y=ageom.zr, mode="markers",
-                marker_color="black", marker_symbol="triangle-down", showlegend=false), row=row, col=col)
-        add_trace!(fig, scatter(
-                x=ageom.xs,
-                y=ageom.zs, mode="markers",
-                marker_color="black", marker_size=10, marker_symbol="star", showlegend=false), row=row, col=col)
-    end
+  if (!(ageom === nothing))
+    add_trace!(fig, scatter(
+        x=ageom.xr,
+        y=ageom.zr, mode="markers",
+        marker_color="black", marker_symbol="triangle-down", showlegend=false), row=row, col=col)
+    add_trace!(fig, scatter(
+        x=ageom.xs,
+        y=ageom.zs, mode="markers",
+        marker_color="black", marker_size=10, marker_symbol="star", showlegend=false), row=row, col=col)
+  end
 
 end
 
 # ╔═╡ f1b9f4a0-5554-48fd-9268-4d7b03d74688
 function fieldheat(fields, titles, grid_param, ageom=nothing)
 
-    @assert length(fields) == length(titles) == 4
-    fig = Plot(Layout(yaxis_autorange="reversed", title=attr(font_size=12,), font=attr(
-            size=10), yaxis=attr(scaleanchor="x", scaleratio=1), Subplots(shared_xaxes=true, shared_yaxes=true, horizontal_spacing=0.04, vertical_spacing=0.04, rows=div(length(fields) - 1, 2) + 1, cols=2, subplot_titles=titles)))
-    i = 0
-    for f in fields
-        i = i + 1
-        ic = 2 - mod(i, 2)
-        ir = div(i - 1, 2) + 1
-        x, y, z = clip_edges(f, grid_param)
-        dmax = maximum(abs, f)
-        add_trace!(fig, heatmap(
-                xmin=-30, xmax=30,
-                x=x,
-                y=y,
-                z=z, zmin=-dmax,
-                zmax=dmax, colorscale="seismic", showscale=false), row=ir, col=ic)
-        add_ageom!(fig, ageom, ir, ic)
-    end
-    return PlutoPlotly.plot(fig)
+  @assert length(fields) == length(titles) == 4
+  fig = Plot(Layout(yaxis_autorange="reversed", title=attr(font_size=12,), font=attr(
+      size=10), yaxis=attr(scaleanchor="x", scaleratio=1), Subplots(shared_xaxes=true, shared_yaxes=true, horizontal_spacing=0.04, vertical_spacing=0.04, rows=div(length(fields) - 1, 2) + 1, cols=2, subplot_titles=titles)))
+  i = 0
+  for f in fields
+    i = i + 1
+    ic = 2 - mod(i, 2)
+    ir = div(i - 1, 2) + 1
+    x, y, z = clip_edges(f, grid_param)
+    dmax = maximum(abs, f)
+    add_trace!(fig, heatmap(
+        xmin=-30, xmax=30,
+        x=x,
+        y=y,
+        z=z, zmin=-dmax,
+        zmax=dmax, colorscale="seismic", showscale=false), row=ir, col=ic)
+    add_ageom!(fig, ageom, ir, ic)
+  end
+  return PlutoPlotly.plot(fig)
 
 end
 
 # ╔═╡ 77e134d8-bd8b-4303-8c44-a4920cf0ee81
 #=╠═╡
 let t=mod(t_forw, grid_param.nt-1)
-fieldheat([fields_forw.vys[t], fields_adj.vys[nt-t], fields_grad.▽ρs[t], fields_grad.▽μs[t]], 
+fieldheat([fields_forw.vys[t], fields_adj.vys[nt-t], gradient.▽ρs[t], gradient.▽μs[t]], 
 	["Forward Field" "Adjoint Field" "Gradient w.r.t. ρ" "Gradient w.r.t. μ"], 
 	grid_param, ageom)
 end
@@ -807,21 +967,21 @@ mediumheat(medium_ref, ageom)
 
 # ╔═╡ 54986cc5-2ea0-4097-bbe0-1ed174ec9ae4
 function dataheat(d, tgrid; title="Data")
-    data = cat(d..., dims=2)'
-    dmax = maximum(abs, data)
-    trace = heatmap(
-        z=data,
-        x=1:size(data, 2),
-        y=tgrid,
-        colorscale="RdBu",
-        reversescale=true,
-        zmin=-dmax,
-        zmax=dmax,
-    )
-    layout = Layout(title=title, width=300, height=450, xaxis_range=[0, size(data, 2) + 1], yaxis_scaleanchor="x", yaxis_scaleratio=2.5, yaxis_autorange="reversed",
-        xaxis_title="Receiver #",
-        yaxis_title="Time (s)",)
-    return plot(trace, layout)
+  data = d
+  dmax = maximum(abs, data)
+  trace = heatmap(
+    z=data,
+    x=1:size(data, 2),
+    y=tgrid,
+    colorscale="RdBu",
+    reversescale=true,
+    zmin=-dmax,
+    zmax=dmax,
+  )
+  layout = Layout(title=title, width=300, height=450, xaxis_range=[0, size(data, 2) + 1], yaxis_scaleanchor="x", yaxis_scaleratio=2.5, yaxis_autorange="reversed",
+    xaxis_title="Receiver #",
+    yaxis_title="Time (s)",)
+  return plot(trace, layout)
 end
 
 # ╔═╡ 4171af00-1d14-45ba-9fd3-a2c30d0b759f
@@ -829,9 +989,14 @@ end
 dataheat(dobs, tgrid, title="Observed Data")
   ╠═╡ =#
 
+# ╔═╡ 438da68f-f23e-4712-9dd6-0dd030ad8656
+#=╠═╡
+dataheat(dref, tgrid, title="Modelled Data")
+  ╠═╡ =#
+
 # ╔═╡ 270e5d4a-c666-43e7-8c64-02b9fed977e4
 #=╠═╡
-dataheat(data_error, tgrid, title="Data Error")
+dataheat(adj_source, tgrid, title="Data Error")
   ╠═╡ =#
 
 # ╔═╡ 802d9652-7597-43c4-b13a-3c60682d0a69
@@ -873,8 +1038,12 @@ PLUTO_PROJECT_TOML_CONTENTS = """
 [deps]
 DSP = "717857b8-e6f2-59f4-9121-6e50c889abd2"
 FFTW = "7a1cc6ca-52ef-59f5-83cd-3a7055c09341"
+FiniteDifferences = "26cc04aa-876d-5657-8c51-4c34ba976000"
+ForwardDiff = "f6369f11-7733-5829-9624-2563aa707210"
 LaTeXStrings = "b964fa9f-0449-5b57-a5c2-d3ea65f4040f"
 LinearAlgebra = "37e2e46d-f89d-539d-b4ee-838fcccc9c8e"
+LossFunctions = "30fc2ffe-d236-52d8-8643-a9d8f7c094a7"
+MLUtils = "f1d291b0-491e-4a28-83b9-f70985020b54"
 PlutoPlotly = "8e989ff0-3d88-8e9f-f020-2b208a939ff0"
 PlutoUI = "7f904dfe-b85e-4ff6-b463-dae2292396a8"
 ProgressLogging = "33c8b6b6-d38a-422a-b730-caa89a2f386c"
@@ -884,7 +1053,11 @@ Statistics = "10745b16-79ce-11e8-11f9-7d13ad32a3b2"
 [compat]
 DSP = "~0.7.8"
 FFTW = "~1.6.0"
+FiniteDifferences = "~0.12.26"
+ForwardDiff = "~0.10.35"
 LaTeXStrings = "~1.3.0"
+LossFunctions = "~0.9.0"
+MLUtils = "~0.4.1"
 PlutoPlotly = "~0.3.6"
 PlutoUI = "~0.7.50"
 ProgressLogging = "~0.1.4"
@@ -896,7 +1069,7 @@ PLUTO_MANIFEST_TOML_CONTENTS = """
 
 julia_version = "1.8.5"
 manifest_format = "2.0"
-project_hash = "1c637fc7dc0b02373e9e75bc0030e1f5a3b10ba3"
+project_hash = "c8cf3b66a499452f32e4364d607bd473f5006196"
 
 [[deps.AbstractFFTs]]
 deps = ["ChainRulesCore", "LinearAlgebra"]
@@ -910,6 +1083,23 @@ git-tree-sha1 = "8eaf9f1b4921132a4cff3f36a1d9ba923b14a481"
 uuid = "6e696c72-6542-2067-7265-42206c756150"
 version = "1.1.4"
 
+[[deps.Accessors]]
+deps = ["Compat", "CompositionsBase", "ConstructionBase", "Dates", "InverseFunctions", "LinearAlgebra", "MacroTools", "Requires", "StaticArrays", "Test"]
+git-tree-sha1 = "c7dddee3f32ceac12abd9a21cd0c4cb489f230d2"
+uuid = "7d9f7c33-5ae7-4f3b-8dc6-eff91059b697"
+version = "0.1.29"
+
+[[deps.Adapt]]
+deps = ["LinearAlgebra", "Requires"]
+git-tree-sha1 = "cc37d689f599e8df4f464b2fa3870ff7db7492ef"
+uuid = "79e6a3ab-5dfb-504d-930d-738a2a938a0e"
+version = "3.6.1"
+
+[[deps.ArgCheck]]
+git-tree-sha1 = "a3a402a35a2f7e0b87828ccabbd5ebfbebe356b4"
+uuid = "dce04be8-c92d-5529-be00-80e4d2c0e197"
+version = "2.3.0"
+
 [[deps.ArgTools]]
 uuid = "0dad84c5-d112-42e6-8d28-ef12dabb789f"
 version = "1.1.1"
@@ -917,8 +1107,36 @@ version = "1.1.1"
 [[deps.Artifacts]]
 uuid = "56f22d72-fd6d-98f1-02f0-08ddc0907c33"
 
+[[deps.Atomix]]
+deps = ["UnsafeAtomics"]
+git-tree-sha1 = "c06a868224ecba914baa6942988e2f2aade419be"
+uuid = "a9b6321e-bd34-4604-b9c9-b65b8de01458"
+version = "0.1.0"
+
+[[deps.BangBang]]
+deps = ["Compat", "ConstructionBase", "Future", "InitialValues", "LinearAlgebra", "Requires", "Setfield", "Tables", "ZygoteRules"]
+git-tree-sha1 = "7fe6d92c4f281cf4ca6f2fba0ce7b299742da7ca"
+uuid = "198e06fe-97b7-11e9-32a5-e1d131e6ad66"
+version = "0.3.37"
+
 [[deps.Base64]]
 uuid = "2a0f44e3-6c83-55bd-87e4-b1978d98bd5f"
+
+[[deps.Baselet]]
+git-tree-sha1 = "aebf55e6d7795e02ca500a689d326ac979aaf89e"
+uuid = "9718e550-a3fa-408a-8086-8db961cd8217"
+version = "0.1.1"
+
+[[deps.CEnum]]
+git-tree-sha1 = "eb4cb44a499229b3b8426dcfb5dd85333951ff90"
+uuid = "fa961155-64e5-5f13-b03f-caf6b980ea82"
+version = "0.4.2"
+
+[[deps.CategoricalArrays]]
+deps = ["DataAPI", "Future", "Missings", "Printf", "Requires", "Statistics", "Unicode"]
+git-tree-sha1 = "5084cc1a28976dd1642c9f337b28a3cb03e0f7d2"
+uuid = "324d7699-5711-5eae-9e2f-1d82baa6b597"
+version = "0.10.7"
 
 [[deps.ChainRulesCore]]
 deps = ["Compat", "LinearAlgebra", "SparseArrays"]
@@ -956,6 +1174,12 @@ git-tree-sha1 = "fc08e5930ee9a4e03f84bfb5211cb54e7769758a"
 uuid = "5ae59095-9a9b-59fe-a467-6f913c188581"
 version = "0.12.10"
 
+[[deps.CommonSubexpressions]]
+deps = ["MacroTools", "Test"]
+git-tree-sha1 = "7b8a93dba8af7e3b42fecabf646260105ac373f7"
+uuid = "bbf7d656-a473-5ed7-a52c-81e309532950"
+version = "0.3.0"
+
 [[deps.Compat]]
 deps = ["Dates", "LinearAlgebra", "UUIDs"]
 git-tree-sha1 = "7a60c856b9fa189eb34f5f8a6f6b5529b7942957"
@@ -967,19 +1191,73 @@ deps = ["Artifacts", "Libdl"]
 uuid = "e66e0078-7015-5450-92f7-15fbd957f2ae"
 version = "1.0.1+0"
 
+[[deps.CompositionsBase]]
+git-tree-sha1 = "455419f7e328a1a2493cabc6428d79e951349769"
+uuid = "a33af91c-f02d-484b-be07-31d278c5ca2b"
+version = "0.1.1"
+
+[[deps.ConstructionBase]]
+deps = ["LinearAlgebra"]
+git-tree-sha1 = "89a9db8d28102b094992472d333674bd1a83ce2a"
+uuid = "187b0558-2788-49d3-abe0-74a17ed4e7c9"
+version = "1.5.1"
+
+[[deps.ContextVariablesX]]
+deps = ["Compat", "Logging", "UUIDs"]
+git-tree-sha1 = "25cc3803f1030ab855e383129dcd3dc294e322cc"
+uuid = "6add18c4-b38d-439d-96f6-d6bc489c04c5"
+version = "0.1.3"
+
 [[deps.DSP]]
 deps = ["Compat", "FFTW", "IterTools", "LinearAlgebra", "Polynomials", "Random", "Reexport", "SpecialFunctions", "Statistics"]
 git-tree-sha1 = "da8b06f89fce9996443010ef92572b193f8dca1f"
 uuid = "717857b8-e6f2-59f4-9121-6e50c889abd2"
 version = "0.7.8"
 
+[[deps.DataAPI]]
+git-tree-sha1 = "e8119c1a33d267e16108be441a287a6981ba1630"
+uuid = "9a962f9c-6df0-11e9-0e5d-c546b8b5ee8a"
+version = "1.14.0"
+
+[[deps.DataStructures]]
+deps = ["Compat", "InteractiveUtils", "OrderedCollections"]
+git-tree-sha1 = "d1fff3a548102f48987a52a2e0d114fa97d730f0"
+uuid = "864edb3b-99cc-5e75-8d2d-829cb0a9cfe8"
+version = "0.18.13"
+
+[[deps.DataValueInterfaces]]
+git-tree-sha1 = "bfc1187b79289637fa0ef6d4436ebdfe6905cbd6"
+uuid = "e2d170a0-9d28-54be-80f0-106bbe20a464"
+version = "1.0.0"
+
 [[deps.Dates]]
 deps = ["Printf"]
 uuid = "ade2ca70-3891-5945-98fb-dc099432e06a"
 
+[[deps.DefineSingletons]]
+git-tree-sha1 = "0fba8b706d0178b4dc7fd44a96a92382c9065c2c"
+uuid = "244e2a9f-e319-4986-a169-4d1fe445cd52"
+version = "0.1.2"
+
 [[deps.DelimitedFiles]]
 deps = ["Mmap"]
 uuid = "8bb1440f-4735-579b-a4ab-409b98df4dab"
+
+[[deps.DiffResults]]
+deps = ["StaticArraysCore"]
+git-tree-sha1 = "782dd5f4561f5d267313f23853baaaa4c52ea621"
+uuid = "163ba53b-c6d8-5494-b064-1a9d43ac40c5"
+version = "1.1.0"
+
+[[deps.DiffRules]]
+deps = ["IrrationalConstants", "LogExpFunctions", "NaNMath", "Random", "SpecialFunctions"]
+git-tree-sha1 = "a4ad7ef19d2cdc2eff57abbbe68032b1cd0bd8f8"
+uuid = "b552c78f-8df3-52c6-915a-8e097449b14b"
+version = "1.13.0"
+
+[[deps.Distributed]]
+deps = ["Random", "Serialization", "Sockets"]
+uuid = "8ba89e20-285c-5b6f-9357-94700520ee1b"
 
 [[deps.DocStringExtensions]]
 deps = ["LibGit2"]
@@ -1004,14 +1282,59 @@ git-tree-sha1 = "c6033cc3892d0ef5bb9cd29b7f2f0331ea5184ea"
 uuid = "f5851436-0d7a-5f13-b9de-f02708fd171a"
 version = "3.3.10+0"
 
+[[deps.FLoops]]
+deps = ["BangBang", "Compat", "FLoopsBase", "InitialValues", "JuliaVariables", "MLStyle", "Serialization", "Setfield", "Transducers"]
+git-tree-sha1 = "ffb97765602e3cbe59a0589d237bf07f245a8576"
+uuid = "cc61a311-1640-44b5-9fba-1b764f453329"
+version = "0.2.1"
+
+[[deps.FLoopsBase]]
+deps = ["ContextVariablesX"]
+git-tree-sha1 = "656f7a6859be8673bf1f35da5670246b923964f7"
+uuid = "b9860ae5-e623-471e-878b-f6a53c775ea6"
+version = "0.1.1"
+
 [[deps.FileWatching]]
 uuid = "7b1f6079-737a-58dc-b8bc-7a2ca5c1b5ee"
+
+[[deps.FiniteDifferences]]
+deps = ["ChainRulesCore", "LinearAlgebra", "Printf", "Random", "Richardson", "SparseArrays", "StaticArrays"]
+git-tree-sha1 = "3f605dd6db5640c5278f2551afc9427656439f42"
+uuid = "26cc04aa-876d-5657-8c51-4c34ba976000"
+version = "0.12.26"
 
 [[deps.FixedPointNumbers]]
 deps = ["Statistics"]
 git-tree-sha1 = "335bfdceacc84c5cdf16aadc768aa5ddfc5383cc"
 uuid = "53c48c17-4a7d-5ca2-90c5-79b7896eea93"
 version = "0.8.4"
+
+[[deps.FoldsThreads]]
+deps = ["Accessors", "FunctionWrappers", "InitialValues", "SplittablesBase", "Transducers"]
+git-tree-sha1 = "eb8e1989b9028f7e0985b4268dabe94682249025"
+uuid = "9c68100b-dfe1-47cf-94c8-95104e173443"
+version = "0.1.1"
+
+[[deps.ForwardDiff]]
+deps = ["CommonSubexpressions", "DiffResults", "DiffRules", "LinearAlgebra", "LogExpFunctions", "NaNMath", "Preferences", "Printf", "Random", "SpecialFunctions", "StaticArrays"]
+git-tree-sha1 = "00e252f4d706b3d55a8863432e742bf5717b498d"
+uuid = "f6369f11-7733-5829-9624-2563aa707210"
+version = "0.10.35"
+
+[[deps.FunctionWrappers]]
+git-tree-sha1 = "d62485945ce5ae9c0c48f124a84998d755bae00e"
+uuid = "069b7b12-0de2-55c6-9aab-29f3d0a68a2e"
+version = "1.1.3"
+
+[[deps.Future]]
+deps = ["Random"]
+uuid = "9fa8497b-333b-5362-9e8d-4d0656e87820"
+
+[[deps.GPUArraysCore]]
+deps = ["Adapt"]
+git-tree-sha1 = "1cd7f0af1aa58abc02ea1d872953a97359cb87fa"
+uuid = "46192b85-c4d5-4398-a991-12ede77f4527"
+version = "0.1.4"
 
 [[deps.Hyperscript]]
 deps = ["Test"]
@@ -1030,6 +1353,11 @@ deps = ["Logging", "Random"]
 git-tree-sha1 = "f7be53659ab06ddc986428d3a9dcc95f6fa6705a"
 uuid = "b5f81e59-6552-4d32-b1f0-c071b021bf89"
 version = "0.2.2"
+
+[[deps.InitialValues]]
+git-tree-sha1 = "4da0f88e9a39111c2fa3add390ab15f3a44f3ca3"
+uuid = "22cec73e-a1b8-11e9-2c92-598750a2cf9c"
+version = "0.3.1"
 
 [[deps.IntelOpenMP_jll]]
 deps = ["Artifacts", "JLLWrappers", "Libdl", "Pkg"]
@@ -1057,6 +1385,11 @@ git-tree-sha1 = "fa6287a4469f5e048d763df38279ee729fbd44e5"
 uuid = "c8e1da08-722c-5040-9ed9-7db0dc04731e"
 version = "1.4.0"
 
+[[deps.IteratorInterfaceExtensions]]
+git-tree-sha1 = "a3f24677c21f5bbe9d2a714f95dcd58337fb2856"
+uuid = "82899510-4779-5014-852e-03e436cf321d"
+version = "1.0.0"
+
 [[deps.JLLWrappers]]
 deps = ["Preferences"]
 git-tree-sha1 = "abc9885a7ca2052a736a600f7fa66209f96506e1"
@@ -1068,6 +1401,30 @@ deps = ["Dates", "Mmap", "Parsers", "Unicode"]
 git-tree-sha1 = "3c837543ddb02250ef42f4738347454f95079d4e"
 uuid = "682c06a0-de6a-54ab-a142-c8b1cf79cde6"
 version = "0.21.3"
+
+[[deps.JuliaVariables]]
+deps = ["MLStyle", "NameResolution"]
+git-tree-sha1 = "49fb3cb53362ddadb4415e9b73926d6b40709e70"
+uuid = "b14d175d-62b4-44ba-8fb7-3064adc8c3ec"
+version = "0.2.4"
+
+[[deps.KernelAbstractions]]
+deps = ["Adapt", "Atomix", "InteractiveUtils", "LinearAlgebra", "MacroTools", "SnoopPrecompile", "SparseArrays", "StaticArrays", "UUIDs", "UnsafeAtomics", "UnsafeAtomicsLLVM"]
+git-tree-sha1 = "976231af02176082fb266a9f96a59da51fcacf20"
+uuid = "63c18a36-062a-441e-b654-da1e3ab1ce7c"
+version = "0.9.2"
+
+[[deps.LLVM]]
+deps = ["CEnum", "LLVMExtra_jll", "Libdl", "Printf", "Unicode"]
+git-tree-sha1 = "a8960cae30b42b66dd41808beb76490519f6f9e2"
+uuid = "929cbde3-209d-540e-8aea-75f648917ca0"
+version = "5.0.0"
+
+[[deps.LLVMExtra_jll]]
+deps = ["Artifacts", "JLLWrappers", "LazyArtifacts", "Libdl", "TOML"]
+git-tree-sha1 = "09b7505cc0b1cee87e5d4a26eea61d2e1b0dcd35"
+uuid = "dad2f222-ce93-54a1-a47d-0025e8a3acab"
+version = "0.0.21+0"
 
 [[deps.LaTeXStrings]]
 git-tree-sha1 = "f2355693d6778a178ade15952b7ac47a4ff97996"
@@ -1113,6 +1470,12 @@ version = "0.3.23"
 [[deps.Logging]]
 uuid = "56ddb016-857b-54e1-b83d-db4d58db5568"
 
+[[deps.LossFunctions]]
+deps = ["CategoricalArrays", "Markdown"]
+git-tree-sha1 = "d4c7ff8c7281943371e1725000fd538a699024d0"
+uuid = "30fc2ffe-d236-52d8-8643-a9d8f7c094a7"
+version = "0.9.0"
+
 [[deps.MIMEs]]
 git-tree-sha1 = "65f28ad4b594aebe22157d6fac869786a255b7eb"
 uuid = "6c6e2e6c-3030-632d-7369-2d6c69616d65"
@@ -1123,6 +1486,23 @@ deps = ["Artifacts", "IntelOpenMP_jll", "JLLWrappers", "LazyArtifacts", "Libdl",
 git-tree-sha1 = "2ce8695e1e699b68702c03402672a69f54b8aca9"
 uuid = "856f044c-d86e-5d09-b602-aeab76dc8ba7"
 version = "2022.2.0+0"
+
+[[deps.MLStyle]]
+git-tree-sha1 = "bc38dff0548128765760c79eb7388a4b37fae2c8"
+uuid = "d8e11817-5142-5d16-987a-aa16d5891078"
+version = "0.4.17"
+
+[[deps.MLUtils]]
+deps = ["ChainRulesCore", "Compat", "DataAPI", "DelimitedFiles", "FLoops", "FoldsThreads", "NNlib", "Random", "ShowCases", "SimpleTraits", "Statistics", "StatsBase", "Tables", "Transducers"]
+git-tree-sha1 = "f69cdbb5b7c630c02481d81d50eac43697084fe0"
+uuid = "f1d291b0-491e-4a28-83b9-f70985020b54"
+version = "0.4.1"
+
+[[deps.MacroTools]]
+deps = ["Markdown", "Random"]
+git-tree-sha1 = "42324d08725e200c23d4dfb549e0d5d89dede2d2"
+uuid = "1914dd2f-81c6-5fcd-8719-6d5c9610ff09"
+version = "0.5.10"
 
 [[deps.MakieCore]]
 deps = ["Observables"]
@@ -1139,12 +1519,42 @@ deps = ["Artifacts", "Libdl"]
 uuid = "c8ffd9c3-330d-5841-b78e-0817d7145fa1"
 version = "2.28.0+0"
 
+[[deps.MicroCollections]]
+deps = ["BangBang", "InitialValues", "Setfield"]
+git-tree-sha1 = "629afd7d10dbc6935ec59b32daeb33bc4460a42e"
+uuid = "128add7d-3638-4c79-886c-908ea0c25c34"
+version = "0.1.4"
+
+[[deps.Missings]]
+deps = ["DataAPI"]
+git-tree-sha1 = "f66bdc5de519e8f8ae43bdc598782d35a25b1272"
+uuid = "e1d29d7a-bbdc-5cf2-9ac0-f12de2c33e28"
+version = "1.1.0"
+
 [[deps.Mmap]]
 uuid = "a63ad114-7e13-5084-954f-fe012c677804"
 
 [[deps.MozillaCACerts_jll]]
 uuid = "14a3606d-f60d-562e-9121-12d972cd8159"
 version = "2022.2.1"
+
+[[deps.NNlib]]
+deps = ["Adapt", "Atomix", "ChainRulesCore", "GPUArraysCore", "KernelAbstractions", "LinearAlgebra", "Pkg", "Random", "Requires", "Statistics"]
+git-tree-sha1 = "99e6dbb50d8a96702dc60954569e9fe7291cc55d"
+uuid = "872c559c-99b0-510c-b3b7-b6c96a88d5cd"
+version = "0.8.20"
+
+[[deps.NaNMath]]
+deps = ["OpenLibm_jll"]
+git-tree-sha1 = "0877504529a3e5c3343c6f8b4c0381e57e4387e4"
+uuid = "77ba4419-2d1f-58cd-9bb1-8ffee604a2e3"
+version = "1.0.2"
+
+[[deps.NameResolution]]
+deps = ["PrettyPrint"]
+git-tree-sha1 = "1a0fa0e9613f46c9b8c11eee38ebb4f590013c5e"
+uuid = "71a1bf82-56d0-4bbc-8a3c-48b961074391"
+version = "0.1.5"
 
 [[deps.NetworkOptions]]
 uuid = "ca575930-c2e3-43a9-ace4-1e988b2c1908"
@@ -1223,6 +1633,11 @@ git-tree-sha1 = "47e5f437cc0e7ef2ce8406ce1e7e24d44915f88d"
 uuid = "21216c6a-2e73-6563-6e65-726566657250"
 version = "1.3.0"
 
+[[deps.PrettyPrint]]
+git-tree-sha1 = "632eb4abab3449ab30c5e1afaa874f0b98b586e4"
+uuid = "8162dcfd-2161-5ef2-ae6c-7681170c5f98"
+version = "0.2.0"
+
 [[deps.Printf]]
 deps = ["Unicode"]
 uuid = "de0858da-6303-5e67-8744-51eddeeeb8d7"
@@ -1258,12 +1673,35 @@ git-tree-sha1 = "838a3a4188e2ded87a4f9f184b4b0d78a1e91cb7"
 uuid = "ae029012-a4dd-5104-9daa-d747884805df"
 version = "1.3.0"
 
+[[deps.Richardson]]
+deps = ["LinearAlgebra"]
+git-tree-sha1 = "e03ca566bec93f8a3aeb059c8ef102f268a38949"
+uuid = "708f8203-808e-40c0-ba2d-98a6953ed40d"
+version = "1.4.0"
+
 [[deps.SHA]]
 uuid = "ea8e919c-243c-51af-8825-aaa63cd721ce"
 version = "0.7.0"
 
 [[deps.Serialization]]
 uuid = "9e88b42a-f829-5b0c-bbe9-9e923198166b"
+
+[[deps.Setfield]]
+deps = ["ConstructionBase", "Future", "MacroTools", "StaticArraysCore"]
+git-tree-sha1 = "e2cc6d8c88613c05e1defb55170bf5ff211fbeac"
+uuid = "efcf1570-3423-57d1-acb7-fd33fddbac46"
+version = "1.1.1"
+
+[[deps.ShowCases]]
+git-tree-sha1 = "7f534ad62ab2bd48591bdeac81994ea8c445e4a5"
+uuid = "605ecd9f-84a6-4c9e-81e2-4798472b76a3"
+version = "0.1.0"
+
+[[deps.SimpleTraits]]
+deps = ["InteractiveUtils", "MacroTools"]
+git-tree-sha1 = "5d7e3f4e11935503d3ecaf7186eac40602e7d231"
+uuid = "699a6c99-e7fa-54fc-8d76-47d257e15c1d"
+version = "0.9.4"
 
 [[deps.SnoopPrecompile]]
 deps = ["Preferences"]
@@ -1273,6 +1711,12 @@ version = "1.0.3"
 
 [[deps.Sockets]]
 uuid = "6462fe0b-24de-5631-8697-dd941f90decc"
+
+[[deps.SortingAlgorithms]]
+deps = ["DataStructures"]
+git-tree-sha1 = "a4ada03f999bd01b3a25dcaa30b2d929fe537e00"
+uuid = "a2af1166-a08f-5f64-846c-94a0d3cef48c"
+version = "1.1.0"
 
 [[deps.SparseArrays]]
 deps = ["LinearAlgebra", "Random"]
@@ -1284,14 +1728,55 @@ git-tree-sha1 = "ef28127915f4229c971eb43f3fc075dd3fe91880"
 uuid = "276daf66-3868-5448-9aa4-cd146d93841b"
 version = "2.2.0"
 
+[[deps.SplittablesBase]]
+deps = ["Setfield", "Test"]
+git-tree-sha1 = "e08a62abc517eb79667d0a29dc08a3b589516bb5"
+uuid = "171d559e-b47b-412a-8079-5efa626c420e"
+version = "0.1.15"
+
+[[deps.StaticArrays]]
+deps = ["LinearAlgebra", "Random", "StaticArraysCore", "Statistics"]
+git-tree-sha1 = "63e84b7fdf5021026d0f17f76af7c57772313d99"
+uuid = "90137ffa-7385-5640-81b9-e52037218182"
+version = "1.5.21"
+
+[[deps.StaticArraysCore]]
+git-tree-sha1 = "6b7ba252635a5eff6a0b0664a41ee140a1c9e72a"
+uuid = "1e83bf80-4336-4d27-bf5d-d5a4f845583c"
+version = "1.4.0"
+
 [[deps.Statistics]]
 deps = ["LinearAlgebra", "SparseArrays"]
 uuid = "10745b16-79ce-11e8-11f9-7d13ad32a3b2"
+
+[[deps.StatsAPI]]
+deps = ["LinearAlgebra"]
+git-tree-sha1 = "45a7769a04a3cf80da1c1c7c60caf932e6f4c9f7"
+uuid = "82ae8749-77ed-4fe6-ae5f-f523153014b0"
+version = "1.6.0"
+
+[[deps.StatsBase]]
+deps = ["DataAPI", "DataStructures", "LinearAlgebra", "LogExpFunctions", "Missings", "Printf", "Random", "SortingAlgorithms", "SparseArrays", "Statistics", "StatsAPI"]
+git-tree-sha1 = "d1bf48bfcc554a3761a133fe3a9bb01488e06916"
+uuid = "2913bbd2-ae8a-5f71-8c99-4fb6c76f3a91"
+version = "0.33.21"
 
 [[deps.TOML]]
 deps = ["Dates"]
 uuid = "fa267f1f-6049-4f14-aa54-33bafae1ed76"
 version = "1.0.0"
+
+[[deps.TableTraits]]
+deps = ["IteratorInterfaceExtensions"]
+git-tree-sha1 = "c06b2f539df1c6efa794486abfb6ed2022561a39"
+uuid = "3783bdb8-4a98-5b6b-af9a-565f29a5fe9c"
+version = "1.0.1"
+
+[[deps.Tables]]
+deps = ["DataAPI", "DataValueInterfaces", "IteratorInterfaceExtensions", "LinearAlgebra", "OrderedCollections", "TableTraits", "Test"]
+git-tree-sha1 = "1544b926975372da01227b382066ab70e574a3ec"
+uuid = "bd369af6-aec1-5ad0-b16a-f7cc5008161c"
+version = "1.10.1"
 
 [[deps.Tar]]
 deps = ["ArgTools", "SHA"]
@@ -1307,6 +1792,12 @@ version = "0.1.1"
 [[deps.Test]]
 deps = ["InteractiveUtils", "Logging", "Random", "Serialization"]
 uuid = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
+
+[[deps.Transducers]]
+deps = ["Adapt", "ArgCheck", "BangBang", "Baselet", "CompositionsBase", "DefineSingletons", "Distributed", "InitialValues", "Logging", "Markdown", "MicroCollections", "Requires", "Setfield", "SplittablesBase", "Tables"]
+git-tree-sha1 = "c42fa452a60f022e9e087823b47e5a5f8adc53d5"
+uuid = "28d57a85-8fef-5791-bfe6-a80928e7c999"
+version = "0.4.75"
 
 [[deps.Tricks]]
 git-tree-sha1 = "aadb748be58b492045b4f56166b5188aa63ce549"
@@ -1330,10 +1821,27 @@ version = "1.0.2"
 [[deps.Unicode]]
 uuid = "4ec0a83e-493e-50e2-b9ac-8f72acf5a8f5"
 
+[[deps.UnsafeAtomics]]
+git-tree-sha1 = "6331ac3440856ea1988316b46045303bef658278"
+uuid = "013be700-e6cd-48c3-b4a1-df204f14c38f"
+version = "0.2.1"
+
+[[deps.UnsafeAtomicsLLVM]]
+deps = ["LLVM", "UnsafeAtomics"]
+git-tree-sha1 = "ea37e6066bf194ab78f4e747f5245261f17a7175"
+uuid = "d80eeb9a-aca5-4d75-85e5-170c8b632249"
+version = "0.1.2"
+
 [[deps.Zlib_jll]]
 deps = ["Libdl"]
 uuid = "83775a58-1f1d-513f-b197-d71354ab007a"
 version = "1.2.12+3"
+
+[[deps.ZygoteRules]]
+deps = ["ChainRulesCore", "MacroTools"]
+git-tree-sha1 = "977aed5d006b840e2e40c0b48984f7463109046d"
+uuid = "700de1a5-db45-46bc-99cf-38207098b444"
+version = "0.2.3"
 
 [[deps.libblastrampoline_jll]]
 deps = ["Artifacts", "Libdl", "OpenBLAS_jll"]
@@ -1354,7 +1862,8 @@ version = "17.4.0+0"
 # ╔═╡ Cell order:
 # ╠═3c540889-49dc-415c-acbc-3494897b260c
 # ╟─9c32f5bc-f6d1-4048-903a-27224aaa1f40
-# ╟─729689f3-7b76-4701-a60d-3471e1f20fce
+# ╠═729689f3-7b76-4701-a60d-3471e1f20fce
+# ╠═92d05447-6d0e-4ee0-a330-244b9c65c871
 # ╟─77e134d8-bd8b-4303-8c44-a4920cf0ee81
 # ╟─4adbb7f0-7927-470d-8c00-07d3b3c0cd78
 # ╟─122c2aa4-baec-4288-ab53-afa1d977c486
@@ -1377,7 +1886,6 @@ version = "17.4.0+0"
 # ╠═ebab6005-2ad6-4057-9275-bf7d53d41b0b
 # ╟─2855c8cf-8364-4c6c-a122-781b99440e89
 # ╠═17dd3d57-d5ca-443c-b003-b3a97b963d57
-# ╠═be94d0e7-e9a8-4021-a94c-a5b70bbcede7
 # ╠═d812711d-d02f-44bb-9e73-accd1623dea1
 # ╟─e233afec-6049-4277-8be9-95687c4589b5
 # ╠═77c9696c-58c5-40bf-acd0-16d5cf877810
@@ -1386,15 +1894,31 @@ version = "17.4.0+0"
 # ╠═8b3776bd-509b-4232-9737-36c9ae003350
 # ╠═f26f1b1a-18e0-413c-86a9-351ba5dfaebf
 # ╠═3be62716-f2d9-434c-a69a-ed272b89c85d
-# ╟─c73f69d0-69e6-47f1-97b0-3e81218776e6
-# ╠═59155ad5-d341-4e16-b7cc-b6a3def51992
-# ╠═270e5d4a-c666-43e7-8c64-02b9fed977e4
+# ╠═438da68f-f23e-4712-9dd6-0dd030ad8656
+# ╟─0454ce0a-d6de-427f-bbdc-3bcec21327f2
+# ╠═f2fb92bb-33d6-4e15-8caf-b245e000ad69
+# ╠═4a4f1300-94ba-4c1b-9d10-9e955d194ff6
 # ╟─a3a9deea-e2d6-4d58-90d7-5a54be176289
+# ╠═e7e72f61-d79e-4a82-ad9c-129191c8a8c2
+# ╟─1dc2ca10-5ba3-4efa-b6d9-d203cf91598b
+# ╠═ee679ef2-3cf8-4b3d-a717-ae2d088b5fe8
+# ╠═270e5d4a-c666-43e7-8c64-02b9fed977e4
+# ╠═ddb37082-cae0-4a68-ab55-19563d8727ed
 # ╠═3f5f9d8a-3647-4a16-89ba-bd7a31c01064
-# ╟─afca5e37-ebc0-45e7-b27b-53602dbf6672
 # ╟─66f9c698-61e3-4b61-aff3-dfc67eb2f6af
 # ╠═2df3bd5b-630e-451a-a207-2c3a1719916e
+# ╠═f39990be-9414-46bf-9c52-097b171479e9
+# ╠═d5085897-e39d-489d-9e58-acbdb6226d57
+# ╠═a42d3b46-ae60-41d1-8b2d-e85af895ec14
+# ╠═a24bfc41-8e50-4a68-b5cf-3973f4003221
 # ╟─8d161f09-8339-4277-8739-ff76607f7abf
+# ╠═008b99f2-c9f3-4d30-a234-393e1ed69840
+# ╠═12a089f0-23b5-4091-8861-d3ba2d0073a0
+# ╠═22ac08a7-f4d7-4809-8ee3-903d96c96cd6
+# ╠═006739fb-24a1-49b0-9619-fe8e2d3c8fca
+# ╠═e88a71b9-6e63-4b3d-86d1-e5f8dd30274c
+# ╠═c1ab23f9-2adb-433d-a8c3-6cad4917ac30
+# ╠═b525408f-0d7d-4333-a789-def42565520c
 # ╟─fc49a6d7-a1b1-458a-a9ad-e120282bbabc
 # ╠═c5815f5e-9164-11ec-10e1-691834761dff
 # ╟─a62839d5-837b-4c37-996f-33659c34911c
@@ -1407,13 +1931,25 @@ version = "17.4.0+0"
 # ╠═e2127d9b-f2a4-4970-a36e-5fa70c304ca7
 # ╟─e8333b23-53c3-445e-9ca3-6b278359f8ab
 # ╠═9248af7f-dc1a-4bf6-8f3f-304db73fc604
+# ╠═00a637a6-ddc4-4830-be65-1891d3cb18bc
 # ╠═e08bf013-00c7-4870-82d8-19b899e7208d
-# ╠═dd626606-2a4d-494d-ab74-92753072c773
 # ╟─ab8b1a22-ca7a-409e-832e-8d5d08a29a1e
 # ╠═f4d91971-f806-4c5c-8548-b58a20acfb2c
 # ╟─9bc38d55-285b-4b83-98d9-d7f9e03405d1
 # ╠═27844886-0b54-4b08-a592-a1a38e4b0be2
+# ╠═489dcf10-b7f2-4544-b80d-3588ff00ff4a
+# ╠═199908d6-f5fd-4461-be53-39919a103835
+# ╠═8298ae48-0ddc-49a9-a43f-8434e4cc3758
+# ╠═ff1ba1f6-f127-4c47-8198-aeff5f051ad9
+# ╠═cb6adea2-9ea2-4857-b969-540a3439e700
 # ╠═ad21da29-f6ff-4a94-be87-4e88640cddbf
+# ╠═2abfb6d5-a201-405e-99c3-42bf0ad5aad5
+# ╠═a26a5bd6-f4b8-410a-b437-06587011093e
+# ╠═78c09864-1fb1-427e-b77d-db82945e850c
+# ╠═5648367f-8628-4859-a2a5-ab92bab54e9b
+# ╠═dc95afc5-0232-4c2a-801e-dccac012d2e6
+# ╠═13ffff0c-23cd-4a98-8ce8-31644b9429d3
+# ╠═63a177c1-034e-4aa6-9951-367570c49850
 # ╟─ae8012be-e7ab-4e85-a27f-febf08b3380b
 # ╠═ce89710a-48d8-46d4-83b4-163a7eb0a2e5
 # ╠═b7f4078a-ead0-4d42-8b44-4f471eefc6fc
@@ -1423,9 +1959,9 @@ version = "17.4.0+0"
 # ╠═31d742a4-100f-4744-afe5-381b265b6f4c
 # ╠═15bbf544-34bd-4d38-bac5-0f43b1305df3
 # ╟─bd8b9a0c-6664-4ba8-9795-0a496e932d85
-# ╠═82116417-7a0e-4363-9b53-2bd5df250f17
 # ╠═7d00ecf7-80ba-4eee-99f6-b03f7b1f6e52
 # ╠═4e1a0d4b-5f25-4b25-8dbb-4069e38dc5c4
+# ╠═5d7d9a8d-0c96-4533-862b-98418b84566b
 # ╟─f95a08ce-a38d-4b7f-b478-4dbfa607740e
 # ╟─90953c64-8a87-4065-8c34-d0ead540b728
 # ╠═b993e3e6-8d4e-4de7-aa4b-6a2e3bd12212
