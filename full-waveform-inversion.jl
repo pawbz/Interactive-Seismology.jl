@@ -1,5 +1,5 @@
 ### A Pluto.jl notebook ###
-# v0.19.25
+# v0.19.22
 
 #> [frontmatter]
 #> title = "Seismic Full Waveform Inversion"
@@ -364,11 +364,21 @@ begin
 end;
 
 # ╔═╡ 489dcf10-b7f2-4544-b80d-3588ff00ff4a
-function update_xs!(x, xs)
+function update_xsρ!(x, xs)
   xρ, xinvμ = chunk(x, 2)
   N = length(xρ)
   N2 = div(N, 2)
   X = view(xρ, N2:N2+length(xs)-1)
+  copyto!(X, xs)
+  return xs
+end
+
+# ╔═╡ 02844bc9-9faf-413f-82d2-28d6ba01668d
+function update_xsinvμ!(x, xs)
+  xρ, xinvμ = chunk(x, 2)
+  N = length(xρ)
+  N2 = div(N, 2)
+  X = view(xinvμ, N2:N2+length(xs)-1)
   copyto!(X, xs)
   return xs
 end
@@ -378,7 +388,7 @@ function get_xs(x, xs)
   xρ, xinvμ = chunk(x, 2)
   N = length(xρ)
   N2 = div(N, 2)
-  return xρ[N2:N2+length(xs)-1]
+  return vcat(xρ[N2:N2+length(xs)-1],xinvμ[N2:N2+length(xs)-1])
 end
 
 # ╔═╡ ad21da29-f6ff-4a94-be87-4e88640cddbf
@@ -583,32 +593,39 @@ function reduce_gradients!(grad, x, forwfields, adjfields, pa)
     g + u * v
   end
 
+  # term τ[nt-1]*σ[1]
+	map!(▽μ, ▽μ, adjfields.σyxs[nt-1], adjfields.σyzs[nt-1], forwfields.σyxs[1], forwfields.σyzs[1]) do g, τx, τz, σx, σz
+    g + τx * σx + τz * σz
+  end
+	
   for it = 1:nt-1
     # for gradρ
-    v2 = forwfields.vys[nt-it+1]
-    v3 = forwfields.vys[nt-it]
-    u2 = adjfields.vys[it]
+    #v2 = forwfields.vys[nt-it+1]
+    #v3 = forwfields.vys[nt-it]
+    #u2 = adjfields.vys[it]
 
     map!(▽ρ, ▽ρ, adjfields.vys[it], forwfields.vys[nt-it], forwfields.vys[nt-it+1]) do g, u2, v3, v2
       g + (v2 - v3) * u2
     end
     # @. ▽ρ = ▽ρ * pa.tarray
+	(:▽ρs ∈ keys(grad)) && copyto!(grad.▽ρs[it], ▽ρ)
 
     # for gradμ
+	#σx2 = forwfields.σyxs[nt-it+1]
+    #σx3 = forwfields.σyxs[nt-it]
+    #τx2 = adjfields.σyxs[it]
 
-    # σx2 = forwfields.σyxs[it]
-    # τx2 = adjfields.σyxs[nt-it]
-    # τx3 = adjfields.σyxs[nt-it+1]
+	#σz2 = forwfields.σyzs[nt-it+1]
+    #σz3 = forwfields.σyzs[nt-it]
+    #τz2 = adjfields.σyzs[it]
 
-    # σz2 = forwfields.σyzs[it]
-    # τz2 = adjfields.σyzs[nt-it]
-    # τz3 = adjfields.σyzs[nt-it+1]
-
-    # @. ▽μ = ▽μ + (σx2 * (τx2 - τx3)) + (σz2 * (τz2 - τz3))
+	if (it <  nt-1)
+    	map!(▽μ, ▽μ, adjfields.σyxs[it], adjfields.σyzs[it], forwfields.σyxs[nt-it-1], forwfields.σyxs[nt-it], forwfields.σyzs[nt-it-1], forwfields.σyzs[nt-it]) do g, τx2, τz2, σx3, σx2, σz3, σz2
+      		g + (σx2 - σx3) * τx2 + (σz2 - σz3) * τz2
+    	end
     # @. ▽μ = ▽μ * pa.tarray
-
-    (:▽ρs ∈ keys(grad)) && copyto!(grad.▽ρs[it], ▽ρ)
-    (:▽μs ∈ keys(grad)) && copyto!(grad.▽μs[it], ▽μ)
+	    (:▽μs ∈ keys(grad)) && copyto!(grad.▽μs[it], ▽μ)
+	end   
   end
   # multiply with dt
   rmul!(g, inv(dt))
@@ -819,14 +836,24 @@ end
 plot(heatmap(z=reshape(chunk(gradient.g, 2)[1], length(zgrid), length(xgrid))))
   ╠═╡ =#
 
+# ╔═╡ 1c7b449e-c83b-4541-824f-1d72d2deedf2
+#=╠═╡
+plot(heatmap(z=reshape(chunk(gradient.g, 2)[2], length(zgrid), length(xgrid))))
+  ╠═╡ =#
+
 # ╔═╡ d5085897-e39d-489d-9e58-acbdb6226d57
 #=╠═╡
 gradient
   ╠═╡ =#
 
-# ╔═╡ c1ab23f9-2adb-433d-a8c3-6cad4917ac30
+# ╔═╡ e586a423-b66b-455d-a88c-8ea70ad7ee2c
 #=╠═╡
-g2=get_xs(gradient.g, xs)
+g2ρ=get_xs(gradient.g, xs)[1:length(xs)] # Gradients wrt ρ computed analytically
+  ╠═╡ =#
+
+# ╔═╡ e3f3b379-4add-4866-8472-7bc7e53a7a28
+#=╠═╡
+g2invμ=get_xs(gradient.g, xs)[length(xs)+1:end] # Gradients wrt μ⁻¹ computed analytically
   ╠═╡ =#
 
 # ╔═╡ a42d3b46-ae60-41d1-8b2d-e85af895ec14
@@ -848,25 +875,50 @@ end
 
 # ╔═╡ 008b99f2-c9f3-4d30-a234-393e1ed69840
 #=╠═╡
-function Js(xs; fwi_param=fwi_param)
-	update_xs!(fwi_param.xbuffer, xs)
+function Jsρ(xs; fwi_param=fwi_param)
+	# Function to check gradients wrt ρ
+	update_xsρ!(fwi_param.xbuffer, xs)
 	return J(fwi_param.xbuffer, fwi_param=fwi_param)
 end
   ╠═╡ =#
 
 # ╔═╡ 12a089f0-23b5-4091-8861-d3ba2d0073a0
 #=╠═╡
-@time Js(xs)
+@time Jsρ(xs)
   ╠═╡ =#
 
-# ╔═╡ e88a71b9-6e63-4b3d-86d1-e5f8dd30274c
+# ╔═╡ 50733229-38f1-4ac1-acbc-ebb2c92d3891
 #=╠═╡
-g1=grad(central_fdm(2, 1), Js, xs)
+g1ρ=grad(central_fdm(2, 1), Jsρ, xs) # Gradients wrt ρ using central difference
   ╠═╡ =#
 
 # ╔═╡ b525408f-0d7d-4333-a789-def42565520c
 #=╠═╡
-g1[1] ./ g2
+g1ρ[1] ./ g2ρ
+  ╠═╡ =#
+
+# ╔═╡ 9d319561-38c9-46c8-aaf6-06d0a41ed0bf
+#=╠═╡
+function Jsinvμ(xs; fwi_param=fwi_param)
+	# Function to check gradients wrt ρ
+	update_xsinvμ!(fwi_param.xbuffer, xs)
+	return J(fwi_param.xbuffer, fwi_param=fwi_param)
+end
+  ╠═╡ =#
+
+# ╔═╡ 9aa2e4ac-b221-4f3e-9072-3d4d762f01c7
+#=╠═╡
+@time Jsinvμ(xs)
+  ╠═╡ =#
+
+# ╔═╡ 803ac9ba-93d2-4f66-9018-36232b8a3076
+#=╠═╡
+g1invμ=grad(central_fdm(2, 1), Jsinvμ, xs) # Gradients wrt μ⁻¹ using central difference
+  ╠═╡ =#
+
+# ╔═╡ 99541b49-caf2-40ab-b299-081111e35675
+#=╠═╡
+g1invμ[1] ./ g2invμ
   ╠═╡ =#
 
 # ╔═╡ fbe44944-499a-4881-94b6-07855d1165aa
@@ -1067,9 +1119,8 @@ ProgressLogging = "~0.1.4"
 PLUTO_MANIFEST_TOML_CONTENTS = """
 # This file is machine-generated - editing it directly is not advised
 
-julia_version = "1.8.5"
+julia_version = "1.7.3"
 manifest_format = "2.0"
-project_hash = "c8cf3b66a499452f32e4364d607bd473f5006196"
 
 [[deps.AbstractFFTs]]
 deps = ["ChainRulesCore", "LinearAlgebra"]
@@ -1102,7 +1153,6 @@ version = "2.3.0"
 
 [[deps.ArgTools]]
 uuid = "0dad84c5-d112-42e6-8d28-ef12dabb789f"
-version = "1.1.1"
 
 [[deps.Artifacts]]
 uuid = "56f22d72-fd6d-98f1-02f0-08ddc0907c33"
@@ -1151,10 +1201,10 @@ uuid = "9e997f8a-9a97-42d5-a9f1-ce6bfc15e2c0"
 version = "0.1.6"
 
 [[deps.ColorSchemes]]
-deps = ["ColorTypes", "ColorVectorSpace", "Colors", "FixedPointNumbers", "Random", "SnoopPrecompile"]
-git-tree-sha1 = "aa3edc8f8dea6cbfa176ee12f7c2fc82f0608ed3"
+deps = ["ColorTypes", "ColorVectorSpace", "Colors", "FixedPointNumbers", "PrecompileTools", "Random"]
+git-tree-sha1 = "be6ab11021cd29f0344d5c4357b163af05a48cba"
 uuid = "35d6a980-a343-548e-a6ea-1d62b119f2f4"
-version = "3.20.0"
+version = "3.21.0"
 
 [[deps.ColorTypes]]
 deps = ["FixedPointNumbers", "Random"]
@@ -1189,7 +1239,6 @@ version = "4.6.1"
 [[deps.CompilerSupportLibraries_jll]]
 deps = ["Artifacts", "Libdl"]
 uuid = "e66e0078-7015-5450-92f7-15fbd957f2ae"
-version = "1.0.1+0"
 
 [[deps.CompositionsBase]]
 git-tree-sha1 = "455419f7e328a1a2493cabc6428d79e951349769"
@@ -1268,7 +1317,6 @@ version = "0.9.3"
 [[deps.Downloads]]
 deps = ["ArgTools", "FileWatching", "LibCURL", "NetworkOptions"]
 uuid = "f43a241f-c20a-4ad4-852c-f6b1247861c6"
-version = "1.6.0"
 
 [[deps.FFTW]]
 deps = ["AbstractFFTs", "FFTW_jll", "LinearAlgebra", "MKL_jll", "Preferences", "Reexport"]
@@ -1361,9 +1409,9 @@ version = "0.3.1"
 
 [[deps.IntelOpenMP_jll]]
 deps = ["Artifacts", "JLLWrappers", "Libdl", "Pkg"]
-git-tree-sha1 = "d979e54b71da82f3a65b62553da4fc3d18c9004c"
+git-tree-sha1 = "0cb9352ef2e01574eeebdb102948a58740dcaf83"
 uuid = "1d5cc7b8-4909-519e-a0f8-d0f5ad9712d0"
-version = "2018.0.3+2"
+version = "2023.1.0+0"
 
 [[deps.InteractiveUtils]]
 deps = ["Markdown"]
@@ -1398,9 +1446,9 @@ version = "1.4.1"
 
 [[deps.JSON]]
 deps = ["Dates", "Mmap", "Parsers", "Unicode"]
-git-tree-sha1 = "3c837543ddb02250ef42f4738347454f95079d4e"
+git-tree-sha1 = "31e996f0a15c7b280ba9f76636b3ff9e2ae58c9a"
 uuid = "682c06a0-de6a-54ab-a142-c8b1cf79cde6"
-version = "0.21.3"
+version = "0.21.4"
 
 [[deps.JuliaVariables]]
 deps = ["MLStyle", "NameResolution"]
@@ -1438,12 +1486,10 @@ uuid = "4af54fe1-eca0-43a8-85a7-787d91b784e3"
 [[deps.LibCURL]]
 deps = ["LibCURL_jll", "MozillaCACerts_jll"]
 uuid = "b27032c2-a3e7-50c8-80cd-2d36dbcbfd21"
-version = "0.6.3"
 
 [[deps.LibCURL_jll]]
 deps = ["Artifacts", "LibSSH2_jll", "Libdl", "MbedTLS_jll", "Zlib_jll", "nghttp2_jll"]
 uuid = "deac9b47-8bc7-5906-a0fe-35ac56dc84c0"
-version = "7.84.0+0"
 
 [[deps.LibGit2]]
 deps = ["Base64", "NetworkOptions", "Printf", "SHA"]
@@ -1452,7 +1498,6 @@ uuid = "76f85450-5226-5b5a-8eaa-529ad045b433"
 [[deps.LibSSH2_jll]]
 deps = ["Artifacts", "Libdl", "MbedTLS_jll"]
 uuid = "29816b5a-b9ab-546f-933c-edad1886dfa8"
-version = "1.10.2+0"
 
 [[deps.Libdl]]
 uuid = "8f399da3-3557-5675-b5ff-fb832c97cbdb"
@@ -1517,7 +1562,6 @@ uuid = "d6f4376e-aef5-505a-96c1-9c027394607a"
 [[deps.MbedTLS_jll]]
 deps = ["Artifacts", "Libdl"]
 uuid = "c8ffd9c3-330d-5841-b78e-0817d7145fa1"
-version = "2.28.0+0"
 
 [[deps.MicroCollections]]
 deps = ["BangBang", "InitialValues", "Setfield"]
@@ -1536,7 +1580,12 @@ uuid = "a63ad114-7e13-5084-954f-fe012c677804"
 
 [[deps.MozillaCACerts_jll]]
 uuid = "14a3606d-f60d-562e-9121-12d972cd8159"
-version = "2022.2.1"
+
+[[deps.MutableArithmetics]]
+deps = ["LinearAlgebra", "SparseArrays", "Test"]
+git-tree-sha1 = "3295d296288ab1a0a2528feb424b854418acff57"
+uuid = "d8a4904e-b15c-11e9-3269-09a3773c0cb0"
+version = "1.2.3"
 
 [[deps.NNlib]]
 deps = ["Adapt", "Atomix", "ChainRulesCore", "GPUArraysCore", "KernelAbstractions", "LinearAlgebra", "Pkg", "Random", "Requires", "Statistics"]
@@ -1558,7 +1607,6 @@ version = "0.1.5"
 
 [[deps.NetworkOptions]]
 uuid = "ca575930-c2e3-43a9-ace4-1e988b2c1908"
-version = "1.2.0"
 
 [[deps.Observables]]
 git-tree-sha1 = "6862738f9796b3edc1c09d0890afce4eca9e7e93"
@@ -1568,12 +1616,10 @@ version = "0.5.4"
 [[deps.OpenBLAS_jll]]
 deps = ["Artifacts", "CompilerSupportLibraries_jll", "Libdl"]
 uuid = "4536629a-c528-5b80-bd46-f80d51c5b363"
-version = "0.3.20+0"
 
 [[deps.OpenLibm_jll]]
 deps = ["Artifacts", "Libdl"]
 uuid = "05823500-19ac-5b8b-9628-191a04bc5112"
-version = "0.8.1+0"
 
 [[deps.OpenSpecFun_jll]]
 deps = ["Artifacts", "CompilerSupportLibraries_jll", "JLLWrappers", "Libdl", "Pkg"]
@@ -1601,7 +1647,6 @@ version = "2.5.8"
 [[deps.Pkg]]
 deps = ["Artifacts", "Dates", "Downloads", "LibGit2", "Libdl", "Logging", "Markdown", "Printf", "REPL", "Random", "SHA", "Serialization", "TOML", "Tar", "UUIDs", "p7zip_jll"]
 uuid = "44cfe95a-1eb2-52ea-b672-e2afdf69b78f"
-version = "1.8.0"
 
 [[deps.PlotlyBase]]
 deps = ["ColorSchemes", "Dates", "DelimitedFiles", "DocStringExtensions", "JSON", "LaTeXStrings", "Logging", "Parameters", "Pkg", "REPL", "Requires", "Statistics", "UUIDs"]
@@ -1622,10 +1667,16 @@ uuid = "7f904dfe-b85e-4ff6-b463-dae2292396a8"
 version = "0.7.50"
 
 [[deps.Polynomials]]
-deps = ["ChainRulesCore", "LinearAlgebra", "MakieCore", "RecipesBase"]
-git-tree-sha1 = "86efc6f761df655f8782f50628e45e01a457d5a2"
+deps = ["ChainRulesCore", "LinearAlgebra", "MakieCore", "MutableArithmetics", "RecipesBase"]
+git-tree-sha1 = "66443538efd80fac4962b74523ec0b35c9464a21"
 uuid = "f27b6e38-b328-58d1-80ce-0feddd5e7a45"
-version = "3.2.8"
+version = "3.2.9"
+
+[[deps.PrecompileTools]]
+deps = ["Preferences"]
+git-tree-sha1 = "bc2bda41d798c2e66e7c44a11007bb329b15941b"
+uuid = "aea7be01-6a6a-4083-8856-8a6e6704d82a"
+version = "1.0.1"
 
 [[deps.Preferences]]
 deps = ["TOML"]
@@ -1681,7 +1732,6 @@ version = "1.4.0"
 
 [[deps.SHA]]
 uuid = "ea8e919c-243c-51af-8825-aaa63cd721ce"
-version = "0.7.0"
 
 [[deps.Serialization]]
 uuid = "9e88b42a-f829-5b0c-bbe9-9e923198166b"
@@ -1764,7 +1814,6 @@ version = "0.33.21"
 [[deps.TOML]]
 deps = ["Dates"]
 uuid = "fa267f1f-6049-4f14-aa54-33bafae1ed76"
-version = "1.0.0"
 
 [[deps.TableTraits]]
 deps = ["IteratorInterfaceExtensions"]
@@ -1781,7 +1830,6 @@ version = "1.10.1"
 [[deps.Tar]]
 deps = ["ArgTools", "SHA"]
 uuid = "a4e569a6-e804-4fa4-b0f3-eef7a1d5b13e"
-version = "1.10.1"
 
 [[deps.TensorCore]]
 deps = ["LinearAlgebra"]
@@ -1835,7 +1883,6 @@ version = "0.1.2"
 [[deps.Zlib_jll]]
 deps = ["Libdl"]
 uuid = "83775a58-1f1d-513f-b197-d71354ab007a"
-version = "1.2.12+3"
 
 [[deps.ZygoteRules]]
 deps = ["ChainRulesCore", "MacroTools"]
@@ -1846,17 +1893,14 @@ version = "0.2.3"
 [[deps.libblastrampoline_jll]]
 deps = ["Artifacts", "Libdl", "OpenBLAS_jll"]
 uuid = "8e850b90-86db-534c-a0d3-1478176c7d93"
-version = "5.1.1+0"
 
 [[deps.nghttp2_jll]]
 deps = ["Artifacts", "Libdl"]
 uuid = "8e850ede-7688-5339-a07c-302acd2aaf8d"
-version = "1.48.0+0"
 
 [[deps.p7zip_jll]]
 deps = ["Artifacts", "Libdl"]
 uuid = "3f19e933-33d8-53b3-aaab-bd5110c3b7a0"
-version = "17.4.0+0"
 """
 
 # ╔═╡ Cell order:
@@ -1906,19 +1950,25 @@ version = "17.4.0+0"
 # ╠═ddb37082-cae0-4a68-ab55-19563d8727ed
 # ╠═3f5f9d8a-3647-4a16-89ba-bd7a31c01064
 # ╟─66f9c698-61e3-4b61-aff3-dfc67eb2f6af
+# ╠═22ac08a7-f4d7-4809-8ee3-903d96c96cd6
 # ╠═2df3bd5b-630e-451a-a207-2c3a1719916e
 # ╠═f39990be-9414-46bf-9c52-097b171479e9
+# ╠═1c7b449e-c83b-4541-824f-1d72d2deedf2
 # ╠═d5085897-e39d-489d-9e58-acbdb6226d57
 # ╠═a42d3b46-ae60-41d1-8b2d-e85af895ec14
 # ╠═a24bfc41-8e50-4a68-b5cf-3973f4003221
 # ╟─8d161f09-8339-4277-8739-ff76607f7abf
 # ╠═008b99f2-c9f3-4d30-a234-393e1ed69840
+# ╠═9d319561-38c9-46c8-aaf6-06d0a41ed0bf
 # ╠═12a089f0-23b5-4091-8861-d3ba2d0073a0
-# ╠═22ac08a7-f4d7-4809-8ee3-903d96c96cd6
+# ╠═9aa2e4ac-b221-4f3e-9072-3d4d762f01c7
 # ╠═006739fb-24a1-49b0-9619-fe8e2d3c8fca
-# ╠═e88a71b9-6e63-4b3d-86d1-e5f8dd30274c
-# ╠═c1ab23f9-2adb-433d-a8c3-6cad4917ac30
+# ╠═50733229-38f1-4ac1-acbc-ebb2c92d3891
+# ╠═e586a423-b66b-455d-a88c-8ea70ad7ee2c
 # ╠═b525408f-0d7d-4333-a789-def42565520c
+# ╠═803ac9ba-93d2-4f66-9018-36232b8a3076
+# ╠═e3f3b379-4add-4866-8472-7bc7e53a7a28
+# ╠═99541b49-caf2-40ab-b299-081111e35675
 # ╟─fc49a6d7-a1b1-458a-a9ad-e120282bbabc
 # ╠═c5815f5e-9164-11ec-10e1-691834761dff
 # ╟─a62839d5-837b-4c37-996f-33659c34911c
@@ -1938,6 +1988,7 @@ version = "17.4.0+0"
 # ╟─9bc38d55-285b-4b83-98d9-d7f9e03405d1
 # ╠═27844886-0b54-4b08-a592-a1a38e4b0be2
 # ╠═489dcf10-b7f2-4544-b80d-3588ff00ff4a
+# ╠═02844bc9-9faf-413f-82d2-28d6ba01668d
 # ╠═199908d6-f5fd-4461-be53-39919a103835
 # ╠═8298ae48-0ddc-49a9-a43f-8434e4cc3758
 # ╠═ff1ba1f6-f127-4c47-8198-aeff5f051ad9
