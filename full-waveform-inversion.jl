@@ -620,7 +620,7 @@ function reduce_gradients!(grad, x, forwfields, adjfields, pa)
     #τz2 = adjfields.σyzs[it]
 
 	if (it <  nt-1)
-    	map!(▽μ, ▽μ, adjfields.σyxs[it], adjfields.σyzs[it], forwfields.σyxs[nt-it-1], forwfields.σyxs[nt-it], forwfields.σyzs[nt-it-1], forwfields.σyzs[nt-it]) do g, τx2, τz2, σx3, σx2, σz3, σz2
+    	map!(▽μ, ▽μ, adjfields.σyxs[it], adjfields.σyzs[it], forwfields.σyxs[nt-it], forwfields.σyxs[nt-it-1], forwfields.σyzs[nt-it], forwfields.σyzs[nt-it-1]) do g, τx2, τz2, σx3, σx2, σz3, σz2
       		g + (σx2 - σx3) * τx2 + (σz2 - σz3) * τz2
     	end
     # @. ▽μ = ▽μ * pa.tarray
