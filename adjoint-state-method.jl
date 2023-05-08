@@ -1,5 +1,5 @@
 ### A Pluto.jl notebook ###
-# v0.19.22
+# v0.19.25
 
 #> [frontmatter]
 #> title = "Adjoint State Method"
@@ -33,13 +33,13 @@ Instructor: Pawan Bharadwaj, Indian Institute of Science, Bengaluru, India
 @variables x z
 
 # ╔═╡ ec3bf735-5fff-44e6-8a79-a03d6eb4538f
-md"These commands create three symbolic time variables `t`, and staggered time variables `𝚝`. In this notebook, we will consider three time steps for the leap-frog scheme."
+md"These commands create three symbolic time variables `t`, and staggered time variables `t̂`. In this notebook, we will consider three time steps for the leap-frog scheme."
 
 # ╔═╡ c9324a48-8cb8-45e1-909a-950333048d28
 @variables t[1:3]
 
 # ╔═╡ f479ca51-fd2a-4261-98b2-e281daf49c5b
-@variables 𝚝[1:3]
+@variables t̂[1:3]
 
 # ╔═╡ 35909f2f-3787-4c6a-9e74-f284d5eea635
 md"## Medium
@@ -64,19 +64,19 @@ md"The symbol `f` represents the body force density, which is a quantity that de
 @syms f(x, t)
 
 # ╔═╡ 76fd526b-450a-4db1-bf9a-bc7ae59b895c
-md"Create vectors with velocity and stress fields at each time value in 𝚝 and t, respectively. "
+md"Create vectors with velocity and stress fields at each time value in t̂ and t, respectively. "
 
 # ╔═╡ c0624ec9-1d80-461d-a10a-5ec669814fb5
-V = collect(map(t -> v(x, t), 𝚝)) # velocity
+V = collect(map(t -> v(x, t), t)) # velocity
 
 # ╔═╡ 32009437-f2b8-4520-851b-a5929b52d272
-Σ = collect(map(t -> σ(x, t), t)) # stress
+Σ = collect(map(t -> σ(x, t), t̂)) # stress
 
 # ╔═╡ c0bb57b5-9d62-40b1-9256-648a984dbbae
 md"## Forcing"
 
 # ╔═╡ ebefecd3-9dd2-457e-bf9b-97d4db9e983e
-F = collect(map(t -> f(x, t), t))
+F = collect(map(t -> f(x, t), t̂))
 
 # ╔═╡ 5803bfab-354b-4f48-8864-7f3cb3ac3c08
 md"## State Equations"
@@ -86,22 +86,22 @@ md"### Momentum Equation"
 
 # ╔═╡ 33871626-5b9b-4718-a974-d94d7b048582
 md"""
-This line defines the initial momentum of the system, which is equal to the difference between the initial velocity of the particle v(x, 𝚝[1]) and its velocity at time t=0 (which is zero in this case) multiplied by the density of the medium ρ(x) and then subtracting the force acting on the particle at time t=0 f(0, x). It represents the balance of forces and momentum of the system at the initial time.
+This line defines the initial momentum of the system, which is equal to the difference between the initial velocity of the particle v(x, t̂[1]) and its velocity at time t=0 (which is zero in this case) multiplied by the density of the medium ρ(x) and then subtracting the force acting on the particle at time t=0 f(0, x). It represents the balance of forces and momentum of the system at the initial time.
 """
 
 # ╔═╡ e5a37530-a0f2-470d-aada-39eaf3cd6054
-M1 = (v(x, 𝚝[1]) - v(x, 0)) * ρ(x) - f(x, 0)
+M1 = (v(x, t[1]) - v(x, 0)) * ρ(x) - f(0, x)
 
 # ╔═╡ 84d8f063-2aad-4d57-9bdf-d44e37f173c7
 md"""
-We will now construct a vector that represents the time derivative of the velocity field. The first few elements can be computed using the `diff()` function applied to the `V` array. The last element is the time derivative of `v(x, t)` evaluated at the final time `𝚃`, which is computed as the difference between `v(x, 𝚃)` and `v(x, last(𝚝))`.
+We will now construct a vector that represents the time derivative of the velocity field. The first few elements can be computed using the `diff()` function applied to the `V` array. The last element is the time derivative of `v(x, t)` evaluated at the final time `T`, which is computed as the difference between `v(x, T)` and `v(x, last(t̂))`.
 """
 
 # ╔═╡ 3d57d1f0-4595-48a0-934c-7bc1d5dc15fc
-@syms 𝚃 # final time
+@syms T T̂ # final time
 
 # ╔═╡ 91f58348-d476-4799-ab01-a2b7b89a344c
-DₜV = [diff(V)..., v(x, 𝚃) - v(x, last(𝚝))] # 
+DₜV = [diff(V)..., v(x, T) - v(x, last(t))] # 
 
 # ╔═╡ c959b590-aacf-4504-bb80-bd915acb0b3f
 @syms Dₓ(v) # a function to return spatial derivative (with respect to x)
@@ -116,17 +116,14 @@ Meqs ~ 0
 md"### Constitutive Relation
 In linear elasticity, for example, the constitutive relation is given by Hooke's law, which states that stress is proportional to strain. First, similar to velocity, we will construct a vector that represents the time derivative of the stress field."
 
-# ╔═╡ d42c3324-4517-4ac1-b9d9-1af0656bf70e
-𝚃
-
 # ╔═╡ de66df57-c6d1-4dba-8e6f-d1d8fd6b59ff
-DₜΣ = [σ(x, t[1]) - σ(x, 0), diff(Σ)..., σ(x, 𝚃) - σ(x, t[3])] # lives on t
+DₜΣ = [σ(x, t̂[1]) - σ(x, 0), diff(Σ)...] # lives on t
 
 # ╔═╡ b2562463-09d0-40fc-9802-b49e105f946c
 md"This equation states that the time derivative of stress minus the gradient of the stress scaled by the shear modulus is equal to zero. This is a simplified form of the constitutive relation."
 
 # ╔═╡ e73aa232-e0a9-4c7e-b399-6b0dee065a25
-Ceqs = (DₜΣ * μ⁻¹(x) - Dₓ.(vcat(V, v(x, 𝚃))));
+Ceqs = (DₜΣ * μ⁻¹(x) - Dₓ.(V));
 
 # ╔═╡ 9678bb33-8e15-49ad-95b8-c8d4ab75f14f
 Ceqs ~ 0
@@ -153,7 +150,7 @@ obj(v, v₀) = (v - v₀)^2
 md"The final value of the objective function."
 
 # ╔═╡ a6f25519-efdb-4430-a014-6a7ee0360df6
-J = sum(collect(map(t -> obj(v(x, t), v₀(x, t)), 𝚝)))
+J = sum(collect(map(t -> obj(v(x, t), v₀(x, t)), t̂)))
 
 # ╔═╡ 80c1040c-88d2-45b5-89e1-b3cb8d6abaf7
 md"## Adjoint State Variables
@@ -163,10 +160,10 @@ Adjoint state variables are introduced in the context of optimization problems. 
 @syms u(x, t) τ(x, t)
 
 # ╔═╡ d5095bc5-6a00-4e0e-9669-68e21deac773
-U = vcat(collect(map(t -> u(x, t), 𝚝)), u(x, 𝚃))  # one u for each of Meqs
+U = vcat(collect(map(t -> u(x, t), t̂)), u(x, T̂))  # one u for each of Meqs
 
 # ╔═╡ cc3a1c12-25b9-450a-a23d-8557fe351f83
-T = vcat(collect(map(t -> τ(x, t), t)), τ(x, 𝚃)) # one for each Ceqs
+𝛕 = vcat(collect(map(t -> τ(x, t), t[2:end])), τ(x, T)) # one for each Ceqs
 
 # ╔═╡ b19344d2-d872-4bf5-a75f-1ca481779835
 md"## Lagrangian"
@@ -184,7 +181,7 @@ md"The function `r_Dₓ_transpose` applies the transpose differential operator r
 md"The Lagrangian component, for constitutive equations `Ceqs`, is given by"
 
 # ╔═╡ 55c08fb9-e29d-4500-84e7-46de7979639e
-L₂ = simplify(sum(T .* Ceqs), expand=true)
+L₂ = simplify(sum(𝛕 .* Ceqs), expand=true)
 
 # ╔═╡ 911c9966-e983-46fd-8ca0-8ca06ab42bf0
 md"Adding all the components of the Lagrangian together gives"
@@ -200,7 +197,7 @@ md"This code computes the gradient of the Lagrangian with respect to the stress 
 
 # ╔═╡ bfd6f8e4-ea3e-4c87-b7f7-eba889e751fd
 md"### Final Condition
-To obtain the final condition, we shall compute the gradient of the Lagrangian with respect to `v(x, 𝚃)`."
+To obtain the final condition, we shall compute the gradient of the Lagrangian with respect to `v(x, T)`."
 
 # ╔═╡ 09c11c95-a82d-48e0-85ba-6db4a8c03f29
 md"The solution of these adjoint equations is often obtained by using a time-reversed version of the original numerical solver, known as the backpropagation."
@@ -209,26 +206,26 @@ md"The solution of these adjoint equations is often obtained by using a time-rev
 md"## Parameter Gradients
 Lets compute the gradient of L with respect to ρ and μ."
 
-# ╔═╡ a5d63b00-4520-4f0c-a2f2-bf6476c4a1a2
-nt = 3
-
 # ╔═╡ 653a7d32-d0cc-447f-95eb-3b8ee866b6dd
-Vs = collect(map(t -> v(x, t), 𝚝)) # Simulated velocity fields
+Vs = [v(x, t[1]), v(x, t[2]), v(x, t[3])]
 
 # ╔═╡ fb82077d-43b8-4950-96ec-ffc72d400f26
-Us = reverse(collect(map(t -> u(x, t), 𝚝))) # Simulated adjoint velocity fields
+Us = [u(x, t̂[3]), u(x, t̂[2]), u(x, t̂[1])]
+
+# ╔═╡ a5d63b00-4520-4f0c-a2f2-bf6476c4a1a2
+nt = 3
 
 # ╔═╡ f64849ef-b48f-4783-b213-c108454dcb9a
 simplify(sum([Us[it] * (-Vs[nt-it] + Vs[nt-it+1]) for it in 1:nt-1]), expand=true) + Us[nt] * Vs[1]
 
-# ╔═╡ 8e46496e-d44b-4c1e-96c1-e8b29d792e32
-Ss = collect(map(t -> σ(x, t), t)) # Simulated stress fields
+# ╔═╡ c374e7a9-e4b3-43fc-900c-95b77dc16959
+Σs = [σ(x, t̂[1]), σ(x, t̂[2]), σ(x, t̂[3])]
 
-# ╔═╡ 3e2cb699-c73e-40c5-9bf7-83d0486eeed7
-Ts = reverse(collect(map(t -> τ(x, t), t))) # Simulated adjoint stress fields
+# ╔═╡ 739fc11d-4035-41a9-90d8-205c8348db86
+𝛕s = [τ(x, t[3]), τ(x, t[2]), τ(x, t[1])]
 
-# ╔═╡ 0cbe023d-ba95-43f5-b06b-55e0a5333404
-simplify(sum([Ts[it] * (-Ss[nt-it] + Ss[nt-it+1]) for it in 1:nt-1]), expand=true) + Ts[nt] * Ss[1]
+# ╔═╡ 53ae28af-69ab-4a1b-81aa-0644608ccf95
+simplify(sum([𝛕s[it] * (Σs[nt-it] - Σs[nt-it-1]) for it in 1:nt-2]), expand=true) + 𝛕s[nt-1] * Σs[1]
 
 # ╔═╡ 3b2d5624-d365-4595-b95b-52825bc980d0
 md"## Appendix"
@@ -269,43 +266,26 @@ end;
 # ╔═╡ 3bb85c65-89ed-4113-a498-3a0da01be0b1
 ∂σL ~ 0
 
+# ╔═╡ 37d43e0f-6a4f-4bce-9b87-b53f646ec0aa
+expand_derivatives(substitute(∂σL[3], [Dₓ(-u(x, T̂))=>0])) ~ 0
+
 # ╔═╡ 7d7db129-4524-48ec-a9a9-61d7b1ee967d
-∂vTL = Differential(v(x, 𝚃))(L) |> expand_derivatives;
+∂vTL = Differential(v(x, T))(L) |> expand_derivatives;
 
 # ╔═╡ 90b6fc69-0056-4971-9395-10c601ce4ef4
 ∂vTL ~ 0
 
-# ╔═╡ a1f58735-5fb7-4920-ba2c-1821c013d4d9
-∂σTL = Differential(σ(x, 𝚃))(L) |> expand_derivatives;
-
-# ╔═╡ 1ede1ceb-f286-4a71-bea1-79e0fc3f74ff
-∂σTL ~ 0
-
 # ╔═╡ 7e56d621-a572-4077-83be-d3b002f4e808
 # gradient w.r.t. mass density
-∇ρ = substitute(Differential(ρ(x))(L) |> expand_derivatives, [u(x, 𝚃) => 0, v(x, 0) => 0])
+∇ρ = substitute(Differential(ρ(x))(L) |> expand_derivatives, [u(x, T̂) => 0, v(x, 0) => 0])
 
 
 # ╔═╡ c150327f-b950-4a70-af44-722beee2069c
 # gradient w.r.t. shear modulus
-∇μ⁻¹ = substitute(Differential(μ⁻¹(x))(L) |> expand_derivatives, [τ(x, 𝚃) => 0, σ(x, 0) => 0])
+∇μ⁻¹ = substitute(Differential(μ⁻¹(x))(L) |> expand_derivatives, [σ(x, 0) => 0, τ(x, T) => 0])
 
 # ╔═╡ 38257847-5ae7-4a5a-a937-22a6729a3640
 md"### Tikz"
-
-# ╔═╡ 4483493d-cc6b-4e7a-b244-5409f1da013e
-get_field_tikz(v, s, f="f") = L"""
-    \tikzstyle{vertex}=[circle,minimum size=20pt,inner sep=0pt]
-
-  \foreach \name/\x in {%$(v)(0)/1, %$(v)(\mathtt{t}_1)/5, %$(v)(\mathtt{t}_2)/9, %$(v)(\mathtt{t}_3)/13, %$(v)(\mathtt{T})/17}
-    \node[vertex,fill=black!25,] (v-\x) at (\x,0) {$\name$};
-
- \foreach \name/\x in {%$(s)(0)/3, %$(s)(t_1)/7, %$(s)(t_2)/11, %$(s)(t_3)/15}
-    \node[vertex,fill=red!25] (s-\x) at (\x,-1) {$\name$};
-
- \foreach \name/\x in {%$(f)(0)/3, %$(f)(\mathtt{t}_1)/7, %$(f)(\mathtt{t}_2)/11, %$(f)(\mathtt{t}_3)/15}
-    \node[vertex,fill=blue!25] (f-\x) at (\x,1) {$\name$};
-  """
 
 # ╔═╡ 8e514e64-0172-4b47-974d-efaa8e1f4990
 tikz_default_options = raw"""
@@ -377,8 +357,17 @@ tikz_preamble = raw"""
 # t1, t2, t3, tv are texts
 # s1 and s2 are labels with sizes
 plot_state_tikz() = TikzPicture(L"""
-   %$(get_field_tikz("v", L"\sigma", "f"))
+   
+   \tikzstyle{vertex}=[circle,minimum size=20pt,inner sep=0pt]
 
+  \foreach \name/\x in {v(0)/1, v(t_1)/5, v(t_2)/9, v(t_3)/13, v(T)/17}
+    \node[vertex,fill=black!25,] (v-\x) at (\x,0) {$\name$};
+
+ \foreach \name/\x in {\sigma(0)/3, \sigma(\hat{t}_1)/7, \sigma(\hat{t}_2)/11, \sigma(\hat{t}_3)/15}
+    \node[vertex,fill=red!25] (s-\x) at (\x,-1) {$\name$};
+
+ \foreach \name/\x in {f(0)/3, f(\hat{t}_1)/7, f(\hat{t}_2)/11, f(\hat{t}_3)/15}
+    \node[vertex,fill=blue!25] (f-\x) at (\x,1) {$\name$};
 
  \draw[->,thick, red] (s-3) -- (s-7) node[above, midway, red] {1};
 \draw[->,thick, red] (v-5) -- (s-7) node[above, midway, red] {1};
@@ -396,9 +385,18 @@ plot_state_tikz()
 # t1, t2, t3, tv are texts
 # s1 and s2 are labels with sizes
 plot_adjstate_tikz() = TikzPicture(L"""
-   %$(get_field_tikz("u", L"\tau", "g"))
 
 
+   \tikzstyle{vertex}=[circle,minimum size=20pt,inner sep=0pt]
+
+  \foreach \name/\x in {u(0)/1, u(\hat{t}_1)/5, u(\hat{t}_2)/9, u(\hat{t}_3)/13, u(\hat{T})/17}
+    \node[vertex,fill=black!25,] (v-\x) at (\x,0) {$\name$};
+
+ \foreach \name/\x in {\tau(t_1)/3, \tau(t_2)/7, \tau(t_3)/11, \tau(T)/15}
+    \node[vertex,fill=red!25] (s-\x) at (\x,-1) {$\name$};
+
+ \foreach \name/\x in { g(t_1)/7, g(t_2)/11, g(t_3)/15}
+    \node[vertex,fill=blue!25] (f-\x) at (\x,1) {$\name$};
 
 
  \draw[->,thick, red] (s-15) -- (s-11) node[above, midway, red] {1};
@@ -444,8 +442,9 @@ TikzPictures = "~3.4.2"
 PLUTO_MANIFEST_TOML_CONTENTS = """
 # This file is machine-generated - editing it directly is not advised
 
-julia_version = "1.7.3"
+julia_version = "1.8.5"
 manifest_format = "2.0"
+project_hash = "dd13e594d2b8f4581870454a2dfe17b6c69156bb"
 
 [[deps.AbstractAlgebra]]
 deps = ["GroupsCore", "InteractiveUtils", "LinearAlgebra", "MacroTools", "Markdown", "Random", "RandomExtensions", "SparseArrays", "Test"]
@@ -472,12 +471,13 @@ version = "3.6.1"
 
 [[deps.ArgTools]]
 uuid = "0dad84c5-d112-42e6-8d28-ef12dabb789f"
+version = "1.1.1"
 
 [[deps.ArrayInterface]]
 deps = ["Adapt", "LinearAlgebra", "Requires", "SnoopPrecompile", "SparseArrays", "SuiteSparse"]
-git-tree-sha1 = "38911c7737e123b28182d89027f4216cfc8a9da7"
+git-tree-sha1 = "a89acc90c551067cd84119ff018619a1a76c6277"
 uuid = "4fba245c-0d91-5ea0-9b3e-6abc04ee57a9"
-version = "7.4.3"
+version = "7.2.1"
 
 [[deps.Artifacts]]
 uuid = "56f22d72-fd6d-98f1-02f0-08ddc0907c33"
@@ -528,9 +528,9 @@ version = "0.1.6"
 
 [[deps.CodeTracking]]
 deps = ["InteractiveUtils", "UUIDs"]
-git-tree-sha1 = "d730914ef30a06732bdd9f763f6cc32e92ffbff1"
+git-tree-sha1 = "d57c99cc7e637165c81b30eb268eabe156a45c49"
 uuid = "da1fd8a2-8d9e-5ec2-8556-3022fb5608a2"
-version = "1.3.1"
+version = "1.2.2"
 
 [[deps.ColorTypes]]
 deps = ["FixedPointNumbers", "Random"]
@@ -563,6 +563,7 @@ version = "4.6.1"
 [[deps.CompilerSupportLibraries_jll]]
 deps = ["Artifacts", "Libdl"]
 uuid = "e66e0078-7015-5450-92f7-15fbd957f2ae"
+version = "1.0.1+0"
 
 [[deps.CompositeTypes]]
 git-tree-sha1 = "02d2316b7ffceff992f3096ae48c7829a8aa0638"
@@ -619,9 +620,9 @@ uuid = "8ba89e20-285c-5b6f-9357-94700520ee1b"
 
 [[deps.Distributions]]
 deps = ["ChainRulesCore", "DensityInterface", "FillArrays", "LinearAlgebra", "PDMats", "Printf", "QuadGK", "Random", "SparseArrays", "SpecialFunctions", "Statistics", "StatsBase", "StatsFuns", "Test"]
-git-tree-sha1 = "13027f188d26206b9e7b863036f87d2f2e7d013a"
+git-tree-sha1 = "da9e1a9058f8d3eec3a8c9fe4faacfb89180066b"
 uuid = "31c24e10-a181-5473-b8eb-7969acd0382f"
-version = "0.25.87"
+version = "0.25.86"
 
 [[deps.DocStringExtensions]]
 deps = ["LibGit2"]
@@ -638,6 +639,7 @@ version = "0.5.15"
 [[deps.Downloads]]
 deps = ["ArgTools", "FileWatching", "LibCURL", "NetworkOptions"]
 uuid = "f43a241f-c20a-4ad4-852c-f6b1247861c6"
+version = "1.6.0"
 
 [[deps.DualNumbers]]
 deps = ["Calculus", "NaNMath", "SpecialFunctions"]
@@ -672,9 +674,9 @@ uuid = "7b1f6079-737a-58dc-b8bc-7a2ca5c1b5ee"
 
 [[deps.FillArrays]]
 deps = ["LinearAlgebra", "Random", "SparseArrays", "Statistics"]
-git-tree-sha1 = "fc86b4fd3eff76c3ce4f5e96e2fdfa6282722885"
+git-tree-sha1 = "3b245d1e50466ca0c9529e2033a3c92387c59c2f"
 uuid = "1a297f60-69ca-5386-bcde-b61e274b549b"
-version = "1.0.0"
+version = "0.13.9"
 
 [[deps.FixedPointNumbers]]
 deps = ["Statistics"]
@@ -752,10 +754,10 @@ uuid = "d5909c97-4eac-4ecc-a3dc-fdd0858a4120"
 version = "0.4.0"
 
 [[deps.HypergeometricFunctions]]
-deps = ["DualNumbers", "LinearAlgebra", "OpenLibm_jll", "SpecialFunctions"]
-git-tree-sha1 = "432b5b03176f8182bd6841fbfc42c718506a2d5f"
+deps = ["DualNumbers", "LinearAlgebra", "OpenLibm_jll", "SpecialFunctions", "Test"]
+git-tree-sha1 = "709d864e3ed6e3545230601f94e11ebc65994641"
 uuid = "34004b35-14d8-5ef3-9330-4cdb6864b03a"
-version = "0.3.15"
+version = "0.3.11"
 
 [[deps.Hyperscript]]
 deps = ["Test"]
@@ -819,9 +821,9 @@ version = "1.4.1"
 
 [[deps.JSON]]
 deps = ["Dates", "Mmap", "Parsers", "Unicode"]
-git-tree-sha1 = "31e996f0a15c7b280ba9f76636b3ff9e2ae58c9a"
+git-tree-sha1 = "3c837543ddb02250ef42f4738347454f95079d4e"
 uuid = "682c06a0-de6a-54ab-a142-c8b1cf79cde6"
-version = "0.21.4"
+version = "0.21.3"
 
 [[deps.JpegTurbo_jll]]
 deps = ["Artifacts", "JLLWrappers", "Libdl"]
@@ -831,9 +833,9 @@ version = "2.1.91+0"
 
 [[deps.JuliaInterpreter]]
 deps = ["CodeTracking", "InteractiveUtils", "Random", "UUIDs"]
-git-tree-sha1 = "6a125e6a4cb391e0b9adbd1afa9e771c2179f8ef"
+git-tree-sha1 = "d9ae7a9081d9b1a3b2a5c1d3dac5e2fdaafbd538"
 uuid = "aa1ae85d-cabe-5617-a682-6adf51b2e16a"
-version = "0.9.23"
+version = "0.9.22"
 
 [[deps.LERC_jll]]
 deps = ["Artifacts", "JLLWrappers", "Libdl", "Pkg"]
@@ -865,9 +867,9 @@ version = "0.4.6"
 
 [[deps.Latexify]]
 deps = ["Formatting", "InteractiveUtils", "LaTeXStrings", "MacroTools", "Markdown", "OrderedCollections", "Printf", "Requires"]
-git-tree-sha1 = "98dc144f1e0b299d49e8d23e56ad68d3e4f340a5"
+git-tree-sha1 = "2422f47b34d4b127720a18f86fa7b1aa2e141f29"
 uuid = "23fbe1c1-3f47-55db-b15f-69d7ec21a316"
-version = "0.15.20"
+version = "0.15.18"
 
 [[deps.Lazy]]
 deps = ["MacroTools"]
@@ -878,10 +880,12 @@ version = "0.15.1"
 [[deps.LibCURL]]
 deps = ["LibCURL_jll", "MozillaCACerts_jll"]
 uuid = "b27032c2-a3e7-50c8-80cd-2d36dbcbfd21"
+version = "0.6.3"
 
 [[deps.LibCURL_jll]]
 deps = ["Artifacts", "LibSSH2_jll", "Libdl", "MbedTLS_jll", "Zlib_jll", "nghttp2_jll"]
 uuid = "deac9b47-8bc7-5906-a0fe-35ac56dc84c0"
+version = "7.84.0+0"
 
 [[deps.LibGit2]]
 deps = ["Base64", "NetworkOptions", "Printf", "SHA"]
@@ -890,6 +894,7 @@ uuid = "76f85450-5226-5b5a-8eaa-529ad045b433"
 [[deps.LibSSH2_jll]]
 deps = ["Artifacts", "Libdl", "MbedTLS_jll"]
 uuid = "29816b5a-b9ab-546f-933c-edad1886dfa8"
+version = "1.10.2+0"
 
 [[deps.Libdl]]
 uuid = "8f399da3-3557-5675-b5ff-fb832c97cbdb"
@@ -979,6 +984,7 @@ uuid = "d6f4376e-aef5-505a-96c1-9c027394607a"
 [[deps.MbedTLS_jll]]
 deps = ["Artifacts", "Libdl"]
 uuid = "c8ffd9c3-330d-5841-b78e-0817d7145fa1"
+version = "2.28.0+0"
 
 [[deps.Missings]]
 deps = ["DataAPI"]
@@ -991,6 +997,7 @@ uuid = "a63ad114-7e13-5084-954f-fe012c677804"
 
 [[deps.MozillaCACerts_jll]]
 uuid = "14a3606d-f60d-562e-9121-12d972cd8159"
+version = "2022.2.1"
 
 [[deps.MultivariatePolynomials]]
 deps = ["ChainRulesCore", "DataStructures", "LinearAlgebra", "MutableArithmetics"]
@@ -1012,10 +1019,12 @@ version = "1.0.2"
 
 [[deps.NetworkOptions]]
 uuid = "ca575930-c2e3-43a9-ace4-1e988b2c1908"
+version = "1.2.0"
 
 [[deps.OpenBLAS_jll]]
 deps = ["Artifacts", "CompilerSupportLibraries_jll", "Libdl"]
 uuid = "4536629a-c528-5b80-bd46-f80d51c5b363"
+version = "0.3.20+0"
 
 [[deps.OpenJpeg_jll]]
 deps = ["Artifacts", "JLLWrappers", "Libdl", "Libtiff_jll", "LittleCMS_jll", "Pkg", "libpng_jll"]
@@ -1026,6 +1035,7 @@ version = "2.4.0+0"
 [[deps.OpenLibm_jll]]
 deps = ["Artifacts", "Libdl"]
 uuid = "05823500-19ac-5b8b-9628-191a04bc5112"
+version = "0.8.1+0"
 
 [[deps.OpenSpecFun_jll]]
 deps = ["Artifacts", "CompilerSupportLibraries_jll", "JLLWrappers", "Libdl", "Pkg"]
@@ -1034,13 +1044,14 @@ uuid = "efe28fd5-8261-553b-a9e1-b2916fc3738e"
 version = "0.5.5+0"
 
 [[deps.OrderedCollections]]
-git-tree-sha1 = "d321bf2de576bf25ec4d3e4360faca399afca282"
+git-tree-sha1 = "85f8e6578bf1f9ee0d11e7bb1b1456435479d47c"
 uuid = "bac558e1-5e72-5ebc-8fee-abe8a469f55d"
-version = "1.6.0"
+version = "1.4.1"
 
 [[deps.PCRE2_jll]]
 deps = ["Artifacts", "Libdl"]
 uuid = "efcefdf7-47ab-520b-bdef-62a2eaa19f15"
+version = "10.40.0+0"
 
 [[deps.PDMats]]
 deps = ["LinearAlgebra", "SparseArrays", "SuiteSparse"]
@@ -1063,6 +1074,7 @@ version = "0.40.1+0"
 [[deps.Pkg]]
 deps = ["Artifacts", "Dates", "Downloads", "LibGit2", "Libdl", "Logging", "Markdown", "Printf", "REPL", "Random", "SHA", "Serialization", "TOML", "Tar", "UUIDs", "p7zip_jll"]
 uuid = "44cfe95a-1eb2-52ea-b672-e2afdf69b78f"
+version = "1.8.0"
 
 [[deps.PlutoHooks]]
 deps = ["InteractiveUtils", "Markdown", "UUIDs"]
@@ -1078,9 +1090,9 @@ version = "0.1.6"
 
 [[deps.PlutoTeachingTools]]
 deps = ["Downloads", "HypertextLiteral", "LaTeXStrings", "Latexify", "Markdown", "PlutoLinks", "PlutoUI", "Random"]
-git-tree-sha1 = "8c8b07296990c12ac3a9eb9f74cd80f7e81c16b7"
+git-tree-sha1 = "b970826468465da71f839cdacc403e99842c18ea"
 uuid = "661c6b06-c737-4d37-b85c-46df65de6f69"
-version = "0.2.9"
+version = "0.2.8"
 
 [[deps.PlutoUI]]
 deps = ["AbstractPlutoDingetjes", "Base64", "ColorTypes", "Dates", "FixedPointNumbers", "Hyperscript", "HypertextLiteral", "IOCapture", "InteractiveUtils", "JSON", "Logging", "MIMEs", "Markdown", "Random", "Reexport", "URIs", "UUIDs"]
@@ -1149,10 +1161,10 @@ uuid = "3cdcf5f2-1ef4-517c-9805-6587b60abb01"
 version = "1.3.3"
 
 [[deps.RecursiveArrayTools]]
-deps = ["Adapt", "ArrayInterface", "DocStringExtensions", "GPUArraysCore", "IteratorInterfaceExtensions", "LinearAlgebra", "RecipesBase", "Requires", "StaticArraysCore", "Statistics", "SymbolicIndexingInterface", "Tables"]
-git-tree-sha1 = "140cddd2c457e4ebb0cdc7c2fd14a7fbfbdf206e"
+deps = ["Adapt", "ArrayInterface", "ChainRulesCore", "DocStringExtensions", "FillArrays", "GPUArraysCore", "IteratorInterfaceExtensions", "LinearAlgebra", "RecipesBase", "Requires", "StaticArraysCore", "Statistics", "SymbolicIndexingInterface", "Tables", "ZygoteRules"]
+git-tree-sha1 = "3dcb2a98436389c0aac964428a5fa099118944de"
 uuid = "731186ca-8d62-57ce-b412-fbd966d074cd"
-version = "2.38.3"
+version = "2.38.0"
 
 [[deps.Reexport]]
 git-tree-sha1 = "45e428421666073eab6f2da5c9d310d99bb12f9b"
@@ -1167,9 +1179,9 @@ version = "1.3.0"
 
 [[deps.Revise]]
 deps = ["CodeTracking", "Distributed", "FileWatching", "JuliaInterpreter", "LibGit2", "LoweredCodeUtils", "OrderedCollections", "Pkg", "REPL", "Requires", "UUIDs", "Unicode"]
-git-tree-sha1 = "feafdc70b2e6684314e188d95fe66d116de834a7"
+git-tree-sha1 = "90cb983381a9dc7d3dff5fb2d1ee52cd59877412"
 uuid = "295af30f-e4ad-537b-8983-00126c2a3abe"
-version = "3.5.2"
+version = "3.5.1"
 
 [[deps.Rmath]]
 deps = ["Random", "Rmath_jll"]
@@ -1185,18 +1197,19 @@ version = "0.4.0+0"
 
 [[deps.RuntimeGeneratedFunctions]]
 deps = ["ExprTools", "SHA", "Serialization"]
-git-tree-sha1 = "f139e81a81e6c29c40f1971c9e5309b09c03f2c3"
+git-tree-sha1 = "50314d2ef65fce648975a8e80ae6d8409ebbf835"
 uuid = "7e49a35a-f44a-4d26-94aa-eba1b4ca6b47"
-version = "0.5.6"
+version = "0.5.5"
 
 [[deps.SHA]]
 uuid = "ea8e919c-243c-51af-8825-aaa63cd721ce"
+version = "0.7.0"
 
 [[deps.SciMLBase]]
 deps = ["ArrayInterface", "CommonSolve", "ConstructionBase", "Distributed", "DocStringExtensions", "EnumX", "FunctionWrappersWrappers", "IteratorInterfaceExtensions", "LinearAlgebra", "Logging", "Markdown", "Preferences", "RecipesBase", "RecursiveArrayTools", "Reexport", "RuntimeGeneratedFunctions", "SciMLOperators", "SnoopPrecompile", "StaticArraysCore", "Statistics", "SymbolicIndexingInterface", "Tables", "TruncatedStacktraces"]
-git-tree-sha1 = "392d3e28b05984496af37100ded94dc46fa6c8de"
+git-tree-sha1 = "d78c2134ea1484559aa53cae133c0504ba31abec"
 uuid = "0bca4576-84f4-4d90-8ffe-ffa030f20462"
-version = "1.91.7"
+version = "1.91.1"
 
 [[deps.SciMLOperators]]
 deps = ["ArrayInterface", "DocStringExtensions", "Lazy", "LinearAlgebra", "Setfield", "SparseArrays", "StaticArraysCore", "Tricks"]
@@ -1240,9 +1253,9 @@ version = "2.2.0"
 
 [[deps.StaticArrays]]
 deps = ["LinearAlgebra", "Random", "StaticArraysCore", "Statistics"]
-git-tree-sha1 = "63e84b7fdf5021026d0f17f76af7c57772313d99"
+git-tree-sha1 = "7756ce473bd10b67245bdebdc8d8670a85f6230b"
 uuid = "90137ffa-7385-5640-81b9-e52037218182"
-version = "1.5.21"
+version = "1.5.18"
 
 [[deps.StaticArraysCore]]
 git-tree-sha1 = "6b7ba252635a5eff6a0b0664a41ee140a1c9e72a"
@@ -1255,9 +1268,9 @@ uuid = "10745b16-79ce-11e8-11f9-7d13ad32a3b2"
 
 [[deps.StatsAPI]]
 deps = ["LinearAlgebra"]
-git-tree-sha1 = "45a7769a04a3cf80da1c1c7c60caf932e6f4c9f7"
+git-tree-sha1 = "f9af7f195fb13589dd2e2d57fdb401717d2eb1f6"
 uuid = "82ae8749-77ed-4fe6-ae5f-f523153014b0"
-version = "1.6.0"
+version = "1.5.0"
 
 [[deps.StatsBase]]
 deps = ["DataAPI", "DataStructures", "LinearAlgebra", "LogExpFunctions", "Missings", "Printf", "Random", "SortingAlgorithms", "SparseArrays", "Statistics", "StatsAPI"]
@@ -1289,9 +1302,9 @@ version = "0.2.2"
 
 [[deps.SymbolicUtils]]
 deps = ["AbstractTrees", "Bijections", "ChainRulesCore", "Combinatorics", "ConstructionBase", "DataStructures", "DocStringExtensions", "DynamicPolynomials", "IfElse", "LabelledArrays", "LinearAlgebra", "MultivariatePolynomials", "NaNMath", "Setfield", "SparseArrays", "SpecialFunctions", "StaticArrays", "TimerOutputs", "Unityper"]
-git-tree-sha1 = "5cb1f963f82e7b81305102dd69472fcd3e0e1483"
+git-tree-sha1 = "bfbd444c209b41c7b2fef36b6e146a66da0be9f1"
 uuid = "d1185830-fcd6-423d-90d6-eec64667417b"
-version = "1.0.5"
+version = "1.0.4"
 
 [[deps.Symbolics]]
 deps = ["ArrayInterface", "ConstructionBase", "DataStructures", "DiffRules", "Distributions", "DocStringExtensions", "DomainSets", "Groebner", "IfElse", "LaTeXStrings", "LambertW", "Latexify", "Libdl", "LinearAlgebra", "MacroTools", "Markdown", "NaNMath", "RecipesBase", "Reexport", "Requires", "RuntimeGeneratedFunctions", "SciMLBase", "Setfield", "SparseArrays", "SpecialFunctions", "StaticArrays", "SymbolicUtils", "TreeViews"]
@@ -1302,6 +1315,7 @@ version = "5.1.0"
 [[deps.TOML]]
 deps = ["Dates"]
 uuid = "fa267f1f-6049-4f14-aa54-33bafae1ed76"
+version = "1.0.0"
 
 [[deps.TableTraits]]
 deps = ["IteratorInterfaceExtensions"]
@@ -1318,6 +1332,7 @@ version = "1.10.1"
 [[deps.Tar]]
 deps = ["ArgTools", "SHA"]
 uuid = "a4e569a6-e804-4fa4-b0f3-eef7a1d5b13e"
+version = "1.10.1"
 
 [[deps.Tectonic]]
 deps = ["Pkg"]
@@ -1337,9 +1352,9 @@ version = "3.4.2"
 
 [[deps.TimerOutputs]]
 deps = ["ExprTools", "Printf"]
-git-tree-sha1 = "f548a9e9c490030e545f72074a41edfd0e5bcdd7"
+git-tree-sha1 = "f2fd3f288dfc6f507b0c3a2eb3bac009251e548b"
 uuid = "a759f4b9-e2f1-59dc-863e-4aeb61b1ea8f"
-version = "0.5.23"
+version = "0.5.22"
 
 [[deps.TreeViews]]
 deps = ["Test"]
@@ -1348,15 +1363,15 @@ uuid = "a2a6695c-b41b-5b7d-aed9-dbfdeacea5d7"
 version = "0.3.0"
 
 [[deps.Tricks]]
-git-tree-sha1 = "aadb748be58b492045b4f56166b5188aa63ce549"
+git-tree-sha1 = "6bac775f2d42a611cdfcd1fb217ee719630c4175"
 uuid = "410a4b4d-49e4-4fbc-ab6d-cb71b17b3775"
-version = "0.1.7"
+version = "0.1.6"
 
 [[deps.TruncatedStacktraces]]
 deps = ["InteractiveUtils", "MacroTools", "Preferences"]
-git-tree-sha1 = "7bc1632a4eafbe9bd94cf1a784a9a4eb5e040a91"
+git-tree-sha1 = "6901000d75a14520bdd067fe90b9392384eb04a7"
 uuid = "781d530d-4396-4725-bb49-402e4bee1e77"
-version = "1.3.0"
+version = "1.2.0"
 
 [[deps.URIs]]
 git-tree-sha1 = "074f993b0ca030848b897beff716d93aca60f06a"
@@ -1439,16 +1454,24 @@ version = "1.4.0+3"
 [[deps.Zlib_jll]]
 deps = ["Libdl"]
 uuid = "83775a58-1f1d-513f-b197-d71354ab007a"
+version = "1.2.12+3"
 
 [[deps.Zstd_jll]]
 deps = ["Artifacts", "JLLWrappers", "Libdl"]
-git-tree-sha1 = "49ce682769cd5de6c72dcf1b94ed7790cd08974c"
+git-tree-sha1 = "c6edfe154ad7b313c01aceca188c05c835c67360"
 uuid = "3161d3a3-bdf6-5164-811a-617609db77b4"
-version = "1.5.5+0"
+version = "1.5.4+0"
+
+[[deps.ZygoteRules]]
+deps = ["ChainRulesCore", "MacroTools"]
+git-tree-sha1 = "977aed5d006b840e2e40c0b48984f7463109046d"
+uuid = "700de1a5-db45-46bc-99cf-38207098b444"
+version = "0.2.3"
 
 [[deps.libblastrampoline_jll]]
 deps = ["Artifacts", "Libdl", "OpenBLAS_jll"]
 uuid = "8e850b90-86db-534c-a0d3-1478176c7d93"
+version = "5.1.1+0"
 
 [[deps.libpng_jll]]
 deps = ["Artifacts", "JLLWrappers", "Libdl", "Pkg", "Zlib_jll"]
@@ -1459,10 +1482,12 @@ version = "1.6.38+0"
 [[deps.nghttp2_jll]]
 deps = ["Artifacts", "Libdl"]
 uuid = "8e850ede-7688-5339-a07c-302acd2aaf8d"
+version = "1.48.0+0"
 
 [[deps.p7zip_jll]]
 deps = ["Artifacts", "Libdl"]
 uuid = "3f19e933-33d8-53b3-aaab-bd5110c3b7a0"
+version = "17.4.0+0"
 """
 
 # ╔═╡ Cell order:
@@ -1496,13 +1521,12 @@ uuid = "3f19e933-33d8-53b3-aaab-bd5110c3b7a0"
 # ╠═9242d8be-a259-4a72-bbb7-4958884937c9
 # ╠═f54c2aa7-2afb-4806-b932-417e3b4a41e5
 # ╟─c5e41f1c-a734-4502-a60f-4ec0f9819e89
-# ╠═d42c3324-4517-4ac1-b9d9-1af0656bf70e
 # ╠═de66df57-c6d1-4dba-8e6f-d1d8fd6b59ff
 # ╟─b2562463-09d0-40fc-9802-b49e105f946c
 # ╠═e73aa232-e0a9-4c7e-b399-6b0dee065a25
 # ╠═9678bb33-8e15-49ad-95b8-c8d4ab75f14f
 # ╟─0b2ed009-e636-40d9-bf9c-8d600f3bae75
-# ╟─4d71efc9-6bf5-4aa6-8e0f-132814350351
+# ╠═4d71efc9-6bf5-4aa6-8e0f-132814350351
 # ╟─2b9eae49-a32d-4462-b5ff-8282d05a0a57
 # ╟─e301bd11-efb6-431f-a1fd-45b9a2922350
 # ╠═6332d014-79e2-451f-b65c-6a5179b7f85c
@@ -1533,27 +1557,25 @@ uuid = "3f19e933-33d8-53b3-aaab-bd5110c3b7a0"
 # ╠═3bb85c65-89ed-4113-a498-3a0da01be0b1
 # ╟─bfd6f8e4-ea3e-4c87-b7f7-eba889e751fd
 # ╠═7d7db129-4524-48ec-a9a9-61d7b1ee967d
-# ╠═a1f58735-5fb7-4920-ba2c-1821c013d4d9
 # ╠═90b6fc69-0056-4971-9395-10c601ce4ef4
-# ╠═1ede1ceb-f286-4a71-bea1-79e0fc3f74ff
+# ╠═37d43e0f-6a4f-4bce-9b87-b53f646ec0aa
 # ╟─09c11c95-a82d-48e0-85ba-6db4a8c03f29
 # ╠═57ea4b25-0f40-4816-85ba-05669770885b
 # ╟─be1c590d-d70b-40f1-8370-bc294fb29c09
-# ╠═a5d63b00-4520-4f0c-a2f2-bf6476c4a1a2
+# ╠═7e56d621-a572-4077-83be-d3b002f4e808
+# ╠═c150327f-b950-4a70-af44-722beee2069c
 # ╠═653a7d32-d0cc-447f-95eb-3b8ee866b6dd
 # ╠═fb82077d-43b8-4950-96ec-ffc72d400f26
-# ╠═7e56d621-a572-4077-83be-d3b002f4e808
+# ╠═a5d63b00-4520-4f0c-a2f2-bf6476c4a1a2
 # ╠═f64849ef-b48f-4783-b213-c108454dcb9a
-# ╠═8e46496e-d44b-4c1e-96c1-e8b29d792e32
-# ╠═3e2cb699-c73e-40c5-9bf7-83d0486eeed7
-# ╠═c150327f-b950-4a70-af44-722beee2069c
-# ╠═0cbe023d-ba95-43f5-b06b-55e0a5333404
+# ╠═c374e7a9-e4b3-43fc-900c-95b77dc16959
+# ╠═739fc11d-4035-41a9-90d8-205c8348db86
+# ╠═53ae28af-69ab-4a1b-81aa-0644608ccf95
 # ╟─3b2d5624-d365-4595-b95b-52825bc980d0
 # ╠═c0d3e1c8-77d9-4f69-8f1a-97b4bec409e4
 # ╟─73cec834-0b81-4b93-a00f-4e953d93b5de
 # ╠═3f7e7312-236c-4710-a901-fc88e4c5afca
 # ╟─38257847-5ae7-4a5a-a937-22a6729a3640
-# ╠═4483493d-cc6b-4e7a-b244-5409f1da013e
 # ╠═5a9e17d9-2552-48fd-b3ad-0a1e50279953
 # ╠═21af98b7-712d-4b25-a9fa-41d008f97962
 # ╟─8e514e64-0172-4b47-974d-efaa8e1f4990
