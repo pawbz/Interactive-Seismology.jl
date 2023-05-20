@@ -1,11 +1,9 @@
 ### A Pluto.jl notebook ###
-# v0.19.22
+# v0.19.25
 
 #> [frontmatter]
 #> title = "Born Approximation"
 #> description = "Draw subsurface heterogeneities and model their linearized response using the notion of scattering theory."
-
-
 
 using Markdown
 using InteractiveUtils
@@ -462,7 +460,7 @@ Tullio = "~0.3.5"
 PLUTO_MANIFEST_TOML_CONTENTS = """
 # This file is machine-generated - editing it directly is not advised
 
-julia_version = "1.9.0-beta3"
+julia_version = "1.8.5"
 manifest_format = "2.0"
 project_hash = "36d471d82421f1898c5124672d8c091a5e6036e3"
 
@@ -567,6 +565,12 @@ git-tree-sha1 = "c6d890a52d2c4d55d326439580c3b8d0875a77d9"
 uuid = "d360d2e6-b24c-11e9-a2a3-2a2ae2dbcce4"
 version = "1.15.7"
 
+[[deps.ChangesOfVariables]]
+deps = ["ChainRulesCore", "LinearAlgebra", "Test"]
+git-tree-sha1 = "485193efd2176b88e6622a39a246f8c5b600e74e"
+uuid = "9e997f8a-9a97-42d5-a9f1-ce6bfc15e2c0"
+version = "0.1.6"
+
 [[deps.CodeTracking]]
 deps = ["InteractiveUtils", "UUIDs"]
 git-tree-sha1 = "0e5c14c3bb8a61b3d53b2c0620570c332c8d0663"
@@ -622,7 +626,7 @@ version = "4.5.0"
 [[deps.CompilerSupportLibraries_jll]]
 deps = ["Artifacts", "Libdl"]
 uuid = "e66e0078-7015-5450-92f7-15fbd957f2ae"
-version = "1.0.2+0"
+version = "1.0.1+0"
 
 [[deps.CompositeTypes]]
 git-tree-sha1 = "02d2316b7ffceff992f3096ae48c7829a8aa0638"
@@ -669,7 +673,6 @@ version = "0.1.2"
 deps = ["Mmap"]
 git-tree-sha1 = "9e2f36d3c96a820c678f2f1f1782582fcf685bae"
 uuid = "8bb1440f-4735-579b-a4ab-409b98df4dab"
-version = "1.9.1"
 
 [[deps.DensityInterface]]
 deps = ["InverseFunctions", "Test"]
@@ -954,24 +957,14 @@ version = "1.10.2+0"
 uuid = "8f399da3-3557-5675-b5ff-fb832c97cbdb"
 
 [[deps.LinearAlgebra]]
-deps = ["Libdl", "OpenBLAS_jll", "libblastrampoline_jll"]
+deps = ["Libdl", "libblastrampoline_jll"]
 uuid = "37e2e46d-f89d-539d-b4ee-838fcccc9c8e"
 
 [[deps.LogExpFunctions]]
-deps = ["DocStringExtensions", "IrrationalConstants", "LinearAlgebra"]
+deps = ["ChainRulesCore", "ChangesOfVariables", "DocStringExtensions", "InverseFunctions", "IrrationalConstants", "LinearAlgebra"]
 git-tree-sha1 = "45b288af6956e67e621c5cbb2d75a261ab58300b"
 uuid = "2ab3a3ac-af41-5b50-aa03-7779005ae688"
 version = "0.3.20"
-
-    [deps.LogExpFunctions.extensions]
-    ChainRulesCoreExt = "ChainRulesCore"
-    ChangesOfVariablesExt = "ChangesOfVariables"
-    InverseFunctionsExt = "InverseFunctions"
-
-    [deps.LogExpFunctions.weakdeps]
-    ChainRulesCore = "d360d2e6-b24c-11e9-a2a3-2a2ae2dbcce4"
-    ChangesOfVariables = "9e997f8a-9a97-42d5-a9f1-ce6bfc15e2c0"
-    InverseFunctions = "3587e190-3f89-42d0-90ee-14403ec27112"
 
 [[deps.Logging]]
 uuid = "56ddb016-857b-54e1-b83d-db4d58db5568"
@@ -1031,7 +1024,7 @@ uuid = "a63ad114-7e13-5084-954f-fe012c677804"
 
 [[deps.MozillaCACerts_jll]]
 uuid = "14a3606d-f60d-562e-9121-12d972cd8159"
-version = "2022.10.11"
+version = "2022.2.1"
 
 [[deps.MultivariatePolynomials]]
 deps = ["ChainRulesCore", "DataStructures", "LinearAlgebra", "MutableArithmetics"]
@@ -1058,7 +1051,7 @@ version = "1.2.0"
 [[deps.OpenBLAS_jll]]
 deps = ["Artifacts", "CompilerSupportLibraries_jll", "Libdl"]
 uuid = "4536629a-c528-5b80-bd46-f80d51c5b363"
-version = "0.3.21+0"
+version = "0.3.20+0"
 
 [[deps.OpenLibm_jll]]
 deps = ["Artifacts", "Libdl"]
@@ -1095,9 +1088,9 @@ uuid = "69de0a69-1ddd-5017-9359-2bf0b02dc9f0"
 version = "2.5.3"
 
 [[deps.Pkg]]
-deps = ["Artifacts", "Dates", "Downloads", "FileWatching", "LibGit2", "Libdl", "Logging", "Markdown", "Printf", "REPL", "Random", "SHA", "Serialization", "TOML", "Tar", "UUIDs", "p7zip_jll"]
+deps = ["Artifacts", "Dates", "Downloads", "LibGit2", "Libdl", "Logging", "Markdown", "Printf", "REPL", "Random", "SHA", "Serialization", "TOML", "Tar", "UUIDs", "p7zip_jll"]
 uuid = "44cfe95a-1eb2-52ea-b672-e2afdf69b78f"
-version = "1.9.0"
+version = "1.8.0"
 
 [[deps.PlotlyBase]]
 deps = ["ColorSchemes", "Dates", "DelimitedFiles", "DocStringExtensions", "JSON", "LaTeXStrings", "Logging", "Parameters", "Pkg", "REPL", "Requires", "Statistics", "UUIDs"]
@@ -1265,7 +1258,7 @@ uuid = "a2af1166-a08f-5f64-846c-94a0d3cef48c"
 version = "1.1.0"
 
 [[deps.SparseArrays]]
-deps = ["Libdl", "LinearAlgebra", "Random", "Serialization", "SuiteSparse_jll"]
+deps = ["LinearAlgebra", "Random"]
 uuid = "2f01184e-e22b-5df5-ae63-d93ebab69eaf"
 
 [[deps.SpecialFunctions]]
@@ -1300,7 +1293,6 @@ version = "1.4.0"
 [[deps.Statistics]]
 deps = ["LinearAlgebra", "SparseArrays"]
 uuid = "10745b16-79ce-11e8-11f9-7d13ad32a3b2"
-version = "1.9.0"
 
 [[deps.StatsAPI]]
 deps = ["LinearAlgebra"]
@@ -1324,11 +1316,6 @@ version = "1.1.1"
 deps = ["Libdl", "LinearAlgebra", "Serialization", "SparseArrays"]
 uuid = "4607b0f0-06f3-5cda-b6b1-a6196a1729e9"
 
-[[deps.SuiteSparse_jll]]
-deps = ["Artifacts", "Libdl", "Pkg", "libblastrampoline_jll"]
-uuid = "bea87d4a-7f5b-5778-9afe-8cc45184846c"
-version = "5.10.1+0"
-
 [[deps.SymbolicIndexingInterface]]
 deps = ["DocStringExtensions"]
 git-tree-sha1 = "6b764c160547240d868be4e961a5037f47ad7379"
@@ -1350,7 +1337,7 @@ version = "4.13.0"
 [[deps.TOML]]
 deps = ["Dates"]
 uuid = "fa267f1f-6049-4f14-aa54-33bafae1ed76"
-version = "1.0.3"
+version = "1.0.0"
 
 [[deps.TableTraits]]
 deps = ["IteratorInterfaceExtensions"]
@@ -1367,7 +1354,7 @@ version = "1.10.0"
 [[deps.Tar]]
 deps = ["ArgTools", "SHA"]
 uuid = "a4e569a6-e804-4fa4-b0f3-eef7a1d5b13e"
-version = "1.10.0"
+version = "1.10.1"
 
 [[deps.TensorCore]]
 deps = ["LinearAlgebra"]
@@ -1439,7 +1426,7 @@ uuid = "4ec0a83e-493e-50e2-b9ac-8f72acf5a8f5"
 [[deps.Zlib_jll]]
 deps = ["Libdl"]
 uuid = "83775a58-1f1d-513f-b197-d71354ab007a"
-version = "1.2.13+0"
+version = "1.2.12+3"
 
 [[deps.ZygoteRules]]
 deps = ["MacroTools"]
@@ -1448,9 +1435,9 @@ uuid = "700de1a5-db45-46bc-99cf-38207098b444"
 version = "0.2.2"
 
 [[deps.libblastrampoline_jll]]
-deps = ["Artifacts", "Libdl"]
+deps = ["Artifacts", "Libdl", "OpenBLAS_jll"]
 uuid = "8e850b90-86db-534c-a0d3-1478176c7d93"
-version = "5.2.0+0"
+version = "5.1.1+0"
 
 [[deps.nghttp2_jll]]
 deps = ["Artifacts", "Libdl"]

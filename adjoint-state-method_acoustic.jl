@@ -2,8 +2,8 @@
 # v0.19.25
 
 #> [frontmatter]
-#> title = "Adjoint State Method"
-#> description = "This notebook presents a discrete symbolic version of the adjoint state formulation involving the seismic wave equation so that it can act as a reference while implementing methods for full waveform inversion."
+#> title = ""
+#> description = ""
 
 using Markdown
 using InteractiveUtils
@@ -36,7 +36,7 @@ md"## Medium
 Created two symbolic variables ρ and μ⁻¹ which can be used to represent the density and inverse of the shear modulus of the medium as functions of position x."
 
 # ╔═╡ d6188561-19ae-4006-b03e-9cf8e4f5e081
-@variables ρ[1:3] μ⁻¹[1:3]
+@variables ρ[1:3] K⁻¹[1:3]
 
 # ╔═╡ d38130e3-611d-42b2-96b6-a6ca6210308b
 md"## State Variables"
@@ -45,7 +45,7 @@ md"## State Variables"
 md"In the velocity-stress formulation, the seismic wavefield is described in terms of two variables: the particle velocity and the stress. Two symbolic variables `v(x, t)` and `σ(x, t)` representing velocity and stress, respectively, as functions of space (`x`) and time (`t`)."
 
 # ╔═╡ 857a5e06-2960-4ed4-826c-6bf3291387f0
-@syms v(x, t) σ(x, t)
+@syms v(x, t) p(x, t)
 
 # ╔═╡ 76fd526b-450a-4db1-bf9a-bc7ae59b895c
 md"As the velocity and stress fields are staggered in time, we create corresponding vectors at each time value in t and t̂, respectively."
@@ -71,7 +71,7 @@ This line defines the initial momentum of the system, which is equal to the diff
 """
 
 # ╔═╡ 3cb20104-2872-4bfe-95a7-86d2b1bb6b0f
-@syms δₓ δₜ
+@syms δₓ⁻¹ δₜ⁻¹
 
 # ╔═╡ 84d8f063-2aad-4d57-9bdf-d44e37f173c7
 md"""
@@ -98,7 +98,7 @@ In linear elasticity, for example, the constitutive relation is given by Hooke's
 md"Similar to velocity, we will construct a vector that represents the time derivative of the stress field."
 
 # ╔═╡ 0f894463-6513-49d9-98e4-12c3ca07ce51
-μ⁻¹t = repeat(reshape(μ⁻¹, 1, :), 3, 1)
+K⁻¹t = repeat(reshape(K⁻¹, 1, :), 3, 1)
 
 # ╔═╡ b2562463-09d0-40fc-9802-b49e105f946c
 md"This equation states that the time derivative of stress minus the gradient of the stress scaled by the shear modulus is equal to zero. This is a simplified form of the constitutive relation."
@@ -194,22 +194,22 @@ collect(t), collect(t̂)
 V = hcat(collect(broadcast(x -> collect(map(t -> v(x, t), vcat(t₀, t, T))), x))...) # velocity in the discrete world
 
 # ╔═╡ 201ebc60-90d6-40a1-8d1f-e371057af060
-dVdt = diff(V, dims=1) * δₜ
+dVdt = diff(V, dims=1) * δₜ⁻¹
 
 # ╔═╡ 39570793-d23b-4c88-9c3b-c58690eb4ae8
-∂V∂x = diff(V, dims=2) * δₓ
+∂V∂x = diff(V, dims=2) * δₓ⁻¹
 
 # ╔═╡ c0f9c9af-aced-4066-a9d1-7af8e26c8a27
-Σ = hcat(collect(broadcast(x -> collect(map(t -> σ(x, t), vcat(t₀, t̂))), x̂))...) # stress in the discrete world
+P = hcat(collect(broadcast(x -> collect(map(t -> p(x, t), vcat(t₀, t̂))), x̂))...) # stress in the discrete world
 
 # ╔═╡ 0d82f0b1-24a3-4adf-b645-4fea2fab6273
-dΣdx = diff(Σ, dims=2) * δₓ
+dPdx = diff(P, dims=2) * δₓ⁻¹
 
 # ╔═╡ 7343a50f-9835-4e10-97ed-5b213069044a
-∂Σ∂t = diff(Σ, dims=1) * δₜ
+∂P∂t = diff(P, dims=1) * δₜ⁻¹
 
 # ╔═╡ a0886a56-c027-4bae-99ff-e7be53ba4a1f
-Ceqs = ∂Σ∂t .* μ⁻¹t - ∂V∂x[2:end-1, :];
+Ceqs = ∂P∂t .* K⁻¹t - ∂V∂x[2:end-1, :];
 
 # ╔═╡ 9678bb33-8e15-49ad-95b8-c8d4ab75f14f
 Ceqs ~ 0
@@ -221,7 +221,7 @@ size(Ceqs)
 F = hcat(collect(broadcast(x -> collect(map(t -> f(x, t), vcat(t₀, t̂))), x))...)
 
 # ╔═╡ de0ef73d-0df1-47bb-aec0-f1bdef92af83
-Meqs = dVdt[:, 2:end-1] .* avx(ρt) - dΣdx - F[:, 2:end-1];
+Meqs = dVdt[:, 2:end-1] .* avx(ρt) - dPdx - F[:, 2:end-1];
 
 # ╔═╡ f54c2aa7-2afb-4806-b932-417e3b4a41e5
 Meqs ~ 0
@@ -256,7 +256,7 @@ L = L₁ + L₂ + J
 
 # ╔═╡ c150327f-b950-4a70-af44-722beee2069c
 # gradient w.r.t. shear modulus
-∇μ⁻¹ = Differential(μ⁻¹[2])(L) |> expand_derivatives #, [σ(x, 0) => 0, τ(x, T) => 0])
+∇K⁻¹ = Differential(K⁻¹[2])(L) |> expand_derivatives #, [σ(x, 0) => 0, τ(x, T) => 0])
 
 # ╔═╡ 6a1c66ec-6f3d-48a9-9809-2752e3818d18
 md"### Lagrangian"
@@ -276,7 +276,7 @@ end;
 md"This code computes the gradient of the Lagrangian with respect to the stress field to obtain adjoint equations."
 
 # ╔═╡ 2613e6c6-ec09-4574-aecf-bf2a2266bc55
-∂σL = broadcast(Σ[2:end, :]) do σ
+∂σL = broadcast(P[2:end, :]) do σ
   Differential(σ)(L) |> expand_derivatives
 end;
 
@@ -329,26 +329,51 @@ end
 # ╔═╡ e5c727d8-752c-4a3c-b971-292f4187416e
 ∇ρ - ∇ρ1
 
-# ╔═╡ c374e7a9-e4b3-43fc-900c-95b77dc16959
-Σs1 = [σ(x, t̂[1]), σ(x, t̂[2]), σ(x, t̂[3])]
+# ╔═╡ 4011a061-68a8-4cc5-875b-7ae27331ad4f
+Ps1 = P
 
-# ╔═╡ b0346742-73fd-4150-958b-28d42acf9920
-Σs2 = reverse(Σs1)
+# ╔═╡ 4fa98b1c-0777-4f66-a029-d11488aecb2a
+𝛕s1 =  𝛕[:, :]
 
-# ╔═╡ 739fc11d-4035-41a9-90d8-205c8348db86
-𝛕s = [τ(x, t[3]), τ(x, t[2]), τ(x, t[1])]
+# ╔═╡ 86321b6a-3d2d-487a-be68-5838e0ff6abf
+Ps2 = reverse(Ps1, dims=1)
 
-# ╔═╡ 53ae28af-69ab-4a1b-81aa-0644608ccf95
-∇μ⁻¹1 = simplify(sum([𝛕s[it] * (Σs1[nt-it] - Σs1[nt-it-1]) for it in 1:nt-2]), expand=true) + 𝛕s[nt-1] * Σs1[1]
+# ╔═╡ d52cbdaf-f13c-4ecb-8e45-537631de013b
+𝛕s2  = reverse(𝛕s1, dims=1)
 
-# ╔═╡ 47dc88cb-aa58-4ccc-b2d8-72c88320b4fc
-∇μ⁻¹2 = simplify(sum([𝛕s[it-1] * (Σs2[it] - Σs2[it+1]) for it in 2:nt-1]), expand=true) + 𝛕s[nt-1] * Σs2[nt]
+# ╔═╡ e3a2c0b4-5a67-4431-a9db-8116a8fefdbd
+begin
+  ∇K⁻¹1 = 0.0
+  for it in 2:4
+    global ∇K⁻¹1 += δₜ * (𝛕s2[it-1, 2] * (+Ps2[it-1, 2] - Ps2[it, 2]))
+  end
+end
 
 # ╔═╡ 503a3912-31cc-45f2-b009-dca4700359f7
-∇μ⁻¹ - ∇μ⁻¹1
+∇K⁻¹ - ∇K⁻¹1
 
-# ╔═╡ 7d3ce674-8fd9-44c6-ae7f-a57c1e67f4a3
-∇μ⁻¹ - ∇μ⁻¹2
+# ╔═╡ ffb7b8c0-00c6-45a5-8786-8abc6918e997
+∇K⁻¹
+
+# ╔═╡ df5ba723-4ea9-4b52-a4ae-120bf37d56df
+∇K⁻¹1
+
+# ╔═╡ 75563ce3-9228-4ca5-89e1-5e704024c209
+let
+  ∇K⁻¹2 = 0.0
+	pp = 0
+	pap = 0
+	p = 0
+	pa = 0
+  for it in 1:3
+	  pp = p
+	  pap = pa
+	  p = Ps2[it, 2]
+	  pa = 𝛕s2[it, 2]
+	  @show p, pa
+    # global ∇K⁻¹1 += δₜ * (𝛕s2[it-1, 2] * (+Ps2[it-1, 2] - Ps2[it, 2]))
+  end
+end
 
 # ╔═╡ 38257847-5ae7-4a5a-a937-22a6729a3640
 md"### Tikz"
@@ -508,7 +533,7 @@ TikzPictures = "~3.4.2"
 PLUTO_MANIFEST_TOML_CONTENTS = """
 # This file is machine-generated - editing it directly is not advised
 
-julia_version = "1.9.0-rc3"
+julia_version = "1.9.0"
 manifest_format = "2.0"
 project_hash = "a8fc7ddaea2b3ee8ebea68f394a082d0b6d841ff"
 
@@ -1733,13 +1758,15 @@ version = "17.4.0+0"
 # ╠═24346ac7-f089-4278-9364-d21071352500
 # ╠═f64849ef-b48f-4783-b213-c108454dcb9a
 # ╠═e5c727d8-752c-4a3c-b971-292f4187416e
-# ╠═c374e7a9-e4b3-43fc-900c-95b77dc16959
-# ╠═b0346742-73fd-4150-958b-28d42acf9920
-# ╠═739fc11d-4035-41a9-90d8-205c8348db86
-# ╠═53ae28af-69ab-4a1b-81aa-0644608ccf95
-# ╠═47dc88cb-aa58-4ccc-b2d8-72c88320b4fc
+# ╠═4011a061-68a8-4cc5-875b-7ae27331ad4f
+# ╠═4fa98b1c-0777-4f66-a029-d11488aecb2a
+# ╠═86321b6a-3d2d-487a-be68-5838e0ff6abf
+# ╠═d52cbdaf-f13c-4ecb-8e45-537631de013b
+# ╠═e3a2c0b4-5a67-4431-a9db-8116a8fefdbd
 # ╠═503a3912-31cc-45f2-b009-dca4700359f7
-# ╠═7d3ce674-8fd9-44c6-ae7f-a57c1e67f4a3
+# ╠═ffb7b8c0-00c6-45a5-8786-8abc6918e997
+# ╠═df5ba723-4ea9-4b52-a4ae-120bf37d56df
+# ╠═75563ce3-9228-4ca5-89e1-5e704024c209
 # ╟─38257847-5ae7-4a5a-a937-22a6729a3640
 # ╟─5a9e17d9-2552-48fd-b3ad-0a1e50279953
 # ╟─21af98b7-712d-4b25-a9fa-41d008f97962
