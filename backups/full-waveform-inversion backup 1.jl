@@ -205,6 +205,12 @@ md"""
 Tick to perform these tests: $(@bind do_fd_tests CheckBox())
 """
 
+# ╔═╡ 12a089f0-23b5-4091-8861-d3ba2d0073a0
+do_fd_tests && @time Jsρ(xs)
+
+# ╔═╡ 9aa2e4ac-b221-4f3e-9072-3d4d762f01c7
+do_fd_tests && @time Jsinvμ(xs)
+
 # ╔═╡ 006739fb-24a1-49b0-9619-fe8e2d3c8fca
 do_fd_tests && (xs = zeros(Float32, 3))
 
@@ -305,7 +311,8 @@ begin
   end
   Dz!(dP, P) = Dz!(dP, P, fp)
   Dz(P) = (dPdz = zero(P); Dz!(dPdz, P, fp); dPdz)
-end;
+  nothing
+end
 
 # ╔═╡ e2127d9b-f2a4-4970-a36e-5fa70c304ca7
 # test transpose of Dx
@@ -747,6 +754,18 @@ true_medium_lambda / step(zgrid)
 taper_points
   ╠═╡ =#
 
+# ╔═╡ 77c9696c-58c5-40bf-acd0-16d5cf877810
+#=╠═╡
+begin
+	# Initialisation of fields and data
+	fields_true = initialize_fields(grid_param, grid_param.nt)
+	dobs = initialize_data(grid_param, ageom)
+
+	# Running the simulation to generate observed data
+	@time propagate!(dobs, fields_true, grid_param, medium_true, ageom, source)	
+end;
+  ╠═╡ =#
+
 # ╔═╡ 53ebecf7-5ea8-4372-9be2-fa48bd2be130
 #=╠═╡
 gradient = initialize_grad(grid_param, grid_param.nt);
@@ -831,23 +850,6 @@ plot(tgrid, source_wavelet, size=(500, 200), w=2, label="Source Wavelet", Layout
 source_wavelet |> typeof
   ╠═╡ =#
 
-# ╔═╡ 77c9696c-58c5-40bf-acd0-16d5cf877810
-#=╠═╡
-begin
-	# Initialisation of fields and data
-	fields_true = initialize_fields(grid_param, grid_param.nt)
-	dobs = initialize_data(grid_param, ageom)
-
-	# Running the simulation to generate observed data
-	@time propagate!(dobs, fields_true, grid_param, medium_true, ageom, source)	
-end;
-  ╠═╡ =#
-
-# ╔═╡ 1de42ac5-ddaa-4e51-a093-99423a2993ae
-#=╠═╡
-dobs
-  ╠═╡ =#
-
 # ╔═╡ 3be62716-f2d9-434c-a69a-ed272b89c85d
 #=╠═╡
 begin
@@ -911,11 +913,6 @@ function Jsρ(xs; fwi_param=fwi_param)
 end
   ╠═╡ =#
 
-# ╔═╡ 12a089f0-23b5-4091-8861-d3ba2d0073a0
-#=╠═╡
-do_fd_tests && @time Jsρ(xs)
-  ╠═╡ =#
-
 # ╔═╡ 50733229-38f1-4ac1-acbc-ebb2c92d3891
 #=╠═╡
 do_fd_tests && (g1ρ=grad(central_fdm(2, 1), Jsρ, xs)) # Gradients wrt ρ using central difference
@@ -933,11 +930,6 @@ function Jsinvμ(xs; fwi_param=fwi_param)
 	update_xsinvμ!(fwi_param.xbuffer, xs)
 	return J(fwi_param.xbuffer, fwi_param=fwi_param)
 end
-  ╠═╡ =#
-
-# ╔═╡ 9aa2e4ac-b221-4f3e-9072-3d4d762f01c7
-#=╠═╡
-do_fd_tests && @time Jsinvμ(xs)
   ╠═╡ =#
 
 # ╔═╡ 803ac9ba-93d2-4f66-9018-36232b8a3076
@@ -1139,7 +1131,7 @@ LaTeXStrings = "~1.3.0"
 LossFunctions = "~0.9.0"
 MLUtils = "~0.4.1"
 PlutoPlotly = "~0.3.6"
-PlutoTeachingTools = "~0.2.10"
+PlutoTeachingTools = "~0.2.9"
 PlutoUI = "~0.7.50"
 ProgressLogging = "~0.1.4"
 """
@@ -1150,7 +1142,7 @@ PLUTO_MANIFEST_TOML_CONTENTS = """
 
 julia_version = "1.8.5"
 manifest_format = "2.0"
-project_hash = "3923f81a1eb85684a638bcb161bbd3e3f6aad7fa"
+project_hash = "c828d26a6acef85916abc9a87c54a176ea9d7d2a"
 
 [[deps.AbstractFFTs]]
 deps = ["ChainRulesCore", "LinearAlgebra"]
@@ -1508,10 +1500,10 @@ uuid = "b14d175d-62b4-44ba-8fb7-3064adc8c3ec"
 version = "0.2.4"
 
 [[deps.KernelAbstractions]]
-deps = ["Adapt", "Atomix", "InteractiveUtils", "LinearAlgebra", "MacroTools", "PrecompileTools", "SparseArrays", "StaticArrays", "UUIDs", "UnsafeAtomics", "UnsafeAtomicsLLVM"]
-git-tree-sha1 = "1e7e27a144936ed6f1b0a01dbc7b7f86afabeb6e"
+deps = ["Adapt", "Atomix", "InteractiveUtils", "LinearAlgebra", "MacroTools", "SnoopPrecompile", "SparseArrays", "StaticArrays", "UUIDs", "UnsafeAtomics", "UnsafeAtomicsLLVM"]
+git-tree-sha1 = "976231af02176082fb266a9f96a59da51fcacf20"
 uuid = "63c18a36-062a-441e-b654-da1e3ab1ce7c"
-version = "0.9.3"
+version = "0.9.2"
 
 [[deps.LLVM]]
 deps = ["CEnum", "LLVMExtra_jll", "Libdl", "Printf", "Unicode"]
@@ -1746,9 +1738,9 @@ version = "0.3.6"
 
 [[deps.PlutoTeachingTools]]
 deps = ["Downloads", "HypertextLiteral", "LaTeXStrings", "Latexify", "Markdown", "PlutoLinks", "PlutoUI", "Random"]
-git-tree-sha1 = "901509f7ae6abfb20281c53c34ecfa95ec3119df"
+git-tree-sha1 = "8c8b07296990c12ac3a9eb9f74cd80f7e81c16b7"
 uuid = "661c6b06-c737-4d37-b85c-46df65de6f69"
-version = "0.2.10"
+version = "0.2.9"
 
 [[deps.PlutoUI]]
 deps = ["AbstractPlutoDingetjes", "Base64", "ColorTypes", "Dates", "FixedPointNumbers", "Hyperscript", "HypertextLiteral", "IOCapture", "InteractiveUtils", "JSON", "Logging", "MIMEs", "Markdown", "Random", "Reexport", "URIs", "UUIDs"]
@@ -1758,9 +1750,9 @@ version = "0.7.50"
 
 [[deps.Polynomials]]
 deps = ["ChainRulesCore", "LinearAlgebra", "MakieCore", "MutableArithmetics", "RecipesBase"]
-git-tree-sha1 = "434f66dfbb15606c49a7a21dc670119fdf729fa9"
+git-tree-sha1 = "66443538efd80fac4962b74523ec0b35c9464a21"
 uuid = "f27b6e38-b328-58d1-80ce-0feddd5e7a45"
-version = "3.2.10"
+version = "3.2.9"
 
 [[deps.PrecompileTools]]
 deps = ["Preferences"]
@@ -2055,7 +2047,6 @@ version = "17.4.0+0"
 # ╠═a42d3b46-ae60-41d1-8b2d-e85af895ec14
 # ╠═0454ce0a-d6de-427f-bbdc-3bcec21327f2
 # ╠═f2fb92bb-33d6-4e15-8caf-b245e000ad69
-# ╠═1de42ac5-ddaa-4e51-a093-99423a2993ae
 # ╠═4a4f1300-94ba-4c1b-9d10-9e955d194ff6
 # ╠═a24bfc41-8e50-4a68-b5cf-3973f4003221
 # ╠═a3a9deea-e2d6-4d58-90d7-5a54be176289

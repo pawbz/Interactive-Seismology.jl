@@ -21,12 +21,13 @@ md"""
 # ╔═╡ 8002bbb4-3b48-4ab6-a1dc-abd00e4d17a1
 Markdown.MD(Markdown.Admonition("warning", "",
     [md"""
-*the study of mechanical vibrations of the Earth*
+**the study of mechanical vibrations of the Earth**
 	
-The science of seismology has double feature, it aims simultaneously to obtain
-* the infrastructure of the Earth's interior with the aid of seismic wave phenomena 
-* nature of earthquake sources with an ultimate goal of mitigating them
+The science of **seismology** has double feature, it aims simultaneously to obtain
+* the infrastructure of the Earth's interior with the aid of **seismic wave phenomena** 
+* nature of **earthquake sources** with an ultimate goal of **mitigating** them
     """]))
+
 
 # ╔═╡ ae4d8b93-0c2c-495a-8c87-fc77521eb1ae
 md"# Seismology: Unique Characteristics"
@@ -34,37 +35,12 @@ md"# Seismology: Unique Characteristics"
 # ╔═╡ 17c11617-d69f-4e39-b58f-1a3426beaabc
 Markdown.MD(Markdown.Admonition("warning", "",
     [md"""
-1) concerned only with the mechanical properties and dynamics of the Earth
-2) seismic waves allow investigation of Earth's interior out to the greatest depths than any other branch of geophysics
-    * they have least distortion compared to any other wave that can be observed after propogating through the Earth
-3) contributes to our knowledge of only the present state of the Earth's interior
-	
+1) concerned only with the **mechanical properties** and **dynamics** of the Earth
+2) **seismic waves** allow investigation of Earth's interior out to the greatest depths than any other branch of geophysics
+    * they have **least distortion** compared to any other wave that can be observed after propogating through the Earth
+3) contributes to our knowledge of only the **present state** of the Earth's interior
     """]))
 
-# ╔═╡ 3dddccb3-3559-49d9-8b83-243501fb3732
-md"""
-# Seesaw Seismology
-"""
-
-# ╔═╡ 00d8ac09-7674-40f3-9cd8-0314102e3e2a
-Markdown.MD(Markdown.Admonition("warning", "",
-    [md"""
-* our knowledge of the seismic sources and the Earth medium have advanced in a see-saw fashion, i.e., 
-* if sources are better understood at a given stage, they are constrained to better understand the medium, and then the improved knowledge of the medium is used to revise our knowledge of the source
-    """]))
-
-# ╔═╡ cd38117c-9eb4-4342-8444-18ad400961cf
-md"# Seismology"
-
-# ╔═╡ 010c21f4-3f60-4f9a-b2d3-6ab6616aca83
-Markdown.MD(Markdown.Admonition("warning", "Stimuli of Rapid Growth",
-    [md"""
-* occurrence of major devastating earthquakes
-* exploration (oil and gas, minerals)
-* advances in mathematics and theoretical physics
-* breakthroughs in sensing or computation technology
-* planetary exploration
-    """]))
 
 # ╔═╡ 8624c99e-88dd-4bce-bf73-c7633f24a2d7
 md"# Seismology: Interdisciplinary Science"
@@ -73,14 +49,15 @@ md"# Seismology: Interdisciplinary Science"
 Markdown.MD(Markdown.Admonition("warning", "",
     [md"""
 * medicine: knowledge of anatomy, chemistry of drugs, physics of lasers, mathematics of tomography
-* seismology: geology, engineering, physics, mathematics and computation
+* seismology: **geology**, **engineering**, **physics**, **mathematics**, and **computation**
+	
     """]))
 
 # ╔═╡ 8c90f08a-f981-4423-bcd7-998a6bc05c3b
-Markdown.MD(Markdown.Admonition("warning", "",
+Markdown.MD(Markdown.Admonition("note", "",
     [md"""
-* most of the theory needed to interpret seismograms through efforts of physicists and mathematicians prior to 1922
-* it history is inseparable from the history of great achievements in continuum mechanics, applied mathematics, and general wave theory
+* most of the theory needed to interpret **seismograms** through efforts of **physicists** and **mathematicians** prior to 1922
+* its history is inseparable from the history of great achievements in **continuum mechanics**, **applied mathematics**, and **general wave theory**
     """]))
 
 # ╔═╡ d4d80c02-8d7a-4f38-95f9-2d4f7f5e950b
@@ -101,12 +78,38 @@ md"# Scales in Seismology"
 # ╔═╡ 9a07bc8a-02dd-48eb-86df-934bf4ac13c6
 Markdown.MD(Markdown.Admonition("warning", "",
     [md"""
-* seismic sources, a factor of $10^{18}$ in equivalent seismic moment
+* **seismic sources**, a factor of $10^{18}$ in equivalent seismic moment
     * smallest detectable micro earthquake to 1960 Chile earthquake
-* seismographs networks, a factor of $10^6$ in linear dimension
+* **seismograph networks**, a factor of $10^6$ in linear dimension
     * 10 meter in engineering surveys to $10000$ km global array observatories
-* ground displacement, a factor of $10^{11}$
-    * smallest detectable ground displacement of $10^{-10}$ m (compare with diameter of hydrogen atom) to ≈$10$ m of slip on a major fault during earthquake    """]))
+* **ground displacement**, a factor of $10^{11}$
+    * smallest detectable ground displacement of $10^{-10}$ m (compare with diameter of the hydrogen atom) to ≈$10$ m of slip on a major fault during the earthquake    """]))
+
+# ╔═╡ 3dddccb3-3559-49d9-8b83-243501fb3732
+md"""
+# Seesaws in Seismology
+"""
+
+# ╔═╡ 00d8ac09-7674-40f3-9cd8-0314102e3e2a
+Markdown.MD(Markdown.Admonition("warning", "",
+    [md"""
+effects of sources and medium are strongly **coupled** in seismology
+* our knowledge of the **seismic sources** and the **Earth medium** have advanced in a see-saw fashion, i.e., 
+* if sources are better understood at a given stage, they are constrained to better understand the medium, and then the improved knowledge of the medium is used to revise our knowledge of the source
+    """]))
+
+# ╔═╡ cd38117c-9eb4-4342-8444-18ad400961cf
+md"# Seismology"
+
+# ╔═╡ 010c21f4-3f60-4f9a-b2d3-6ab6616aca83
+Markdown.MD(Markdown.Admonition("warning", "Stimuli of Rapid Growth",
+    [md"""
+* occurrence of major devastating earthquakes
+* exploration (oil and gas, minerals)
+* advances in mathematics and theoretical physics
+* breakthroughs in sensing or computation technology
+* planetary exploration
+    """]))
 
 # ╔═╡ dcc341d3-8d91-43f4-9848-d919f10518cb
 md"# Seismology and Big Data"
@@ -391,6 +394,12 @@ md"""
 * earthquakes are no longer a local affair of cities but became a global phenomenon
 """
 
+# ╔═╡ 4c632977-3fe1-49c5-8d0a-2ea293c69ee1
+Markdown.MD(Markdown.Admonition("warning", "",
+    [md"""
+When first seismogram was measured in early 1880s, seismologists were puzzled why it  lasted long and why there are oscillations after the arrivals or P and S waves!
+    """]))
+
 # ╔═╡ f835861f-5dac-408f-b3ce-f7e30cc55bdb
 md"""
 ### 1894 Milne and his associates
@@ -456,6 +465,12 @@ md"""
 ### 1969 Apollo passive seismic experiment
 * beginning of planetary seismology
 """
+
+# ╔═╡ d4a1417c-d424-44c4-bcdd-4b601466200b
+Markdown.MD(Markdown.Admonition("warning", "",
+    [md"""
+When the first seismogram for the Moon was obtained in 1969, seismologists were again  puzzled by the great length of time for which oscillations continued!
+    """]))
 
 # ╔═╡ b2a52562-9bd9-4d8a-91ba-de0f4a2b1007
 md"""
@@ -1043,10 +1058,6 @@ version = "17.4.0+0"
 # ╟─8002bbb4-3b48-4ab6-a1dc-abd00e4d17a1
 # ╟─ae4d8b93-0c2c-495a-8c87-fc77521eb1ae
 # ╟─17c11617-d69f-4e39-b58f-1a3426beaabc
-# ╟─3dddccb3-3559-49d9-8b83-243501fb3732
-# ╟─00d8ac09-7674-40f3-9cd8-0314102e3e2a
-# ╟─cd38117c-9eb4-4342-8444-18ad400961cf
-# ╟─010c21f4-3f60-4f9a-b2d3-6ab6616aca83
 # ╟─8624c99e-88dd-4bce-bf73-c7633f24a2d7
 # ╟─bc0dd31e-aa00-4fca-8dab-2dfbd4820f0f
 # ╟─8c90f08a-f981-4423-bcd7-998a6bc05c3b
@@ -1054,6 +1065,10 @@ version = "17.4.0+0"
 # ╟─0d947330-be54-4432-ad05-00838a177682
 # ╟─7bd22a44-e063-402e-a107-170d8f866596
 # ╟─9a07bc8a-02dd-48eb-86df-934bf4ac13c6
+# ╟─3dddccb3-3559-49d9-8b83-243501fb3732
+# ╟─00d8ac09-7674-40f3-9cd8-0314102e3e2a
+# ╟─cd38117c-9eb4-4342-8444-18ad400961cf
+# ╟─010c21f4-3f60-4f9a-b2d3-6ab6616aca83
 # ╟─dcc341d3-8d91-43f4-9848-d919f10518cb
 # ╟─e30f6c5c-e016-4a23-93f3-0f535c6082fe
 # ╟─f142b945-7baf-4737-a14e-24fd917ea47b
@@ -1098,6 +1113,7 @@ version = "17.4.0+0"
 # ╟─f45f25cd-91e1-4f38-aebd-b354a421b0f9
 # ╟─428d6419-cf4f-4a66-b189-84e94887fe44
 # ╟─e88b8fc6-9add-42de-9e57-ab5c9b96bdfb
+# ╟─4c632977-3fe1-49c5-8d0a-2ea293c69ee1
 # ╟─f835861f-5dac-408f-b3ce-f7e30cc55bdb
 # ╟─3cd8c1ce-fe1b-48e1-a27a-3aa9e0a6a736
 # ╟─ce64efef-def6-40f2-8795-7c51cf54fed5
@@ -1109,6 +1125,7 @@ version = "17.4.0+0"
 # ╟─f5a7a700-c66a-424d-8c8c-d8f4c1e3d17e
 # ╟─608259ba-fb7d-41b4-8b6b-33b0d2a0d377
 # ╟─49b41407-bb0d-46e5-a020-1443f8c78b16
+# ╟─d4a1417c-d424-44c4-bcdd-4b601466200b
 # ╟─b2a52562-9bd9-4d8a-91ba-de0f4a2b1007
 # ╟─7e9bf8ee-1ce4-4833-8575-4d6384e4cc07
 # ╟─49934ec7-0e10-4224-a5af-d0630c8c5d6c

@@ -8,16 +8,6 @@
 using Markdown
 using InteractiveUtils
 
-# This Pluto notebook uses @bind for interactivity. When running this notebook outside of Pluto, the following 'mock version' of @bind gives bound variables a default value (instead of an error).
-macro bind(def, element)
-    quote
-        local iv = try Base.loaded_modules[Base.PkgId(Base.UUID("6e696c72-6542-2067-7265-42206c756150"), "AbstractPlutoDingetjes")].Bonds.initial_value catch; b -> missing; end
-        local el = $(esc(element))
-        global $(esc(def)) = Core.applicable(Base.get, el) ? Base.get(el) : iv(el)
-        el
-    end
-end
-
 # ╔═╡ c0d3e1c8-77d9-4f69-8f1a-97b4bec409e4
 using Symbolics, SymbolicUtils, LinearAlgebra, ChainRules, PlutoUI, PlutoTeachingTools, TikzPictures
 
@@ -81,7 +71,7 @@ This line defines the initial momentum of the system, which is equal to the diff
 """
 
 # ╔═╡ 3cb20104-2872-4bfe-95a7-86d2b1bb6b0f
-@syms δₓ⁻¹ δₜ⁻¹
+@syms δₓ δₜ
 
 # ╔═╡ 84d8f063-2aad-4d57-9bdf-d44e37f173c7
 md"""
@@ -176,9 +166,6 @@ md"The solution of these adjoint equations is often obtained by using a time-rev
 md"## Parameter Gradients
 Lets compute the gradient of L with respect to ρ and μ."
 
-# ╔═╡ bdc608ee-6a52-4130-b4a0-c27d513a0009
-@bind iρd Select(1:3)
-
 # ╔═╡ 3b2d5624-d365-4595-b95b-52825bc980d0
 md"## Appendix"
 
@@ -207,19 +194,19 @@ collect(t), collect(t̂)
 V = hcat(collect(broadcast(x -> collect(map(t -> v(x, t), vcat(t₀, t, T))), x))...) # velocity in the discrete world
 
 # ╔═╡ 201ebc60-90d6-40a1-8d1f-e371057af060
-dVdt = diff(V, dims=1) * δₜ⁻¹
+dVdt = diff(V, dims=1) * δₜ
 
 # ╔═╡ 39570793-d23b-4c88-9c3b-c58690eb4ae8
-∂V∂x = diff(V, dims=2) * δₓ⁻¹
+∂V∂x = diff(V, dims=2) * δₓ
 
 # ╔═╡ c0f9c9af-aced-4066-a9d1-7af8e26c8a27
 P = hcat(collect(broadcast(x -> collect(map(t -> p(x, t), vcat(t₀, t̂))), x̂))...) # stress in the discrete world
 
 # ╔═╡ 0d82f0b1-24a3-4adf-b645-4fea2fab6273
-dPdx = diff(P, dims=2) * δₓ⁻¹
+dPdx = diff(P, dims=2) * δₓ
 
 # ╔═╡ 7343a50f-9835-4e10-97ed-5b213069044a
-∂P∂t = diff(P, dims=1) * δₜ⁻¹
+∂P∂t = diff(P, dims=1) * δₜ
 
 # ╔═╡ a0886a56-c027-4bae-99ff-e7be53ba4a1f
 Ceqs = ∂P∂t .* K⁻¹t - ∂V∂x[2:end-1, :];
@@ -265,7 +252,7 @@ L = L₁ + L₂ + J
 
 # ╔═╡ 7e56d621-a572-4077-83be-d3b002f4e808
 # gradient w.r.t. mass density
-∇ρ = Differential(ρ[iρd])(L) |> expand_derivatives#, [u(x, T̂) => 0, v(x, 0) => 0])
+∇ρ = Differential(ρ[2])(L) |> expand_derivatives#, [u(x, T̂) => 0, v(x, 0) => 0])
 
 # ╔═╡ c150327f-b950-4a70-af44-722beee2069c
 # gradient w.r.t. shear modulus
@@ -370,23 +357,6 @@ end
 
 # ╔═╡ df5ba723-4ea9-4b52-a4ae-120bf37d56df
 ∇K⁻¹1
-
-# ╔═╡ 75563ce3-9228-4ca5-89e1-5e704024c209
-let
-  ∇K⁻¹2 = 0.0
-	pp = 0
-	pap = 0
-	p = 0
-	pa = 0
-  for it in 1:3
-	  pp = p
-	  pap = pa
-	  p = Ps2[it, 2]
-	  pa = 𝛕s2[it, 2]
-	  @show p, pa
-    # global ∇K⁻¹1 += δₜ * (𝛕s2[it-1, 2] * (+Ps2[it-1, 2] - Ps2[it, 2]))
-  end
-end
 
 # ╔═╡ 38257847-5ae7-4a5a-a937-22a6729a3640
 md"### Tikz"
@@ -546,7 +516,7 @@ TikzPictures = "~3.4.2"
 PLUTO_MANIFEST_TOML_CONTENTS = """
 # This file is machine-generated - editing it directly is not advised
 
-julia_version = "1.9.0"
+julia_version = "1.9.0-rc3"
 manifest_format = "2.0"
 project_hash = "a8fc7ddaea2b3ee8ebea68f394a082d0b6d841ff"
 
@@ -1743,8 +1713,7 @@ version = "17.4.0+0"
 # ╟─09c11c95-a82d-48e0-85ba-6db4a8c03f29
 # ╟─57ea4b25-0f40-4816-85ba-05669770885b
 # ╟─be1c590d-d70b-40f1-8370-bc294fb29c09
-# ╠═bdc608ee-6a52-4130-b4a0-c27d513a0009
-# ╠═7e56d621-a572-4077-83be-d3b002f4e808
+# ╟─7e56d621-a572-4077-83be-d3b002f4e808
 # ╟─c150327f-b950-4a70-af44-722beee2069c
 # ╟─3b2d5624-d365-4595-b95b-52825bc980d0
 # ╠═c0d3e1c8-77d9-4f69-8f1a-97b4bec409e4
@@ -1780,7 +1749,6 @@ version = "17.4.0+0"
 # ╠═503a3912-31cc-45f2-b009-dca4700359f7
 # ╠═ffb7b8c0-00c6-45a5-8786-8abc6918e997
 # ╠═df5ba723-4ea9-4b52-a4ae-120bf37d56df
-# ╠═75563ce3-9228-4ca5-89e1-5e704024c209
 # ╟─38257847-5ae7-4a5a-a937-22a6729a3640
 # ╟─5a9e17d9-2552-48fd-b3ad-0a1e50279953
 # ╟─21af98b7-712d-4b25-a9fa-41d008f97962

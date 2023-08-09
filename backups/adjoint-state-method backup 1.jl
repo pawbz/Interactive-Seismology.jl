@@ -2,21 +2,14 @@
 # v0.19.25
 
 #> [frontmatter]
-#> title = ""
-#> description = ""
+#> title = "Adjoint State Method"
+#> description = "This notebook presents a discrete symbolic version of the adjoint state formulation involving the seismic wave equation so that it can act as a reference while implementing methods for full waveform inversion."
 
 using Markdown
 using InteractiveUtils
 
-# This Pluto notebook uses @bind for interactivity. When running this notebook outside of Pluto, the following 'mock version' of @bind gives bound variables a default value (instead of an error).
-macro bind(def, element)
-    quote
-        local iv = try Base.loaded_modules[Base.PkgId(Base.UUID("6e696c72-6542-2067-7265-42206c756150"), "AbstractPlutoDingetjes")].Bonds.initial_value catch; b -> missing; end
-        local el = $(esc(element))
-        global $(esc(def)) = Core.applicable(Base.get, el) ? Base.get(el) : iv(el)
-        el
-    end
-end
+# ╔═╡ 920edb31-cdd7-4020-b289-852bc4e9d378
+using SymbolicUtils: <ₑ
 
 # ╔═╡ c0d3e1c8-77d9-4f69-8f1a-97b4bec409e4
 using Symbolics, SymbolicUtils, LinearAlgebra, ChainRules, PlutoUI, PlutoTeachingTools, TikzPictures
@@ -46,7 +39,7 @@ md"## Medium
 Created two symbolic variables ρ and μ⁻¹ which can be used to represent the density and inverse of the shear modulus of the medium as functions of position x."
 
 # ╔═╡ d6188561-19ae-4006-b03e-9cf8e4f5e081
-@variables ρ[1:3] K⁻¹[1:3]
+@variables ρ[1:3] μ⁻¹[1:3]
 
 # ╔═╡ d38130e3-611d-42b2-96b6-a6ca6210308b
 md"## State Variables"
@@ -55,7 +48,7 @@ md"## State Variables"
 md"In the velocity-stress formulation, the seismic wavefield is described in terms of two variables: the particle velocity and the stress. Two symbolic variables `v(x, t)` and `σ(x, t)` representing velocity and stress, respectively, as functions of space (`x`) and time (`t`)."
 
 # ╔═╡ 857a5e06-2960-4ed4-826c-6bf3291387f0
-@syms v(x, t) p(x, t)
+@syms v(x, t) σ(x, t)
 
 # ╔═╡ 76fd526b-450a-4db1-bf9a-bc7ae59b895c
 md"As the velocity and stress fields are staggered in time, we create corresponding vectors at each time value in t and t̂, respectively."
@@ -81,12 +74,7 @@ This line defines the initial momentum of the system, which is equal to the diff
 """
 
 # ╔═╡ 3cb20104-2872-4bfe-95a7-86d2b1bb6b0f
-@syms δₓ⁻¹ δₜ⁻¹
-
-# ╔═╡ 84d8f063-2aad-4d57-9bdf-d44e37f173c7
-md"""
-We will now construct a vector that represents the time derivative of the velocity field. The first few elements can be computed using the `diff()` function applied to the `V` array. The last element is the time derivative of `v(x, t)` evaluated at the final time `T`, which is computed as the difference between `v(x, T)` and `v(x, last(t̂))`.
-"""
+@syms δₓ δₜ
 
 # ╔═╡ 4ccfa601-b3b3-47b0-98f6-4f4ec6c1b794
 ρt = repeat(reshape(ρ, 1, :), 4, 1)
@@ -94,7 +82,7 @@ We will now construct a vector that represents the time derivative of the veloci
 # ╔═╡ e8b1a70e-f63e-45c5-a525-2c55d99ddad4
 # compute value of ρ on the velocity grid
 function avx(ρt)
-  hcat([0.5 * (ρt[:, i+1] .+ ρt[:, i]) for i in 1:size(ρt, 2)-1]...)
+	hcat([0.5*(ρt[:, i+1] .+ ρt[:, i]) for i in 1:size(ρt,2)-1]...)
 end
 
 # ╔═╡ a72d5528-f9a4-4b82-b4c8-644ecd0fab55
@@ -104,14 +92,8 @@ avx(ρt)
 md"## Constitutive Relations
 In linear elasticity, for example, the constitutive relation is given by Hooke's law, which states that stress is proportional to strain. "
 
-# ╔═╡ fc20c71d-a23d-44be-8bf2-099a2400921b
-md"Similar to velocity, we will construct a vector that represents the time derivative of the stress field."
-
 # ╔═╡ 0f894463-6513-49d9-98e4-12c3ca07ce51
-K⁻¹t = repeat(reshape(K⁻¹, 1, :), 3, 1)
-
-# ╔═╡ b2562463-09d0-40fc-9802-b49e105f946c
-md"This equation states that the time derivative of stress minus the gradient of the stress scaled by the shear modulus is equal to zero. This is a simplified form of the constitutive relation."
+μ⁻¹t = repeat(reshape(μ⁻¹, 1, :), 3, 1)
 
 # ╔═╡ ebcbbf5e-6205-41a8-b31b-a6bed52cda5b
 md"## Leap-frog Scheme"
@@ -144,17 +126,23 @@ Adjoint state variables are introduced in the context of optimization problems. 
 # ╔═╡ 28a345b9-d911-486c-a715-7d32a4ea41e8
 @syms u(x, t) τ(x, t)
 
-# ╔═╡ d447a8bf-2d42-4f93-a27e-9eed76050348
-md"One multiplier for each of Meqs⋯"
+# ╔═╡ cb2487c2-cc73-4afa-a94c-2849826558e0
+@syms xxx
 
-# ╔═╡ 723e81cd-36e1-44ea-99bf-b4cae2be03a2
-md"One multiplier for each Ceqs⋯"
+# ╔═╡ f7a16609-11d3-48bf-927c-01c881afc4bc
+xxx <ₑ Num(5)
+
+# ╔═╡ cc3a1c12-25b9-450a-a23d-8557fe351f83
+# 𝛕 = vcat(collect(map(t -> τ(x, t), t[2:end])), τ(x, T)) # one for each Ceqs
 
 # ╔═╡ b19344d2-d872-4bf5-a75f-1ca481779835
 md"## Lagrangian"
 
 # ╔═╡ e1048e24-e389-4e95-8157-00702f1b41a3
 md"The Lagrangian component, for momentum equations `Meqs`, is given by"
+
+# ╔═╡ 0eb7d977-29fc-4be1-9e2d-16285431dcfb
+md"The function `r_Dₓ_transpose` applies the transpose differential operator rule and returns the sum of the resulting terms after simplification."
 
 # ╔═╡ c2967e07-5d8b-4205-bb8b-add323494d86
 md"The Lagrangian component, for constitutive equations `Ceqs`, is given by"
@@ -176,9 +164,6 @@ md"The solution of these adjoint equations is often obtained by using a time-rev
 md"## Parameter Gradients
 Lets compute the gradient of L with respect to ρ and μ."
 
-# ╔═╡ bdc608ee-6a52-4130-b4a0-c27d513a0009
-@bind iρd Select(1:3)
-
 # ╔═╡ 3b2d5624-d365-4595-b95b-52825bc980d0
 md"## Appendix"
 
@@ -188,8 +173,29 @@ md"### Variables"
 # ╔═╡ ec3bf735-5fff-44e6-8a79-a03d6eb4538f
 md"These commands create three symbolic time variables `t`, and staggered time variables `t̂` and space variable `x`. We will consider three time steps for the leap-frog scheme. The `@syms` macro is used in the `Symbolics.jl` package to declare symbolic variables."
 
+# ╔═╡ 24e8eafe-e040-4173-b705-4ade869791ba
+@variables x[1:3] x̂[1:3] # space 
+
 # ╔═╡ c9324a48-8cb8-45e1-909a-950333048d28
 @variables t[1:3] t̂[1:3] # t̂ is staggered
+
+# ╔═╡ c0f9c9af-aced-4066-a9d1-7af8e26c8a27
+Σ = hcat(collect(broadcast(x->collect(map(t -> σ(x, t), vcat(0,t̂))), x̂))...) # stress in the discrete world
+
+# ╔═╡ 0d82f0b1-24a3-4adf-b645-4fea2fab6273
+dΣdx = diff(Σ, dims=2) * δₓ
+
+# ╔═╡ 7343a50f-9835-4e10-97ed-5b213069044a
+dΣdt = diff(Σ, dims=1) * δₜ
+
+# ╔═╡ 2a2a5249-5293-4736-9a72-441f32775021
+F = hcat(collect(broadcast(x->collect(map(t -> f(x, t), vcat(0, t̂))),vcat(0, x)))...)
+
+# ╔═╡ e5a37530-a0f2-470d-aada-39eaf3cd6054
+M1 = (v(x, t[1]) - v(x, 0)) * ρ(x) - f(0, x)
+
+# ╔═╡ d5963693-e1c5-49f6-9c07-9187e893cd97
+V₀ = hcat(collect(broadcast(x->collect(map(t -> v₀(x, t), vcat(t))), vcat(0, x)))...)
 
 # ╔═╡ 34e13768-7861-4324-8eb1-626275a3b2d1
 collect(t), collect(t̂)
@@ -197,44 +203,51 @@ collect(t), collect(t̂)
 # ╔═╡ 3d57d1f0-4595-48a0-934c-7bc1d5dc15fc
 @syms T T̂ # final time
 
-# ╔═╡ 4876fb4e-4b00-4984-8932-a6ff576c5be6
-@syms t₀
-
-# ╔═╡ 24e8eafe-e040-4173-b705-4ade869791ba
-@variables x[1:4] x̂[1:3] # space 
-
 # ╔═╡ 4aec990b-338c-418b-a02d-39cec0cfc2c9
-V = hcat(collect(broadcast(x -> collect(map(t -> v(x, t), vcat(t₀, t, T))), x))...) # velocity in the discrete world
+V = hcat(collect(broadcast(x->collect(map(t -> v(x, t), vcat(0, t, T))), vcat(0, x)))...) # velocity in the discrete world
 
 # ╔═╡ 201ebc60-90d6-40a1-8d1f-e371057af060
-dVdt = diff(V, dims=1) * δₜ⁻¹
+dVdt = diff(V, dims=1) * δₜ
 
 # ╔═╡ 39570793-d23b-4c88-9c3b-c58690eb4ae8
-∂V∂x = diff(V, dims=2) * δₓ⁻¹
+dVdx = diff(V, dims=2) * δₓ
 
-# ╔═╡ c0f9c9af-aced-4066-a9d1-7af8e26c8a27
-P = hcat(collect(broadcast(x -> collect(map(t -> p(x, t), vcat(t₀, t̂))), x̂))...) # stress in the discrete world
+# ╔═╡ e7536b06-2454-496b-8872-aec29edb37f6
+J = sum(map(obj, V[2:end-1, :], V₀))
 
-# ╔═╡ 0d82f0b1-24a3-4adf-b645-4fea2fab6273
-dPdx = diff(P, dims=2) * δₓ⁻¹
+# ╔═╡ 1bf0a983-9592-4a72-a10e-af61316ce6e4
+𝛕 = hcat(collect(broadcast(x->collect(map(t -> τ(x, t), vcat([t[end-1], t[end]], T))), x̂))...)
 
-# ╔═╡ 7343a50f-9835-4e10-97ed-5b213069044a
-∂P∂t = diff(P, dims=1) * δₜ⁻¹
+# ╔═╡ c60cf026-cede-4e19-99d0-7c8b09e9d87e
+md"### Differential Operator"
 
-# ╔═╡ a0886a56-c027-4bae-99ff-e7be53ba4a1f
-Ceqs = ∂P∂t .* K⁻¹t - ∂V∂x[2:end-1, :];
+# ╔═╡ 73cec834-0b81-4b93-a00f-4e953d93b5de
+md"This function implements the rule for transposing the spatial differential operator Dₓ in an expression using the adjoint relationship Dₓᵀ = -Dₓ. It takes as input a symbolic expression L that may contain Dₓ operators, and returns the expression with all Dₓ operators transposed using the Dₓᵀ operator."
 
-# ╔═╡ 9678bb33-8e15-49ad-95b8-c8d4ab75f14f
-Ceqs ~ 0
+# ╔═╡ c959b590-aacf-4504-bb80-bd915acb0b3f
+@syms Dₓ(v) # a function to return spatial derivative (with respect to x)
 
-# ╔═╡ 3b219c43-3056-49db-951e-d0e97a4f39db
-size(Ceqs)
+# ╔═╡ 3f7e7312-236c-4710-a901-fc88e4c5afca
+function r_Dₓ_transpose(L)
+  r1 = @rule (~~z) * Dₓ(~x) * (~~y) => -Dₓ(prod(~~z) * prod(~~y)) * ~x
+  return mapreduce(+, arguments(simplify(L, expand=true))) do l
+    return (r1(l) === nothing) ? l : r1(l)
+  end
+end
 
-# ╔═╡ 2a2a5249-5293-4736-9a72-441f32775021
-F = hcat(collect(broadcast(x -> collect(map(t -> f(x, t), vcat(t₀, t̂))), x))...)
+# ╔═╡ 84d8f063-2aad-4d57-9bdf-d44e37f173c7
+md"""
+We will now construct a vector that represents the time derivative of the velocity field. The first few elements can be computed using the `diff()` function applied to the `V` array. The last element is the time derivative of `v(x, t)` evaluated at the final time `T`, which is computed as the difference between `v(x, T)` and `v(x, last(t̂))`.
+"""
 
-# ╔═╡ de0ef73d-0df1-47bb-aec0-f1bdef92af83
-Meqs = dVdt[:, 2:end-1] .* avx(ρt) - dPdx - F[:, 2:end-1];
+# ╔═╡ 91f58348-d476-4799-ab01-a2b7b89a344c
+DₜV = [diff(V)..., v(x, T) - v(x, last(t))] # 
+
+# ╔═╡ fc20c71d-a23d-44be-8bf2-099a2400921b
+md"Similar to velocity, we will construct a vector that represents the time derivative of the stress field."
+
+# ╔═╡ de66df57-c6d1-4dba-8e6f-d1d8fd6b59ff
+DₜΣ = [σ(x, t̂[1]) - σ(x, 0), diff(Σ)...] # lives on t
 
 # ╔═╡ f54c2aa7-2afb-4806-b932-417e3b4a41e5
 Meqs ~ 0
@@ -242,34 +255,50 @@ Meqs ~ 0
 # ╔═╡ aee62f47-0bd7-492f-bc99-2392a16fc1dd
 size(Meqs)
 
-# ╔═╡ d5963693-e1c5-49f6-9c07-9187e893cd97
-V₀ = hcat(collect(broadcast(x -> collect(map(t -> v₀(x, t), vcat(t))), x))...)
+# ╔═╡ c61d0859-f743-4c98-9d30-a6e17cb8a92e
+sum((U .* Meqs)[2:5])
 
-# ╔═╡ e7536b06-2454-496b-8872-aec29edb37f6
-J = sum(map(obj, V[2:end-1, :], V₀))
+# ╔═╡ 41009e47-8015-4c1a-8259-6ad3333a98c7
+(U .* Meqs)[6]
 
-# ╔═╡ 59d380f3-1bc0-41b4-a0e5-2cfbb0eaa333
-U = hcat(collect(broadcast(x -> collect(map(t -> u(x, t), vcat(t̂, T̂))), x[2:end-1]))...)
+# ╔═╡ 7ff65fd4-8e21-413e-809d-165aeee15ec6
+expand((U .* Meqs)[1])
+
+# ╔═╡ c1d93755-4b15-4616-8da5-698f78a759fe
+(U .* Meqs)[2] + simplify((U .* Meqs)[1])
 
 # ╔═╡ fee19d3e-2235-4382-82d6-5a3cb452d317
 L₁ = sum((U .* Meqs))
 
-# ╔═╡ 1bf0a983-9592-4a72-a10e-af61316ce6e4
-𝛕 = hcat(collect(broadcast(x -> collect(map(t -> τ(x, t), vcat([t[end-1], t[end]], T))), x̂))...)
+# ╔═╡ 934ae935-70ad-439c-933c-2ef8a78ff5b4
+L1 = r_Dₓ_transpose(L₁)
+
+# ╔═╡ b2562463-09d0-40fc-9802-b49e105f946c
+md"This equation states that the time derivative of stress minus the gradient of the stress scaled by the shear modulus is equal to zero. This is a simplified form of the constitutive relation."
+
+# ╔═╡ 9678bb33-8e15-49ad-95b8-c8d4ab75f14f
+Ceqs ~ 0
+
+# ╔═╡ 3b219c43-3056-49db-951e-d0e97a4f39db
+size(Ceqs)
 
 # ╔═╡ 55c08fb9-e29d-4500-84e7-46de7979639e
-L₂ = sum(𝛕 .* Ceqs)
+L₂ = simplify(sum(𝛕 .* Ceqs), expand=true)
+
+# ╔═╡ 5d69a093-d57d-499c-a5a4-a1248d1811c6
+L2 = r_Dₓ_transpose(L₂)
 
 # ╔═╡ 3b8a80a7-4ab5-4b74-9aaa-3603e0ecccb5
-L = L₁ + L₂ + J
+L = L1 + L2 + J
 
 # ╔═╡ 7e56d621-a572-4077-83be-d3b002f4e808
 # gradient w.r.t. mass density
-∇ρ = Differential(ρ[iρd])(L) |> expand_derivatives#, [u(x, T̂) => 0, v(x, 0) => 0])
+∇ρ = substitute(Differential(ρ(x))(L) |> expand_derivatives, [u(x, T̂) => 0, v(x, 0) => 0])
+
 
 # ╔═╡ c150327f-b950-4a70-af44-722beee2069c
 # gradient w.r.t. shear modulus
-∇K⁻¹ = Differential(K⁻¹[2])(L) |> expand_derivatives #, [σ(x, 0) => 0, τ(x, T) => 0])
+∇μ⁻¹ = substitute(Differential(μ⁻¹(x))(L) |> expand_derivatives, [σ(x, 0) => 0, τ(x, T) => 0])
 
 # ╔═╡ 6a1c66ec-6f3d-48a9-9809-2752e3818d18
 md"### Lagrangian"
@@ -278,7 +307,7 @@ md"### Lagrangian"
 md"This code computes the gradient of the Lagrangian with respect to the  velocity field to obtain adjoint equations."
 
 # ╔═╡ 6a2bafca-e4cb-4ce9-b322-783c8e10fbfd
-∂vL = broadcast(V[2:end, 2:end-1]) do v
+∂vL = broadcast(V[1:end]) do v
   Differential(v)(L) |> expand_derivatives
 end;
 
@@ -289,23 +318,24 @@ end;
 md"This code computes the gradient of the Lagrangian with respect to the stress field to obtain adjoint equations."
 
 # ╔═╡ 2613e6c6-ec09-4574-aecf-bf2a2266bc55
-∂σL = broadcast(P[2:end, :]) do σ
+∂σL = broadcast(Σ[1:end]) do σ
   Differential(σ)(L) |> expand_derivatives
 end;
 
 # ╔═╡ 3bb85c65-89ed-4113-a498-3a0da01be0b1
 ∂σL ~ 0
 
+# ╔═╡ 37d43e0f-6a4f-4bce-9b87-b53f646ec0aa
+expand_derivatives(substitute(∂σL[3], [Dₓ(-u(x, T̂))=>0])) ~ 0
+
 # ╔═╡ 269f6922-7f14-45b9-91f2-554a03a92b57
 md"### Final Condition"
 
 # ╔═╡ 7d7db129-4524-48ec-a9a9-61d7b1ee967d
-∂L∂VT = broadcast(V[end, :]) do v
-  Differential(v)(L) |> expand_derivatives
-end;
+∂vTL = Differential(v(x, T))(L) |> expand_derivatives;
 
-# ╔═╡ fad3240f-9fd1-48c5-b1f3-515d9ea038bd
-∂L∂VT ~ 0
+# ╔═╡ 90b6fc69-0056-4971-9395-10c601ce4ef4
+∂vTL ~ 0
 
 # ╔═╡ 8d67dc24-a8b1-4a4f-9811-f46e7b09fc08
 md"### Gradient Expressions"
@@ -314,79 +344,46 @@ md"### Gradient Expressions"
 nt = 3
 
 # ╔═╡ 653a7d32-d0cc-447f-95eb-3b8ee866b6dd
-Vs1 = V[:, :]
+Vs1 = [v(x, t[1]), v(x, t[2]), v(x, t[3])]
 
 # ╔═╡ 218136d4-bd69-4d6b-92b7-98d8f320e17f
-Vs2 = reverse(Vs1, dims=1)
+Vs2 = reverse(Vs1)
 
 # ╔═╡ fb82077d-43b8-4950-96ec-ffc72d400f26
-Us1 = hcat(fill(0, 4), U[:, :], fill(0, 4))
-
-# ╔═╡ e11a771a-18b9-42b2-bb4e-c3eaadbbc3c1
-Us2 = reverse(Us1, dims=1)
-
-# ╔═╡ b3d653be-450b-49a9-bc3f-118cd5ec9921
-begin
-  ∇ρ1 = 0.0
-  for it in 2:5
-    ∇ρ1 += 0.5 * δₜ * (Us2[it-1, 2] * (Vs2[it-1, 2] - Vs2[it, 2])) + 0.5 * δₜ * (Us2[it-1, 3] * (Vs2[it-1, 3] - Vs2[it, 3]))
-  end
-end
-
-# ╔═╡ 24346ac7-f089-4278-9364-d21071352500
-∇ρ
+Us1 = [u(x, t̂[3]), u(x, t̂[2]), u(x, t̂[1])]
 
 # ╔═╡ f64849ef-b48f-4783-b213-c108454dcb9a
-∇ρ1
+∇ρ1 = simplify(sum([Us1[it] * (-Vs1[nt-it] + Vs1[nt-it+1]) for it in 1:nt-1]), expand=true) + Us1[nt] * Vs1[1]
+
+# ╔═╡ b0dedc7f-c4e1-4b43-96f8-285e0f1ce731
+∇ρ2 = simplify(sum([Us1[it] * (Vs2[it] - Vs2[it+1]) for it in 1:nt-1]), expand=true) + Us1[nt] * Vs2[nt]
 
 # ╔═╡ e5c727d8-752c-4a3c-b971-292f4187416e
 ∇ρ - ∇ρ1
 
-# ╔═╡ 4011a061-68a8-4cc5-875b-7ae27331ad4f
-Ps1 = P
+# ╔═╡ dfeeb570-caad-4be2-aafa-c1b402e1d2fa
+∇ρ - ∇ρ2
 
-# ╔═╡ 4fa98b1c-0777-4f66-a029-d11488aecb2a
-𝛕s1 =  𝛕[:, :]
+# ╔═╡ c374e7a9-e4b3-43fc-900c-95b77dc16959
+Σs1 = [σ(x, t̂[1]), σ(x, t̂[2]), σ(x, t̂[3])]
 
-# ╔═╡ 86321b6a-3d2d-487a-be68-5838e0ff6abf
-Ps2 = reverse(Ps1, dims=1)
+# ╔═╡ b0346742-73fd-4150-958b-28d42acf9920
+Σs2 = reverse(Σs1)
 
-# ╔═╡ d52cbdaf-f13c-4ecb-8e45-537631de013b
-𝛕s2  = reverse(𝛕s1, dims=1)
+# ╔═╡ 739fc11d-4035-41a9-90d8-205c8348db86
+𝛕s = [τ(x, t[3]), τ(x, t[2]), τ(x, t[1])]
 
-# ╔═╡ e3a2c0b4-5a67-4431-a9db-8116a8fefdbd
-begin
-  ∇K⁻¹1 = 0.0
-  for it in 2:4
-    global ∇K⁻¹1 += δₜ * (𝛕s2[it-1, 2] * (+Ps2[it-1, 2] - Ps2[it, 2]))
-  end
-end
+# ╔═╡ 53ae28af-69ab-4a1b-81aa-0644608ccf95
+∇μ⁻¹1 =simplify(sum([𝛕s[it] * (Σs1[nt-it] - Σs1[nt-it-1]) for it in 1:nt-2]), expand=true) + 𝛕s[nt-1] * Σs1[1]
+
+# ╔═╡ 47dc88cb-aa58-4ccc-b2d8-72c88320b4fc
+∇μ⁻¹2 =simplify(sum([𝛕s[it-1] * (Σs2[it] - Σs2[it+1]) for it in 2:nt-1]), expand=true) + 𝛕s[nt-1] * Σs2[nt]
 
 # ╔═╡ 503a3912-31cc-45f2-b009-dca4700359f7
-∇K⁻¹ - ∇K⁻¹1
+∇μ⁻¹- ∇μ⁻¹1
 
-# ╔═╡ ffb7b8c0-00c6-45a5-8786-8abc6918e997
-∇K⁻¹
-
-# ╔═╡ df5ba723-4ea9-4b52-a4ae-120bf37d56df
-∇K⁻¹1
-
-# ╔═╡ 75563ce3-9228-4ca5-89e1-5e704024c209
-let
-  ∇K⁻¹2 = 0.0
-	pp = 0
-	pap = 0
-	p = 0
-	pa = 0
-  for it in 1:3
-	  pp = p
-	  pap = pa
-	  p = Ps2[it, 2]
-	  pa = 𝛕s2[it, 2]
-	  @show p, pa
-    # global ∇K⁻¹1 += δₜ * (𝛕s2[it-1, 2] * (+Ps2[it-1, 2] - Ps2[it, 2]))
-  end
-end
+# ╔═╡ 7d3ce674-8fd9-44c6-ae7f-a57c1e67f4a3
+∇μ⁻¹ - ∇μ⁻¹2
 
 # ╔═╡ 38257847-5ae7-4a5a-a937-22a6729a3640
 md"### Tikz"
@@ -522,6 +519,45 @@ md"""## References
 [^plessix]: R.-E. Plessix, A review of the adjoint-state method for computing the gradient of a functional with geophysical applications, Geophysical Journal International, Volume 167, Issue 2, November 2006, Pages 495–503, https://doi.org/10.1111/j.1365-246X.2006.02978.x
 """
 
+# ╔═╡ de0ef73d-0df1-47bb-aec0-f1bdef92af83
+Meqs = dVdt[:, 2:end-1] .*  avx(ρt) - dΣdx - F[:, 2:end-1]
+
+# ╔═╡ d9955833-692a-4129-919c-814fd53c97f3
+# ╠═╡ disabled = true
+#=╠═╡
+Meqs = vcat(M1, (DₜV .* ρ(x) - Dₓ.(Σ) - F));
+  ╠═╡ =#
+
+# ╔═╡ a0886a56-c027-4bae-99ff-e7be53ba4a1f
+Ceqs = dΣdt .* μ⁻¹t - dVdx[2:end-1, :]
+
+# ╔═╡ e73aa232-e0a9-4c7e-b399-6b0dee065a25
+# ╠═╡ disabled = true
+#=╠═╡
+Ceqs = (DₜΣ * μ⁻¹(x) - Dₓ.(V));
+  ╠═╡ =#
+
+# ╔═╡ 59d380f3-1bc0-41b4-a0e5-2cfbb0eaa333
+U = hcat(collect(broadcast(x->collect(map(t -> u(x, t), vcat(t̂, T̂))), x[1:end-1]))...)
+
+# ╔═╡ d5095bc5-6a00-4e0e-9669-68e21deac773
+# ╠═╡ disabled = true
+#=╠═╡
+U = vcat(collect(map(t -> u(x, t), t̂)), u(x, T̂))  # one u for each of Meqs
+  ╠═╡ =#
+
+# ╔═╡ f905dd31-52c2-43f2-aa1b-7121b3521ea0
+# ╠═╡ disabled = true
+#=╠═╡
+Ceqs = (DₜΣ * μ⁻¹(x) - Dₓ.(V));
+  ╠═╡ =#
+
+# ╔═╡ 9242d8be-a259-4a72-bbb7-4958884937c9
+# ╠═╡ disabled = true
+#=╠═╡
+Meqs = vcat(M1, (DₜV .* ρ(x) - Dₓ.(Σ) - F));
+  ╠═╡ =#
+
 # ╔═╡ 00000000-0000-0000-0000-000000000001
 PLUTO_PROJECT_TOML_CONTENTS = """
 [deps]
@@ -534,11 +570,11 @@ Symbolics = "0c5d862f-8b57-4792-8d23-62f2024744c7"
 TikzPictures = "37f6aa50-8035-52d0-81c2-5a1d08754b2d"
 
 [compat]
-ChainRules = "~1.49.0"
-PlutoTeachingTools = "~0.2.11"
-PlutoUI = "~0.7.51"
-SymbolicUtils = "~1.0.5"
-Symbolics = "~5.3.1"
+ChainRules = "~1.48.0"
+PlutoTeachingTools = "~0.2.8"
+PlutoUI = "~0.7.50"
+SymbolicUtils = "~1.0.4"
+Symbolics = "~5.1.0"
 TikzPictures = "~3.4.2"
 """
 
@@ -546,15 +582,15 @@ TikzPictures = "~3.4.2"
 PLUTO_MANIFEST_TOML_CONTENTS = """
 # This file is machine-generated - editing it directly is not advised
 
-julia_version = "1.9.0"
+julia_version = "1.9.0-rc3"
 manifest_format = "2.0"
-project_hash = "a8fc7ddaea2b3ee8ebea68f394a082d0b6d841ff"
+project_hash = "dd13e594d2b8f4581870454a2dfe17b6c69156bb"
 
 [[deps.AbstractAlgebra]]
-deps = ["GroupsCore", "InteractiveUtils", "LinearAlgebra", "MacroTools", "Random", "RandomExtensions", "SparseArrays", "Test"]
-git-tree-sha1 = "3ee5c58774f4487a5bf2bb05e39d91ff5022b4cc"
+deps = ["GroupsCore", "InteractiveUtils", "LinearAlgebra", "MacroTools", "Markdown", "Random", "RandomExtensions", "SparseArrays", "Test"]
+git-tree-sha1 = "29e65c331f97db9189ef00a4c7aed8127c2fd2d4"
 uuid = "c3fe647b-3220-5bb0-a1ea-a7954cac585d"
-version = "0.29.4"
+version = "0.27.10"
 
 [[deps.AbstractPlutoDingetjes]]
 deps = ["Pkg"]
@@ -583,9 +619,9 @@ version = "1.1.1"
 
 [[deps.ArrayInterface]]
 deps = ["Adapt", "LinearAlgebra", "Requires", "SnoopPrecompile", "SparseArrays", "SuiteSparse"]
-git-tree-sha1 = "38911c7737e123b28182d89027f4216cfc8a9da7"
+git-tree-sha1 = "a89acc90c551067cd84119ff018619a1a76c6277"
 uuid = "4fba245c-0d91-5ea0-9b3e-6abc04ee57a9"
-version = "7.4.3"
+version = "7.2.1"
 
     [deps.ArrayInterface.extensions]
     ArrayInterfaceBandedMatricesExt = "BandedMatrices"
@@ -634,9 +670,9 @@ version = "0.5.1"
 
 [[deps.ChainRules]]
 deps = ["Adapt", "ChainRulesCore", "Compat", "Distributed", "GPUArraysCore", "IrrationalConstants", "LinearAlgebra", "Random", "RealDot", "SparseArrays", "Statistics", "StructArrays"]
-git-tree-sha1 = "8bae903893aeeb429cf732cf1888490b93ecf265"
+git-tree-sha1 = "7d20c2fb8ab838e41069398685e7b6b5f89ed85b"
 uuid = "082447d4-558c-5d27-93f4-14fc19e9eca2"
-version = "1.49.0"
+version = "1.48.0"
 
 [[deps.ChainRulesCore]]
 deps = ["Compat", "LinearAlgebra", "SparseArrays"]
@@ -644,11 +680,21 @@ git-tree-sha1 = "c6d890a52d2c4d55d326439580c3b8d0875a77d9"
 uuid = "d360d2e6-b24c-11e9-a2a3-2a2ae2dbcce4"
 version = "1.15.7"
 
+[[deps.ChangesOfVariables]]
+deps = ["LinearAlgebra", "Test"]
+git-tree-sha1 = "485193efd2176b88e6622a39a246f8c5b600e74e"
+uuid = "9e997f8a-9a97-42d5-a9f1-ce6bfc15e2c0"
+version = "0.1.6"
+weakdeps = ["ChainRulesCore"]
+
+    [deps.ChangesOfVariables.extensions]
+    ChangesOfVariablesChainRulesCoreExt = "ChainRulesCore"
+
 [[deps.CodeTracking]]
 deps = ["InteractiveUtils", "UUIDs"]
-git-tree-sha1 = "d730914ef30a06732bdd9f763f6cc32e92ffbff1"
+git-tree-sha1 = "d57c99cc7e637165c81b30eb268eabe156a45c49"
 uuid = "da1fd8a2-8d9e-5ec2-8556-3022fb5608a2"
-version = "1.3.1"
+version = "1.2.2"
 
 [[deps.ColorTypes]]
 deps = ["FixedPointNumbers", "Random"]
@@ -723,6 +769,12 @@ version = "1.0.0"
 deps = ["Printf"]
 uuid = "ade2ca70-3891-5945-98fb-dc099432e06a"
 
+[[deps.DensityInterface]]
+deps = ["InverseFunctions", "Test"]
+git-tree-sha1 = "80c3e8639e3353e5d2912fb3a1916b8455e2494b"
+uuid = "b429d917-457f-4dbc-8f4c-0cc954292b1d"
+version = "0.4.0"
+
 [[deps.DiffResults]]
 deps = ["StaticArraysCore"]
 git-tree-sha1 = "782dd5f4561f5d267313f23853baaaa4c52ea621"
@@ -741,17 +793,14 @@ uuid = "8ba89e20-285c-5b6f-9357-94700520ee1b"
 
 [[deps.Distributions]]
 deps = ["FillArrays", "LinearAlgebra", "PDMats", "Printf", "QuadGK", "Random", "SparseArrays", "SpecialFunctions", "Statistics", "StatsBase", "StatsFuns", "Test"]
-git-tree-sha1 = "180538ef4e3aa02b01413055a7a9e8b6047663e1"
+git-tree-sha1 = "da9e1a9058f8d3eec3a8c9fe4faacfb89180066b"
 uuid = "31c24e10-a181-5473-b8eb-7969acd0382f"
-version = "0.25.88"
+version = "0.25.86"
+weakdeps = ["ChainRulesCore", "DensityInterface"]
 
     [deps.Distributions.extensions]
     DistributionsChainRulesCoreExt = "ChainRulesCore"
     DistributionsDensityInterfaceExt = "DensityInterface"
-
-    [deps.Distributions.weakdeps]
-    ChainRulesCore = "d360d2e6-b24c-11e9-a2a3-2a2ae2dbcce4"
-    DensityInterface = "b429d917-457f-4dbc-8f4c-0cc954292b1d"
 
 [[deps.DocStringExtensions]]
 deps = ["LibGit2"]
@@ -761,9 +810,9 @@ version = "0.9.3"
 
 [[deps.DomainSets]]
 deps = ["CompositeTypes", "IntervalSets", "LinearAlgebra", "Random", "StaticArrays", "Statistics"]
-git-tree-sha1 = "698124109da77b6914f64edd696be8dccf90229e"
+git-tree-sha1 = "988e2db482abeb69efc76ae8b6eba2e93805ee70"
 uuid = "5b8099bc-c8ec-5219-889f-1d9e522a28bf"
-version = "0.6.6"
+version = "0.5.15"
 
 [[deps.Downloads]]
 deps = ["ArgTools", "FileWatching", "LibCURL", "NetworkOptions"]
@@ -803,9 +852,9 @@ uuid = "7b1f6079-737a-58dc-b8bc-7a2ca5c1b5ee"
 
 [[deps.FillArrays]]
 deps = ["LinearAlgebra", "Random", "SparseArrays", "Statistics"]
-git-tree-sha1 = "fc86b4fd3eff76c3ce4f5e96e2fdfa6282722885"
+git-tree-sha1 = "3b245d1e50466ca0c9529e2033a3c92387c59c2f"
 uuid = "1a297f60-69ca-5386-bcde-b61e274b549b"
-version = "1.0.0"
+version = "0.13.9"
 
 [[deps.FixedPointNumbers]]
 deps = ["Statistics"]
@@ -875,10 +924,10 @@ uuid = "7746bdde-850d-59dc-9ae8-88ece973131d"
 version = "2.74.0+2"
 
 [[deps.Groebner]]
-deps = ["AbstractAlgebra", "Combinatorics", "Logging", "MultivariatePolynomials", "Primes", "Random", "SnoopPrecompile"]
-git-tree-sha1 = "b6c3e9e1eb8dcc6fd9bc68fe08dcc7ab22710de6"
+deps = ["AbstractAlgebra", "Combinatorics", "Logging", "MultivariatePolynomials", "Primes", "Random"]
+git-tree-sha1 = "47f0f03eddecd7ad59c42b1dd46d5f42916aff63"
 uuid = "0b43b601-686d-58a3-8a1c-6623616c7cd4"
-version = "0.3.4"
+version = "0.2.11"
 
 [[deps.GroupsCore]]
 deps = ["Markdown", "Random"]
@@ -887,10 +936,10 @@ uuid = "d5909c97-4eac-4ecc-a3dc-fdd0858a4120"
 version = "0.4.0"
 
 [[deps.HypergeometricFunctions]]
-deps = ["DualNumbers", "LinearAlgebra", "OpenLibm_jll", "SpecialFunctions"]
-git-tree-sha1 = "432b5b03176f8182bd6841fbfc42c718506a2d5f"
+deps = ["DualNumbers", "LinearAlgebra", "OpenLibm_jll", "SpecialFunctions", "Test"]
+git-tree-sha1 = "709d864e3ed6e3545230601f94e11ebc65994641"
 uuid = "34004b35-14d8-5ef3-9330-4cdb6864b03a"
-version = "0.3.15"
+version = "0.3.11"
 
 [[deps.Hyperscript]]
 deps = ["Test"]
@@ -926,9 +975,15 @@ uuid = "b77e0a4c-d291-57a0-90e8-8db25a27a240"
 
 [[deps.IntervalSets]]
 deps = ["Dates", "Random", "Statistics"]
-git-tree-sha1 = "16c0cc91853084cb5f58a78bd209513900206ce6"
+git-tree-sha1 = "3f91cd3f56ea48d4d2a75c2a65455c5fc74fa347"
 uuid = "8197267c-284f-5f27-9208-e0e47529a953"
-version = "0.7.4"
+version = "0.7.3"
+
+[[deps.InverseFunctions]]
+deps = ["Test"]
+git-tree-sha1 = "49510dfcb407e572524ba94aeae2fced1f3feb0f"
+uuid = "3587e190-3f89-42d0-90ee-14403ec27112"
+version = "0.1.8"
 
 [[deps.IrrationalConstants]]
 git-tree-sha1 = "630b497eafcc20001bba38a4651b327dcfc491d2"
@@ -948,9 +1003,9 @@ version = "1.4.1"
 
 [[deps.JSON]]
 deps = ["Dates", "Mmap", "Parsers", "Unicode"]
-git-tree-sha1 = "31e996f0a15c7b280ba9f76636b3ff9e2ae58c9a"
+git-tree-sha1 = "3c837543ddb02250ef42f4738347454f95079d4e"
 uuid = "682c06a0-de6a-54ab-a142-c8b1cf79cde6"
-version = "0.21.4"
+version = "0.21.3"
 
 [[deps.JpegTurbo_jll]]
 deps = ["Artifacts", "JLLWrappers", "Libdl"]
@@ -960,9 +1015,9 @@ version = "2.1.91+0"
 
 [[deps.JuliaInterpreter]]
 deps = ["CodeTracking", "InteractiveUtils", "Random", "UUIDs"]
-git-tree-sha1 = "6a125e6a4cb391e0b9adbd1afa9e771c2179f8ef"
+git-tree-sha1 = "d9ae7a9081d9b1a3b2a5c1d3dac5e2fdaafbd538"
 uuid = "aa1ae85d-cabe-5617-a682-6adf51b2e16a"
-version = "0.9.23"
+version = "0.9.22"
 
 [[deps.LERC_jll]]
 deps = ["Artifacts", "JLLWrappers", "Libdl", "Pkg"]
@@ -994,21 +1049,9 @@ version = "0.4.6"
 
 [[deps.Latexify]]
 deps = ["Formatting", "InteractiveUtils", "LaTeXStrings", "MacroTools", "Markdown", "OrderedCollections", "Printf", "Requires"]
-git-tree-sha1 = "8c57307b5d9bb3be1ff2da469063628631d4d51e"
+git-tree-sha1 = "2422f47b34d4b127720a18f86fa7b1aa2e141f29"
 uuid = "23fbe1c1-3f47-55db-b15f-69d7ec21a316"
-version = "0.15.21"
-
-    [deps.Latexify.extensions]
-    DataFramesExt = "DataFrames"
-    DiffEqBiologicalExt = "DiffEqBiological"
-    ParameterizedFunctionsExt = "DiffEqBase"
-    SymEngineExt = "SymEngine"
-
-    [deps.Latexify.weakdeps]
-    DataFrames = "a93c6f00-e57d-5684-b7b6-d8193f3e46c0"
-    DiffEqBase = "2b5f629d-d688-5b77-993f-72d75c75574e"
-    DiffEqBiological = "eb300fae-53e8-50a0-950c-e21f52c2b7e0"
-    SymEngine = "123dc426-2d89-5057-bbad-38513e3affd8"
+version = "0.15.18"
 
 [[deps.Lazy]]
 deps = ["MacroTools"]
@@ -1095,16 +1138,12 @@ deps = ["DocStringExtensions", "IrrationalConstants", "LinearAlgebra"]
 git-tree-sha1 = "0a1b7c2863e44523180fdb3146534e265a91870b"
 uuid = "2ab3a3ac-af41-5b50-aa03-7779005ae688"
 version = "0.3.23"
+weakdeps = ["ChainRulesCore", "ChangesOfVariables", "InverseFunctions"]
 
     [deps.LogExpFunctions.extensions]
     LogExpFunctionsChainRulesCoreExt = "ChainRulesCore"
     LogExpFunctionsChangesOfVariablesExt = "ChangesOfVariables"
     LogExpFunctionsInverseFunctionsExt = "InverseFunctions"
-
-    [deps.LogExpFunctions.weakdeps]
-    ChainRulesCore = "d360d2e6-b24c-11e9-a2a3-2a2ae2dbcce4"
-    ChangesOfVariables = "9e997f8a-9a97-42d5-a9f1-ce6bfc15e2c0"
-    InverseFunctions = "3587e190-3f89-42d0-90ee-14403ec27112"
 
 [[deps.Logging]]
 uuid = "56ddb016-857b-54e1-b83d-db4d58db5568"
@@ -1156,9 +1195,9 @@ version = "0.4.7"
 
 [[deps.MutableArithmetics]]
 deps = ["LinearAlgebra", "SparseArrays", "Test"]
-git-tree-sha1 = "964cb1a7069723727025ae295408747a0b36a854"
+git-tree-sha1 = "3295d296288ab1a0a2528feb424b854418acff57"
 uuid = "d8a4904e-b15c-11e9-3269-09a3773c0cb0"
-version = "1.3.0"
+version = "1.2.3"
 
 [[deps.NaNMath]]
 deps = ["OpenLibm_jll"]
@@ -1193,9 +1232,9 @@ uuid = "efe28fd5-8261-553b-a9e1-b2916fc3738e"
 version = "0.5.5+0"
 
 [[deps.OrderedCollections]]
-git-tree-sha1 = "d321bf2de576bf25ec4d3e4360faca399afca282"
+git-tree-sha1 = "85f8e6578bf1f9ee0d11e7bb1b1456435479d47c"
 uuid = "bac558e1-5e72-5ebc-8fee-abe8a469f55d"
-version = "1.6.0"
+version = "1.4.1"
 
 [[deps.PCRE2_jll]]
 deps = ["Artifacts", "Libdl"]
@@ -1239,15 +1278,15 @@ version = "0.1.6"
 
 [[deps.PlutoTeachingTools]]
 deps = ["Downloads", "HypertextLiteral", "LaTeXStrings", "Latexify", "Markdown", "PlutoLinks", "PlutoUI", "Random"]
-git-tree-sha1 = "88222661708df26242d0bfb9237d023557d11718"
+git-tree-sha1 = "b970826468465da71f839cdacc403e99842c18ea"
 uuid = "661c6b06-c737-4d37-b85c-46df65de6f69"
-version = "0.2.11"
+version = "0.2.8"
 
 [[deps.PlutoUI]]
 deps = ["AbstractPlutoDingetjes", "Base64", "ColorTypes", "Dates", "FixedPointNumbers", "Hyperscript", "HypertextLiteral", "IOCapture", "InteractiveUtils", "JSON", "Logging", "MIMEs", "Markdown", "Random", "Reexport", "URIs", "UUIDs"]
-git-tree-sha1 = "b478a748be27bd2f2c73a7690da219d0844db305"
+git-tree-sha1 = "5bb5129fdd62a2bbbe17c2756932259acf467386"
 uuid = "7f904dfe-b85e-4ff6-b463-dae2292396a8"
-version = "0.7.51"
+version = "0.7.50"
 
 [[deps.Poppler_jll]]
 deps = ["Artifacts", "Cairo_jll", "Fontconfig_jll", "Glib_jll", "JLLWrappers", "JpegTurbo_jll", "Libdl", "Libtiff_jll", "OpenJpeg_jll", "Pkg", "libpng_jll"]
@@ -1267,17 +1306,11 @@ version = "0.4.12"
     [deps.PreallocationTools.weakdeps]
     ReverseDiff = "37e2e3b7-166d-5795-8a7a-e32c996b4267"
 
-[[deps.PrecompileTools]]
-deps = ["Preferences"]
-git-tree-sha1 = "d0984cc886c48e5a165705ce65236dc2ec467b91"
-uuid = "aea7be01-6a6a-4083-8856-8a6e6704d82a"
-version = "1.1.0"
-
 [[deps.Preferences]]
 deps = ["TOML"]
-git-tree-sha1 = "7eb1686b4f04b82f96ed7a4ea5890a4f0c7a09f1"
+git-tree-sha1 = "47e5f437cc0e7ef2ce8406ce1e7e24d44915f88d"
 uuid = "21216c6a-2e73-6563-6e65-726566657250"
-version = "1.4.0"
+version = "1.3.0"
 
 [[deps.Primes]]
 deps = ["IntegerMathUtils"]
@@ -1316,26 +1349,22 @@ uuid = "c1ae055f-0cd5-4b69-90a6-9a35b1a98df9"
 version = "0.1.0"
 
 [[deps.RecipesBase]]
-deps = ["PrecompileTools"]
-git-tree-sha1 = "5c3d09cc4f31f5fc6af001c250bf1278733100ff"
+deps = ["SnoopPrecompile"]
+git-tree-sha1 = "261dddd3b862bd2c940cf6ca4d1c8fe593e457c8"
 uuid = "3cdcf5f2-1ef4-517c-9805-6587b60abb01"
-version = "1.3.4"
+version = "1.3.3"
 
 [[deps.RecursiveArrayTools]]
-deps = ["Adapt", "ArrayInterface", "DocStringExtensions", "GPUArraysCore", "IteratorInterfaceExtensions", "LinearAlgebra", "RecipesBase", "Requires", "StaticArraysCore", "Statistics", "SymbolicIndexingInterface", "Tables"]
-git-tree-sha1 = "68078e9fa9130a6a768815c48002d0921a232c11"
+deps = ["Adapt", "ArrayInterface", "ChainRulesCore", "DocStringExtensions", "FillArrays", "GPUArraysCore", "IteratorInterfaceExtensions", "LinearAlgebra", "RecipesBase", "Requires", "StaticArraysCore", "Statistics", "SymbolicIndexingInterface", "Tables", "ZygoteRules"]
+git-tree-sha1 = "3dcb2a98436389c0aac964428a5fa099118944de"
 uuid = "731186ca-8d62-57ce-b412-fbd966d074cd"
-version = "2.38.4"
+version = "2.38.0"
 
     [deps.RecursiveArrayTools.extensions]
-    RecursiveArrayToolsMeasurementsExt = "Measurements"
     RecursiveArrayToolsTrackerExt = "Tracker"
-    RecursiveArrayToolsZygoteExt = "Zygote"
 
     [deps.RecursiveArrayTools.weakdeps]
-    Measurements = "eff96d63-e80a-5855-80a2-b1b0885c5ab7"
     Tracker = "9f7883ad-71c0-57eb-9f7f-b5c9e6d3789c"
-    Zygote = "e88e6eb3-aa80-5325-afca-941959d7151f"
 
 [[deps.Reexport]]
 git-tree-sha1 = "45e428421666073eab6f2da5c9d310d99bb12f9b"
@@ -1350,9 +1379,9 @@ version = "1.3.0"
 
 [[deps.Revise]]
 deps = ["CodeTracking", "Distributed", "FileWatching", "JuliaInterpreter", "LibGit2", "LoweredCodeUtils", "OrderedCollections", "Pkg", "REPL", "Requires", "UUIDs", "Unicode"]
-git-tree-sha1 = "feafdc70b2e6684314e188d95fe66d116de834a7"
+git-tree-sha1 = "90cb983381a9dc7d3dff5fb2d1ee52cd59877412"
 uuid = "295af30f-e4ad-537b-8983-00126c2a3abe"
-version = "3.5.2"
+version = "3.5.1"
 
 [[deps.Rmath]]
 deps = ["Random", "Rmath_jll"]
@@ -1368,9 +1397,9 @@ version = "0.4.0+0"
 
 [[deps.RuntimeGeneratedFunctions]]
 deps = ["ExprTools", "SHA", "Serialization"]
-git-tree-sha1 = "f139e81a81e6c29c40f1971c9e5309b09c03f2c3"
+git-tree-sha1 = "50314d2ef65fce648975a8e80ae6d8409ebbf835"
 uuid = "7e49a35a-f44a-4d26-94aa-eba1b4ca6b47"
-version = "0.5.6"
+version = "0.5.5"
 
 [[deps.SHA]]
 uuid = "ea8e919c-243c-51af-8825-aaa63cd721ce"
@@ -1378,9 +1407,9 @@ version = "0.7.0"
 
 [[deps.SciMLBase]]
 deps = ["ArrayInterface", "CommonSolve", "ConstructionBase", "Distributed", "DocStringExtensions", "EnumX", "FunctionWrappersWrappers", "IteratorInterfaceExtensions", "LinearAlgebra", "Logging", "Markdown", "Preferences", "RecipesBase", "RecursiveArrayTools", "Reexport", "RuntimeGeneratedFunctions", "SciMLOperators", "SnoopPrecompile", "StaticArraysCore", "Statistics", "SymbolicIndexingInterface", "Tables", "TruncatedStacktraces"]
-git-tree-sha1 = "392d3e28b05984496af37100ded94dc46fa6c8de"
+git-tree-sha1 = "d78c2134ea1484559aa53cae133c0504ba31abec"
 uuid = "0bca4576-84f4-4d90-8ffe-ffa030f20462"
-version = "1.91.7"
+version = "1.91.1"
 
 [[deps.SciMLOperators]]
 deps = ["ArrayInterface", "DocStringExtensions", "Lazy", "LinearAlgebra", "Setfield", "SparseArrays", "StaticArraysCore", "Tricks"]
@@ -1428,9 +1457,9 @@ weakdeps = ["ChainRulesCore"]
 
 [[deps.StaticArrays]]
 deps = ["LinearAlgebra", "Random", "StaticArraysCore", "Statistics"]
-git-tree-sha1 = "c262c8e978048c2b095be1672c9bee55b4619521"
+git-tree-sha1 = "7756ce473bd10b67245bdebdc8d8670a85f6230b"
 uuid = "90137ffa-7385-5640-81b9-e52037218182"
-version = "1.5.24"
+version = "1.5.18"
 
 [[deps.StaticArraysCore]]
 git-tree-sha1 = "6b7ba252635a5eff6a0b0664a41ee140a1c9e72a"
@@ -1444,29 +1473,26 @@ version = "1.9.0"
 
 [[deps.StatsAPI]]
 deps = ["LinearAlgebra"]
-git-tree-sha1 = "45a7769a04a3cf80da1c1c7c60caf932e6f4c9f7"
+git-tree-sha1 = "f9af7f195fb13589dd2e2d57fdb401717d2eb1f6"
 uuid = "82ae8749-77ed-4fe6-ae5f-f523153014b0"
-version = "1.6.0"
+version = "1.5.0"
 
 [[deps.StatsBase]]
 deps = ["DataAPI", "DataStructures", "LinearAlgebra", "LogExpFunctions", "Missings", "Printf", "Random", "SortingAlgorithms", "SparseArrays", "Statistics", "StatsAPI"]
-git-tree-sha1 = "75ebe04c5bed70b91614d684259b661c9e6274a4"
+git-tree-sha1 = "d1bf48bfcc554a3761a133fe3a9bb01488e06916"
 uuid = "2913bbd2-ae8a-5f71-8c99-4fb6c76f3a91"
-version = "0.34.0"
+version = "0.33.21"
 
 [[deps.StatsFuns]]
 deps = ["HypergeometricFunctions", "IrrationalConstants", "LogExpFunctions", "Reexport", "Rmath", "SpecialFunctions"]
 git-tree-sha1 = "f625d686d5a88bcd2b15cd81f18f98186fdc0c9a"
 uuid = "4c63d2b9-4356-54db-8cca-17b64c39e42c"
 version = "1.3.0"
+weakdeps = ["ChainRulesCore", "InverseFunctions"]
 
     [deps.StatsFuns.extensions]
     StatsFunsChainRulesCoreExt = "ChainRulesCore"
     StatsFunsInverseFunctionsExt = "InverseFunctions"
-
-    [deps.StatsFuns.weakdeps]
-    ChainRulesCore = "d360d2e6-b24c-11e9-a2a3-2a2ae2dbcce4"
-    InverseFunctions = "3587e190-3f89-42d0-90ee-14403ec27112"
 
 [[deps.StructArrays]]
 deps = ["Adapt", "DataAPI", "GPUArraysCore", "StaticArraysCore", "Tables"]
@@ -1491,15 +1517,15 @@ version = "0.2.2"
 
 [[deps.SymbolicUtils]]
 deps = ["AbstractTrees", "Bijections", "ChainRulesCore", "Combinatorics", "ConstructionBase", "DataStructures", "DocStringExtensions", "DynamicPolynomials", "IfElse", "LabelledArrays", "LinearAlgebra", "MultivariatePolynomials", "NaNMath", "Setfield", "SparseArrays", "SpecialFunctions", "StaticArrays", "TimerOutputs", "Unityper"]
-git-tree-sha1 = "5cb1f963f82e7b81305102dd69472fcd3e0e1483"
+git-tree-sha1 = "bfbd444c209b41c7b2fef36b6e146a66da0be9f1"
 uuid = "d1185830-fcd6-423d-90d6-eec64667417b"
-version = "1.0.5"
+version = "1.0.4"
 
 [[deps.Symbolics]]
 deps = ["ArrayInterface", "ConstructionBase", "DataStructures", "DiffRules", "Distributions", "DocStringExtensions", "DomainSets", "Groebner", "IfElse", "LaTeXStrings", "LambertW", "Latexify", "Libdl", "LinearAlgebra", "MacroTools", "Markdown", "NaNMath", "RecipesBase", "Reexport", "Requires", "RuntimeGeneratedFunctions", "SciMLBase", "Setfield", "SparseArrays", "SpecialFunctions", "StaticArrays", "SymbolicUtils", "TreeViews"]
-git-tree-sha1 = "e23ec62c083ca8f15a4b7174331b3b8d1c511e47"
+git-tree-sha1 = "fce1fd0b13f860128c8b8aab0bab475eeeeb7994"
 uuid = "0c5d862f-8b57-4792-8d23-62f2024744c7"
-version = "5.3.1"
+version = "5.1.0"
 
 [[deps.TOML]]
 deps = ["Dates"]
@@ -1541,9 +1567,9 @@ version = "3.4.2"
 
 [[deps.TimerOutputs]]
 deps = ["ExprTools", "Printf"]
-git-tree-sha1 = "f548a9e9c490030e545f72074a41edfd0e5bcdd7"
+git-tree-sha1 = "f2fd3f288dfc6f507b0c3a2eb3bac009251e548b"
 uuid = "a759f4b9-e2f1-59dc-863e-4aeb61b1ea8f"
-version = "0.5.23"
+version = "0.5.22"
 
 [[deps.TreeViews]]
 deps = ["Test"]
@@ -1552,15 +1578,15 @@ uuid = "a2a6695c-b41b-5b7d-aed9-dbfdeacea5d7"
 version = "0.3.0"
 
 [[deps.Tricks]]
-git-tree-sha1 = "aadb748be58b492045b4f56166b5188aa63ce549"
+git-tree-sha1 = "6bac775f2d42a611cdfcd1fb217ee719630c4175"
 uuid = "410a4b4d-49e4-4fbc-ab6d-cb71b17b3775"
-version = "0.1.7"
+version = "0.1.6"
 
 [[deps.TruncatedStacktraces]]
 deps = ["InteractiveUtils", "MacroTools", "Preferences"]
-git-tree-sha1 = "7bc1632a4eafbe9bd94cf1a784a9a4eb5e040a91"
+git-tree-sha1 = "6901000d75a14520bdd067fe90b9392384eb04a7"
 uuid = "781d530d-4396-4725-bb49-402e4bee1e77"
-version = "1.3.0"
+version = "1.2.0"
 
 [[deps.URIs]]
 git-tree-sha1 = "074f993b0ca030848b897beff716d93aca60f06a"
@@ -1647,9 +1673,15 @@ version = "1.2.13+0"
 
 [[deps.Zstd_jll]]
 deps = ["Artifacts", "JLLWrappers", "Libdl"]
-git-tree-sha1 = "49ce682769cd5de6c72dcf1b94ed7790cd08974c"
+git-tree-sha1 = "c6edfe154ad7b313c01aceca188c05c835c67360"
 uuid = "3161d3a3-bdf6-5164-811a-617609db77b4"
-version = "1.5.5+0"
+version = "1.5.4+0"
+
+[[deps.ZygoteRules]]
+deps = ["ChainRulesCore", "MacroTools"]
+git-tree-sha1 = "977aed5d006b840e2e40c0b48984f7463109046d"
+uuid = "700de1a5-db45-46bc-99cf-38207098b444"
+version = "0.2.3"
 
 [[deps.libblastrampoline_jll]]
 deps = ["Artifacts", "Libdl"]
@@ -1692,22 +1724,22 @@ version = "17.4.0+0"
 # ╠═2a2a5249-5293-4736-9a72-441f32775021
 # ╟─bc20a677-5d50-4a80-b466-2b7edd5feac4
 # ╟─33871626-5b9b-4718-a974-d94d7b048582
+# ╠═d9955833-692a-4129-919c-814fd53c97f3
 # ╠═3cb20104-2872-4bfe-95a7-86d2b1bb6b0f
 # ╠═0d82f0b1-24a3-4adf-b645-4fea2fab6273
-# ╟─84d8f063-2aad-4d57-9bdf-d44e37f173c7
 # ╠═201ebc60-90d6-40a1-8d1f-e371057af060
 # ╠═de0ef73d-0df1-47bb-aec0-f1bdef92af83
 # ╠═4ccfa601-b3b3-47b0-98f6-4f4ec6c1b794
 # ╠═a72d5528-f9a4-4b82-b4c8-644ecd0fab55
 # ╠═e8b1a70e-f63e-45c5-a525-2c55d99ddad4
+# ╠═e5a37530-a0f2-470d-aada-39eaf3cd6054
 # ╟─f54c2aa7-2afb-4806-b932-417e3b4a41e5
 # ╟─c5e41f1c-a734-4502-a60f-4ec0f9819e89
 # ╠═39570793-d23b-4c88-9c3b-c58690eb4ae8
-# ╟─fc20c71d-a23d-44be-8bf2-099a2400921b
 # ╠═7343a50f-9835-4e10-97ed-5b213069044a
 # ╠═0f894463-6513-49d9-98e4-12c3ca07ce51
-# ╟─b2562463-09d0-40fc-9802-b49e105f946c
 # ╠═a0886a56-c027-4bae-99ff-e7be53ba4a1f
+# ╠═f905dd31-52c2-43f2-aa1b-7121b3521ea0
 # ╟─9678bb33-8e15-49ad-95b8-c8d4ab75f14f
 # ╟─ebcbbf5e-6205-41a8-b31b-a6bed52cda5b
 # ╟─4d71efc9-6bf5-4aa6-8e0f-132814350351
@@ -1722,39 +1754,59 @@ version = "17.4.0+0"
 # ╠═e7536b06-2454-496b-8872-aec29edb37f6
 # ╟─80c1040c-88d2-45b5-89e1-b3cb8d6abaf7
 # ╠═28a345b9-d911-486c-a715-7d32a4ea41e8
+# ╠═d5095bc5-6a00-4e0e-9669-68e21deac773
 # ╠═aee62f47-0bd7-492f-bc99-2392a16fc1dd
-# ╟─d447a8bf-2d42-4f93-a27e-9eed76050348
 # ╠═59d380f3-1bc0-41b4-a0e5-2cfbb0eaa333
+# ╠═c61d0859-f743-4c98-9d30-a6e17cb8a92e
+# ╠═41009e47-8015-4c1a-8259-6ad3333a98c7
+# ╠═cb2487c2-cc73-4afa-a94c-2849826558e0
+# ╠═920edb31-cdd7-4020-b289-852bc4e9d378
+# ╠═f7a16609-11d3-48bf-927c-01c881afc4bc
+# ╠═7ff65fd4-8e21-413e-809d-165aeee15ec6
+# ╠═c1d93755-4b15-4616-8da5-698f78a759fe
 # ╠═3b219c43-3056-49db-951e-d0e97a4f39db
-# ╟─723e81cd-36e1-44ea-99bf-b4cae2be03a2
+# ╠═cc3a1c12-25b9-450a-a23d-8557fe351f83
 # ╠═1bf0a983-9592-4a72-a10e-af61316ce6e4
 # ╟─b19344d2-d872-4bf5-a75f-1ca481779835
 # ╟─e1048e24-e389-4e95-8157-00702f1b41a3
 # ╠═fee19d3e-2235-4382-82d6-5a3cb452d317
+# ╟─0eb7d977-29fc-4be1-9e2d-16285431dcfb
+# ╠═934ae935-70ad-439c-933c-2ef8a78ff5b4
 # ╟─c2967e07-5d8b-4205-bb8b-add323494d86
 # ╠═55c08fb9-e29d-4500-84e7-46de7979639e
+# ╠═5d69a093-d57d-499c-a5a4-a1248d1811c6
 # ╟─911c9966-e983-46fd-8ca0-8ca06ab42bf0
 # ╠═3b8a80a7-4ab5-4b74-9aaa-3603e0ecccb5
 # ╟─66ed7bf9-c5b7-4c27-a021-28bb5675c85f
 # ╟─19dd77e9-4a88-4c06-9129-0c1391068900
 # ╟─3bb85c65-89ed-4113-a498-3a0da01be0b1
 # ╟─bfd6f8e4-ea3e-4c87-b7f7-eba889e751fd
-# ╠═fad3240f-9fd1-48c5-b1f3-515d9ea038bd
+# ╟─90b6fc69-0056-4971-9395-10c601ce4ef4
+# ╟─37d43e0f-6a4f-4bce-9b87-b53f646ec0aa
 # ╟─09c11c95-a82d-48e0-85ba-6db4a8c03f29
 # ╟─57ea4b25-0f40-4816-85ba-05669770885b
 # ╟─be1c590d-d70b-40f1-8370-bc294fb29c09
-# ╠═bdc608ee-6a52-4130-b4a0-c27d513a0009
-# ╠═7e56d621-a572-4077-83be-d3b002f4e808
+# ╟─7e56d621-a572-4077-83be-d3b002f4e808
 # ╟─c150327f-b950-4a70-af44-722beee2069c
 # ╟─3b2d5624-d365-4595-b95b-52825bc980d0
 # ╠═c0d3e1c8-77d9-4f69-8f1a-97b4bec409e4
 # ╟─5f6a1560-b22d-4e47-b6ee-7a306b0bc2d1
 # ╟─ec3bf735-5fff-44e6-8a79-a03d6eb4538f
+# ╠═24e8eafe-e040-4173-b705-4ade869791ba
 # ╠═c9324a48-8cb8-45e1-909a-950333048d28
 # ╠═34e13768-7861-4324-8eb1-626275a3b2d1
 # ╠═3d57d1f0-4595-48a0-934c-7bc1d5dc15fc
-# ╠═4876fb4e-4b00-4984-8932-a6ff576c5be6
-# ╠═24e8eafe-e040-4173-b705-4ade869791ba
+# ╟─c60cf026-cede-4e19-99d0-7c8b09e9d87e
+# ╟─73cec834-0b81-4b93-a00f-4e953d93b5de
+# ╠═c959b590-aacf-4504-bb80-bd915acb0b3f
+# ╠═3f7e7312-236c-4710-a901-fc88e4c5afca
+# ╟─84d8f063-2aad-4d57-9bdf-d44e37f173c7
+# ╠═91f58348-d476-4799-ab01-a2b7b89a344c
+# ╟─fc20c71d-a23d-44be-8bf2-099a2400921b
+# ╠═de66df57-c6d1-4dba-8e6f-d1d8fd6b59ff
+# ╠═9242d8be-a259-4a72-bbb7-4958884937c9
+# ╟─b2562463-09d0-40fc-9802-b49e105f946c
+# ╠═e73aa232-e0a9-4c7e-b399-6b0dee065a25
 # ╟─6a1c66ec-6f3d-48a9-9809-2752e3818d18
 # ╟─69e15594-1d8e-4ddc-a1da-f968e8b2ee91
 # ╠═6a2bafca-e4cb-4ce9-b322-783c8e10fbfd
@@ -1767,20 +1819,17 @@ version = "17.4.0+0"
 # ╠═653a7d32-d0cc-447f-95eb-3b8ee866b6dd
 # ╠═218136d4-bd69-4d6b-92b7-98d8f320e17f
 # ╠═fb82077d-43b8-4950-96ec-ffc72d400f26
-# ╠═e11a771a-18b9-42b2-bb4e-c3eaadbbc3c1
-# ╠═b3d653be-450b-49a9-bc3f-118cd5ec9921
-# ╠═24346ac7-f089-4278-9364-d21071352500
 # ╠═f64849ef-b48f-4783-b213-c108454dcb9a
+# ╠═b0dedc7f-c4e1-4b43-96f8-285e0f1ce731
 # ╠═e5c727d8-752c-4a3c-b971-292f4187416e
-# ╠═4011a061-68a8-4cc5-875b-7ae27331ad4f
-# ╠═4fa98b1c-0777-4f66-a029-d11488aecb2a
-# ╠═86321b6a-3d2d-487a-be68-5838e0ff6abf
-# ╠═d52cbdaf-f13c-4ecb-8e45-537631de013b
-# ╠═e3a2c0b4-5a67-4431-a9db-8116a8fefdbd
+# ╠═dfeeb570-caad-4be2-aafa-c1b402e1d2fa
+# ╠═c374e7a9-e4b3-43fc-900c-95b77dc16959
+# ╠═b0346742-73fd-4150-958b-28d42acf9920
+# ╠═739fc11d-4035-41a9-90d8-205c8348db86
+# ╠═53ae28af-69ab-4a1b-81aa-0644608ccf95
+# ╠═47dc88cb-aa58-4ccc-b2d8-72c88320b4fc
 # ╠═503a3912-31cc-45f2-b009-dca4700359f7
-# ╠═ffb7b8c0-00c6-45a5-8786-8abc6918e997
-# ╠═df5ba723-4ea9-4b52-a4ae-120bf37d56df
-# ╠═75563ce3-9228-4ca5-89e1-5e704024c209
+# ╠═7d3ce674-8fd9-44c6-ae7f-a57c1e67f4a3
 # ╟─38257847-5ae7-4a5a-a937-22a6729a3640
 # ╟─5a9e17d9-2552-48fd-b3ad-0a1e50279953
 # ╟─21af98b7-712d-4b25-a9fa-41d008f97962
