@@ -1,5 +1,5 @@
 ### A Pluto.jl notebook ###
-# v0.19.26
+# v0.19.27
 
 using Markdown
 using InteractiveUtils
@@ -27,7 +27,6 @@ The science of **seismology** has double feature, it aims simultaneously to obta
 * the infrastructure of the Earth's interior with the aid of **seismic wave phenomena** 
 * nature of **earthquake sources** with an ultimate goal of **mitigating** them
     """]))
-
 
 # ╔═╡ ae4d8b93-0c2c-495a-8c87-fc77521eb1ae
 md"# Seismology: Unique Characteristics"
@@ -152,13 +151,163 @@ Markdown.MD(Markdown.Admonition("danger", "",
 # ╔═╡ bbab7f7a-cf8e-47f4-8484-339bc732b3ee
 md"# Historical Review"
 
-# ╔═╡ 1b44d82e-5d16-4e95-835d-0512f573b46b
+# ╔═╡ 8150e6db-4619-4dfa-8a94-8b39a1299a6a
+md"""
+## Seismometry
+"""
+
+# ╔═╡ 6fb5676c-7cf2-4c41-a2b5-95963b5e3ce9
 Markdown.MD(Markdown.Admonition("warning", "",
     [md"""
-* first revolution in the year 1889 when _global seismograms_ were recorded for the first time 
-* second revolution with digital computers: 1950--1955
-* _third revolution_? access to 1000s of seismograph stations (big data) + AI tools
+    a seismograph for an earth scientist what the telescope is to the astronomer; a tool for peering into inaccessible regions -- Ari Ben-Menahem
     """]))
+
+# ╔═╡ 91afe5f3-af6a-4aeb-8522-9fddb33b0ccb
+md"""
+### 1819
+Observations of faulting associated with Kutch earthquake in India
+"""
+
+# ╔═╡ b43748a6-ddbb-4b65-a3e3-3a090344c9c6
+Markdown.MD(Markdown.Admonition("warning", "",
+    [md"""
+major earthquakes continue to serve as milestones on the road of progress in seismology
+    """]))
+
+# ╔═╡ bebd002d-6d6b-4205-9aa1-77a69bb7b75e
+md"""
+### 1841 James David Forbes
+* the first seismometer 
+"""
+
+# ╔═╡ 3ef6f004-cd6d-450b-858a-755dafc1e7b0
+md"""
+### 1857 Robert Mallet
+* an engineer who laid the foundation of instrumental seismology
+* first systematic attempt to apply physical principles to earthquake effects
+* first world seismicity map
+"""
+
+# ╔═╡ f45f25cd-91e1-4f38-aebd-b354a421b0f9
+Markdown.MD(Markdown.Admonition("warning", "",
+    [md"""
+Mallet, the first true seismologist, used bowls of mercury at varying distances from sources to measure the propogation of waves!
+    """]))
+
+# ╔═╡ 428d6419-cf4f-4a66-b189-84e94887fe44
+md"""
+### 1884 Rossi-Forel, J. F. J Schmidt
+* a scale for earthquake effects
+"""
+
+# ╔═╡ e88b8fc6-9add-42de-9e57-ab5c9b96bdfb
+md"""
+### 1889 Ernst von Rebeur-Paschwitz
+* first measurement of teleseismic (Japanese) earthquake
+"""
+
+# ╔═╡ 279c7894-71a4-44b2-9329-3eb55f6d5e19
+Markdown.MD(Markdown.Admonition("warning", "",
+    [md"""
+birth of teleseismic seismograms: earthquakes are no longer a local affair of cities but became a global phenomenon -- this was the **first revolution**
+    """]))
+
+# ╔═╡ 4c632977-3fe1-49c5-8d0a-2ea293c69ee1
+Markdown.MD(Markdown.Admonition("tems", "",
+    [md"""
+When first seismogram was measured in early 1880s, seismologists were puzzled why it  lasted long and why there are oscillations after the arrivals or P and S waves!
+    """]))
+
+# ╔═╡ f835861f-5dac-408f-b3ce-f7e30cc55bdb
+md"""
+### 1894 Milne and his associates
+* compact seismograph system, and seismology emerged as a quantitative science
+"""
+
+# ╔═╡ 3cd8c1ce-fe1b-48e1-a27a-3aa9e0a6a736
+md"""
+### 1895 F. Omori
+* a law for aftershock time series
+"""
+
+# ╔═╡ ce64efef-def6-40f2-8795-7c51cf54fed5
+md"""
+### 1897 R. D. Oldham
+* identification of three types of waves (P, S and R) in seismograms
+"""
+
+# ╔═╡ 1c12869d-9bae-446b-8189-9019663ff4d3
+md"""
+### 1900 Emil Wiechert
+* three-component mechanical seismograph system
+"""
+
+# ╔═╡ 512b93dd-bbb0-4610-95fb-c7c65d2a19e1
+md"""
+### 1906 
+* observed faulting and slip for California earthquake
+"""
+
+# ╔═╡ ed2bc3a9-f898-4fe3-b013-8636dd4803d3
+md"""
+### 1910 Boris Borisovich Golitzin
+* first electromagnetic seismograph
+"""
+
+# ╔═╡ a1f5916d-edf2-444d-90ef-3ab83bb00e0e
+md"""
+### 1935 Hugo Benioff
+* measure a component of ground _strain_; a strain seismograph measures variation in displacement between two points in space
+"""
+
+# ╔═╡ bf68f909-c887-4637-a792-c697666c699f
+md"""
+### 1942 B. Gutenberg, C. Richter
+* first empirical observations between earthquake magnitude, intensity, energy, and frequency of occurrence
+"""
+
+# ╔═╡ f5a7a700-c66a-424d-8c8c-d8f4c1e3d17e
+md"""
+### 1946
+* age of nuclear testing; the use of nuclear explosions greatly enhanced the capabilities of seismic studies of the Earth's interior
+"""
+
+# ╔═╡ 608259ba-fb7d-41b4-8b6b-33b0d2a0d377
+md"""
+### 1964--1969
+* large seismometer arrays came into vogue
+"""
+
+# ╔═╡ 49b41407-bb0d-46e5-a020-1443f8c78b16
+md"""
+### 1969 Apollo passive seismic experiment
+* beginning of planetary seismology
+"""
+
+# ╔═╡ d4a1417c-d424-44c4-bcdd-4b601466200b
+Markdown.MD(Markdown.Admonition("warning", "",
+    [md"""
+When the first seismogram for the Moon was obtained in 1969, seismologists were again  puzzled by the great length of time for which oscillations continued!
+    """]))
+
+# ╔═╡ b2a52562-9bd9-4d8a-91ba-de0f4a2b1007
+md"""
+### 1978
+* ocean-bottom seismographs
+"""
+
+# ╔═╡ 7e9bf8ee-1ce4-4833-8575-4d6384e4cc07
+md"""
+### 1982 Global Digital Seismograph Network
+* a worldwide network of more than 100 stations
+"""
+
+# ╔═╡ 49934ec7-0e10-4224-a5af-d0630c8c5d6c
+md"""
+### 2011 Distributed Acoustic Sensing (DAS)
+* Rayleigh scattering-based  DAS systems use fiber optic cables to provide distributed strain sensing
+"""
+
 
 # ╔═╡ c0a52c2f-61b6-4693-9d7b-99f43c56225d
 md"""
@@ -198,6 +347,12 @@ md"""
 * theoretical studies on the vibrations of elastic bodies
 * Stokes fundemental equation on viscous fluids
 """
+
+# ╔═╡ 782fc90f-9aef-46d6-ba85-3c88a7d98aa1
+Markdown.MD(Markdown.Admonition("warning", "",
+    [md"""
+even though Poisson discovered longitudinal and transverse waves in 1828, they were only first observed in seismograms by Oldham in 1897!
+    """]))
 
 # ╔═╡ 048baaad-be20-4b31-807f-1e999bd97a6f
 md"""
@@ -343,154 +498,6 @@ md"""
 * full waveform inversion
 """
 
-# ╔═╡ 8150e6db-4619-4dfa-8a94-8b39a1299a6a
-md"""
-## Seismometry
-"""
-
-# ╔═╡ 6fb5676c-7cf2-4c41-a2b5-95963b5e3ce9
-Markdown.MD(Markdown.Admonition("warning", "",
-    [md"""
-    a seismograph for an earth scientist what the telescope is to the astronomer; a tool for peering into inaccessible regions -- Ari Ben-Menahem
-    """]))
-
-# ╔═╡ 91afe5f3-af6a-4aeb-8522-9fddb33b0ccb
-md"""
-### 1819
-Observations of faulting associated with Kutch earthquake in India
-"""
-
-# ╔═╡ bebd002d-6d6b-4205-9aa1-77a69bb7b75e
-md"""
-### 1841 James David Forbes
-* the first seismometer 
-"""
-
-# ╔═╡ 3ef6f004-cd6d-450b-858a-755dafc1e7b0
-md"""
-### 1857 Robert Mallet
-* an engineer who laid the foundation of instrumental seismology
-* first systematic attempt to apply physical principles to earthquake effects
-* first world seismicity map
-"""
-
-# ╔═╡ f45f25cd-91e1-4f38-aebd-b354a421b0f9
-Markdown.MD(Markdown.Admonition("warning", "",
-    [md"""
-Mallet, the first true seismologist, used bowls of mercury at varying distances from sources to measure the propogation of waves!
-    """]))
-
-# ╔═╡ 428d6419-cf4f-4a66-b189-84e94887fe44
-md"""
-### 1884 Rossi-Forel, J. F. J Schmidt
-* a scale for earthquake effects
-"""
-
-# ╔═╡ e88b8fc6-9add-42de-9e57-ab5c9b96bdfb
-md"""
-### 1889 Ernst von Rebeur-Paschwitz
-* first measurement of teleseismic (Japanese) earthquake
-* the birth of teleseismic seismograms
-* earthquakes are no longer a local affair of cities but became a global phenomenon
-"""
-
-# ╔═╡ 4c632977-3fe1-49c5-8d0a-2ea293c69ee1
-Markdown.MD(Markdown.Admonition("warning", "",
-    [md"""
-When first seismogram was measured in early 1880s, seismologists were puzzled why it  lasted long and why there are oscillations after the arrivals or P and S waves!
-    """]))
-
-# ╔═╡ f835861f-5dac-408f-b3ce-f7e30cc55bdb
-md"""
-### 1894 Milne and his associates
-* compact seismograph system, and seismology emerged as a quantitative science
-"""
-
-# ╔═╡ 3cd8c1ce-fe1b-48e1-a27a-3aa9e0a6a736
-md"""
-### 1895 F. Omori
-* a law for aftershock time series
-"""
-
-# ╔═╡ ce64efef-def6-40f2-8795-7c51cf54fed5
-md"""
-### 1897 R. D. Oldham
-* identification of three types of waves in seismograms
-"""
-
-# ╔═╡ 1c12869d-9bae-446b-8189-9019663ff4d3
-md"""
-### 1900 Emil Wiechert
-* three-component mechanical seismograph system
-"""
-
-# ╔═╡ 512b93dd-bbb0-4610-95fb-c7c65d2a19e1
-md"""
-### 1906 
-* observed faulting and slip for California earthquake
-"""
-
-# ╔═╡ ed2bc3a9-f898-4fe3-b013-8636dd4803d3
-md"""
-### 1910 Boris Borisovich Golitzin
-* first electromagnetic seismograph
-"""
-
-# ╔═╡ a1f5916d-edf2-444d-90ef-3ab83bb00e0e
-md"""
-### 1935 Hugo Benioff
-* measure a component of ground _strain_; a strain seismograph measures variation in displacement between two points in space
-"""
-
-# ╔═╡ bf68f909-c887-4637-a792-c697666c699f
-md"""
-### 1942 B. Gutenberg, C. Richter
-* first empirical observations between earthquake magnitude, intensity, energy, and frequency of occurrence
-"""
-
-# ╔═╡ f5a7a700-c66a-424d-8c8c-d8f4c1e3d17e
-md"""
-### 1946
-* age of nuclear testing; the use of nuclear explosions greatly enhanced the capabilities of seismic studies of the Earth's interior
-"""
-
-# ╔═╡ 608259ba-fb7d-41b4-8b6b-33b0d2a0d377
-md"""
-### 1964--1969
-* large seismometer arrays came into vogue
-"""
-
-# ╔═╡ 49b41407-bb0d-46e5-a020-1443f8c78b16
-md"""
-### 1969 Apollo passive seismic experiment
-* beginning of planetary seismology
-"""
-
-# ╔═╡ d4a1417c-d424-44c4-bcdd-4b601466200b
-Markdown.MD(Markdown.Admonition("warning", "",
-    [md"""
-When the first seismogram for the Moon was obtained in 1969, seismologists were again  puzzled by the great length of time for which oscillations continued!
-    """]))
-
-# ╔═╡ b2a52562-9bd9-4d8a-91ba-de0f4a2b1007
-md"""
-### 1978
-* ocean-bottom seismographs
-"""
-
-# ╔═╡ 7e9bf8ee-1ce4-4833-8575-4d6384e4cc07
-md"""
-### 1982 Global Digital Seismograph Network
-* a worldwide network of more than 100 stations
-"""
-
-# ╔═╡ 49934ec7-0e10-4224-a5af-d0630c8c5d6c
-md"""
-### 2011 Distributed Acoustic Sensing (DAS)
-* Rayleigh scattering-based  DAS systems use fiber optic cables to provide distributed strain sensing
-"""
-
-
 # ╔═╡ 9ac9cc91-9c77-4103-9381-4191486de3f5
 md"""
 ## Earth's Internal Structure
@@ -583,6 +590,12 @@ md"""
 * classification of Earth's interior into a number of shells
 """
 
+# ╔═╡ 2063c6e1-11fe-4f61-96cd-89f6277e7b8f
+Markdown.MD(Markdown.Admonition("warning", "",
+    [md"""
+computers enabled sophisticated forward and inverse computational schemes; this was  the second revolution 1950--1955
+    """]))
+
 # ╔═╡ ccb23061-b4d7-4e62-b1f3-e4d5f6c845d7
 md"""
 ### 1969--1977
@@ -593,7 +606,7 @@ md"""
 md"""
 ### 1980 --
 * ever-increasing quantity and quality of seismic data, deviations from isotropy, spherical symmetry, and pure elasticity were observed with more precision
-* computers enabled sophisticated forward and inverse computational schemes
+
 * 3-D images of seismic velocities and anisotropy with detailed velocity structure near major internal boundaries
 """
 
@@ -701,7 +714,7 @@ PlutoUI = "~0.7.52"
 PLUTO_MANIFEST_TOML_CONTENTS = """
 # This file is machine-generated - editing it directly is not advised
 
-julia_version = "1.9.0"
+julia_version = "1.9.2"
 manifest_format = "2.0"
 project_hash = "2af2aaef1ea67811bc114f2d0bf7f61179b912c7"
 
@@ -736,7 +749,7 @@ version = "0.11.4"
 [[deps.CompilerSupportLibraries_jll]]
 deps = ["Artifacts", "Libdl"]
 uuid = "e66e0078-7015-5450-92f7-15fbd957f2ae"
-version = "1.0.2+0"
+version = "1.0.5+0"
 
 [[deps.Dates]]
 deps = ["Printf"]
@@ -908,7 +921,7 @@ version = "2.7.1"
 [[deps.Pkg]]
 deps = ["Artifacts", "Dates", "Downloads", "FileWatching", "LibGit2", "Libdl", "Logging", "Markdown", "Printf", "REPL", "Random", "SHA", "Serialization", "TOML", "Tar", "UUIDs", "p7zip_jll"]
 uuid = "44cfe95a-1eb2-52ea-b672-e2afdf69b78f"
-version = "1.9.0"
+version = "1.9.2"
 
 [[deps.PlutoHooks]]
 deps = ["InteractiveUtils", "Markdown", "UUIDs"]
@@ -1038,7 +1051,7 @@ version = "1.2.13+0"
 [[deps.libblastrampoline_jll]]
 deps = ["Artifacts", "Libdl"]
 uuid = "8e850b90-86db-534c-a0d3-1478176c7d93"
-version = "5.7.0+0"
+version = "5.8.0+0"
 
 [[deps.nghttp2_jll]]
 deps = ["Artifacts", "Libdl"]
@@ -1076,13 +1089,39 @@ version = "17.4.0+0"
 # ╟─a65d7d91-f18b-4202-b48a-1c674bf3b6a2
 # ╟─30c7c3c2-9f04-46b8-aff7-5d5420f70279
 # ╟─bbab7f7a-cf8e-47f4-8484-339bc732b3ee
-# ╟─1b44d82e-5d16-4e95-835d-0512f573b46b
+# ╟─8150e6db-4619-4dfa-8a94-8b39a1299a6a
+# ╟─6fb5676c-7cf2-4c41-a2b5-95963b5e3ce9
+# ╟─91afe5f3-af6a-4aeb-8522-9fddb33b0ccb
+# ╟─b43748a6-ddbb-4b65-a3e3-3a090344c9c6
+# ╟─bebd002d-6d6b-4205-9aa1-77a69bb7b75e
+# ╟─3ef6f004-cd6d-450b-858a-755dafc1e7b0
+# ╟─f45f25cd-91e1-4f38-aebd-b354a421b0f9
+# ╟─428d6419-cf4f-4a66-b189-84e94887fe44
+# ╟─e88b8fc6-9add-42de-9e57-ab5c9b96bdfb
+# ╟─279c7894-71a4-44b2-9329-3eb55f6d5e19
+# ╟─4c632977-3fe1-49c5-8d0a-2ea293c69ee1
+# ╟─f835861f-5dac-408f-b3ce-f7e30cc55bdb
+# ╟─3cd8c1ce-fe1b-48e1-a27a-3aa9e0a6a736
+# ╟─ce64efef-def6-40f2-8795-7c51cf54fed5
+# ╟─1c12869d-9bae-446b-8189-9019663ff4d3
+# ╟─512b93dd-bbb0-4610-95fb-c7c65d2a19e1
+# ╟─ed2bc3a9-f898-4fe3-b013-8636dd4803d3
+# ╟─a1f5916d-edf2-444d-90ef-3ab83bb00e0e
+# ╟─bf68f909-c887-4637-a792-c697666c699f
+# ╟─f5a7a700-c66a-424d-8c8c-d8f4c1e3d17e
+# ╟─608259ba-fb7d-41b4-8b6b-33b0d2a0d377
+# ╟─49b41407-bb0d-46e5-a020-1443f8c78b16
+# ╟─d4a1417c-d424-44c4-bcdd-4b601466200b
+# ╟─b2a52562-9bd9-4d8a-91ba-de0f4a2b1007
+# ╟─7e9bf8ee-1ce4-4833-8575-4d6384e4cc07
+# ╟─49934ec7-0e10-4224-a5af-d0630c8c5d6c
 # ╟─c0a52c2f-61b6-4693-9d7b-99f43c56225d
 # ╟─8bc517c9-1657-4329-8cc7-7a06699864d7
 # ╟─6538053f-254c-4d14-b24a-0d9a834700b3
 # ╟─d6ec37b9-d305-47f1-922c-b7c99cede638
 # ╟─f9829464-b5c5-4279-a478-97a2a732b79e
 # ╟─e1f9dec3-d4c3-4651-b6ee-bf6dfa1f9d75
+# ╟─782fc90f-9aef-46d6-ba85-3c88a7d98aa1
 # ╟─048baaad-be20-4b31-807f-1e999bd97a6f
 # ╟─0f96094d-79bb-4bfd-b3a6-acf0b1e5065d
 # ╟─bc237ace-106d-4fda-811e-fbd0b22e669c
@@ -1105,30 +1144,6 @@ version = "17.4.0+0"
 # ╟─216e9eb0-6cfa-4bcb-a422-6a3a593e7064
 # ╟─47cdf739-6926-4908-9e4b-7d04228ee2eb
 # ╟─2ddc2428-b478-4a78-bf70-2cb2a796ca25
-# ╟─8150e6db-4619-4dfa-8a94-8b39a1299a6a
-# ╟─6fb5676c-7cf2-4c41-a2b5-95963b5e3ce9
-# ╟─91afe5f3-af6a-4aeb-8522-9fddb33b0ccb
-# ╟─bebd002d-6d6b-4205-9aa1-77a69bb7b75e
-# ╟─3ef6f004-cd6d-450b-858a-755dafc1e7b0
-# ╟─f45f25cd-91e1-4f38-aebd-b354a421b0f9
-# ╟─428d6419-cf4f-4a66-b189-84e94887fe44
-# ╟─e88b8fc6-9add-42de-9e57-ab5c9b96bdfb
-# ╟─4c632977-3fe1-49c5-8d0a-2ea293c69ee1
-# ╟─f835861f-5dac-408f-b3ce-f7e30cc55bdb
-# ╟─3cd8c1ce-fe1b-48e1-a27a-3aa9e0a6a736
-# ╟─ce64efef-def6-40f2-8795-7c51cf54fed5
-# ╟─1c12869d-9bae-446b-8189-9019663ff4d3
-# ╟─512b93dd-bbb0-4610-95fb-c7c65d2a19e1
-# ╟─ed2bc3a9-f898-4fe3-b013-8636dd4803d3
-# ╟─a1f5916d-edf2-444d-90ef-3ab83bb00e0e
-# ╟─bf68f909-c887-4637-a792-c697666c699f
-# ╟─f5a7a700-c66a-424d-8c8c-d8f4c1e3d17e
-# ╟─608259ba-fb7d-41b4-8b6b-33b0d2a0d377
-# ╟─49b41407-bb0d-46e5-a020-1443f8c78b16
-# ╟─d4a1417c-d424-44c4-bcdd-4b601466200b
-# ╟─b2a52562-9bd9-4d8a-91ba-de0f4a2b1007
-# ╟─7e9bf8ee-1ce4-4833-8575-4d6384e4cc07
-# ╟─49934ec7-0e10-4224-a5af-d0630c8c5d6c
 # ╟─9ac9cc91-9c77-4103-9381-4191486de3f5
 # ╟─c378ef72-7a7e-4edc-956a-b9499c389534
 # ╟─f6857c5c-baad-4e3c-833c-5fb7a8ec2022
@@ -1144,6 +1159,7 @@ version = "17.4.0+0"
 # ╟─bbf6ac3b-3280-47fe-a490-e4c0e42a7f1d
 # ╟─95b2372f-b042-4191-89c8-7da386502afa
 # ╟─09c9ce19-e085-4422-b8f8-8034b0dd18d4
+# ╟─2063c6e1-11fe-4f61-96cd-89f6277e7b8f
 # ╟─ccb23061-b4d7-4e62-b1f3-e4d5f6c845d7
 # ╟─ec5d6c5e-c61e-468e-bb9a-366409a5fb3b
 # ╟─4dce2716-c51d-4cc2-892e-94d37b1077fc
