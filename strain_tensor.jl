@@ -1,6 +1,10 @@
 ### A Pluto.jl notebook ###
 # v0.19.27
 
+#> [frontmatter]
+#> title = "Elasticity"
+#> description = "Fundamental laws of elasticity"
+
 using Markdown
 using InteractiveUtils
 

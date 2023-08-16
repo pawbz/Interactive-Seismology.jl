@@ -1,6 +1,10 @@
 ### A Pluto.jl notebook ###
 # v0.19.27
 
+#> [frontmatter]
+#> title = "Seismology: An Interdisciplinary Science"
+#> description = "Some notes on the historical review and introductory material"
+
 using Markdown
 using InteractiveUtils
 
