@@ -32,6 +32,20 @@ The science of **seismology** has double feature, it aims simultaneously to obta
 * nature of **earthquake sources** with an ultimate goal of **mitigating** them
     """]))
 
+# ╔═╡ 0273dc65-f4ed-46b3-884d-66cf9e4e3401
+md"""
+# Some Technical Remarks
+"""
+
+# ╔═╡ a4c39dca-0d55-4d7a-9715-7e06d2c52cc6
+Markdown.MD(Markdown.Admonition("danger", "",
+    [md"""
+	
+A more technical definition:  
+* mostly a study where the spatial fluctuations in particle displacements, strains, and stresses have wavelengths much larger than the amplitudes of the particle displacements in the Earth's medium
+* in other words, we don't use the equation of motion in its *strict form* (Aki and Richards, Ch.2)
+    """]))
+
 # ╔═╡ ae4d8b93-0c2c-495a-8c87-fc77521eb1ae
 md"# Seismology: Unique Characteristics"
 
@@ -1092,6 +1106,8 @@ version = "17.4.0+0"
 # ╟─ac9d894c-d83a-4005-b2c7-d7e3f42f9b6b
 # ╟─a65d7d91-f18b-4202-b48a-1c674bf3b6a2
 # ╟─30c7c3c2-9f04-46b8-aff7-5d5420f70279
+# ╟─0273dc65-f4ed-46b3-884d-66cf9e4e3401
+# ╟─a4c39dca-0d55-4d7a-9715-7e06d2c52cc6
 # ╟─bbab7f7a-cf8e-47f4-8484-339bc732b3ee
 # ╟─8150e6db-4619-4dfa-8a94-8b39a1299a6a
 # ╟─6fb5676c-7cf2-4c41-a2b5-95963b5e3ce9
