@@ -52,7 +52,7 @@ Indian Institute of Science, Bengaluru, India
 
 # ╔═╡ ff0744cf-c4a7-4430-b3ee-b04c96a64dcf
 md"""
-The Jacobian matrix, $J$ = $(@bind Jinput Scrubbable(zeros(2,2))),  in two dimensions is given by:
+The Jacobian matrix, $J$ = $(@bind Jinput2 Scrubbable(zeros(2,2))),  in two dimensions is given by:
 
 ```math
 J = \begin{bmatrix}
@@ -64,6 +64,15 @@ where $u_x$ and $u_y$ are components of displacements.
 * Change the elements of the Jacobian matrix to deform an infinitesimal square element below. 
 * Furthermore, by Toeplitz decomposition, we can decompose the Jacobian as a sum of symmetric (strain) and skew-symmetric (rotation) matrices.
 """
+
+# ╔═╡ 968b1426-fca1-4d58-86cc-080a7c75e174
+Jinput = [0 -1; 1 0]
+
+# ╔═╡ e1626369-ce1c-4972-83ef-7fc949537b0b
+eigen(Jinput)
+
+# ╔═╡ 9b4a5574-52e2-4ec7-bdbc-df7b8d14b8fb
+svd(Jinput)
 
 # ╔═╡ 174e1f52-bf7a-4201-b579-c784115d15f1
 md"""
@@ -175,6 +184,49 @@ Symbolics.scalarize(σ * [0,0,1])
 # ╔═╡ 1be2182b-c05b-4b1b-b48e-2ba8c749cf56
 @einsum a[i] :=  σ[i, j] * f[j]
 
+# ╔═╡ 4ca30efc-0f95-4fba-b0ae-139b21d9820d
+@syms je1 je2 je
+
+# ╔═╡ 7f00862f-64f8-4c42-9d78-a466cd5bd9c1
+Je = [je1 je; je je2] 
+
+# ╔═╡ 451c250d-1d40-49d5-a508-4668b5cfaaad
+@syms jom
+
+# ╔═╡ a759772e-a5b4-4f35-9150-c17627b58c4a
+Jom = [0 jom; -jom 0]
+
+# ╔═╡ 668a0698-cfe3-4027-b190-17d0ec0366af
+corners = [[0,0], [1,0], [1,1], [0,1]]
+
+# ╔═╡ 0ebff5dc-4ee6-4480-a546-6ca0cc99ca39
+new_corners1 = map(corners) do c
+	Je * c + c
+end
+
+# ╔═╡ aeb75efa-10e0-4a6b-b24e-63a09f252d22
+new_corners2 = map(corners) do c
+	Jom * c + c
+end
+
+# ╔═╡ 0861fe54-b9c4-4d00-a5f0-ebd60e87f671
+function calculate_area(corner_vectors)
+	A = corner_vectors[1]
+    B = corner_vectors[2]
+    C = corner_vectors[3]
+    D = corner_vectors[4]
+    
+    area = 0.5 * abs((B[1] - A[1]) * (C[2] - A[2]) - (C[1] - A[1]) * (B[2] - A[2]) +
+                     (C[1] - A[1]) * (D[2] - A[2]) - (D[1] - A[1]) * (C[2] - A[2]) +
+                     (D[1] - A[1]) * (B[2] - A[2]) - (B[1] - A[1]) * (D[2] - A[2]))
+end
+
+# ╔═╡ 9eeeac07-c2f6-4759-a328-4dee9d576723
+calculate_area(new_corners1) |> simplify
+
+# ╔═╡ 21aa8907-b2f2-4ee6-9080-4299d1d2ce78
+calculate_area(new_corners2) |> simplify
+
 # ╔═╡ ca079784-f5ac-4e9b-9d10-8501564c47f0
 md"## UI and Plotting"
 
@@ -219,6 +271,7 @@ end
 
 # ╔═╡ e7309331-ec59-4da5-92e3-223f79136b78
 begin
+	Jinput
 	plot1 = plotpoints(points, "Before Deformation")
 	plot2 = plotpoints(displace(points,Jinput), "Total Deformation")
 	plot3 = plotpoints(displace(points,einput), "Strain Deformation")
@@ -381,7 +434,7 @@ TikzPictures = "37f6aa50-8035-52d0-81c2-5a1d08754b2d"
 Einsum = "~0.4.1"
 LaTeXStrings = "~1.3.0"
 Plots = "~1.38.17"
-PlutoTeachingTools = "~0.2.12"
+PlutoTeachingTools = "~0.2.13"
 PlutoUI = "~0.7.52"
 SymbolicUtils = "~1.2.0"
 Symbolics = "~5.5.1"
@@ -394,7 +447,7 @@ PLUTO_MANIFEST_TOML_CONTENTS = """
 
 julia_version = "1.9.2"
 manifest_format = "2.0"
-project_hash = "51cae45b357ff4b12648e86311fe7c2f0f9dd6a7"
+project_hash = "a9950723f3d0ddb59ff7f9087b3edfa41d364259"
 
 [[deps.ADTypes]]
 git-tree-sha1 = "f5c25e8a5b29b5e941b7408bc8cc79fea4d9ef9a"
@@ -403,9 +456,9 @@ version = "0.1.6"
 
 [[deps.AbstractAlgebra]]
 deps = ["GroupsCore", "InteractiveUtils", "LinearAlgebra", "MacroTools", "Preferences", "Random", "RandomExtensions", "SparseArrays", "Test"]
-git-tree-sha1 = "0eb58a9abe767f5813194a2610b5295c2d22ce9d"
+git-tree-sha1 = "41b45260ad00b666558c16f7cd9db0e8af408ea1"
 uuid = "c3fe647b-3220-5bb0-a1ea-a7954cac585d"
-version = "0.31.0"
+version = "0.31.1"
 
 [[deps.AbstractPlutoDingetjes]]
 deps = ["Pkg"]
@@ -929,10 +982,10 @@ uuid = "1019f520-868f-41f5-a6de-eb00f4b6a39c"
 version = "0.1.5"
 
 [[deps.JLLWrappers]]
-deps = ["Preferences"]
-git-tree-sha1 = "abc9885a7ca2052a736a600f7fa66209f96506e1"
+deps = ["Artifacts", "Preferences"]
+git-tree-sha1 = "7e5d6779a1e09a36db2a7b6cff50942a0a7d0fca"
 uuid = "692b3bcd-3c85-4b1f-b108-f13ce0eb3210"
-version = "1.4.1"
+version = "1.5.0"
 
 [[deps.JSON]]
 deps = ["Dates", "Mmap", "Parsers", "Unicode"]
@@ -948,9 +1001,9 @@ version = "2.1.91+0"
 
 [[deps.JuliaInterpreter]]
 deps = ["CodeTracking", "InteractiveUtils", "Random", "UUIDs"]
-git-tree-sha1 = "6a125e6a4cb391e0b9adbd1afa9e771c2179f8ef"
+git-tree-sha1 = "e8ab063deed72e14666f9d8af17bd5f9eab04392"
 uuid = "aa1ae85d-cabe-5617-a682-6adf51b2e16a"
-version = "0.9.23"
+version = "0.9.24"
 
 [[deps.LAME_jll]]
 deps = ["Artifacts", "JLLWrappers", "Libdl", "Pkg"]
@@ -994,20 +1047,16 @@ version = "0.4.6"
 
 [[deps.Latexify]]
 deps = ["Formatting", "InteractiveUtils", "LaTeXStrings", "MacroTools", "Markdown", "OrderedCollections", "Printf", "Requires"]
-git-tree-sha1 = "8c57307b5d9bb3be1ff2da469063628631d4d51e"
+git-tree-sha1 = "f428ae552340899a935973270b8d98e5a31c49fe"
 uuid = "23fbe1c1-3f47-55db-b15f-69d7ec21a316"
-version = "0.15.21"
+version = "0.16.1"
 
     [deps.Latexify.extensions]
     DataFramesExt = "DataFrames"
-    DiffEqBiologicalExt = "DiffEqBiological"
-    ParameterizedFunctionsExt = "DiffEqBase"
     SymEngineExt = "SymEngine"
 
     [deps.Latexify.weakdeps]
     DataFrames = "a93c6f00-e57d-5684-b7b6-d8193f3e46c0"
-    DiffEqBase = "2b5f629d-d688-5b77-993f-72d75c75574e"
-    DiffEqBiological = "eb300fae-53e8-50a0-950c-e21f52c2b7e0"
     SymEngine = "123dc426-2d89-5057-bbad-38513e3affd8"
 
 [[deps.Lazy]]
@@ -1098,9 +1147,9 @@ version = "2.12.0+0"
 
 [[deps.LogExpFunctions]]
 deps = ["DocStringExtensions", "IrrationalConstants", "LinearAlgebra"]
-git-tree-sha1 = "c3ce8e7420b3a6e071e0fe4745f5d4300e37b13f"
+git-tree-sha1 = "5ab83e1679320064c29e8973034357655743d22d"
 uuid = "2ab3a3ac-af41-5b50-aa03-7779005ae688"
-version = "0.3.24"
+version = "0.3.25"
 
     [deps.LogExpFunctions.extensions]
     LogExpFunctionsChainRulesCoreExt = "ChainRulesCore"
@@ -1323,9 +1372,9 @@ version = "0.1.6"
 
 [[deps.PlutoTeachingTools]]
 deps = ["Downloads", "HypertextLiteral", "LaTeXStrings", "Latexify", "Markdown", "PlutoLinks", "PlutoUI", "Random"]
-git-tree-sha1 = "45f9e1b6f62a006a585885f5eb13fc22554a8865"
+git-tree-sha1 = "542de5acb35585afcf202a6d3361b430bc1c3fbd"
 uuid = "661c6b06-c737-4d37-b85c-46df65de6f69"
-version = "0.2.12"
+version = "0.2.13"
 
 [[deps.PlutoUI]]
 deps = ["AbstractPlutoDingetjes", "Base64", "ColorTypes", "Dates", "FixedPointNumbers", "Hyperscript", "HypertextLiteral", "IOCapture", "InteractiveUtils", "JSON", "Logging", "MIMEs", "Markdown", "Random", "Reexport", "URIs", "UUIDs"]
@@ -1537,9 +1586,9 @@ uuid = "2f01184e-e22b-5df5-ae63-d93ebab69eaf"
 
 [[deps.SpecialFunctions]]
 deps = ["IrrationalConstants", "LogExpFunctions", "OpenLibm_jll", "OpenSpecFun_jll"]
-git-tree-sha1 = "7beb031cf8145577fbccacd94b8a8f4ce78428d3"
+git-tree-sha1 = "e2cfc4012a19088254b3950b85c3c1d8882d864d"
 uuid = "276daf66-3868-5448-9aa4-cd146d93841b"
-version = "2.3.0"
+version = "2.3.1"
 weakdeps = ["ChainRulesCore"]
 
     [deps.SpecialFunctions.extensions]
@@ -1711,9 +1760,9 @@ version = "0.4.1"
 
 [[deps.Unitful]]
 deps = ["Dates", "LinearAlgebra", "Random"]
-git-tree-sha1 = "64eb17acef1d9734cf09967539818f38093d9b35"
+git-tree-sha1 = "607c142139151faa591b5e80d8055a15e487095b"
 uuid = "1986cc42-f94f-5a68-af5c-568840ba703d"
-version = "1.16.2"
+version = "1.16.3"
 
     [deps.Unitful.extensions]
     ConstructionBaseUnitfulExt = "ConstructionBase"
@@ -1982,7 +2031,10 @@ version = "1.4.1+0"
 # ╠═3f1bc2d1-2327-48cc-984a-df09c936da87
 # ╟─fd14256d-8c69-4d8a-91b5-924a32479866
 # ╟─ff0744cf-c4a7-4430-b3ee-b04c96a64dcf
-# ╟─e7309331-ec59-4da5-92e3-223f79136b78
+# ╠═e7309331-ec59-4da5-92e3-223f79136b78
+# ╠═968b1426-fca1-4d58-86cc-080a7c75e174
+# ╠═e1626369-ce1c-4972-83ef-7fc949537b0b
+# ╠═9b4a5574-52e2-4ec7-bdbc-df7b8d14b8fb
 # ╟─174e1f52-bf7a-4201-b579-c784115d15f1
 # ╠═94c2d557-68f3-4c36-85b0-5428e8b217dc
 # ╠═e8049366-ef8a-4adb-8b3b-d5d94b6f6475
@@ -2013,6 +2065,16 @@ version = "1.4.1+0"
 # ╠═7b88bfc2-fd25-4c9b-9cfe-b6ca65a70e94
 # ╠═88b33835-d993-4396-8605-bb3456200eb1
 # ╠═1be2182b-c05b-4b1b-b48e-2ba8c749cf56
+# ╠═4ca30efc-0f95-4fba-b0ae-139b21d9820d
+# ╠═7f00862f-64f8-4c42-9d78-a466cd5bd9c1
+# ╠═451c250d-1d40-49d5-a508-4668b5cfaaad
+# ╠═a759772e-a5b4-4f35-9150-c17627b58c4a
+# ╠═668a0698-cfe3-4027-b190-17d0ec0366af
+# ╠═0ebff5dc-4ee6-4480-a546-6ca0cc99ca39
+# ╠═aeb75efa-10e0-4a6b-b24e-63a09f252d22
+# ╠═9eeeac07-c2f6-4759-a328-4dee9d576723
+# ╠═21aa8907-b2f2-4ee6-9080-4299d1d2ce78
+# ╠═0861fe54-b9c4-4d00-a5f0-ebd60e87f671
 # ╟─ca079784-f5ac-4e9b-9d10-8501564c47f0
 # ╠═ff59b945-f8e1-4c33-b9de-08375c0a9309
 # ╠═3ad58d32-285c-4a78-b19a-f25747de4cfa
@@ -2025,7 +2087,7 @@ version = "1.4.1+0"
 # ╠═13a3429e-12f6-11ed-326f-c154f5debceb
 # ╟─3a1e536b-064a-44ef-948d-66b96adc2b0c
 # ╟─8546b3ea-bc7b-46c2-8b36-31176e4da001
-# ╠═74f7ce13-a920-4504-91c4-a864001d86cc
+# ╟─74f7ce13-a920-4504-91c4-a864001d86cc
 # ╠═4d566fea-0823-44fd-ac31-a571a182506f
 # ╠═cbec50f6-1da8-4a1e-9a88-660771c732a1
 # ╠═d5417cd4-30e2-4e23-837b-df3a98e59f40
