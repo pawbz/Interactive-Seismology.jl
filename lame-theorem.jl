@@ -3,7 +3,7 @@
 
 #> [frontmatter]
 #> title = "Lamé's Theorem"
-#> description = "Are you in the near-field? Don't worry, the response at your station has a higher-order discontinuity than in the far-field."
+#> description = "Are you in the near-field with P- and S-wave radiation? Don't worry, the response at your station has a higher-order discontinuity than in the far-field."
 
 using Markdown
 using InteractiveUtils
@@ -181,32 +181,16 @@ md"""
 We shall now look at the derivative w.r.t. the radial distance $r$ of the monochromatic potential field.
 """
 
+# ╔═╡ 8c79d25c-589e-4198-b2b0-b2fcaab91b0c
+ϕ = 1/r*sin(ω*(t-r/α))
+
+# ╔═╡ 23395f6e-4a12-4550-b536-bb85881dfc81
+Dx(ϕ) |> expand_derivatives
+
 # ╔═╡ 9e00e076-1306-451b-a9d2-a80c48a7fb13
 md"""
 Notice that the far-field term contains a time-derivative of the forcing term. Lets plot the time series.
 """
-
-# ╔═╡ 89722347-66ba-4b11-ac95-92ba735e58a0
-@bind body_forces confirm(PlutoUI.combine() do Child
-    components = ["x", "y", "z"]
-    s2 = [md"""
-       "x" $(
-       	Child(NumberField(range(-1, step=0.1, stop=1), default=1))
-       ) "y" $( 
-       	Child(NumberField(range(-1, step=0.1, stop=1), default=0))
-       ) "z" $(
-       	Child(NumberField(range(-1, step=0.1, stop=1), default=0))
-       )""" for is in 1:2]
-
-    md"""
-    	
-    Input Body Force
-    Until now, we have considered a spherically symmetric field $ϕ$ as P-potential.
-    According to Lame's theorem, the P-potential should be generated using a curl-free component of the forcing field. We refer the reader to Eq. 4.23 Aki Richards for a detailed derivation. Here we will just write down the final expressions.
-    	
-    $(s2[1])
-    """
-end)
 
 # ╔═╡ bcc3a6c2-ece8-464d-985a-1e3dabae778f
 md"""
@@ -601,6 +585,28 @@ Similarly, along $y$ and $z$.
 
 # ╔═╡ 2077aa71-9a0f-4b46-97b2-3157e857fcda
 
+
+# ╔═╡ 89722347-66ba-4b11-ac95-92ba735e58a0
+@bind body_forces confirm(PlutoUI.combine() do Child
+    components = ["x", "y", "z"]
+    s2 = [md"""
+       "x" $(
+       	Child(NumberField(range(-1, step=0.1, stop=1), default=1))
+       ) "y" $( 
+       	Child(NumberField(range(-1, step=0.1, stop=1), default=0))
+       ) "z" $(
+       	Child(NumberField(range(-1, step=0.1, stop=1), default=0))
+       )""" for is in 1:2]
+
+    md"""
+    	
+    Input Body Force
+    Until now, we have considered a spherically symmetric field $ϕ$ as P-potential.
+    According to Lame's theorem, the P-potential should be generated using a curl-free component of the forcing field. We refer the reader to Eq. 4.23 Aki Richards for a detailed derivation. Here we will just write down the final expressions.
+    	
+    $(s2[1])
+    """
+end)
 
 # ╔═╡ 00000000-0000-0000-0000-000000000001
 PLUTO_PROJECT_TOML_CONTENTS = """
@@ -1672,6 +1678,8 @@ version = "17.4.0+0"
 # ╟─c570f122-2b06-478d-a66e-6ea0b9871446
 # ╟─ac7a947f-283f-4743-a42b-082a0eb0c42e
 # ╠═4019938e-defe-4024-a7cd-28f34660e46d
+# ╠═8c79d25c-589e-4198-b2b0-b2fcaab91b0c
+# ╠═23395f6e-4a12-4550-b536-bb85881dfc81
 # ╠═65e2b15c-c646-4148-82c8-707350e0e112
 # ╟─b0c536eb-9ec9-4745-82fe-50b94330a5c9
 # ╟─9e00e076-1306-451b-a9d2-a80c48a7fb13
