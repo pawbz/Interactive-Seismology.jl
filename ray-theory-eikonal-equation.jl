@@ -1,5 +1,5 @@
 ### A Pluto.jl notebook ###
-# v0.19.27
+# v0.19.29
 
 #> [frontmatter]
 #> title = "Ray Theory and The Eikonal Equation"
@@ -11,7 +11,11 @@ using InteractiveUtils
 # This Pluto notebook uses @bind for interactivity. When running this notebook outside of Pluto, the following 'mock version' of @bind gives bound variables a default value (instead of an error).
 macro bind(def, element)
     quote
-        local iv = try Base.loaded_modules[Base.PkgId(Base.UUID("6e696c72-6542-2067-7265-42206c756150"), "AbstractPlutoDingetjes")].Bonds.initial_value catch; b -> missing; end
+        local iv = try
+            Base.loaded_modules[Base.PkgId(Base.UUID("6e696c72-6542-2067-7265-42206c756150"), "AbstractPlutoDingetjes")].Bonds.initial_value
+        catch
+            b -> missing
+        end
         local el = $(esc(element))
         global $(esc(def)) = Core.applicable(Base.get, el) ? Base.get(el) : iv(el)
         el
@@ -61,7 +65,7 @@ Instructor: Pawan Bharadwaj, Indian Institute of Science, Bengaluru, India
 # ╔═╡ d2447315-f975-4447-ab92-5d5e267eaac5
 md"""
 Enter the name of the slowness-generating function 
-$(@bind slowness_fn_name confirm(TextField(default="slowness_zlinear")))
+$(@bind slowness_fn_name confirm(TextField(default="slowness_prograde")))
 """
 
 # ╔═╡ dd079922-edcb-4a62-a0bc-c1e86c961dfb
@@ -88,6 +92,30 @@ end
 # ╔═╡ d41b77fc-32de-4ae6-848f-8bf55772a8f0
 function slowness_homogeneous(z, x)
     return inv(2000.0)
+end
+
+# ╔═╡ f332175d-a0b2-4c1e-8c80-fc48e751fdde
+function slowness_LVZ(z, x)
+    velocity = if z < 30.0
+        2000.0 + z * 20.0
+    elseif 30.0 <= z < 40.0
+        2000.0
+    else
+        2000.0 + z * 20.0
+    end
+    return inv(velocity)
+end
+
+# ╔═╡ 7b2a5f24-273a-41e7-83af-cfa9ea4a6f1f
+function slowness_prograde(z, x)
+    velocity = if z <= 50.0
+        2000 + z * 10.0
+    elseif 50.0 < z <= 60.0
+        -6000.0 + z * 170.0
+    elseif z > 60.0
+        3100.0 + z * 20.0
+    end
+    return inv(velocity)
 end
 
 # ╔═╡ 15d8f9d0-aa5f-4c62-868a-2486127e5800
@@ -369,7 +397,7 @@ md"""
 
 # ╔═╡ 690a6780-5169-4377-a7f1-795d89362c08
 begin
-    dx = 0.5
+    dx = 0.5 # choosing dx other than 1.0 needs adjustment for Eikonal package
     zgrid = range(0.0, stop=150.0, step=dx)
     xgrid = range(0.0, stop=500.0, step=dx)
 end;
@@ -386,7 +414,7 @@ function source_input()
 
         linput = [
             md""" $(x): $(
-            	Child(string(x, "pos"), Slider(grid, default=50, show_value=true))
+            	Child(string(x, "pos"), Slider(grid, default=10, show_value=true))
             )"""
             for (x, grid) in zip(["x", "z"], [xgrid, zgrid])
         ]
@@ -437,6 +465,9 @@ md"### Trace"
 # ╔═╡ 1670fc06-6e3f-4d0b-9202-f3cbac21386d
 pa = (; slowness, slowness_x, slowness_z, xgrid, zgrid);
 
+# ╔═╡ 25eda9c1-524c-46d1-a31d-90e1793bb8f1
+ds = 1.0;
+
 # ╔═╡ e0619921-389e-4351-8799-02431574a01d
 function get_raypaths(N, ds, Xsource, initial_slowness_vectors, pa)
     (; slowness, slowness_x, slowness_z, xgrid, zgrid) = pa
@@ -467,7 +498,54 @@ function get_raypaths(N, ds, Xsource, initial_slowness_vectors, pa)
 end
 
 # ╔═╡ c05a5082-0175-4a24-9aeb-de26cb22e6c6
-raypaths = get_raypaths(500, 1, [source.zpos, source.xpos], [[sind(θ), cosd(θ)] for θ in source.θ], pa);
+raypaths = get_raypaths(500, ds, [source.zpos, source.xpos], [[sind(θ), cosd(θ)] for θ in source.θ], pa);
+
+# ╔═╡ edb59274-e19a-4c64-8bab-2b3258a9a6fa
+md"Now lets integrate slowness along the raypaths to get traveltimes."
+
+# ╔═╡ 1de3052f-9543-4025-b92b-b75a73effc3d
+function get_raytraveltimes(N, Xrays, pa)
+    (; slowness, slowness_x, slowness_z, xgrid, zgrid) = pa
+    traveltimes = map(Xrays) do Xray
+        Xray = filter(x -> !any(ismissing.(x)), eachslice(Xray, dims=2))
+        traveltime = Array{Any}(missing, N)
+        traveltime[1] = 0.0
+        for i = 2:length(Xray)
+            # this is supposed to be constant, as we are moving a fixed length along the ray during ray tracing, but anyway...
+            distance = sqrt(sum(abs2.(Xray[i] - Xray[i-1])))
+            traveltime[i] = traveltime[i-1] + (distance * slowness(Xray[i-1][1], Xray[i-1][2]))
+        end
+        return traveltime
+    end
+end
+
+# ╔═╡ 52a6ac1a-11ef-4993-9fb5-b0a51de58aae
+raytraveltimes = get_raytraveltimes(500, raypaths, pa);
+
+# ╔═╡ 613623ed-324d-4eae-8a93-888f205b83d4
+begin
+    # findout if the ray intersects the surface (z=0), if yes, return the index along the ray
+    Iz0 = map(raypaths, raytraveltimes) do raypath, raytt
+        Xray = filter(x -> !any(ismissing.(x)), eachslice(raypath, dims=2))
+        i = findlast(x -> (x[1] < 1), Xray)
+    end
+    # return traveltime, when ray intersects the surface
+    rayXtraveltimes = map(raytraveltimes, Iz0) do raytt, i
+        if (i === nothing)
+            return missing
+        else
+            return raytt[i]
+        end
+    end
+    # return distance to the point where ray intersects the surface
+    rayX = map(raypaths, Iz0) do raypath, i
+        if (i === nothing)
+            return missing
+        else
+            return raypath[2, i]
+        end
+    end
+end;
 
 # ╔═╡ 58338184-fdf5-4a03-8900-650cdbe36c1c
 md"### Eikonal"
@@ -480,7 +558,7 @@ begin
 end;
 
 # ╔═╡ eb401f31-e74d-46d4-b348-aaae693e8c15
-TT_grid = fastsweep.t; # traveltime to each (x,z)
+TT_grid = fastsweep.t * dx; # traveltime to each (x,z)
 
 # ╔═╡ e4d79480-0caf-4d5d-a01b-1f28e5690519
 function diff2_z(u, dx)
@@ -569,7 +647,8 @@ end
 
 # ╔═╡ b9e26366-01cc-4031-99d1-daac67b8f39d
 function plot_tt_contours()
-    plot(contour(z=TT_grid, showlabels=true,
+    plot(contour(x=xgrid,
+            y=zgrid, z=TT_grid, showlabels=true,
             colorscale="Viridis",
             contours=attr(
                 coloring="heatmap",
@@ -584,6 +663,21 @@ end
 
 # ╔═╡ f9054319-1963-4bba-92c2-c5b39753f5b5
 plot_tt_contours()
+
+# ╔═╡ 79065ef9-15fc-4cfd-966a-9cbf3d1b4f25
+function plot_traveltimes()
+    trPlot = Plot(Layout(showlegend=false, margin=0.5, height=300, width=680, title=attr(font_size=12,), xaxis=attr(range=(0, maximum(xgrid))),
+        legend=attr(
+            x=-0.6,
+            y=0.0,), font=attr(
+            size=10), Subplots(horizontal_spacing=0.1, rows=1, cols=2, subplot_titles=["First Arrival Traveltime" "Raytracing Traveltime"], x_title="Distance", y_title="Traveltime", shared_yaxes=true)))
+    add_trace!(trPlot, scatter(x=xgrid, y=TT_grid[1, :], mode="markers", marker=attr(size=2)), col=1, row=1)
+    add_trace!(trPlot, scatter(x=rayX, y=rayXtraveltimes, mode="markers+lines", marker=attr(size=5)), col=2, row=1)
+    return plot(trPlot)
+end
+
+# ╔═╡ e69b3755-515b-4df7-ac7e-9c5745f5fc73
+plot_traveltimes()
 
 # ╔═╡ ee179fd5-c5c0-42f5-8bb8-b6a4acabb70c
 md"## TODO"
@@ -2329,12 +2423,15 @@ version = "17.4.0+0"
 # ╟─a66ab3cd-c293-45ce-9e58-36b93712dbf2
 # ╟─d3f909d1-1843-4580-ae75-de1c461dd433
 # ╟─f9054319-1963-4bba-92c2-c5b39753f5b5
+# ╟─e69b3755-515b-4df7-ac7e-9c5745f5fc73
 # ╟─d2447315-f975-4447-ab92-5d5e267eaac5
 # ╟─dd079922-edcb-4a62-a0bc-c1e86c961dfb
 # ╠═b6447c75-4205-4c51-8cdc-552cdd841354
 # ╠═d3a75387-b9df-4fd2-b414-3ee662af813b
 # ╠═a10d01b8-8ccd-4eff-b138-2b4eefb9d4da
 # ╠═d41b77fc-32de-4ae6-848f-8bf55772a8f0
+# ╠═f332175d-a0b2-4c1e-8c80-fc48e751fdde
+# ╠═7b2a5f24-273a-41e7-83af-cfa9ea4a6f1f
 # ╟─15d8f9d0-aa5f-4c62-868a-2486127e5800
 # ╠═32a89a32-de52-481e-a017-1ae10c2c4bc4
 # ╠═946772f8-3229-41cd-9a56-feae400ad11b
@@ -2404,8 +2501,13 @@ version = "17.4.0+0"
 # ╠═10f25f52-b85c-47a4-89ea-68d94dd2912b
 # ╟─ef77b591-6c37-46c9-a419-277367e48c68
 # ╠═1670fc06-6e3f-4d0b-9202-f3cbac21386d
+# ╠═25eda9c1-524c-46d1-a31d-90e1793bb8f1
 # ╠═c05a5082-0175-4a24-9aeb-de26cb22e6c6
 # ╠═e0619921-389e-4351-8799-02431574a01d
+# ╟─edb59274-e19a-4c64-8bab-2b3258a9a6fa
+# ╠═52a6ac1a-11ef-4993-9fb5-b0a51de58aae
+# ╠═1de3052f-9543-4025-b92b-b75a73effc3d
+# ╠═613623ed-324d-4eae-8a93-888f205b83d4
 # ╟─58338184-fdf5-4a03-8900-650cdbe36c1c
 # ╠═9bd17627-8819-4d03-a02d-968a16b6dd9b
 # ╠═eb401f31-e74d-46d4-b348-aaae693e8c15
@@ -2419,6 +2521,7 @@ version = "17.4.0+0"
 # ╠═abbe4e4e-6f0d-4f23-ad72-2930118c1ffe
 # ╠═df7f0572-50cd-4a84-96ba-9c91cae9605d
 # ╠═b9e26366-01cc-4031-99d1-daac67b8f39d
+# ╠═79065ef9-15fc-4cfd-966a-9cbf3d1b4f25
 # ╟─ee179fd5-c5c0-42f5-8bb8-b6a4acabb70c
 # ╟─c012fbb8-d696-403d-8752-61773c4f6d86
 # ╟─e4aaf1ea-f2f0-4083-bd4c-1069d98ee298
