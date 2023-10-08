@@ -1,5 +1,5 @@
 ### A Pluto.jl notebook ###
-# v0.19.27
+# v0.19.29
 
 #> [frontmatter]
 #> title = "Seismology: An Interdisciplinary Science"
@@ -30,20 +30,6 @@ Markdown.MD(Markdown.Admonition("warning", "",
 The science of **seismology** has double feature, it aims simultaneously to obtain
 * the infrastructure of the Earth's interior with the aid of **seismic wave phenomena** 
 * nature of **earthquake sources** with an ultimate goal of **mitigating** them
-    """]))
-
-# ╔═╡ 0273dc65-f4ed-46b3-884d-66cf9e4e3401
-md"""
-# Some Technical Remarks
-"""
-
-# ╔═╡ a4c39dca-0d55-4d7a-9715-7e06d2c52cc6
-Markdown.MD(Markdown.Admonition("danger", "",
-    [md"""
-	
-A more technical definition:  
-* mostly a study where the spatial fluctuations in particle displacements, strains, and stresses have wavelengths much larger than the amplitudes of the particle displacements in the Earth's medium
-* in other words, we don't use the equation of motion in its *strict form* (Aki and Richards, Ch.2)
     """]))
 
 # ╔═╡ ae4d8b93-0c2c-495a-8c87-fc77521eb1ae
@@ -164,6 +150,20 @@ Markdown.MD(Markdown.Admonition("danger", "",
     [md"""
 * most of the current graduate students engaged in _computer simulation_ games and/or _seismic-data processing_ challenges, with insufficient efforts to construct **new theoretical** physical models
 * we need endeavors to come up with **new mathematical weapons** to understand the **nonlinear dynamics**
+    """]))
+
+# ╔═╡ 0273dc65-f4ed-46b3-884d-66cf9e4e3401
+md"""
+# Some Technical Remarks
+"""
+
+# ╔═╡ a4c39dca-0d55-4d7a-9715-7e06d2c52cc6
+Markdown.MD(Markdown.Admonition("danger", "",
+    [md"""
+	
+A more technical definition:  
+* mostly a study where the spatial fluctuations in particle displacements, strains, and stresses have wavelengths much larger than the amplitudes of the particle displacements in the Earth's medium
+* in other words, we don't use the equation of motion in its *strict form* (Aki and Richards, Ch.2)
     """]))
 
 # ╔═╡ bbab7f7a-cf8e-47f4-8484-339bc732b3ee

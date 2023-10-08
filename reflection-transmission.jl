@@ -1,5 +1,5 @@
 ### A Pluto.jl notebook ###
-# v0.19.27
+# v0.19.29
 
 #> [frontmatter]
 #> title = "Reflected and Transmitted Planewaves"
@@ -206,10 +206,13 @@ for the 2-D SH problem.
 SHAₜ, SHAᵣ = simplify.(Symbolics.solve_for([eq_displacement, eq_traction], [Aₜ, Aᵣ]))
 
 # ╔═╡ 4bd8cd77-8770-467f-8374-7cabd128c1e6
-plane(p, ηₜ, Aₜ)
+plane(p, ηₜ, SHAₜ)
+
+# ╔═╡ dfc70c3b-bcb4-462f-99f6-7e79e505fca7
+plane(p, -η, SHAₜ)
 
 # ╔═╡ 5729b459-b283-41ce-95be-c4d33a7c28c0
-md"### MOHO Example"
+md"## MOHO Example"
 
 # ╔═╡ 281cb873-760c-411f-98b5-1c64d218e7e9
 md"""
@@ -281,6 +284,9 @@ u_incident_ex = substitute(plane(pMOHO(θp), ηMOHO(θp), 1.0), [ω => ωp, ı=>
 
 # ╔═╡ cabe33b2-5c0a-45e4-a0fb-d057987d8c95
 u_reflected_ex = substitute(plane(pMOHO(θp), -ηMOHO(θp), SHAᵣ_ex(θp)), [ω => ωp, ı=>im]);
+
+# ╔═╡ b8513faa-1ac9-4632-8de5-0678c534ee00
+imag(ηₜMOHO(θp))
 
 # ╔═╡ d5fda5dc-d94e-4b39-94c4-a5c4311e59bd
 u_transmitted_ex = substitute(plane(pMOHO(θp), isequal(imag(ηₜMOHO(θp)), 0.0) ? ηₜMOHO(θp) : -ηₜMOHO(θp), SHAₜ_ex(θp)), [ω => ωp, ı=>im]);
@@ -387,7 +393,7 @@ add_trace!(fig,
 	scatter(
     x=[-150, -150],
     y=[-150, 150],
-    text=[L"(β₁, ρ₁)",  L"(β₂, \rho_2)"],
+    text=[L"(β₁,ρ₁)",  L"(β₂,ρ₂)"],
     mode="text",
 	showlegend=false,
     textfont=attr(
@@ -458,9 +464,9 @@ version = "0.2.4"
 
 [[deps.AbstractAlgebra]]
 deps = ["GroupsCore", "InteractiveUtils", "LinearAlgebra", "MacroTools", "Preferences", "Random", "RandomExtensions", "SparseArrays", "Test"]
-git-tree-sha1 = "237a3ebe3040abca26d889b8b38a5363a797dd68"
+git-tree-sha1 = "86eed254467cb8ae3fb524e46f9c14e916cc568d"
 uuid = "c3fe647b-3220-5bb0-a1ea-a7954cac585d"
-version = "0.32.1"
+version = "0.32.3"
 
 [[deps.AbstractPlutoDingetjes]]
 deps = ["Pkg"]
@@ -584,9 +590,9 @@ version = "0.3.0"
 
 [[deps.Compat]]
 deps = ["UUIDs"]
-git-tree-sha1 = "e460f044ca8b99be31d35fe54fc33a5c33dd8ed7"
+git-tree-sha1 = "8a62af3e248a8c4bad6b32cbbe663ae02275e32c"
 uuid = "34da2185-b29b-5c13-b0c7-acf172513d20"
-version = "4.9.0"
+version = "4.10.0"
 weakdeps = ["Dates", "LinearAlgebra"]
 
     [deps.Compat.extensions]
@@ -657,9 +663,9 @@ uuid = "8ba89e20-285c-5b6f-9357-94700520ee1b"
 
 [[deps.Distributions]]
 deps = ["FillArrays", "LinearAlgebra", "PDMats", "Printf", "QuadGK", "Random", "SpecialFunctions", "Statistics", "StatsAPI", "StatsBase", "StatsFuns", "Test"]
-git-tree-sha1 = "938fe2981db009f531b6332e31c58e9584a2f9bd"
+git-tree-sha1 = "3d5873f811f582873bb9871fc9c451784d5dc8c7"
 uuid = "31c24e10-a181-5473-b8eb-7969acd0382f"
-version = "0.25.100"
+version = "0.25.102"
 
     [deps.Distributions.extensions]
     DistributionsChainRulesCoreExt = "ChainRulesCore"
@@ -1018,9 +1024,9 @@ version = "1.6.2"
 
 [[deps.PDMats]]
 deps = ["LinearAlgebra", "SparseArrays", "SuiteSparse"]
-git-tree-sha1 = "3129380a93388e5062e946974246fe3f2e7c73e2"
+git-tree-sha1 = "bf6085e8bd7735e68c210c6e5d81f9a6fe192060"
 uuid = "90014a1f-27ba-587c-ab20-58faa44d9150"
-version = "0.11.18"
+version = "0.11.19"
 
 [[deps.PackageExtensionCompat]]
 git-tree-sha1 = "fb28e33b8a95c4cee25ce296c817d89cc2e53518"
@@ -1178,9 +1184,9 @@ version = "1.3.0"
 
 [[deps.Revise]]
 deps = ["CodeTracking", "Distributed", "FileWatching", "JuliaInterpreter", "LibGit2", "LoweredCodeUtils", "OrderedCollections", "Pkg", "REPL", "Requires", "UUIDs", "Unicode"]
-git-tree-sha1 = "7364d5f608f3492a4352ab1d40b3916955dc6aec"
+git-tree-sha1 = "609c26951d80551620241c3d7090c71a73da75ab"
 uuid = "295af30f-e4ad-537b-8983-00126c2a3abe"
-version = "3.5.5"
+version = "3.5.6"
 
 [[deps.Rmath]]
 deps = ["Random", "Rmath_jll"]
@@ -1212,9 +1218,9 @@ version = "3.4.5"
 
 [[deps.SciMLBase]]
 deps = ["ADTypes", "ArrayInterface", "ChainRulesCore", "CommonSolve", "ConstructionBase", "Distributed", "DocStringExtensions", "EnumX", "FillArrays", "FunctionWrappersWrappers", "IteratorInterfaceExtensions", "LinearAlgebra", "Logging", "Markdown", "PrecompileTools", "Preferences", "RecipesBase", "RecursiveArrayTools", "Reexport", "RuntimeGeneratedFunctions", "SciMLOperators", "StaticArraysCore", "Statistics", "SymbolicIndexingInterface", "Tables", "TruncatedStacktraces", "ZygoteRules"]
-git-tree-sha1 = "e9be13fc46aea9192f474a2044f721333ee82352"
+git-tree-sha1 = "fd34cc828616e35d4a86a24eb290186db2956f68"
 uuid = "0bca4576-84f4-4d90-8ffe-ffa030f20462"
-version = "2.0.1"
+version = "2.0.4"
 
     [deps.SciMLBase.extensions]
     ZygoteExt = "Zygote"
@@ -1268,9 +1274,9 @@ weakdeps = ["ChainRulesCore"]
 
 [[deps.StaticArrays]]
 deps = ["LinearAlgebra", "Random", "StaticArraysCore"]
-git-tree-sha1 = "d5fb407ec3179063214bc6277712928ba78459e2"
+git-tree-sha1 = "0adf069a2a490c47273727e029371b31d44b72b2"
 uuid = "90137ffa-7385-5640-81b9-e52037218182"
-version = "1.6.4"
+version = "1.6.5"
 weakdeps = ["Statistics"]
 
     [deps.StaticArrays.extensions]
@@ -1294,9 +1300,9 @@ version = "1.7.0"
 
 [[deps.StatsBase]]
 deps = ["DataAPI", "DataStructures", "LinearAlgebra", "LogExpFunctions", "Missings", "Printf", "Random", "SortingAlgorithms", "SparseArrays", "Statistics", "StatsAPI"]
-git-tree-sha1 = "75ebe04c5bed70b91614d684259b661c9e6274a4"
+git-tree-sha1 = "1d77abd07f617c4868c33d4f5b9e1dbb2643c9cf"
 uuid = "2913bbd2-ae8a-5f71-8c99-4fb6c76f3a91"
-version = "0.34.0"
+version = "0.34.2"
 
 [[deps.StatsFuns]]
 deps = ["HypergeometricFunctions", "IrrationalConstants", "LogExpFunctions", "Reexport", "Rmath", "SpecialFunctions"]
@@ -1493,6 +1499,7 @@ version = "17.4.0+0"
 # ╟─080fde69-99e2-4292-8cd3-3edae2debd88
 # ╠═6746517c-043e-4137-8255-a6230d36a886
 # ╠═4bd8cd77-8770-467f-8374-7cabd128c1e6
+# ╠═dfc70c3b-bcb4-462f-99f6-7e79e505fca7
 # ╟─5729b459-b283-41ce-95be-c4d33a7c28c0
 # ╟─281cb873-760c-411f-98b5-1c64d218e7e9
 # ╠═3d50985b-b79a-45ab-ba1f-5287936c56d9
@@ -1507,6 +1514,7 @@ version = "17.4.0+0"
 # ╟─57176a1b-b8cd-40fa-a615-8a589fb7ea73
 # ╠═b790898e-11dd-440e-86ef-2403d14a1feb
 # ╠═cabe33b2-5c0a-45e4-a0fb-d057987d8c95
+# ╠═b8513faa-1ac9-4632-8de5-0678c534ee00
 # ╠═d5fda5dc-d94e-4b39-94c4-a5c4311e59bd
 # ╟─ea3b7089-bda8-4694-8042-98534b1739bd
 # ╠═ab40f79c-3d8a-11ed-0697-a7b794dbba99

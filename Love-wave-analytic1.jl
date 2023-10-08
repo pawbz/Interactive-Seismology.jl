@@ -1,5 +1,5 @@
 ### A Pluto.jl notebook ###
-# v0.19.26
+# v0.19.29
 
 #> [frontmatter]
 #> title = "Love Waves"
@@ -55,9 +55,6 @@ Indian Institute of Science, Bengaluru, India
 
 # ╔═╡ 87b80ede-1da7-4c24-ada9-4327f0bb755e
 @bind tt Clock(0.1)
-
-# ╔═╡ d1bdd276-c599-4fa3-beab-626de9864268
-tgrid=range(0, 1000, length=1000)
 
 # ╔═╡ 8d2fd2d9-da36-43f4-8dcb-dd931c8189f5
 @syms β₁::Real β₂::Real μ₁::Real μ₂::Real ρ₁::Real ρ₂::Real
@@ -134,6 +131,9 @@ We shall now evaluate the traction corresponding to the free surface and set it 
 
 # ╔═╡ ca377428-d597-47a2-b29e-f40884697bd6
 σyz1 = expand_derivatives(μ₁ .* Dz(u1))
+
+# ╔═╡ 22ef3c54-fcb8-463e-8520-4d07bbceda51
+substitute(σyz1, z => 0) ~ 0 
 
 # ╔═╡ b819ce05-628a-49b6-aa57-f1ee765fb027
 Symbolics.solve_for(substitute(σyz1, z => 0), B₁) |> simplify
@@ -243,11 +243,8 @@ end
 # ╔═╡ 19a31e92-8226-4ce5-aa04-933552953a9d
 @bind medium confirm(medium_input())
 
-# ╔═╡ 66403ec8-b951-42b1-b32d-bfde3a764061
-medium.freq, tt
-
 # ╔═╡ 7bd5a551-3379-4270-81d0-9506292e6d8c
-crange1 = range(medium.β₁, stop=medium.β₂, length=100)
+crange1 = range(medium.β₁, stop=medium.β₂, length=1000)
 
 # ╔═╡ b3e662bf-8d13-418b-886c-b29456d62454
 crange2 = range(medium.β₁ - 0.5, stop=medium.β₁, length=100)
@@ -326,17 +323,6 @@ end
 # ╔═╡ 2d89a043-dfd3-4662-8c29-8829987fa39c
 @bind modes confirm(mode_input())
 
-# ╔═╡ 21580fa8-8873-4593-9514-965d943e896d
-modes.c
-
-# ╔═╡ 15626808-caae-4702-a7ae-8f2e984967a5
-yy = mapreduce(+, modes.c[1:1]) do c
-	sin.(medium.freq*(tgrid .- 3 / c * mod(tt,1000)))
-end
-
-# ╔═╡ 480f00c4-99bf-4c0b-8650-ebbf9c45b990
-scatter(y=yy, x=tgrid) |> plot
-
 # ╔═╡ b79f409d-a91e-4e4b-8e16-dff4769924f6
 md"### Plots"
 
@@ -379,7 +365,7 @@ plot_roots(ex1, ex2, crange3)
 # ╔═╡ fdfc93ee-3cf4-456b-9ca9-7098c04dac26
 begin
 	 # we need to discretize space before plotting 
-	    xgrid = range(-100, stop=100, length=100)
+	    xgrid = range(50, stop=150, length=100)
 	    zgrid1 = range(0, stop=medium.Hp, length=100)
 	    zgrid2 = range(medium.Hp, stop=200, length=100)
 	 grid = (; xgrid, zgrid1, zgrid2)
@@ -439,13 +425,30 @@ function plot_Love_waves(t, medium, grid, U1, U2, modes)
 end
 
 # ╔═╡ fefb338f-0b89-4902-a85f-c8f87cf5c172
-plot_Love_waves(mod(tt, 100), medium, grid, U1, U2, modes)
+plot_Love_waves(tt, medium, grid, U1, U2, modes)
 
 # ╔═╡ 16c826bf-fa48-423c-bfec-195f7fc502f8
 md"""
 ## TODO
 - Have a plot that shows how a wavelet disperses as it propagates, which needs a sum of frequencies, with some initial phases assigned.
 """
+
+# ╔═╡ 66403ec8-b951-42b1-b32d-bfde3a764061
+medium.freq, tt
+
+# ╔═╡ d1bdd276-c599-4fa3-beab-626de9864268
+tgrid=range(0, 1000, length=1000)
+
+# ╔═╡ 21580fa8-8873-4593-9514-965d943e896d
+modes.c
+
+# ╔═╡ 15626808-caae-4702-a7ae-8f2e984967a5
+yy = mapreduce(+, modes.c[1:1]) do c
+	sin.(medium.freq*(tgrid .- 3 / c * mod(tt,1000)))
+end
+
+# ╔═╡ 480f00c4-99bf-4c0b-8650-ebbf9c45b990
+scatter(y=yy, x=tgrid) |> plot
 
 # ╔═╡ 00000000-0000-0000-0000-000000000001
 PLUTO_PROJECT_TOML_CONTENTS = """
@@ -474,7 +477,7 @@ Symbolics = "~5.2.0"
 PLUTO_MANIFEST_TOML_CONTENTS = """
 # This file is machine-generated - editing it directly is not advised
 
-julia_version = "1.9.0"
+julia_version = "1.9.2"
 manifest_format = "2.0"
 project_hash = "5aed4d484858de0b3c5c4152192eae8e8c264e54"
 
@@ -618,7 +621,7 @@ weakdeps = ["Dates", "LinearAlgebra"]
 [[deps.CompilerSupportLibraries_jll]]
 deps = ["Artifacts", "Libdl"]
 uuid = "e66e0078-7015-5450-92f7-15fbd957f2ae"
-version = "1.0.2+0"
+version = "1.0.5+0"
 
 [[deps.CompositeTypes]]
 git-tree-sha1 = "02d2316b7ffceff992f3096ae48c7829a8aa0638"
@@ -1055,7 +1058,7 @@ version = "2.7.0"
 [[deps.Pkg]]
 deps = ["Artifacts", "Dates", "Downloads", "FileWatching", "LibGit2", "Libdl", "Logging", "Markdown", "Printf", "REPL", "Random", "SHA", "Serialization", "TOML", "Tar", "UUIDs", "p7zip_jll"]
 uuid = "44cfe95a-1eb2-52ea-b672-e2afdf69b78f"
-version = "1.9.0"
+version = "1.9.2"
 
 [[deps.PlotlyBase]]
 deps = ["ColorSchemes", "Dates", "DelimitedFiles", "DocStringExtensions", "JSON", "LaTeXStrings", "Logging", "Parameters", "Pkg", "REPL", "Requires", "Statistics", "UUIDs"]
@@ -1429,7 +1432,7 @@ version = "1.2.13+0"
 [[deps.libblastrampoline_jll]]
 deps = ["Artifacts", "Libdl"]
 uuid = "8e850b90-86db-534c-a0d3-1478176c7d93"
-version = "5.7.0+0"
+version = "5.8.0+0"
 
 [[deps.nghttp2_jll]]
 deps = ["Artifacts", "Libdl"]
@@ -1446,13 +1449,8 @@ version = "17.4.0+0"
 # ╠═9b02e72d-be6b-485d-a186-ba2fe2dcd6fb
 # ╠═bdf3d004-653a-4b56-af7c-42ca1d6021e5
 # ╟─2a41b15e-1a0e-4c92-a3a5-53603faacea1
-# ╠═87b80ede-1da7-4c24-ada9-4327f0bb755e
-# ╠═fefb338f-0b89-4902-a85f-c8f87cf5c172
-# ╠═66403ec8-b951-42b1-b32d-bfde3a764061
-# ╠═d1bdd276-c599-4fa3-beab-626de9864268
-# ╠═21580fa8-8873-4593-9514-965d943e896d
-# ╠═15626808-caae-4702-a7ae-8f2e984967a5
-# ╠═480f00c4-99bf-4c0b-8650-ebbf9c45b990
+# ╟─87b80ede-1da7-4c24-ada9-4327f0bb755e
+# ╟─fefb338f-0b89-4902-a85f-c8f87cf5c172
 # ╟─19a31e92-8226-4ce5-aa04-933552953a9d
 # ╟─2d89a043-dfd3-4662-8c29-8829987fa39c
 # ╠═8d2fd2d9-da36-43f4-8dcb-dd931c8189f5
@@ -1476,6 +1474,7 @@ version = "17.4.0+0"
 # ╠═30219c41-a040-4056-adda-ce64ac3c6969
 # ╟─e1ab342d-84fe-4c00-9756-455436b0fad7
 # ╠═ca377428-d597-47a2-b29e-f40884697bd6
+# ╠═22ef3c54-fcb8-463e-8520-4d07bbceda51
 # ╠═b819ce05-628a-49b6-aa57-f1ee765fb027
 # ╠═53799d32-3edc-4416-a928-868ea974c6bd
 # ╟─f39b1e01-c16e-405e-a2fc-85408d53c762
@@ -1518,5 +1517,10 @@ version = "17.4.0+0"
 # ╠═fdfc93ee-3cf4-456b-9ca9-7098c04dac26
 # ╠═1b0fa006-6679-42ba-896e-990b7a3fa2ef
 # ╟─16c826bf-fa48-423c-bfec-195f7fc502f8
+# ╠═66403ec8-b951-42b1-b32d-bfde3a764061
+# ╠═d1bdd276-c599-4fa3-beab-626de9864268
+# ╠═21580fa8-8873-4593-9514-965d943e896d
+# ╠═15626808-caae-4702-a7ae-8f2e984967a5
+# ╠═480f00c4-99bf-4c0b-8650-ebbf9c45b990
 # ╟─00000000-0000-0000-0000-000000000001
 # ╟─00000000-0000-0000-0000-000000000002
