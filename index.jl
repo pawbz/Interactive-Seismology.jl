@@ -1,5 +1,5 @@
 ### A Pluto.jl notebook ###
-# v0.19.27
+# v0.19.29
 
 #> [frontmatter]
 #> tags = ["seismology", "waves", "interactive", "julia", "pluto", "earth", "earthquakes", "seismic waves", "inversion", "geophysics", "Symbolics"]
@@ -11,13 +11,11 @@ using InteractiveUtils
 begin
     using Pluto
     using PlutoUI
+	using PlutoTeachingTools
 end;
 
 # ╔═╡ 64625acb-b12e-4e95-b543-38d44b640e5d
 PlutoUI.LocalResource("./images/geophones_in_IISc.jpg", :width => 600)
-
-# ╔═╡ fa81c344-9df7-4823-a9e4-3833528488d3
-PlutoUI.LocalResource("./movies/ES219-Traveltime-Tomography.gif", :width => 300, :autoplay => "", :loop => "")
 
 # ╔═╡ 1bb8813d-320f-49de-9ca8-92f858f7d512
 md"""
@@ -73,8 +71,21 @@ function links()
 		if("title" ∈ keys(fm) && "description" ∈ keys(fm))
 			t = fm["title"]
 			d = fm["description"]
-			return Markdown.parse("""#### [$(t)]($ht) 
-			 $(d)""")
+			giffile = "./movies/$(first(splitext(nb)))" * ".gif"
+			gifmd = if isfile(giffile)
+				gif = PlutoUI.LocalResource(giffile, :width => 300, :autoplay => "", :loop => "")
+				md"""
+				$(gif)
+				"""
+			else
+				md"""
+				"""
+			end
+			# @show gif
+			
+			return Markdown.MD(Markdown.Admonition("note", "",
+    [TwoColumnWideLeft(Markdown.parse("""#### [$(t)]($ht) 
+			 $(d)"""), gifmd)]))
 		else
 			return md""
 		end
@@ -91,10 +102,12 @@ $(links())
 PLUTO_PROJECT_TOML_CONTENTS = """
 [deps]
 Pluto = "c3e4b0f8-55cb-11ea-2926-15256bba5781"
+PlutoTeachingTools = "661c6b06-c737-4d37-b85c-46df65de6f69"
 PlutoUI = "7f904dfe-b85e-4ff6-b463-dae2292396a8"
 
 [compat]
 Pluto = "~0.19.27"
+PlutoTeachingTools = "~0.2.13"
 PlutoUI = "~0.7.52"
 """
 
@@ -104,7 +117,7 @@ PLUTO_MANIFEST_TOML_CONTENTS = """
 
 julia_version = "1.9.2"
 manifest_format = "2.0"
-project_hash = "3e28f26d7222978ef1c186aee31777bc2be1fd8e"
+project_hash = "4769015db3f050c96f1be2622aa23b201b86f680"
 
 [[deps.AbstractPlutoDingetjes]]
 deps = ["Pkg"]
@@ -126,6 +139,12 @@ uuid = "2a0f44e3-6c83-55bd-87e4-b1978d98bd5f"
 git-tree-sha1 = "43b1a4a8f797c1cddadf60499a8a077d4af2cd2d"
 uuid = "d1d4a3ce-64b1-5f1a-9ba4-7e7e69966f35"
 version = "0.1.7"
+
+[[deps.CodeTracking]]
+deps = ["InteractiveUtils", "UUIDs"]
+git-tree-sha1 = "c0216e792f518b39b22212127d4a84dc31e4e386"
+uuid = "da1fd8a2-8d9e-5ec2-8556-3022fb5608a2"
+version = "1.3.5"
 
 [[deps.CodecZlib]]
 deps = ["TranscodingStreams", "Zlib_jll"]
@@ -200,6 +219,12 @@ git-tree-sha1 = "335bfdceacc84c5cdf16aadc768aa5ddfc5383cc"
 uuid = "53c48c17-4a7d-5ca2-90c5-79b7896eea93"
 version = "0.8.4"
 
+[[deps.Formatting]]
+deps = ["Printf"]
+git-tree-sha1 = "8339d61043228fdd3eb658d86c926cb282ae72a8"
+uuid = "59287772-0a20-5a39-b81b-1366585eb4c0"
+version = "0.4.2"
+
 [[deps.FuzzyCompletions]]
 deps = ["REPL"]
 git-tree-sha1 = "e16dd964b4dfaebcded16b2af32f05e235b354be"
@@ -251,6 +276,31 @@ git-tree-sha1 = "31e996f0a15c7b280ba9f76636b3ff9e2ae58c9a"
 uuid = "682c06a0-de6a-54ab-a142-c8b1cf79cde6"
 version = "0.21.4"
 
+[[deps.JuliaInterpreter]]
+deps = ["CodeTracking", "InteractiveUtils", "Random", "UUIDs"]
+git-tree-sha1 = "81dc6aefcbe7421bd62cb6ca0e700779330acff8"
+uuid = "aa1ae85d-cabe-5617-a682-6adf51b2e16a"
+version = "0.9.25"
+
+[[deps.LaTeXStrings]]
+git-tree-sha1 = "f2355693d6778a178ade15952b7ac47a4ff97996"
+uuid = "b964fa9f-0449-5b57-a5c2-d3ea65f4040f"
+version = "1.3.0"
+
+[[deps.Latexify]]
+deps = ["Formatting", "InteractiveUtils", "LaTeXStrings", "MacroTools", "Markdown", "OrderedCollections", "Printf", "Requires"]
+git-tree-sha1 = "f428ae552340899a935973270b8d98e5a31c49fe"
+uuid = "23fbe1c1-3f47-55db-b15f-69d7ec21a316"
+version = "0.16.1"
+
+    [deps.Latexify.extensions]
+    DataFramesExt = "DataFrames"
+    SymEngineExt = "SymEngine"
+
+    [deps.Latexify.weakdeps]
+    DataFrames = "a93c6f00-e57d-5684-b7b6-d8193f3e46c0"
+    SymEngine = "123dc426-2d89-5057-bbad-38513e3affd8"
+
 [[deps.LazilyInitializedFields]]
 git-tree-sha1 = "410fe4739a4b092f2ffe36fcb0dcc3ab12648ce1"
 uuid = "0e77f7df-68c5-4e49-93ce-4cd80f5598bf"
@@ -291,10 +341,22 @@ git-tree-sha1 = "cedb76b37bc5a6c702ade66be44f831fa23c681e"
 uuid = "e6f89c97-d47a-5376-807f-9c37f3926c36"
 version = "1.0.0"
 
+[[deps.LoweredCodeUtils]]
+deps = ["JuliaInterpreter"]
+git-tree-sha1 = "60168780555f3e663c536500aa790b6368adc02a"
+uuid = "6f1432cf-f94c-5a45-995e-cdbf5db27b0b"
+version = "2.3.0"
+
 [[deps.MIMEs]]
 git-tree-sha1 = "65f28ad4b594aebe22157d6fac869786a255b7eb"
 uuid = "6c6e2e6c-3030-632d-7369-2d6c69616d65"
 version = "0.1.4"
+
+[[deps.MacroTools]]
+deps = ["Markdown", "Random"]
+git-tree-sha1 = "9ee1618cbf5240e6d4e0371d6f24065083f60c48"
+uuid = "1914dd2f-81c6-5fcd-8719-6d5c9610ff09"
+version = "0.5.11"
 
 [[deps.Markdown]]
 deps = ["Base64"]
@@ -367,6 +429,24 @@ git-tree-sha1 = "06fec2244568a4641e3352d20d0a0a608df6fa92"
 uuid = "c3e4b0f8-55cb-11ea-2926-15256bba5781"
 version = "0.19.27"
 
+[[deps.PlutoHooks]]
+deps = ["InteractiveUtils", "Markdown", "UUIDs"]
+git-tree-sha1 = "072cdf20c9b0507fdd977d7d246d90030609674b"
+uuid = "0ff47ea0-7a50-410d-8455-4348d5de0774"
+version = "0.0.5"
+
+[[deps.PlutoLinks]]
+deps = ["FileWatching", "InteractiveUtils", "Markdown", "PlutoHooks", "Revise", "UUIDs"]
+git-tree-sha1 = "8f5fa7056e6dcfb23ac5211de38e6c03f6367794"
+uuid = "0ff47ea0-7a50-410d-8455-4348d5de0420"
+version = "0.1.6"
+
+[[deps.PlutoTeachingTools]]
+deps = ["Downloads", "HypertextLiteral", "LaTeXStrings", "Latexify", "Markdown", "PlutoLinks", "PlutoUI", "Random"]
+git-tree-sha1 = "542de5acb35585afcf202a6d3361b430bc1c3fbd"
+uuid = "661c6b06-c737-4d37-b85c-46df65de6f69"
+version = "0.2.13"
+
 [[deps.PlutoUI]]
 deps = ["AbstractPlutoDingetjes", "Base64", "ColorTypes", "Dates", "FixedPointNumbers", "Hyperscript", "HypertextLiteral", "IOCapture", "InteractiveUtils", "JSON", "Logging", "MIMEs", "Markdown", "Random", "Reexport", "URIs", "UUIDs"]
 git-tree-sha1 = "e47cd150dbe0443c3a3651bc5b9cbd5576ab75b7"
@@ -418,6 +498,18 @@ deps = ["SHA", "Scratch"]
 git-tree-sha1 = "90bc7a7c96410424509e4263e277e43250c05691"
 uuid = "05181044-ff0b-4ac5-8273-598c1e38db00"
 version = "1.0.0"
+
+[[deps.Requires]]
+deps = ["UUIDs"]
+git-tree-sha1 = "838a3a4188e2ded87a4f9f184b4b0d78a1e91cb7"
+uuid = "ae029012-a4dd-5104-9daa-d747884805df"
+version = "1.3.0"
+
+[[deps.Revise]]
+deps = ["CodeTracking", "Distributed", "FileWatching", "JuliaInterpreter", "LibGit2", "LoweredCodeUtils", "OrderedCollections", "Pkg", "REPL", "Requires", "UUIDs", "Unicode"]
+git-tree-sha1 = "609c26951d80551620241c3d7090c71a73da75ab"
+uuid = "295af30f-e4ad-537b-8983-00126c2a3abe"
+version = "3.5.6"
 
 [[deps.SHA]]
 uuid = "ea8e919c-243c-51af-8825-aaa63cd721ce"
@@ -527,7 +619,6 @@ version = "17.4.0+0"
 # ╔═╡ Cell order:
 # ╟─64625acb-b12e-4e95-b543-38d44b640e5d
 # ╟─7cede54e-5eed-4763-9689-09e2ab9eca92
-# ╟─fa81c344-9df7-4823-a9e4-3833528488d3
 # ╟─9fcd3f72-388c-11ed-12c5-dd984fa4f529
 # ╟─1bb8813d-320f-49de-9ca8-92f858f7d512
 # ╟─1bb14878-b072-4dbf-b151-6ce26bb49d63

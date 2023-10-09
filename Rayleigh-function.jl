@@ -380,17 +380,30 @@ plot_Rayleigh_function()
 
 # ╔═╡ 00000000-0000-0000-0000-000000000001
 PLUTO_PROJECT_TOML_CONTENTS = """
+[deps]
+LaTeXStrings = "b964fa9f-0449-5b57-a5c2-d3ea65f4040f"
+Latexify = "23fbe1c1-3f47-55db-b15f-69d7ec21a316"
+LinearAlgebra = "37e2e46d-f89d-539d-b4ee-838fcccc9c8e"
+Measures = "442fdcdd-2543-5da2-b0f3-8c86c306513e"
+Parameters = "d96e819e-fc66-5662-9728-84c9c7592b0a"
+PlutoPlotly = "8e989ff0-3d88-8e9f-f020-2b208a939ff0"
+PlutoTeachingTools = "661c6b06-c737-4d37-b85c-46df65de6f69"
+PlutoUI = "7f904dfe-b85e-4ff6-b463-dae2292396a8"
+Roots = "f2b01f46-fcfa-551c-844a-d8ac1e96c665"
+SymbolicUtils = "d1185830-fcd6-423d-90d6-eec64667417b"
+Symbolics = "0c5d862f-8b57-4792-8d23-62f2024744c7"
+
 [compat]
 LaTeXStrings = "~1.3.0"
 Latexify = "~0.16.1"
 Measures = "~0.3.2"
 Parameters = "~0.12.3"
-PlutoPlotly = "~0.3.9"
+PlutoPlotly = "~0.4.1"
 PlutoTeachingTools = "~0.2.13"
 PlutoUI = "~0.7.52"
 Roots = "~2.0.20"
 SymbolicUtils = "~1.4.0"
-Symbolics = "~5.6.0"
+Symbolics = "~5.8.0"
 """
 
 # ╔═╡ 00000000-0000-0000-0000-000000000002
@@ -399,7 +412,7 @@ PLUTO_MANIFEST_TOML_CONTENTS = """
 
 julia_version = "1.9.2"
 manifest_format = "2.0"
-project_hash = "ac8b45ba5269abeba0efe8729cd3d28b9fc7ab7b"
+project_hash = "498af720fba0accf3427fc25524b459899bece99"
 
 [[deps.ADTypes]]
 git-tree-sha1 = "5d2e21d7b0d8c22f67483ef95ebdc39c0e6b6003"
@@ -464,6 +477,11 @@ uuid = "56f22d72-fd6d-98f1-02f0-08ddc0907c33"
 
 [[deps.Base64]]
 uuid = "2a0f44e3-6c83-55bd-87e4-b1978d98bd5f"
+
+[[deps.BaseDirs]]
+git-tree-sha1 = "1c9b6f39f40dba0ef22244a175e2d4e42c8f6ee7"
+uuid = "18cc8868-cbac-4acf-b575-c8ff214dc66f"
+version = "1.2.0"
 
 [[deps.Bijections]]
 git-tree-sha1 = "71281c0c28f97e0adeed24fdaa6bf7d37177f297"
@@ -977,12 +995,6 @@ git-tree-sha1 = "fcf8fd477bd7f33cb8dbb1243653fb0d415c256c"
 uuid = "90014a1f-27ba-587c-ab20-58faa44d9150"
 version = "0.11.25"
 
-[[deps.PackageExtensionCompat]]
-git-tree-sha1 = "fb28e33b8a95c4cee25ce296c817d89cc2e53518"
-uuid = "65ce6f38-6b18-4e1d-a461-8949797d7930"
-version = "1.0.2"
-weakdeps = ["Requires", "TOML"]
-
 [[deps.Parameters]]
 deps = ["OrderedCollections", "UnPack"]
 git-tree-sha1 = "34c0e9ad262e5f7fc75b10a9952ca7692cfc5fbe"
@@ -1019,16 +1031,18 @@ uuid = "0ff47ea0-7a50-410d-8455-4348d5de0420"
 version = "0.1.6"
 
 [[deps.PlutoPlotly]]
-deps = ["AbstractPlutoDingetjes", "Colors", "Dates", "HypertextLiteral", "InteractiveUtils", "LaTeXStrings", "Markdown", "PackageExtensionCompat", "PlotlyBase", "PlutoUI", "Reexport"]
-git-tree-sha1 = "9a77654cdb96e8c8a0f1e56a053235a739d453fe"
+deps = ["AbstractPlutoDingetjes", "BaseDirs", "Colors", "Dates", "Downloads", "HypertextLiteral", "InteractiveUtils", "LaTeXStrings", "Markdown", "Pkg", "PlotlyBase", "Reexport", "TOML"]
+git-tree-sha1 = "9fefc3bfea24f08474e86e86743ee7f8f1bf12a0"
 uuid = "8e989ff0-3d88-8e9f-f020-2b208a939ff0"
-version = "0.3.9"
+version = "0.4.1"
 
     [deps.PlutoPlotly.extensions]
     PlotlyKaleidoExt = "PlotlyKaleido"
+    UnitfulExt = "Unitful"
 
     [deps.PlutoPlotly.weakdeps]
     PlotlyKaleido = "f2990250-8cf9-495f-b13a-cce12b45703c"
+    Unitful = "1986cc42-f94f-5a68-af5c-568840ba703d"
 
 [[deps.PlutoTeachingTools]]
 deps = ["Downloads", "HypertextLiteral", "LaTeXStrings", "Latexify", "Markdown", "PlutoLinks", "PlutoUI", "Random"]
@@ -1310,9 +1324,9 @@ version = "1.4.0"
 
 [[deps.Symbolics]]
 deps = ["ArrayInterface", "Bijections", "ConstructionBase", "DataStructures", "DiffRules", "Distributions", "DocStringExtensions", "DomainSets", "DynamicPolynomials", "Groebner", "IfElse", "LaTeXStrings", "LambertW", "Latexify", "Libdl", "LinearAlgebra", "MacroTools", "Markdown", "NaNMath", "PrecompileTools", "RecipesBase", "Reexport", "Requires", "RuntimeGeneratedFunctions", "SciMLBase", "Setfield", "SparseArrays", "SpecialFunctions", "StaticArrays", "SymbolicUtils", "TreeViews"]
-git-tree-sha1 = "d8b3a50cf6ccb19a090c0bb6d89fd4f1b576fcfb"
+git-tree-sha1 = "4e703925f8d0954974f466ee08e866b1513a6d08"
 uuid = "0c5d862f-8b57-4792-8d23-62f2024744c7"
-version = "5.6.0"
+version = "5.8.0"
 
     [deps.Symbolics.extensions]
     SymbolicsSymPyExt = "SymPy"

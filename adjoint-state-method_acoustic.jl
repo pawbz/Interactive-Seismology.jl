@@ -1,10 +1,6 @@
 ### A Pluto.jl notebook ###
 # v0.19.25
 
-#> [frontmatter]
-#> title = ""
-#> description = ""
-
 using Markdown
 using InteractiveUtils
 
