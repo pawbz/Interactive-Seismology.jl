@@ -64,9 +64,6 @@ md"""## A Priori Information
 $(@bind apriori_flag Select([:a=>"Accurate Background Velocity; Unknown Reflector", :b=>"Inaccurate Background Velocity; Known Reflector", :c=>"Inaccurate Background Velocity; Unknown Reflector"]))
 """
 
-# ╔═╡ 37157e04-273a-4be2-9687-2016480a0421
-apriori_flag
-
 # ╔═╡ e233afec-6049-4277-8be9-95687c4589b5
 md"""
 ## Measured Displacement Field
@@ -2073,7 +2070,6 @@ version = "17.4.0+0"
 # ╟─65efba3b-16b0-4113-a59e-809365e7bdd6
 # ╟─55c7f981-96a7-40e9-811f-37334622565b
 # ╟─fa78af13-e3c6-4d6f-8a3e-1187fe9ae159
-# ╠═37157e04-273a-4be2-9687-2016480a0421
 # ╟─f26f1b1a-18e0-413c-86a9-351ba5dfaebf
 # ╟─e233afec-6049-4277-8be9-95687c4589b5
 # ╟─4171af00-1d14-45ba-9fd3-a2c30d0b759f
