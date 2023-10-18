@@ -597,7 +597,7 @@ function plot_image(image)
     fig = Plot(Layout(yaxis_autorange="reversed", xaxis=attr(range=extrema(xgridUI) .+ [-20, 20]),
         yaxis=attr(range=extrema(zgridUI) .+ [-10, 10]),
         height=225, width=350, yaxis_title="Depth", xaxis_title="Distance", Subplots(shared_xaxes=true, shared_yaxes=true, rows=1, cols=1, subplot_titles=["Migration Image" ""])))
-    add_trace!(fig, heatmap(x=xgridUI, y=zgridUI, z=image, showscale=false, colorscale="Greys"), row=1, col=1)
+    add_trace!(fig, heatmap(x=xgridUI, y=zgridUI, z=image, showscale=false, colorscale="seismic"), row=1, col=1)
     add_ageom!(fig, acq)
     return PlutoPlotly.plot(fig)
 
@@ -621,7 +621,7 @@ function plot_animations(d1, d2, d1max)
 end
 
 # ╔═╡ cff433fb-e1c4-42ae-a310-db85f48d09e3
-plot_animations(dgrid[mod(it_plot, div(length(tgrid), 2))+1, :, :], δdgrid[mod(it_plot, div(length(tgrid), 2))+1, :, :], maximum(abs, dgrid) / 2.0)
+plot_animations(dgrid[mod(it_plot, div(length(tgrid), 2))+1, :, :], δdgrid[mod(it_plot, div(length(tgrid), 2))+1, :, :], maximum(abs, dgrid) / 1.0)
 
 # ╔═╡ 98521f53-fbf4-4ba2-b0b9-629f21478a31
 md"## References"
