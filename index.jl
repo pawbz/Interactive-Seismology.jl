@@ -1,5 +1,5 @@
 ### A Pluto.jl notebook ###
-# v0.19.29
+# v0.19.30
 
 #> [frontmatter]
 #> tags = ["seismology", "waves", "interactive", "julia", "pluto", "earth", "earthquakes", "seismic waves", "inversion", "geophysics", "Symbolics"]
