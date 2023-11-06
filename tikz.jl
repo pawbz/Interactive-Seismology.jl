@@ -1,5 +1,5 @@
 ### A Pluto.jl notebook ###
-# v0.19.27
+# v0.19.32
 
 using Markdown
 using InteractiveUtils
@@ -72,10 +72,57 @@ tikz_preamble = raw"""
   \usetikzlibrary{positioning}
   \usetikzlibrary{shapes.geometric}
   \usetikzlibrary{backgrounds}
+
+
+
+% arguments (frequency, time shift, amplitude, color)
+
+\tikzset{
+pics/ricker/.style n args={4}{
+  code={
+\draw [fill=#4, thick, domain=-3:3, samples=200, smooth] plot (\x, {(1-(2*pi*(#1*(\x-#2))*(#1*(\x-#2))))* e^(-pi*(#1*(\x-#2))*(#1*(\x-#2))) * #3});
+   }
+}}
+
+
+\tikzset{
+pics/meyer/.style n args={4}{
+  code={
+\draw [fill=#4, thick, domain=-3:3, samples=200, smooth] plot (\x, {(sin(2*pi*#1*200*(\x-#2))-sin(pi*#1*200*(\x-#2))) / pi / (#1*200*(\x-#2)) * 20 * #3});
+   }
+}}
+
+\tikzset{
+pics/poisson/.style n args={4}{
+  code={
+\draw [fill=#4, thick, domain=-3:3, samples=200, smooth] plot (\x, {#3 * (1-(\x-#2)*(\x-#2)*#1*#1) / (1+(\x-#2)*(\x-#2)*#1*#1)/(1+(\x-#2)*(\x-#2)*#1*#1)});
+   }
+}}
+
+
+\newcommand\waveletone[5]{
+\begin{scope}[shift={#1}, rotate=0]
+\draw [fill=#5, thick, domain=-3:3, samples=200, smooth] plot (\x, {(\x-#3)*(1-(2*pi*(#2*(\x-#3))*(#2*(\x-#3))))* e^(-pi*(#2*(\x-#3))*(#2*(\x-#3))) * #4});
+\end{scope}
+}
+
+\newcommand\wavelettwo[5]{
+\begin{scope}[shift={#1}, rotate=0]
+\draw [fill=#5, thick, domain=-3:3, samples=200, smooth] plot (\x, {(1-(2*pi*(#2*(\x-#3))*(#2*(\x-#3))))* e^(-pi*(#2*(\x-#3))*(#2*(\x-#3))) * #4});
+\end{scope}
+}
+
+\newcommand\waveletthree[5]{
+\begin{scope}[shift={#1}, rotate=0]
+\draw [fill=#5, thick, domain=-3:3, samples=200, smooth] plot (\x, {(\x*\x-#3)*(1-(2*pi*(#2*(\x-#3))*(#2*(\x-#3))))* e^(-pi*(#2*(\x-#3))*(#2*(\x-#3))) * #4});
+\end{scope}
+}
+
+
   """
 
 # ╔═╡ 7035d9ef-d399-4339-a243-68d4a45bb425
-plot(code, width="5cm") = TikzPicture(code, options=tikz_default_options, preamble=tikz_preamble, width=width)
+plot(code, width="") = TikzPicture(code, options=tikz_default_options, preamble=tikz_preamble, width=width)
 
 # ╔═╡ 78189b14-d836-4b54-bb26-1ed931f25521
 plot(L"""
@@ -93,6 +140,9 @@ plot(L"""
 }}
   \pic at (0,0)  [fill=green!30, scale=1, rotate=360*rnd]{blob};
 """)
+
+# ╔═╡ 516564f8-2ccb-4d48-8435-0e8b486c30f6
+md"# Ricker"
 
 # ╔═╡ 00000000-0000-0000-0000-000000000001
 PLUTO_PROJECT_TOML_CONTENTS = """
@@ -525,5 +575,6 @@ version = "0.13.1+0"
 # ╠═7035d9ef-d399-4339-a243-68d4a45bb425
 # ╠═78189b14-d836-4b54-bb26-1ed931f25521
 # ╠═c58e400e-44ed-40b1-bbed-0f73aecd1826
+# ╟─516564f8-2ccb-4d48-8435-0e8b486c30f6
 # ╟─00000000-0000-0000-0000-000000000001
 # ╟─00000000-0000-0000-0000-000000000002
