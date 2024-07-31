@@ -1,7 +1,7 @@
+
 if !isdir("pluto-deployment-environment") || length(ARGS) != 1
     error("""
     Run me from the root of the repository directory, using:
-
     julia tools/update_notebook_packages.jl <level>
     
     Where <level> is one of: PATCH, MINOR, MAJOR
