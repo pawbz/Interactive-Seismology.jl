@@ -1,7 +1,7 @@
 ---
-title: "Class logistics"
+title: "Course Logistics"
 tags: ["welcome"]
-order: 1
+order: 6
 layout: "md.jlmd"
 ---
 
@@ -12,6 +12,6 @@ main a img {
 }
 </style>
 
-# Course logistics
+# Grading
 
 Describe here the logistics of your class.

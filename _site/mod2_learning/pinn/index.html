@@ -1,0 +1,216 @@
+<!DOCTYPE html><html lang="en">
+<head>
+
+<title>To be updated — Data Analysis For Earth System Science </title>
+
+
+<link rel="root" href="../.." />
+
+<link rel="icon" href="../../assets/favicon.ico" />
+<link rel="icon" href="../../assets/favicon.svg" type="image/svg+xml">
+
+<link rel="stylesheet" href="../../assets/styles/index.css" type="text/css" />
+<link rel="stylesheet" href="../../assets/styles/layout.css" type="text/css" />
+<script src="../../assets/scripts/sidebar.js" type="module"></script>
+
+<link rel="pp-search-data" href="../../pp_search_data.json" />
+<script src="https://cdn.jsdelivr.net/npm/lunr@2.3.9/lunr.min.js" integrity="sha256-DFDZACuFeAqEKv/7Vnu1Tt5ALa58bcWZegGGFNgET8g=" crossorigin="anonymous" defer></script>
+<script src="../../assets/scripts/search.js" type="module" defer></script>
+
+<script src="https://cdn.jsdelivr.net/npm/lite-youtube-embed@0.3.0/src/lite-yt-embed.js" integrity="sha256-sDRYYtDc+jNi2rrJPUS5kGxXXMlmnOSCq5ek5tYAk/M=" crossorigin="anonymous" defer></script>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/lite-youtube-embed@0.3.0/src/lite-yt-embed.css" integrity="sha256-lv6SEl7Dhri7d86yiHCTuSWFb9CYROQFewxZ7Je0n5k=" crossorigin="anonymous">
+
+<script defer src='https://static.cloudflareinsights.com/beacon.min.js' data-cf-beacon='{"token": "8572a580bead4b729ad55779ba3a1cd6"}'></script>
+
+<script data-goatcounter="https://computationalthinking-stats.plutojl.org/count" async src="//computationalthinking-stats.plutojl.org/count.js"></script>
+
+<meta name="viewport" content="width=device-width"><meta charset="utf-8">
+<meta name="pluto-insertion-spot-meta">
+<meta name="theme-color" media="(prefers-color-scheme: light)" content="white"><meta name="theme-color" media="(prefers-color-scheme: dark)" content="#2a2928"><meta name="color-scheme" content="light dark"><link rel="pluto-logo-big" href="https://cdn.jsdelivr.net/gh/fonsp/Pluto.jl@0.19.36/frontend-dist/logo.004c1d7c.svg" integrity="sha384-GkQkODcGxsrSRJCkeakBXihum0GUM44cwBgKyutDimectXCbCgj6Vu3jlrueqEcN" crossorigin="anonymous"><link rel="pluto-logo-small" href="https://cdn.jsdelivr.net/gh/fonsp/Pluto.jl@0.19.36/frontend-dist/favicon_unsaturated.d1387b25.svg" integrity="sha384-omwjH+Qy3hpAVf5FYd/pkaDBuVAfsEDRN7eBxEA8Ek00OAWP+aiV+GpEYk3I7lyo" crossorigin="anonymous"><script type="module" src="https://cdn.jsdelivr.net/gh/fonsp/Pluto.jl@0.19.36/frontend-dist/editor.23f324ce.js" integrity="sha384-4l9NNFe3thsPdrGcAdnBEfNmojvUidAN6OBuPDii3JDkVIF5TMXkICWqHEsh8sXq" crossorigin="anonymous"></script><link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/fonsp/Pluto.jl@0.19.36/frontend-dist/juliamono.c6034ab4.css" integrity="sha384-n0za6lUXlyf4XC+nGkZWj3TLDnRbNpAcoi4PZGSlQMPoyqGa9kGY+ZXkUgZGIhQt" crossorigin="anonymous"><link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/fonsp/Pluto.jl@0.19.36/frontend-dist/editor.c98fb036.css" integrity="sha384-hq2r9iSY9J+3FSHCB6PZ5jTCnnhSL7DhUmwTXDjMmklxEsQ+2YHWCS7Cm0i5Y/rT" crossorigin="anonymous"><link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/fonsp/Pluto.jl@0.19.36/frontend-dist/vollkorn.089565a8.css" integrity="sha384-jnV/84VtSgBLF70H+s2rxJcOUZIMDR+X/ElFZA83i9ZtZSWiIMFAgPyrWkOJV08q" crossorigin="anonymous"><script defer="">console.log("Pluto.jl, by Fons van der Plas (https://github.com/fonsp), Mikołaj Bochenski (https://github.com/malyvsen), Michiel Dral (https://github.com/dralletje) and friends 🌈");</script><script src="https://cdn.jsdelivr.net/gh/fonsp/Pluto.jl@0.19.36/frontend-dist/editor.b8733d72.js" defer="" integrity="sha384-84yPd6AGZ/1IUiaBlssipmMKMFz9WGFQ+u8vYZ9cWicH6bZm7ZOej+kLDXnIIAQJ" crossorigin="anonymous"></script><script src="https://cdn.jsdelivr.net/gh/fonsp/Pluto.jl@0.19.36/frontend-dist/editor.9f9dc874.js" defer="" integrity="sha384-tkFo1EK72I9JvoTmHFa199dfRzW8mkXPUkHb/N7UhYI+bxKzX3Kh8LNCZz1ltsFF" crossorigin="anonymous"></script><script src="https://cdn.jsdelivr.net/gh/fonsp/Pluto.jl@0.19.36/frontend-dist/editor.90ede145.js" defer="" integrity="sha384-CuNU9gQg6fa/yynNqNWjHWzPm4nj+d7O6+HXsNGSqClhs/bYQIbBC3Lw/kh8Ukui" crossorigin="anonymous"></script><script src="https://cdn.jsdelivr.net/gh/fonsp/Pluto.jl@0.19.36/frontend-dist/editor.dbeed08a.js" defer="" integrity="sha384-1BEdQwXfZi4ZpsNV8w1X8pQcVK1/DS/+/M8OTo3gol7mdEspSN7nT6llX57NQCSt" crossorigin="anonymous"></script><script id="iframe-resizer-content-window-script" src="https://cdn.jsdelivr.net/gh/fonsp/Pluto.jl@0.19.36/frontend-dist/editor.6386bd9d.js" crossorigin="anonymous" defer="" integrity="sha384-tgN2a0VDi/lCYwZuDqT7L+A/Y/9kpxf3HV7zv2BJ5Fu7zW0EClq0nM4crfK3TRPs"></script><link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/fonsp/Pluto.jl@0.19.36/frontend-dist/editor.2dae1b31.css" type="text/css" integrity="sha384-Tcw0GaMme/KbluiF6zJjOMqdXU+GeDMSRoX0MhIH0cfyRAO7XQQWWwfsJY7Wx2yK" crossorigin="anonymous"><link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/fonsp/Pluto.jl@0.19.36/frontend-dist/editor.82b535be.css" type="text/css" media="all" data-pluto-file="hide-ui" integrity="sha384-oYS1v2EOz2AtXoLXUVgvn3mEtQdJg1mfwZwLfJi++UQyF/qo43KuvjZ603iShU3X" crossorigin="anonymous"><link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/fonsp/Pluto.jl@0.19.36/frontend-dist/editor.ec3a6a5b.css" type="text/css" integrity="sha384-SuGFZkuBuG+lmfz6RbnvjtcyIh8W1xDYi1sebwn7bl9VMQnhmr6EniSmIdcHJ55l" crossorigin="anonymous"><link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/fonsp/Pluto.jl@0.19.36/frontend-dist/editor.1f4cf2ca.css" type="text/css" integrity="sha384-lBSBsn8FT1UzGOsNVudfV8RSHQEuNWqrCb6xQnF10uvF9AiCzYsCRXvKlhtQvV3c" crossorigin="anonymous"><link rel="preload" href="https://cdn.jsdelivr.net/gh/fonsp/Pluto.jl@0.19.36/frontend-dist/juliamono.c6034ab4.css" as="style" integrity="sha384-n0za6lUXlyf4XC+nGkZWj3TLDnRbNpAcoi4PZGSlQMPoyqGa9kGY+ZXkUgZGIhQt" crossorigin="anonymous"><link rel="preload" href="https://cdn.jsdelivr.net/gh/fonsp/Pluto.jl@0.19.36/frontend-dist/vollkorn.089565a8.css" as="style" integrity="sha384-jnV/84VtSgBLF70H+s2rxJcOUZIMDR+X/ElFZA83i9ZtZSWiIMFAgPyrWkOJV08q" crossorigin="anonymous"><link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/fonsp/Pluto.jl@0.19.36/frontend-dist/editor.e82e08bd.css" type="text/css" integrity="sha384-7YN+h8b6N4N65qk8TG/J2KPF95D8z3sGNd06rokz4CX9oWu0KnRAF5cVWu3BkkaN" crossorigin="anonymous"><script data-pluto-file="launch-parameters">
+window.pluto_notebook_id = undefined;
+window.pluto_isolated_cell_ids = undefined;
+window.pluto_notebookfile = undefined;
+window.pluto_disable_ui = true;
+window.pluto_slider_server_url = undefined;
+window.pluto_binder_url = "https://mybinder.org/v2/gh/fonsp/pluto-on-binder/v0.19.36";
+window.pluto_statefile = undefined;
+window.pluto_preamble_html = undefined;
+</script>
+
+<meta name="pluto-insertion-spot-parameters">
+<script src="https://cdn.jsdelivr.net/gh/fonsp/Pluto.jl@0.19.36/frontend-dist/editor.c69300f2.js" type="module" defer="" integrity="sha384-sLMlcWvt4TmaGbLLnhN9nz+JY2xsbCeklFggrWNJ4zBrwPosiufyTbUD6aYbHgE4" crossorigin="anonymous"></script><script src="https://cdn.jsdelivr.net/gh/fonsp/Pluto.jl@0.19.36/frontend-dist/editor.8a3292da.js" integrity="sha384-itp4oE2PRbSrrTHVpWh8sqAuVUsz7ja6L2Dgp/JRfMCD2AwVdTk56K96POF3oLmu" crossorigin="anonymous"></script><script type="text/javascript" id="MathJax-script" integrity="sha384-4kE/rQ11E8xT9QgrCBTyvenkuPfQo8rXYQvJZuMgxyPOoUfpatjQPlgdv6V5yhUK" crossorigin="" not-the-src-yet="https://cdn.jsdelivr.net/npm/mathjax@3.2.2/es5/tex-svg-full.js" async=""></script>
+
+</head>
+<body>
+    <div id="pages-layout">
+        <button id="toggle-nav" title="Open navigation"></button>
+        <nav id="pages-sidebar">
+        <div>
+        <ul>
+            <li class="sidebar-about">
+                <div class="course-title">
+                    <h1><a href="../.."><span>Data Analysis For Earth System Science</span></a></h1>
+                    <h2><span>Turn Earth Data Into Insights</span></h2>
+                </div>
+                <div class="authors">
+                    by <a href="https://ceas.iisc.ac.in/author/pawan-bharadwaj/">Pawan Bharadwaj</a>
+                </div>
+            </li>
+            <li>
+                <div class="search-bar">
+                    <form action="../../search" method="GET">
+                        <input type="search" name="q" placeholder="Search...">
+                        <input type=submit value="🔎">
+                    </form>
+                </div>
+            </li>
+            <li>
+                <div class="track-chooser">
+                    <label>
+                    <h2>Choose your track:</h2>
+                    <select>
+                        <option value="">Choose...</option>
+                        
+                    </select>
+                    </label>
+                </div>
+            </li>
+        <li>
+<h3>Welcome</h3>
+<ul>
+<li class=' lecture tag_welcome'><a href='../../introduction/'><span class="entry-number"></span> Introduction</a></li><li class=' lecture tag_welcome'><a href='../../linear-algebra/' title='Refresh your concepts of linear algebra. Thank you Gilbert Strang.'><span class="entry-number"></span> Linear Algebra Primer</a></li><li class=' lecture tag_welcome'><a href='../../installation/'><span class="entry-number"></span> Software installation</a></li><li class=' lecture tag_welcome'><a href='../../cheatsheets/'><span class="entry-number"></span> Cheatsheets</a></li><li class=' lecture tag_welcome'><a href='../../classes/'><span class="entry-number"></span> Lecture Schedule</a></li><li class=' lecture tag_welcome'><a href='../../logistics/'><span class="entry-number"></span> Course Logistics</a></li><li class=' lecture tag_welcome'><a href='../../references/'><span class="entry-number"></span> References</a></li>
+</ul>
+</li>
+<li>
+<h3>Module 1: Inverse Theory</h3>
+<ul>
+<li class=' lecture tag_module1'><a href='../../mod1_inverse_theory/elastic-net/'><span class="entry-number"></span> Lasso and Elastic Net</a></li><li class=' lecture tag_module1'><a href='../../mod1_inverse_theory/factor-analysis/'><span class="entry-number"></span> Factor Analysis</a></li><li class=' lecture tag_module1'><a href='../../mod1_inverse_theory/least-squares-line-fitting/'><span class="entry-number"></span> Least Squares Line Fitting</a></li><li class=' lecture tag_module1'><a href='../../mod1_inverse_theory/probabilistic-inverse-problems/' title='Posterior Information = Conjunction(Prior Information, Theoretical Information).'><span class="entry-number"></span> Probabilistic Inverse Problems</a></li><li class=' lecture tag_module1'><a href='../../mod1_inverse_theory/pseudoinverse/'><span class="entry-number"></span> Pseudoinverse</a></li><li class=' lecture tag_module1'><a href='../../mod1_inverse_theory/svd/'><span class="entry-number"></span> Singular Value Decomposition</a></li><li class=' lecture tag_module1'><a href='../../mod1_inverse_theory/svd_assignment_sanket/'><span class="entry-number"></span> Singular Value Decomposition</a></li>
+</ul>
+</li>
+<li>
+<h3>Module 2: Learning</h3>
+<ul>
+<li class='active lecture tag_module2'><a href='../../mod2_learning/pinn/'><span class="entry-number">1.1</span> To be updated</a></li><li class=' lecture tag_module2'><a href='../../mod2_learning/tbu/'><span class="entry-number">1.1</span> To be updated</a></li>
+</ul>
+</li>
+<li>
+<h3>Module 3: Time Series Analysis</h3>
+<ul>
+<li class=' lecture tag_module3'><a href='../../mod3_time_series/tbu/'><span class="entry-number">1.1</span> To be updated</a></li>
+</ul>
+</li>
+
+                <li><hr></li>
+            <li class="sidebar-about">
+                <div class="semester-details">
+                    <a href="../../semesters/">Jan 2023</a>
+                    <div class="course-numbers"><span>ES 222</span></div>
+                </div>
+                <div class="logos">
+                    <picture title="Indian Institute of Science">
+                        <img src="../../assets/IISc.svg">
+                    </picture>
+                    <picture title="Julia Programming Language">
+                        <source srcset="../../assets/julia-logo-dark.svg" media="(prefers-color-scheme: dark)" />
+                        <img src="../../assets/julia-logo-color.svg">
+                    </picture>
+                </div>
+            </li>
+        </ul>
+        </div>
+        </nav>
+        <div id="pages-content">
+           <div class="lecture-header" >
+    <p class="number">Section 1.1</p>
+    <h1>To be updated</h1>
+    
+    
+</div>
+        <div class="pages-markdown">
+<main>
+<p>Many real-time optimization problems involve minimizing the cost or time taken to reach a goal. In this section,
+we test the PINN method on the task of fnding the shortest-time path in several environments where an analytic
+solution exists. One signifcant diference from the previous example (swinging up a pendulum) is that the time
+taken is a variable and the subject to be minimized.
+We present two famous examples of fnding the shortest-time path. (1) Fermat’s principle, or the principle of
+least time, is that the path of the light ray between two given points is determined as the path that can be traveled
+in the shortest time. (2) Another one is the shortest-time descent path between two given points under gravity,
+known as the brachistochrone curve. It has been mathematically proven that it is part of a cycloid.
+Te refraction of light can be explained by Fermat’s principle. When the refraction index in a medium varies
+according to the location, the speed of the ray changes. In this case, the path of the ray bends to fnd a shortertime path in the medium. An example of the refraction of light within a medium where the refraction index
+varies is shown in Fig. 3a.
+Figure 3. Applications of PINN for determining the shortest-time path under specifc environments. (a)
+Finding the shortest-time path of a light ray within the medium where the refraction index varies along y. (b)
+Finding the shortest-time descent path between two given points under constant gravity. In the two fgures, the
+analytic solutions are given in yellow dashed lines and the converged solutions by PINN are shown in blue. For
+baselines, the results using RL with 105
+iterations are shown in magenta lines.
+5
+Vol.:(0123456789)
+Scientifc Reports | (2024) 14:202 | https://doi.org/10.1038/s41598-023-49977-3
+www.nature.com/scientificreports/
+In the 2D xy space of Fig. 3a, the refraction index (n) has a sinusoidal profle with respect to y, as represented
+by the contour color. Te ray slows down around y = 0.5 where the n is high. Terefore, the path of light that
+passes in the shortest time will be determined to become more vertical near the slowest region, y = 0.5. Tus,
+the ray trajectory will bend according to the changes in the refraction index, consistent with the analytic solution dictated by the law of refraction, as shown in yellow dashed line in Fig. 3a. When using RL to search for the
+shortest-time arrival trajectory, even afer 105
+iterations of training, a trajectory far from the analytic solution
+emerges, as indicated by the magenta line. While this trajectory does become vertical around y = 0.5 where n
+is high, it is still far from being the shortest possible time.
+To fnd the shortest-time path using PINN, the input of the neural network of Fig. 1 is set to the normalized
+time (tN ), and the outputs are the x and y coordinates. The governing equation is given by
+F =
+ 1
+T
+dx
+dtN
+2
++
+ 1
+T
+dy
+dtN
+2
+−  c
+n
+2
+, where c = 1 is the speed of light in vacuum and T is the time taken from
+the starting point to the endpoint. Here, T is unknown and a trainable variable during the neural network training. Constraints are set as the coordinates of the starting and ending points, respectively (0, 0), (1, 1), and the
+goal is set as Lgoal = T, aiming to minimize the time taken. More specifc settings can be found in the “Methods”
+section.
+Te solid lines in Fig. 3a depict the solution paths at each checkpoint (iteration I = 500, 1000, 1500, 2000),
+with the blue solid line representing the converged fnal solution (I = 2232). Unlike traditional methods that
+explore the shortest-time curve from a fxed start point to an endpoint, the PINN approach shows the characteristic of searching for the shortest-time curve while simultaneously approaching the start and endpoint. Te
+converged solution shows a path that almost coincides with the analytic solution.
+Figure 3b illustrates the search for the shortest-time descent curve (brachistochrone curve) connecting two
+given points under gravity (g = 9.8 m/s2). Here, the yellow dashed line is the analytic solution for the shortesttime curve, which is a cycloid. In the RL solution with 105
+iterations shown in magenta, the path more vertically
+free-falls to increase velocity and then changes direction horizontally at the lower altitude to move at a high
+speed. While this seems intuitively plausible, it deviates from the actual shortest curve, the cycloid. On the other
+hand, for PINN, the governing equation is set as the mechanical energy conservation law,
+F = gy0 −
+
+gy + 1
+2
+ 1
+T
+dx
+dtN
+2
++
+ 1
+T
+dy
+dtN
+2
+, and the constraints were set using the start ((x0, y0) = (0, 1))
+and endpoint coordinates ((x1, y1) = (1, 0)). Te goal, similar to Fig. 3a, was set as Lgoal = T to fnd the shortesttime curve. In Fig. 3b, at the initial phase (I = 500), a non-physical path that fails to align the start and endpoints
+is derived. But it gradually converges to a path close to the analytic solution shown in yellow. Tis approach using
+PINN to search for the shortest-time path can be utilized in chip design to fnd the minimum-loss circuit.</p>
+</main>
+</div>
+
+        </div>
+    </div>
+</body>
+</html>

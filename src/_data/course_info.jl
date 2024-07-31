@@ -1,13 +1,12 @@
 Dict(
-    "course_name" => "Name of your course",
-    "course_subtitle" => "a short catchy phrase about your course",
-    "code" => "code of your course",
-    "semester" => "Fall 20XX",
+    "course_name" => "Data Analysis For Earth System Science",
+    "course_subtitle" => "Turn Earth Data Into Insights",
+    "code" => "ES 222",
+    "semester" => "Jan 2023",
     "authors" => [
-        "First author name" => "first author homepage link",
-        "Second author name" => "second author homepage link"
+        "Pawan Bharadwaj" => "https://ceas.iisc.ac.in/author/pawan-bharadwaj/",
     ],
-    "institution" => "Your university (or similar) name",
-    "institution_logo" => "name of your institution logo file, e.g. `logo.svg`. Place this under `assets`",
-    "repo" => "link to the repository of the source code"
+    "institution" => "Indian Institute of Science",
+    "institution_logo" => "IISc.svg",
+    "repo" => "https://github.com/pawbz/ES222.jl"
 )
