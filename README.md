@@ -1,7 +1,3 @@
-# Computational thinking template
+# Interactive Seismology Notebooks
 
-<p align="center"><a href="https://juliapluto.github.io/computational-thinking-template"> <b>Go to template website</b> :balloon:</a></p>
-
-This repository is a template to build a website like the [Computational thinking course](https://computationalthinking.mit.edu/) tought at MIT.
-
-**Note**: This is an early experiment and very WIP, use at your own risk.
+A [collection](https://pawbz.github.io/Interactive-Seismology.jl/) of *reactive notebooks* using the [Julia](https://julialang.org/) notebook system, Pluto. These notebooks are designed to illustrate fundamental concepts in seismology in an interactive manner. They are primarily intended to support our courses on Seismology (ES218) and Inverse Problems (ES219), and are accessible to students with minimal programming experience. The notebooks contain all the essential mathematical expressions, which are easily manipulated using [Symbolics.jl](https://symbolics.juliasymbolics.org/dev/), a modern Computer Algebra System (CAS). By using these standalone notebooks, students can intuitively explore and gain a better understanding of wave phenomena in seismology.

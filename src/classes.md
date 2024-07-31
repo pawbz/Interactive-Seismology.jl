@@ -12,7 +12,7 @@ main a img {
 }
 </style>
 
-0. Introduction of the course: inverse, learning and design problems
+0. History of Seismology
 
 # Discrete Linear Inverse Problems
 

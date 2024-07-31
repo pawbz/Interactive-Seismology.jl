@@ -1,9 +1,10 @@
 Dict(
-    "title" => @htl("Data Analysis For <strong>Earth System Science</strong>"),
+    "title" => @htl("Interactive Seismology</strong>"),
 
     # # add a disclaimer to the course webpage. Remove it if you dont want to include it.
     "disclaimer" => md"""
-    In modern fields of geosciences, vast quantities of spatio-temporal data are often available to researchers. Our data are sparse, noisy, and typically unlabelled. This course will introduce broad and general analysis tools that can be applied to the student's research. We will discuss case studies from both the earth- and atmospheric-science literature. The focus is on understanding common pitfalls and best practices of data analysis in geosciences. Towards the end of this course, the students will be able to select the best model for the task at hand and learn the importance of properly quantifying the uncertainty in their conclusions. Finally, as the geoscience data is inherently high-dimensional, it is challenging to convert the data into meaningful information about complex Earth systems as it invokes the notorious curse of dimensionality. The course emphasizes that domain expertise and a solid understanding of the underlying physics are crucial in overcoming the challenges presented by high-dimensional datasets.
+A [collection](https://pawbz.github.io/Interactive-Seismology.jl/) of *reactive notebooks* using the [Julia](https://julialang.org/) notebook system, Pluto. These notebooks are designed to illustrate fundamental concepts in seismology in an interactive manner. They are primarily intended to support our courses on Seismology (ES218) and Inverse Problems (ES219), and are accessible to students with minimal programming experience. The notebooks contain all the essential mathematical expressions, which are easily manipulated using [Symbolics.jl](https://symbolics.juliasymbolics.org/dev/), a modern Computer Algebra System (CAS). By using these standalone notebooks, students can intuitively explore and gain a better understanding of wave phenomena in seismology.
+Sample notebooks are available via the index page after starting Pluto.
     """,
 
     # Highlights the key features of your class to make it more engaging. Remove it if you dont want to include it.
