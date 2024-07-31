@@ -1,6 +1,6 @@
 Dict(
     "course_name" => "Interactive Seismology",
-    "course_subtitle" => "Turn Earth Data Into Insights",
+    "course_subtitle" => "Computational lab to provide the students with interactive simulations that help them to comprehend the concepts of seismology",
     "code" => "ES 218",
     "semester" => "Aug 2024",
     "authors" => [
