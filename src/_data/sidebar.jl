@@ -1,3 +1,4 @@
 [
     "welcome" => "Welcome",
+    "notebooks" => "Notebooks"
 ]

@@ -13,5 +13,9 @@ main a img {
 </style>
 
 # Grading
+Assignments (40%); Mid term presentations (30%); End term exam (30%)
+* Late assignments will receive no credit, please submit 
 
-Describe here the logistics of your class.
+# Mid/End Term Exams
+Open book exams, where you will have access to textbook chapters/ other reading material. The exam duration will be 3 Hrs.
+The only thing that will not be allowed is interaction with peers.
