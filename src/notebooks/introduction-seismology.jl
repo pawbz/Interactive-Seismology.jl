@@ -2,8 +2,9 @@
 # v0.19.43
 
 #> [frontmatter]
-#> title = "Seismology: An Interdisciplinary Science"
+#> title = "Historical Review"
 #> layout = "layout.jlhtml"
+#> tags = ["welcome"]
 #> description = "Some notes on the historical review and introductory material"
 
 using Markdown
