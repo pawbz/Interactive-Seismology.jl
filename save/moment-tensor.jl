@@ -1,5 +1,5 @@
 ### A Pluto.jl notebook ###
-# v0.19.27
+# v0.19.43
 
 using Markdown
 using InteractiveUtils
@@ -160,6 +160,14 @@ where, ${\rho}$ is the density of the medium, ${\alpha}$ is the P-wave velocity,
 # ╔═╡ 3c5daacc-baad-4109-83d6-faba39137cf5
 rand_receiver=randn(3)
 
+# ╔═╡ eb75f980-4d19-438b-83d6-3ea5e1a0a1e0
+# test if the P-wave displacement is parallal to r̂
+@test all(abs.(cross(displacement(P(), rand_receiver...), rand_receiver)) .< eps())
+
+# ╔═╡ 2d7ca9f8-7575-4b2f-8c2b-80d728a79635
+# test if the S-wave displacement is always perpendicular to r̂
+@test abs(dot(displacement(S(), rand_receiver...), rand_receiver)) < eps()
+
 # ╔═╡ eb072a57-352e-47de-af61-f6f6259ea763
 rP = 1; rS= 1;
 
@@ -240,14 +248,6 @@ end
 # ╔═╡ 2fabd638-b308-4927-99fe-8bccce404396
 # method that computes displacement for all three components
 displacement(ps::Union{P,S}, rx, ry, rz)=map(rc->displacement(ps, rx, ry, rz, rc, m), [x(), y(), z()])
-
-# ╔═╡ eb75f980-4d19-438b-83d6-3ea5e1a0a1e0
-# test if the P-wave displacement is parallal to r̂
-@test all(abs.(cross(displacement(P(), rand_receiver...), rand_receiver)) .< eps())
-
-# ╔═╡ 2d7ca9f8-7575-4b2f-8c2b-80d728a79635
-# test if the S-wave displacement is always perpendicular to r̂
-@test abs(dot(displacement(S(), rand_receiver...), rand_receiver)) < eps()
 
 # ╔═╡ 2f29f440-4cc6-4ab0-95fe-6baf87c0cd06
 begin

@@ -87,7 +87,7 @@ end;
 # ╔═╡ 73aa375b-4887-4608-b699-17112c238d5a
 md"""Time $(@bind T Slider(tgrid, show_value=true)) 
 
-Boundary Position $(@bind X Slider(xgrid, show_value=true, default=0))"""
+Interface Position $(@bind X Slider(xgrid, show_value=true, default=0))"""
 
 # ╔═╡ 82a7a1ab-88da-4c22-a075-7640991bb6ac
 md"## Governing Equations"
