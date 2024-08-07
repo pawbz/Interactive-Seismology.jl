@@ -4,7 +4,7 @@
 #> [frontmatter]
 #> title = "Historical Review"
 #> layout = "layout.jlhtml"
-#> tags = ["welcome"]
+#> tags = ["notebooks"]
 #> description = "Some notes on the historical review and introductory material"
 
 using Markdown
