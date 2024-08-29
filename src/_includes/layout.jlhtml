@@ -89,20 +89,6 @@ $(pluto_head)
                     </form>
                 </div>
             </li>
-            <li>
-                <div class="track-chooser">
-                    <label>
-                    <h2>Choose your track:</h2>
-                    <select>
-                        <option value="">Choose...</option>
-                        $([
-                            @htl("""<option value="$track_id">$track_name</option> """)
-                            for (track_id, track_name) in metadata["tracks"]
-                        ])
-                    </select>
-                    </label>
-                </div>
-            </li>
         $(let
             sections = metadata["sidebar"]
             [

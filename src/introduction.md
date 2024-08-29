@@ -1,5 +1,5 @@
 ---
-title: "Introduction"
+title: "Seismology"
 tags: ["welcome"]
 order: 1
 layout: "md.jlmd"

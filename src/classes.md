@@ -17,12 +17,16 @@ main a img {
 
 # Wave Theory
 
-1. Waves on a string
-2. Stress and strain
-3. Equation of motion and constitutive equations
-4. Boundary conditions
-5. Planewaves
-6. Lame's theorem; P and S waves
-7. Surface waves and dispersion
-8. Normal models of the Earth
-9. Intrinsic attenuation
+1. Harmonic oscillator
+2. Waves on a string
+3. Stress and strain
+4. Equation of motion and constitutive equations
+5. Boundary conditions
+6. Planewaves
+7. Lame's theorem; P and S waves
+8. Rayleigh & Love waves; dispersion
+9. Normal models of the Earth
+10. Intrinsic attenuation
+11. Seismic anisotropy
+12. Born approximation and imaging
+13. 

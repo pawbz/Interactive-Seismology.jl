@@ -1,8 +1,10 @@
 ### A Pluto.jl notebook ###
-# v0.19.41
+# v0.19.46
 
 #> [frontmatter]
 #> title = "Seismic Full Waveform Inversion"
+#> tags = ["imaging"]
+#> layout = "layout.jlhtml"
 #> description = "A notebook that demonstrates how interactivity makes seismic full waveform inversion more accessible and intuitive."
 
 using Markdown
@@ -198,6 +200,12 @@ md"""
 ## Finite-Difference Tests
 Tick to perform these tests: $(@bind do_fd_tests CheckBox())
 """
+
+# ╔═╡ 12a089f0-23b5-4091-8861-d3ba2d0073a0
+do_fd_tests && @time Jsρ(xs)
+
+# ╔═╡ 9aa2e4ac-b221-4f3e-9072-3d4d762f01c7
+do_fd_tests && @time Jsinvμ(xs)
 
 # ╔═╡ 006739fb-24a1-49b0-9619-fe8e2d3c8fca
 do_fd_tests && (xs = zeros(Float32, 3))
@@ -741,6 +749,23 @@ true_medium_lambda / step(zgrid)
 taper_points
   ╠═╡ =#
 
+# ╔═╡ 77c9696c-58c5-40bf-acd0-16d5cf877810
+#=╠═╡
+begin
+	# Initialisation of fields and data
+	fields_true = initialize_fields(grid_param, grid_param.nt)
+	dobs = initialize_data(grid_param, ageom)
+
+	# Running the simulation to generate observed data
+	@time propagate!(dobs, fields_true, grid_param, medium_true, ageom, source)	
+end;
+  ╠═╡ =#
+
+# ╔═╡ 1de42ac5-ddaa-4e51-a093-99423a2993ae
+#=╠═╡
+dobs
+  ╠═╡ =#
+
 # ╔═╡ 53ebecf7-5ea8-4372-9be2-fa48bd2be130
 #=╠═╡
 gradient = initialize_grad(grid_param, grid_param.nt);
@@ -825,23 +850,6 @@ plot(tgrid, source_wavelet, size=(500, 200), w=2, label="Source Wavelet", Layout
 source_wavelet |> typeof
   ╠═╡ =#
 
-# ╔═╡ 77c9696c-58c5-40bf-acd0-16d5cf877810
-#=╠═╡
-begin
-	# Initialisation of fields and data
-	fields_true = initialize_fields(grid_param, grid_param.nt)
-	dobs = initialize_data(grid_param, ageom)
-
-	# Running the simulation to generate observed data
-	@time propagate!(dobs, fields_true, grid_param, medium_true, ageom, source)	
-end;
-  ╠═╡ =#
-
-# ╔═╡ 1de42ac5-ddaa-4e51-a093-99423a2993ae
-#=╠═╡
-dobs
-  ╠═╡ =#
-
 # ╔═╡ 3be62716-f2d9-434c-a69a-ed272b89c85d
 #=╠═╡
 begin
@@ -905,11 +913,6 @@ function Jsρ(xs; fwi_param=fwi_param)
 end
   ╠═╡ =#
 
-# ╔═╡ 12a089f0-23b5-4091-8861-d3ba2d0073a0
-#=╠═╡
-do_fd_tests && @time Jsρ(xs)
-  ╠═╡ =#
-
 # ╔═╡ 50733229-38f1-4ac1-acbc-ebb2c92d3891
 #=╠═╡
 do_fd_tests && (g1ρ=grad(central_fdm(2, 1), Jsρ, xs)) # Gradients wrt ρ using central difference
@@ -927,11 +930,6 @@ function Jsinvμ(xs; fwi_param=fwi_param)
 	update_xsinvμ!(fwi_param.xbuffer, xs)
 	return J(fwi_param.xbuffer, fwi_param=fwi_param)
 end
-  ╠═╡ =#
-
-# ╔═╡ 9aa2e4ac-b221-4f3e-9072-3d4d762f01c7
-#=╠═╡
-do_fd_tests && @time Jsinvμ(xs)
   ╠═╡ =#
 
 # ╔═╡ 803ac9ba-93d2-4f66-9018-36232b8a3076

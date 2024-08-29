@@ -1,8 +1,10 @@
 ### A Pluto.jl notebook ###
-# v0.19.38
+# v0.19.46
 
 #> [frontmatter]
 #> title = "Born Approximation"
+#> tags = ["imaging"]
+#> layout = "layout.jlhtml"
 #> description = "Draw subsurface heterogeneities and model their linearized response using the notion of scattering theory."
 
 using Markdown
@@ -114,6 +116,10 @@ $(@bind it_plot Clock(0.1))
 # ╔═╡ 30d354da-fceb-42a3-8c4c-59bc211e0022
 md"## Scalar Helmholtz Equation"
 
+# ╔═╡ 75ebf7f5-2f25-4be2-8da4-bc1a483e71be
+# TODO: get Helmholtz eq with the following substitution 
+U(𝐱, 𝐱ₛ) * exp(ı * ω * t)
+
 # ╔═╡ 802eb9d4-98da-4ac8-88de-36365227a971
 @syms x z
 
@@ -126,6 +132,12 @@ Dx = Differential(x)
 # ╔═╡ 0801d1fa-a22b-4341-b594-245209682f82
 Dz = Differential(z)
 
+# ╔═╡ e197b835-cf69-46e5-8d0f-a2aa5d02ad04
+L(u, s) = ω^2 * s * u + Dx(Dx(u)) + Dz(Dz(u))
+
+# ╔═╡ bc542855-8281-4b61-b8d9-d758d15f4dcd
+L(U(𝐱, 𝐱ₛ), s(𝐱)) ~ F(ω) * δ(𝐱 - 𝐱ₛ)
+
 # ╔═╡ 3a8c62bb-6ecc-4ab7-8e0f-68b5c421767e
 Dt = Differential(t)
 
@@ -137,9 +149,6 @@ Dt = Differential(t)
 
 # ╔═╡ 36c73570-8cbd-447d-8d1d-20953903ece8
 @syms ω # angular frequency
-
-# ╔═╡ e197b835-cf69-46e5-8d0f-a2aa5d02ad04
-L(u, s) = ω^2 * s * u + Dx(Dx(u)) + Dz(Dz(u))
 
 # ╔═╡ c4479321-2f68-4359-aa5b-99441a317efe
 @syms s(𝐱) δs(𝐱) # reference and perturbed slowness
@@ -156,10 +165,6 @@ L(u, s) = ω^2 * s * u + Dx(Dx(u)) + Dz(Dz(u))
 # ╔═╡ d7b8f7e9-49f6-4a7f-b67d-83f00753ef76
 @syms 𝐱ₛ # source coordinate vector
 
-# ╔═╡ 75ebf7f5-2f25-4be2-8da4-bc1a483e71be
-# TODO: get Helmholtz eq with the following substitution 
-U(𝐱, 𝐱ₛ) * exp(ı * ω * t)
-
 # ╔═╡ f478e161-06b3-4a91-b45b-f1e3434e1832
 @syms f(t) # source time function
 
@@ -168,9 +173,6 @@ U(𝐱, 𝐱ₛ) * exp(ı * ω * t)
 
 # ╔═╡ 703ed5fa-4e67-442d-8423-041b417b9a9e
 @syms δ(𝐱) # Dirac delta function
-
-# ╔═╡ bc542855-8281-4b61-b8d9-d758d15f4dcd
-L(U(𝐱, 𝐱ₛ), s(𝐱)) ~ F(ω) * δ(𝐱 - 𝐱ₛ)
 
 # ╔═╡ bc57a10f-9d2d-4284-baf6-0875e169dbb4
 md"## Perturbation Theory"

@@ -1,5 +1,5 @@
 ### A Pluto.jl notebook ###
-# v0.19.25
+# v0.19.46
 
 using Markdown
 using InteractiveUtils
@@ -56,6 +56,12 @@ md"In the velocity-stress formulation, the seismic wavefield is described in ter
 # ╔═╡ 76fd526b-450a-4db1-bf9a-bc7ae59b895c
 md"As the velocity and stress fields are staggered in time, we create corresponding vectors at each time value in t and t̂, respectively."
 
+# ╔═╡ 4aec990b-338c-418b-a02d-39cec0cfc2c9
+V = hcat(collect(broadcast(x -> collect(map(t -> v(x, t), vcat(t₀, t, T))), x))...) # velocity in the discrete world
+
+# ╔═╡ c0f9c9af-aced-4066-a9d1-7af8e26c8a27
+P = hcat(collect(broadcast(x -> collect(map(t -> p(x, t), vcat(t₀, t̂))), x̂))...) # stress in the discrete world
+
 # ╔═╡ c0bb57b5-9d62-40b1-9256-648a984dbbae
 md"## Forcing"
 
@@ -68,6 +74,9 @@ md"The symbol `f` represents the body force density, which is a quantity that de
 # ╔═╡ ebefecd3-9dd2-457e-bf9b-97d4db9e983e
 # F = collect(map(t -> f(0, t), t̂))
 
+# ╔═╡ 2a2a5249-5293-4736-9a72-441f32775021
+F = hcat(collect(broadcast(x -> collect(map(t -> f(x, t), vcat(t₀, t̂))), x))...)
+
 # ╔═╡ bc20a677-5d50-4a80-b466-2b7edd5feac4
 md"## Momentum Equation"
 
@@ -79,10 +88,16 @@ This line defines the initial momentum of the system, which is equal to the diff
 # ╔═╡ 3cb20104-2872-4bfe-95a7-86d2b1bb6b0f
 @syms δₓ⁻¹ δₜ⁻¹
 
+# ╔═╡ 0d82f0b1-24a3-4adf-b645-4fea2fab6273
+dPdx = diff(P, dims=2) * δₓ⁻¹
+
 # ╔═╡ 84d8f063-2aad-4d57-9bdf-d44e37f173c7
 md"""
 We will now construct a vector that represents the time derivative of the velocity field. The first few elements can be computed using the `diff()` function applied to the `V` array. The last element is the time derivative of `v(x, t)` evaluated at the final time `T`, which is computed as the difference between `v(x, T)` and `v(x, last(t̂))`.
 """
+
+# ╔═╡ 201ebc60-90d6-40a1-8d1f-e371057af060
+dVdt = diff(V, dims=1) * δₜ⁻¹
 
 # ╔═╡ 4ccfa601-b3b3-47b0-98f6-4f4ec6c1b794
 ρt = repeat(reshape(ρ, 1, :), 4, 1)
@@ -93,21 +108,39 @@ function avx(ρt)
   hcat([0.5 * (ρt[:, i+1] .+ ρt[:, i]) for i in 1:size(ρt, 2)-1]...)
 end
 
+# ╔═╡ de0ef73d-0df1-47bb-aec0-f1bdef92af83
+Meqs = dVdt[:, 2:end-1] .* avx(ρt) - dPdx - F[:, 2:end-1];
+
 # ╔═╡ a72d5528-f9a4-4b82-b4c8-644ecd0fab55
 avx(ρt)
+
+# ╔═╡ f54c2aa7-2afb-4806-b932-417e3b4a41e5
+Meqs ~ 0
 
 # ╔═╡ c5e41f1c-a734-4502-a60f-4ec0f9819e89
 md"## Constitutive Relations
 In linear elasticity, for example, the constitutive relation is given by Hooke's law, which states that stress is proportional to strain. "
 
+# ╔═╡ 39570793-d23b-4c88-9c3b-c58690eb4ae8
+∂V∂x = diff(V, dims=2) * δₓ⁻¹
+
 # ╔═╡ fc20c71d-a23d-44be-8bf2-099a2400921b
 md"Similar to velocity, we will construct a vector that represents the time derivative of the stress field."
+
+# ╔═╡ 7343a50f-9835-4e10-97ed-5b213069044a
+∂P∂t = diff(P, dims=1) * δₜ⁻¹
 
 # ╔═╡ 0f894463-6513-49d9-98e4-12c3ca07ce51
 K⁻¹t = repeat(reshape(K⁻¹, 1, :), 3, 1)
 
 # ╔═╡ b2562463-09d0-40fc-9802-b49e105f946c
 md"This equation states that the time derivative of stress minus the gradient of the stress scaled by the shear modulus is equal to zero. This is a simplified form of the constitutive relation."
+
+# ╔═╡ a0886a56-c027-4bae-99ff-e7be53ba4a1f
+Ceqs = ∂P∂t .* K⁻¹t - ∂V∂x[2:end-1, :];
+
+# ╔═╡ 9678bb33-8e15-49ad-95b8-c8d4ab75f14f
+Ceqs ~ 0
 
 # ╔═╡ ebcbbf5e-6205-41a8-b31b-a6bed52cda5b
 md"## Leap-frog Scheme"
@@ -127,11 +160,17 @@ md"Variable to define an observed velocity field, which is a function of space a
 # ╔═╡ 110c5485-51c1-4837-89da-18854267ed7c
 md"This defines a simple quadratic objective function that measures the difference between the model-predicted velocity field v and the observed velocity field v₀. Squaring the difference ensures that all differences are positive and also gives more weight to larger differences. The goal is to minimize this objective function to find the velocity field that best matches the observed data."
 
+# ╔═╡ d5963693-e1c5-49f6-9c07-9187e893cd97
+V₀ = hcat(collect(broadcast(x -> collect(map(t -> v₀(x, t), vcat(t))), x))...)
+
 # ╔═╡ a8bd5aae-552f-42c6-8fc8-92ef5bade2f1
 obj(v, v₀) = (v - v₀)^2
 
 # ╔═╡ 65cc4d98-7cc8-400e-a41f-0c2cef5bde9e
 md"The final value of the objective function."
+
+# ╔═╡ e7536b06-2454-496b-8872-aec29edb37f6
+J = sum(map(obj, V[2:end-1, :], V₀))
 
 # ╔═╡ 80c1040c-88d2-45b5-89e1-b3cb8d6abaf7
 md"## Adjoint State Variables
@@ -140,11 +179,23 @@ Adjoint state variables are introduced in the context of optimization problems. 
 # ╔═╡ 28a345b9-d911-486c-a715-7d32a4ea41e8
 @syms u(x, t) τ(x, t)
 
+# ╔═╡ aee62f47-0bd7-492f-bc99-2392a16fc1dd
+size(Meqs)
+
 # ╔═╡ d447a8bf-2d42-4f93-a27e-9eed76050348
 md"One multiplier for each of Meqs⋯"
 
+# ╔═╡ 59d380f3-1bc0-41b4-a0e5-2cfbb0eaa333
+U = hcat(collect(broadcast(x -> collect(map(t -> u(x, t), vcat(t̂, T̂))), x[2:end-1]))...)
+
+# ╔═╡ 3b219c43-3056-49db-951e-d0e97a4f39db
+size(Ceqs)
+
 # ╔═╡ 723e81cd-36e1-44ea-99bf-b4cae2be03a2
 md"One multiplier for each Ceqs⋯"
+
+# ╔═╡ 1bf0a983-9592-4a72-a10e-af61316ce6e4
+𝛕 = hcat(collect(broadcast(x -> collect(map(t -> τ(x, t), vcat([t[end-1], t[end]], T))), x̂))...)
 
 # ╔═╡ b19344d2-d872-4bf5-a75f-1ca481779835
 md"## Lagrangian"
@@ -152,11 +203,20 @@ md"## Lagrangian"
 # ╔═╡ e1048e24-e389-4e95-8157-00702f1b41a3
 md"The Lagrangian component, for momentum equations `Meqs`, is given by"
 
+# ╔═╡ fee19d3e-2235-4382-82d6-5a3cb452d317
+L₁ = sum((U .* Meqs))
+
 # ╔═╡ c2967e07-5d8b-4205-bb8b-add323494d86
 md"The Lagrangian component, for constitutive equations `Ceqs`, is given by"
 
+# ╔═╡ 55c08fb9-e29d-4500-84e7-46de7979639e
+L₂ = sum(𝛕 .* Ceqs)
+
 # ╔═╡ 911c9966-e983-46fd-8ca0-8ca06ab42bf0
 md"Adding all the components of the Lagrangian together gives"
+
+# ╔═╡ 3b8a80a7-4ab5-4b74-9aaa-3603e0ecccb5
+L = L₁ + L₂ + J
 
 # ╔═╡ 66ed7bf9-c5b7-4c27-a021-28bb5675c85f
 md"## Adjoint State Equations"
@@ -174,6 +234,14 @@ Lets compute the gradient of L with respect to ρ and μ."
 
 # ╔═╡ bdc608ee-6a52-4130-b4a0-c27d513a0009
 @bind iρd Select(1:3)
+
+# ╔═╡ 7e56d621-a572-4077-83be-d3b002f4e808
+# gradient w.r.t. mass density
+∇ρ = Differential(ρ[iρd])(L) |> expand_derivatives#, [u(x, T̂) => 0, v(x, 0) => 0])
+
+# ╔═╡ c150327f-b950-4a70-af44-722beee2069c
+# gradient w.r.t. shear modulus
+∇K⁻¹ = Differential(K⁻¹[2])(L) |> expand_derivatives #, [σ(x, 0) => 0, τ(x, T) => 0])
 
 # ╔═╡ 3b2d5624-d365-4595-b95b-52825bc980d0
 md"## Appendix"
@@ -198,74 +266,6 @@ collect(t), collect(t̂)
 
 # ╔═╡ 24e8eafe-e040-4173-b705-4ade869791ba
 @variables x[1:4] x̂[1:3] # space 
-
-# ╔═╡ 4aec990b-338c-418b-a02d-39cec0cfc2c9
-V = hcat(collect(broadcast(x -> collect(map(t -> v(x, t), vcat(t₀, t, T))), x))...) # velocity in the discrete world
-
-# ╔═╡ 201ebc60-90d6-40a1-8d1f-e371057af060
-dVdt = diff(V, dims=1) * δₜ⁻¹
-
-# ╔═╡ 39570793-d23b-4c88-9c3b-c58690eb4ae8
-∂V∂x = diff(V, dims=2) * δₓ⁻¹
-
-# ╔═╡ c0f9c9af-aced-4066-a9d1-7af8e26c8a27
-P = hcat(collect(broadcast(x -> collect(map(t -> p(x, t), vcat(t₀, t̂))), x̂))...) # stress in the discrete world
-
-# ╔═╡ 0d82f0b1-24a3-4adf-b645-4fea2fab6273
-dPdx = diff(P, dims=2) * δₓ⁻¹
-
-# ╔═╡ 7343a50f-9835-4e10-97ed-5b213069044a
-∂P∂t = diff(P, dims=1) * δₜ⁻¹
-
-# ╔═╡ a0886a56-c027-4bae-99ff-e7be53ba4a1f
-Ceqs = ∂P∂t .* K⁻¹t - ∂V∂x[2:end-1, :];
-
-# ╔═╡ 9678bb33-8e15-49ad-95b8-c8d4ab75f14f
-Ceqs ~ 0
-
-# ╔═╡ 3b219c43-3056-49db-951e-d0e97a4f39db
-size(Ceqs)
-
-# ╔═╡ 2a2a5249-5293-4736-9a72-441f32775021
-F = hcat(collect(broadcast(x -> collect(map(t -> f(x, t), vcat(t₀, t̂))), x))...)
-
-# ╔═╡ de0ef73d-0df1-47bb-aec0-f1bdef92af83
-Meqs = dVdt[:, 2:end-1] .* avx(ρt) - dPdx - F[:, 2:end-1];
-
-# ╔═╡ f54c2aa7-2afb-4806-b932-417e3b4a41e5
-Meqs ~ 0
-
-# ╔═╡ aee62f47-0bd7-492f-bc99-2392a16fc1dd
-size(Meqs)
-
-# ╔═╡ d5963693-e1c5-49f6-9c07-9187e893cd97
-V₀ = hcat(collect(broadcast(x -> collect(map(t -> v₀(x, t), vcat(t))), x))...)
-
-# ╔═╡ e7536b06-2454-496b-8872-aec29edb37f6
-J = sum(map(obj, V[2:end-1, :], V₀))
-
-# ╔═╡ 59d380f3-1bc0-41b4-a0e5-2cfbb0eaa333
-U = hcat(collect(broadcast(x -> collect(map(t -> u(x, t), vcat(t̂, T̂))), x[2:end-1]))...)
-
-# ╔═╡ fee19d3e-2235-4382-82d6-5a3cb452d317
-L₁ = sum((U .* Meqs))
-
-# ╔═╡ 1bf0a983-9592-4a72-a10e-af61316ce6e4
-𝛕 = hcat(collect(broadcast(x -> collect(map(t -> τ(x, t), vcat([t[end-1], t[end]], T))), x̂))...)
-
-# ╔═╡ 55c08fb9-e29d-4500-84e7-46de7979639e
-L₂ = sum(𝛕 .* Ceqs)
-
-# ╔═╡ 3b8a80a7-4ab5-4b74-9aaa-3603e0ecccb5
-L = L₁ + L₂ + J
-
-# ╔═╡ 7e56d621-a572-4077-83be-d3b002f4e808
-# gradient w.r.t. mass density
-∇ρ = Differential(ρ[iρd])(L) |> expand_derivatives#, [u(x, T̂) => 0, v(x, 0) => 0])
-
-# ╔═╡ c150327f-b950-4a70-af44-722beee2069c
-# gradient w.r.t. shear modulus
-∇K⁻¹ = Differential(K⁻¹[2])(L) |> expand_derivatives #, [σ(x, 0) => 0, τ(x, T) => 0])
 
 # ╔═╡ 6a1c66ec-6f3d-48a9-9809-2752e3818d18
 md"### Lagrangian"

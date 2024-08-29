@@ -1,8 +1,10 @@
 ### A Pluto.jl notebook ###
-# v0.19.36
+# v0.19.46
 
 #> [frontmatter]
 #> title = "Ray Theory and The Eikonal Equation"
+#> tags = ["raytheory"]
+#> layout = "layout.jlhtml"
 #> description = "This interactive notebook explores the Eikonal equation under the high-frequency approximation and its applications in tracing seismic rays in heterogeneous Earth models."
 
 using Markdown
@@ -123,6 +125,9 @@ We shall assume a solution of the form
 # ╔═╡ 32a89a32-de52-481e-a017-1ae10c2c4bc4
 @syms U(t)
 
+# ╔═╡ 946772f8-3229-41cd-9a56-feae400ad11b
+ϕ = A(x, z) * exp(ı * ω * (t - T(x, z))) # trail solution
+
 # ╔═╡ 8d1ff0cb-78da-481c-b588-b664bf84828a
 @syms ı
 
@@ -137,9 +142,6 @@ md"...with variables"
 
 # ╔═╡ b3aa15cf-6baa-4209-9352-cebcb84dc3c5
 @syms T(x, z) A(x, z) # travel-time and amplitude A(x,z)
-
-# ╔═╡ 946772f8-3229-41cd-9a56-feae400ad11b
-ϕ = A(x, z) * exp(ı * ω * (t - T(x, z))) # trail solution
 
 # ╔═╡ ff0a4ccf-7518-4662-9203-ff639cb2bce2
 md"...and the following operators."

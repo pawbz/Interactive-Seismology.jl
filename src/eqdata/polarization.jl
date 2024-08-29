@@ -1,5 +1,10 @@
 ### A Pluto.jl notebook ###
-# v0.19.11
+# v0.19.46
+
+#> [frontmatter]
+#> layout = "layout.jlhtml"
+#> tags = ["eqdata"]
+#> title = "Polarization"
 
 using Markdown
 using InteractiveUtils
@@ -93,7 +98,7 @@ md"""
 """
 
 # ╔═╡ Cell order:
-# ╠═f1035bd5-77b8-4a79-8445-4b11d01583e5
+# ╟─f1035bd5-77b8-4a79-8445-4b11d01583e5
 # ╠═45c85015-bf14-4358-9087-8f6a526b95b5
 # ╟─d9b24b36-0adc-448c-9571-d08ca1c731c1
 # ╠═e69d617a-f065-43ad-a31a-90ea7122c902

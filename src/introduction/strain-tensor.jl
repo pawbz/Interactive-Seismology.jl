@@ -1,11 +1,12 @@
 ### A Pluto.jl notebook ###
-# v0.19.43
+# v0.19.46
 
 #> [frontmatter]
-#> title = "Elasticity"
-#> tags = ["notebooks"]
+#> order = "3"
+#> title = "Strain Tensor"
+#> tags = ["introduction"]
 #> layout = "layout.jlhtml"
-#> description = "Fundamental laws of elasticity"
+#> description = "Deformation of a 2-D square element"
 
 using Markdown
 using InteractiveUtils
@@ -22,27 +23,24 @@ end
 
 # ╔═╡ 13a3429e-12f6-11ed-326f-c154f5debceb
 begin
-	using LinearAlgebra
-	using Plots
-	using PlutoUI
-	using LaTeXStrings
-	using PlutoTeachingTools
-	using PlutoUI
-	using Symbolics
-	using SymbolicUtils
-	using Einsum
-	using TikzPictures
+    using LinearAlgebra
+    using Plots
+    using PlutoUI
+    using LaTeXStrings
+    using PlutoTeachingTools
+    using PlutoUI
+    using Symbolics
+    using SymbolicUtils
+    using Einsum
+    using TikzPictures
 end
-
-# ╔═╡ 261ec03b-6d67-4cf9-8567-df00d124fb3d
-ChooseDisplayMode()
 
 # ╔═╡ 3f1bc2d1-2327-48cc-984a-df09c936da87
 TableOfContents()
 
 # ╔═╡ fd14256d-8c69-4d8a-91b5-924a32479866
 md"""
-# Stress and Strain Tensors
+# Strain Tensor
 This notebook demonstrates how a 2-D square element gets deformed by an input strain or spin tensor.
 
 ##### [Interactive Seismology Notebooks](https://pawbz.github.io/Interactive-Seismology.jl/)
@@ -77,12 +75,6 @@ where $u_x$ and $u_y$ are components of displacements.
 
 # ╔═╡ 968b1426-fca1-4d58-86cc-080a7c75e174
 Jinput = [u11 u12; u21 u22]
-
-# ╔═╡ e1626369-ce1c-4972-83ef-7fc949537b0b
-eigen(Jinput)
-
-# ╔═╡ 9b4a5574-52e2-4ec7-bdbc-df7b8d14b8fb
-svd(Jinput)
 
 # ╔═╡ 174e1f52-bf7a-4201-b579-c784115d15f1
 md"""
@@ -166,39 +158,22 @@ md"residual spin tensor (anti-symmetric)"
 Ω = J - e
 
 # ╔═╡ 731e1777-eb47-4180-86f4-faf31e8e6cd2
-e * δ𝐱 
+e * δ𝐱
 
 # ╔═╡ 7cabd325-30d7-4882-86c5-3195ac496264
-Ω * δ𝐱 
+Ω * δ𝐱
 
 # ╔═╡ d8f1ceea-1968-4e59-93ae-a21f035b2a09
 md"## Principal Strains"
 
-# ╔═╡ 0ba65398-1897-4bb5-ae93-af6b5e5292f8
-md"""
-## Stress Tensor
-"""
-
-# ╔═╡ 50eb4916-b3d7-4f2a-90c6-8661cbbd8e7a
-@variables σ[1:3, 1:3]
-
-# ╔═╡ 383136ab-f7b1-4a4b-b61f-03a35d1108c8
-σ[3]
-
-# ╔═╡ 7b88bfc2-fd25-4c9b-9cfe-b6ca65a70e94
-Symbolics.scalarize(σ * [0,0,1])
-
-# ╔═╡ 88b33835-d993-4396-8605-bb3456200eb1
-@variables n[1:3]
-
-# ╔═╡ 1be2182b-c05b-4b1b-b48e-2ba8c749cf56
-@einsum a[i] :=  σ[i, j] * f[j]
+# ╔═╡ 6400c97b-9f07-4f52-9002-e8b5f11aa182
+md"## Dilatation"
 
 # ╔═╡ 4ca30efc-0f95-4fba-b0ae-139b21d9820d
 @syms je1 je2 je
 
 # ╔═╡ 7f00862f-64f8-4c42-9d78-a466cd5bd9c1
-Je = [je1 je; je je2] 
+Je = [je1 je; je je2]
 
 # ╔═╡ 451c250d-1d40-49d5-a508-4668b5cfaaad
 @syms jom
@@ -207,25 +182,25 @@ Je = [je1 je; je je2]
 Jom = [0 jom; -jom 0]
 
 # ╔═╡ 668a0698-cfe3-4027-b190-17d0ec0366af
-corners = [[0,0], [1,0], [1,1], [0,1]]
+corners = [[0, 0], [1, 0], [1, 1], [0, 1]]
 
 # ╔═╡ 0ebff5dc-4ee6-4480-a546-6ca0cc99ca39
 new_corners1 = map(corners) do c
-	Je * c + c
+    Je * c + c
 end
 
 # ╔═╡ aeb75efa-10e0-4a6b-b24e-63a09f252d22
 new_corners2 = map(corners) do c
-	Jom * c + c
+    Jom * c + c
 end
 
 # ╔═╡ 0861fe54-b9c4-4d00-a5f0-ebd60e87f671
 function calculate_area(corner_vectors)
-	A = corner_vectors[1]
+    A = corner_vectors[1]
     B = corner_vectors[2]
     C = corner_vectors[3]
     D = corner_vectors[4]
-    
+
     area = 0.5 * abs((B[1] - A[1]) * (C[2] - A[2]) - (C[1] - A[1]) * (B[2] - A[2]) +
                      (C[1] - A[1]) * (D[2] - A[2]) - (D[1] - A[1]) * (C[2] - A[2]) +
                      (D[1] - A[1]) * (B[2] - A[2]) - (B[1] - A[1]) * (D[2] - A[2]))
@@ -255,7 +230,20 @@ We shall now define the locations of a bunch of points on the square element ($x
 """
 
 # ╔═╡ c974c4e2-676c-49e2-8031-7c67cded9cea
-points=[[x, y] for x in range(0, stop=1, length=10), y in range(0, stop=1, length=10)];
+points = [[x, y] for x in range(0, stop=1, length=10), y in range(0, stop=1, length=10)];
+
+# ╔═╡ e7309331-ec59-4da5-92e3-223f79136b78
+begin
+    Jinput
+    plot1 = plotpoints(points, "Before Deformation")
+    plot2 = plotpoints(displace(points, Jinput), "Total Deformation")
+    plot3 = plotpoints(displace(points, einput), "Strain Deformation")
+    plot!(plot3, eeig.values[1] * vcat([0.0], first(selectdim(eeig.vectors, 2, 1))), eeig.values[1] * vcat([0.0], last(selectdim(eeig.vectors, 2, 1))), c=:blue, w=2, label=nothing)
+    plot!(plot3, eeig.values[2] * vcat([0.0], first(selectdim(eeig.vectors, 2, 2))), vcat([0.0], eeig.values[2] * last(selectdim(eeig.vectors, 2, 2))), c=:blue, w=2, label="Principal Strains")
+    # p=scatter(first.(a), last.(a), c=:red, xlim=(-2,4), ylim=(-2,4), label=nothing, size=(500,500), title=t)
+    plot4 = plotpoints(displace(points, Ωinput), "Spin Deformation")
+    plot(plot1, plot2, plot3, plot4, layout=(2, 2))
+end
 
 # ╔═╡ 07845efc-0ac1-49a5-9714-8c77c4d93089
 md"""
@@ -267,8 +255,8 @@ Let us define the functions that we will be using in this notebook.
 Function to visualize the node points. Inputs are the locations of the points (a) and title (t, optional)
 """
 function plotpoints(a, t="")
-	p=scatter(first.(a), last.(a), c=:red, xlim=(-2,4), ylim=(-2,4), label=nothing, size=(500,500), title=t)
-	return p
+    p = scatter(first.(a), last.(a), c=:red, xlim=(-2, 4), ylim=(-2, 4), label=nothing, size=(500, 500), title=t)
+    return p
 end
 
 # ╔═╡ 742fa93d-3c09-4ac3-827a-89e1ee8880cf
@@ -276,20 +264,7 @@ end
 Function to compute new locations by calculating the displacements given the reference locations (a) and the Jacobian (J).
 """
 function displace(a, J)
-	return [aa .+ J*aa for aa in a]
-end
-
-# ╔═╡ e7309331-ec59-4da5-92e3-223f79136b78
-begin
-	Jinput
-	plot1 = plotpoints(points, "Before Deformation")
-	plot2 = plotpoints(displace(points,Jinput), "Total Deformation")
-	plot3 = plotpoints(displace(points,einput), "Strain Deformation")
-	plot!(plot3, eeig.values[1] * vcat([0.0], first(selectdim(eeig.vectors, 2, 1))), eeig.values[1] * vcat([0.0], last(selectdim(eeig.vectors, 2, 1))),  c=:blue, w=2, label=nothing)
-	plot!(plot3,  eeig.values[2] * vcat([0.0], first(selectdim(eeig.vectors, 2, 2))), vcat([0.0],  eeig.values[2] * last(selectdim(eeig.vectors, 2, 2))),  c=:blue, w=2, label="Principal Strains")
-	# p=scatter(first.(a), last.(a), c=:red, xlim=(-2,4), ylim=(-2,4), label=nothing, size=(500,500), title=t)
-	plot4 = plotpoints(displace(points,Ωinput), "Spin Deformation")
-	plot(plot1,plot2,plot3,plot4,layout=(2,2))
+    return [aa .+ J * aa for aa in a]
 end
 
 # ╔═╡ 6f33c7ed-e8a8-440d-a771-84789ee1f397
@@ -2066,14 +2041,11 @@ version = "1.4.1+0"
 """
 
 # ╔═╡ Cell order:
-# ╠═261ec03b-6d67-4cf9-8567-df00d124fb3d
 # ╠═3f1bc2d1-2327-48cc-984a-df09c936da87
 # ╟─fd14256d-8c69-4d8a-91b5-924a32479866
 # ╟─ff0744cf-c4a7-4430-b3ee-b04c96a64dcf
 # ╠═e7309331-ec59-4da5-92e3-223f79136b78
 # ╠═968b1426-fca1-4d58-86cc-080a7c75e174
-# ╠═e1626369-ce1c-4972-83ef-7fc949537b0b
-# ╠═9b4a5574-52e2-4ec7-bdbc-df7b8d14b8fb
 # ╟─174e1f52-bf7a-4201-b579-c784115d15f1
 # ╠═94c2d557-68f3-4c36-85b0-5428e8b217dc
 # ╠═e8049366-ef8a-4adb-8b3b-d5d94b6f6475
@@ -2098,12 +2070,7 @@ version = "1.4.1+0"
 # ╠═7cabd325-30d7-4882-86c5-3195ac496264
 # ╟─d8f1ceea-1968-4e59-93ae-a21f035b2a09
 # ╠═182b4b24-ee3c-44a2-b799-28bb2bd5a511
-# ╟─0ba65398-1897-4bb5-ae93-af6b5e5292f8
-# ╠═50eb4916-b3d7-4f2a-90c6-8661cbbd8e7a
-# ╠═383136ab-f7b1-4a4b-b61f-03a35d1108c8
-# ╠═7b88bfc2-fd25-4c9b-9cfe-b6ca65a70e94
-# ╠═88b33835-d993-4396-8605-bb3456200eb1
-# ╠═1be2182b-c05b-4b1b-b48e-2ba8c749cf56
+# ╟─6400c97b-9f07-4f52-9002-e8b5f11aa182
 # ╠═4ca30efc-0f95-4fba-b0ae-139b21d9820d
 # ╠═7f00862f-64f8-4c42-9d78-a466cd5bd9c1
 # ╠═451c250d-1d40-49d5-a508-4668b5cfaaad
