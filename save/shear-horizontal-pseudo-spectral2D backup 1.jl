@@ -1,5 +1,5 @@
 ### A Pluto.jl notebook ###
-# v0.19.46
+# v0.19.22
 
 #> [frontmatter]
 #> title = "Pseudo-spectral Method -- Seismic Wave Equation"
@@ -11,7 +11,11 @@ using InteractiveUtils
 # This Pluto notebook uses @bind for interactivity. When running this notebook outside of Pluto, the following 'mock version' of @bind gives bound variables a default value (instead of an error).
 macro bind(def, element)
     quote
-        local iv = try Base.loaded_modules[Base.PkgId(Base.UUID("6e696c72-6542-2067-7265-42206c756150"), "AbstractPlutoDingetjes")].Bonds.initial_value catch; b -> missing; end
+        local iv = try
+            Base.loaded_modules[Base.PkgId(Base.UUID("6e696c72-6542-2067-7265-42206c756150"), "AbstractPlutoDingetjes")].Bonds.initial_value
+        catch
+            b -> missing
+        end
         local el = $(esc(element))
         global $(esc(def)) = Core.applicable(Base.get, el) ? Base.get(el) : iv(el)
         el
@@ -1467,6 +1471,7 @@ version = "1.4.1+0"
 # ╟─b88aed3d-9cb0-4377-8797-65385ab59436
 # ╟─0e149101-a9f8-4dc7-89b9-93c494fadc1b
 # ╟─c2d109b0-32f2-4063-b954-1f79640dcfc4
+# ╟─da1d4263-f5c6-49bf-b3a7-3e75f763acd8
 # ╟─fc49a6d7-a1b1-458a-a9ad-e120282bbabc
 # ╠═c5815f5e-9164-11ec-10e1-691834761dff
 # ╠═36408698-f85c-4529-972f-6389534fcb88

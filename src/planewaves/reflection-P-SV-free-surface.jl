@@ -2,10 +2,9 @@
 # v0.19.46
 
 #> [frontmatter]
-#> title = "Rayleigh Function"
-#> tags = ["surfacewaves"]
+#> title = "P-SV Free-surface Reflection"
 #> layout = "layout.jlhtml"
-#> description = "Particles may go round and round, but don't worry, let the Rayleigh wave pass by! This notebook will help you understand the physics behind it."
+#> description = "In this notebook, we shall investigate the interaction of plane P waves with Earth's free surface. "
 
 using Markdown
 using InteractiveUtils
@@ -13,380 +12,424 @@ using InteractiveUtils
 # This Pluto notebook uses @bind for interactivity. When running this notebook outside of Pluto, the following 'mock version' of @bind gives bound variables a default value (instead of an error).
 macro bind(def, element)
     quote
-        local iv = try
-            Base.loaded_modules[Base.PkgId(Base.UUID("6e696c72-6542-2067-7265-42206c756150"), "AbstractPlutoDingetjes")].Bonds.initial_value
-        catch
-            b -> missing
-        end
+        local iv = try Base.loaded_modules[Base.PkgId(Base.UUID("6e696c72-6542-2067-7265-42206c756150"), "AbstractPlutoDingetjes")].Bonds.initial_value catch; b -> missing; end
         local el = $(esc(element))
         global $(esc(def)) = Core.applicable(Base.get, el) ? Base.get(el) : iv(el)
         el
     end
 end
 
-# ╔═╡ 5b807994-416d-11ed-22ff-77b37ff3cfac
+# ╔═╡ ab40f79c-3d8a-11ed-0697-a7b794dbba99
 begin
     using Symbolics
+    using PlutoPlotly
     using SymbolicUtils
     using LinearAlgebra
     using Latexify
     using LaTeXStrings
     using PlutoUI
     using PlutoTeachingTools
-    using PlutoPlotly
-    using Measures
-    using Roots
-    using Parameters
 end
 
-# ╔═╡ d921cf1c-ca8b-44d9-8d00-e1ed55267647
+# ╔═╡ e6b12602-f3c7-4f5d-9787-9d0cf0e3887b
 ChooseDisplayMode()
 
-# ╔═╡ 915243cb-9619-4eab-8ad4-1d9b821e8d01
-PlutoUI.TableOfContents()
+# ╔═╡ 08429397-3964-4600-bc14-c45d22c915ec
+TableOfContents()
 
-# ╔═╡ 07ee82c2-d17b-4b85-9ef6-c107b76d0cfe
+# ╔═╡ 32a757ff-aa7a-41d5-b8b3-6ac9e0125875
 md"""
-# Rayleigh Function
-This notebook aims to provide a comprehensive understanding of Rayleigh waves. Unlike previous discussions on reflection coefficients where the incident wave is homogeneous and at least one of the scattered waves is homogeneous, this notebook focuses on scenarios where all interacting plane waves are inhomogeneous. Specifically, we examine inhomogeneous P- and SV-waves interacting with the free surface of a medium. This approach allows us to delve deeper into the unique characteristics and behaviors of Rayleigh waves in seismology.
+# P-SV Free-surface Reflection
+In this notebook, we will delve into the analysis of the reflection coefficients of P and S waves at a free surface, which is a solid-vacuum boundary. By assuming a free surface at \( z=0 \), we will apply stress-free boundary conditions to derive the expressions for the reflection coefficients of both P and S waves. This analysis is crucial for understanding the behavior of seismic waves as they interact with the Earth's surface.
+
 
 ##### [Interactive Seismology Notebooks](https://pawbz.github.io/Interactive-Seismology.jl/)
+
 
 Instructor: *Pawan Bharadwaj*,
 Indian Institute of Science, Bengaluru, India
 """
 
-# ╔═╡ 544d41b1-b6ce-4844-8269-a0251b391962
-TwoColumnWideLeft(md"""
-Choose the medium parameters of the half-space using these sliders. Accordingly, we 
-shall plot the Rayleigh function, where its root gives the phase velocity of the Rayleigh wave $cᵣ$. It can be noticed that this velocity is a few percent less than the shear-wave speed.
-""",
-    md"""
-    α (km/sec) $(@bind αp PlutoUI.Slider(range(4.0, stop=10.0, step=0.1), default=6.0, show_value=true))
-
-    β (km/sec) $(@bind βp PlutoUI.Slider(range(3.0, stop=6.0, step=0.1), default=4.49, show_value=true))
-
-    ρ (gm/cm³) $(@bind ρp PlutoUI.Slider(range(2.0, stop=6.0, step=0.1), default=2.9, show_value=true))
-    """)
-
-# ╔═╡ c8253470-7d3c-436f-bced-141c06786ff9
+# ╔═╡ 63e459a0-ec85-4337-9b93-47cfd49bbe92
 md"""
-In this document, we denote 2D spatial coordinates, angular frequency, time and necessary differential operators.
+$(@bind tplot Clock(0.1))
+---
 """
 
-# ╔═╡ 8afdf9d3-951d-4e53-8478-d5a075acbbe3
+# ╔═╡ 602f13f9-6d14-41fd-9183-b8255d64399b
+Markdown.MD(Markdown.Admonition("observe", "Observations",
+    [md"""
+- The angle of reflection of the S-wave is always less than that of the P-reflected wave. This is because the vertical slowness of the S-reflected wave ($η_β$) is always greater than that of the P-reflected wave.
+- The wavenumber of the S-reflected wave is higher than that of the P-wave. The wavenumber of the S-reflected wave increases as $β$ becomes smaller compared to $α$.
+- When $β$ is very small, the amplitude of the S-reflected wave is negligible.
+- A negative reflection coefficient indicates a phase change of the reflected wave by π.
+- The P-reflection coefficient and S-reflection coefficient follow the conservation of energy. The P-reflection coefficient is maximum when the S-reflection coefficient is minimum.
+"""]
+))
+
+# ╔═╡ 4476bf78-39e3-4674-a152-db19fe80929a
+md"Spatial coordinates, time, and angular frequency."
+
+# ╔═╡ 927dcc43-202c-4ad2-a76c-837d41f1ed6c
 @syms x::Real z::Real ω::Real t::Real
 
-# ╔═╡ aafebaf4-9091-42f0-8e5c-cdae92c21203
+# ╔═╡ c2eacb91-38e8-428e-9247-691950668bc3
+@syms ı::Complex{Real} # imaginary unit, going to substitute with im later
+
+# ╔═╡ 0bea69f9-3ffa-4695-a5eb-6e962d2a81ce
+md"Differential operators."
+
+# ╔═╡ e8729ceb-e85f-4c21-89d2-f15ec69a840f
 begin
     Dx = Differential(x)
     Dz = Differential(z)
 end
 
-# ╔═╡ 91506b9c-af2f-44ab-a200-04ba88bc53df
-@syms ı::Complex{Real} # imaginary unit, going to substitute with im later
+# ╔═╡ 670d5198-f810-472e-8db8-b13385ca294a
+md"In 2D, a harmonic plane wave with an frequency `ω`, amplitude `A`, horizontal slowness `p` and vertical slowness `η` is defined below."
 
-# ╔═╡ 6eb3e9d6-2afa-450d-915c-81b0bfa92e9d
-md"""
-The medium is assumed to be homogeneous with uniform P- and S-wave velocities 
-$\alpha$ and $\beta$. We use $p$ to denote the horizontal slowness. As both the P- and SV-waves are inhomogeneous, a necessary condition is
+# ╔═╡ 6043b904-6991-4776-bc1b-13eda3fcc936
+plane(p, η, A) = A * exp(ı * ω * (t - (p * x + η * z)))
+
+# ╔═╡ c7c52926-6e2e-4c4c-a01f-09f57c2ececd
+md"The horizontal slowness i.e., the ray parameter is denoted using $p$."
+
+# ╔═╡ 33c6aa70-87cb-464a-88f7-b82d17476a2f
+md"The vertical component of the slowness vector in the first and second layer are denoted using $\eta$ and $\eta_t$. These plane waves satisfy the scalar wave equation only if the dispersion relation
 ```math
-\frac{1}{\alpha} < \frac{1}{\beta} < p.
+p^2 + η^2 = \frac{1}{β^2}
 ```
-The Lame parameters are denoted using $\lambda$ and $\mu$, and $\rho$ is mass density.
-"""
+is satisfied."
 
-# ╔═╡ e19ff895-cee0-45ad-994d-26b91e7c4d3c
-@syms α::Real p::Real β::Real ρ::Real λ::Real μ::Real
+# ╔═╡ fbc6cd6c-0b3b-44e9-b2a6-5edb0eeced1b
+@syms A A₁ A₂
 
-# ╔═╡ 3e9930db-b54c-45af-8bb7-fc86568ae504
-tip(md"The inhomegeneous P- and SV-waves are coupled due to the fact that they share the same horizonal slowness $p$. If they are not coupled, one can show that the stress-free conditions cannot be satisfied.")
+# ╔═╡ 8dad08c2-b9a8-40ec-a8ef-c9383e5ec7b1
+@syms p::Real
 
-# ╔═╡ 9409762a-7803-4001-afbd-62c5d40dea2e
+# ╔═╡ 13b5abc9-10be-4ef1-817d-bcee1271c89e
+@syms η₁ η₂
+
+# ╔═╡ aae7b893-4b33-44ae-b01c-6345a1180d0d
 md"""
-The vertical components of the slowness vectors (corresponding to $\alpha$ and $\beta$) are imaginary. Here, we use $\eta$ to denote the imaginary part of the vertical components of the slowness vector.
+## Potentials : Incident P-wave, Reflected P-wave and Reflected SV-wave 
+For the P-SV system on a free surface, all the waves are traveling in the same medium. The velocity of the P-wave is denoted by $α$ and the velocity of the S-wave is denoted by $β$. The plane waves representing potentials share the same horizontal slowness $p$.
+
+- Now, we create an incident wave using the `plane` function with parameters `p`, `η₁`, and `A`, representing the horizontal slowness, verticle slowness, and amplitude, respectively. 
+- Then, two reflected waves, `reflect1` and `reflect2`, are also defined using the `plane` function. The first reflected wave, `reflect1`, uses the parameters `p`, `-η₁`, and `A₁`, indicating a reflection with opposite vertical slowness and a different amplitude. 
+- Similarly, the second reflected wave, `reflect2`, is defined with `p`, `-η₂`, and `A₂`, representing another reflection with a different vertical slowness and amplitude. This setup models the behavior of P and S incident and reflected waves at a free surface.
 """
 
-# ╔═╡ 296dbce3-8e24-49b2-a8c9-5f59c6586160
-@syms ηₚ::Real ηₛ::Real
+# ╔═╡ f488f9f3-e73b-42ae-b3c2-2262661fd839
+incident = plane(p, η₁, A)
 
-# ╔═╡ a38858bd-d1ea-4918-8445-9b1306840979
-md"The dispersion relation gives."
+# ╔═╡ 4dc428b0-f141-4e94-9edb-e847780333aa
+reflect1 = plane(p, -η₁, A₁)
 
-# ╔═╡ ca8f7333-8bb0-42f8-82d4-b99f1b03c2c9
-ηₚ ~ sqrt(p^2 - 1 / α^2)
+# ╔═╡ 8940ee90-2dd1-448c-92cd-09fd1ebbaea7
+reflect2 = plane(p, -η₂, A₂)
 
-# ╔═╡ ce12c0d3-1601-431c-9283-a88a44b725b4
-ηₛ ~ sqrt(p^2 - 1 / β^2)
-
-# ╔═╡ 1213a9c2-0194-4f57-8b64-5f810b46ee67
-@syms Aₚ A Aₛ
-
-# ╔═╡ ef389316-a822-4a31-865e-5751c8bc6fe0
+# ╔═╡ a1213dc4-3ea9-4b26-aa82-a15cc3e72401
 md"""
-## Inhomogeneous Plane Waves
-We now derive the expression for an inhomogeneous plane wave with amplitude $A$ and frequency $ω$, propagating in the $x$ direction with slowness $p$. These waves exhibit exponential decay with increasing distance from the surface at $z=0$.
+## Particle Displacements
+We now write expressions for particle displacements given plane wave potentials.
+Depending on whether the incident wave is P or S, these expressions change.
 """
 
-# ╔═╡ e88d9f22-d833-4d4c-b651-a7d2e318323e
-inhomo_plane(p, η, A) = A * exp(-ω * η * z) * exp(ı * ω * (t - (p * x)))
-
-# ╔═╡ 59c61d01-e0e3-405b-b048-1ceebee0d29b
+# ╔═╡ 52d2ba9b-826a-4805-9583-f1a80b10a926
 md"""
-We now consider two harmonic plane waves that satisfy the scalar wave equations for P and SV potentials $\phi$ and $\psi$. $A_p$ and $A_s$ denote the amplitudes of these potentials.
+## Continuity in Traction; Dynamic Boundary Conditions
+At the free-surface i.e. z=0 , kinematic boundary condition does not exist.
+We have two dynamic boundary conditions $σ_{zz}=0$ and $σ_{xz}=0$  and two unknowns ($A_{1}$,$A_{2}$) to estimate (when assuming $A=1$).
 """
 
-# ╔═╡ 0ffac267-6380-4288-8080-5f1ae30646d8
-ϕ = inhomo_plane(p, ηₚ, Aₚ)
+# ╔═╡ 7cf515f8-2496-4bde-b3b3-9d39d971764a
+@syms λ::Real μ::Real
 
-# ╔═╡ ff414220-762b-4e82-950c-833dd0282772
-ψ = inhomo_plane(p, ηₛ, Aₛ)
+# ╔═╡ 5729b459-b283-41ce-95be-c4d33a7c28c0
+md"## Example"
 
-# ╔═╡ 596dccc2-7853-4562-8f25-110108ff97c2
+# ╔═╡ 281cb873-760c-411f-98b5-1c64d218e7e9
 md"""
-## Total Displacement
-The particle displacement due to the P wave.
+We shall begin defining a function that computes the ray parameter, given the 
+angle of incidence $θ$.
 """
 
-# ╔═╡ a61d687c-5e13-423a-98b0-9b73371a8044
-uₚ = expand_derivatives.([Dx(ϕ), Dz(ϕ)])
+# ╔═╡ 3d50985b-b79a-45ab-ba1f-5287936c56d9
+@syms θ::Real
 
-# ╔═╡ a254e7a7-d5ef-467a-98eb-f4bb1ceed97c
-md"Similarly for SV wave, we have."
+# ╔═╡ a7cb9cd5-7013-461b-960d-5da73db62aea
+md"We now compute the vertical component of the slowness vector for both the reflected waves using the 
+dispersion relation."
 
-# ╔═╡ 019ac47c-a41f-4da2-adf5-fd1d6bac7f5d
-uₛ = expand_derivatives.([-Dz(ψ), Dx(ψ)])
+# ╔═╡ 8c81ddb5-bf4d-4610-bfea-3d1a27ffd61f
+md"""
+We can finally update the expressions of reflection coefficients using input parameters and plot them.
+"""
 
-# ╔═╡ 318ac5d5-bd8b-417b-a919-b46ee555ca1a
-TwoColumnWideLeft(md"""
-Rayleigh waves, a type of surface seismic wave, exhibit unique characteristics due to their elliptical particle motion. For a homogeneous medium, the phase velocity $cᵣ$ of Rayleigh waves is independent of the frequency $ω$, indicating non-dispersive behavior. To visualize the particle motion, we can select a frequency and adjust the time to generate a snapshot. Key observations include:
-- Particles move in an elliptical trajectory, which is retrograde at the free surface.
-- The amplitude of particle motion decreases exponentially with depth, influenced by the frequency.
-- At greater depths, the particle motion transitions to a prograde elliptical trajectory, dominated by the SV wave component.
-""", md"""
-angular frequency: $(@bind ωp PlutoUI.Slider(range(0.05, stop=0.3, length=100), show_value=true)) $(@bind tp Clock(0.5))
-(experimental) plot individual components $(@bind uplot MultiCheckBox([uₚ=>"P", uₛ=>"SV"], default=[uₚ, uₛ]))
+# ╔═╡ dba7ea14-e0dd-4dc4-ad9c-4627fd16cc62
+md"## Appendix"
+
+# ╔═╡ 57176a1b-b8cd-40fa-a615-8a589fb7ea73
+md"""
+Lets print the expression of the wavefield, plotted in the previous example.
+"""
+
+# ╔═╡ ea3b7089-bda8-4694-8042-98534b1739bd
+warning_box(md"""
+The sign of the vertical slowness in the transmitted field above is chosen to prevent the exponential growth of the wavefield away from the boundary.
 """)
 
-# ╔═╡ 28291690-152c-4bca-b194-f1aac4b102c7
-md"The total displacement field is given by summing the P and SV components. We denote the x and z components of the total displacement field using `ux` and `uz`."
-
-# ╔═╡ ff965bbb-61bc-4595-8082-fb7a8b4640ba
-ux, uz = uₚ .+ uₛ
-
-# ╔═╡ 127d393b-1cf5-4b4a-bb98-b271d0167b97
-md"""
-## Stress-free Condition
-We now evaluate the stress components `σxz` and `σzz` on the free surface and apply the boundary conditions to estimate the ratio `Aₛ/Aₚ` using both boundary conditions. Subsequently, we derive a condition that must be satisfied for this ratio to be unique. This condition provides the Rayleigh function, and the roots of this function give the phase velocities of the Rayleigh waves.
-"""
-
-# ╔═╡ 0aa629dd-0201-463e-9765-3bc002cdc252
-σxz = expand_derivatives(μ * (Dx(uz) + Dz(ux))) |> simplify
-
-# ╔═╡ 83366f56-03a2-4134-8d94-8d54943ce3ff
-σxz_z0 = substitute(σxz, [z => 0, ı * ı => -1]) |> simplify
-
-# ╔═╡ 6f6af471-2d5f-44ee-bb4f-ccd441dd8248
-σxz_z0 ~ 0
-
-# ╔═╡ 6308d52d-809c-4f1f-b508-61388b1d6557
-Aratio1 = Symbolics.symbolic_linear_solve(σxz_z0 ~ 0, Aₛ) / Aₚ |> simplify
-
-# ╔═╡ a963b758-1ea5-4248-8544-88a612815d88
-σzz = expand_derivatives(λ * (Dx(ux) + Dz(uz)) + 2 * μ * (Dz(uz))) |> simplify
-
-# ╔═╡ 60409882-81c5-4645-85ac-4c40ac92327b
-σzz_z0 = simplify(substitute(σzz, [z => 0, ı * ı => -1]))
-
-# ╔═╡ d2a84a1e-6529-467b-905a-fdcc21135245
-Aratio2 = Symbolics.symbolic_linear_solve(σzz_z0 ~ 0, Aₛ) / Aₚ |> simplify
-
-# ╔═╡ 3daee10c-54d5-4071-b577-b4a8abd90976
-md"""
-## Rayleigh Function
-For a non-trivial solution for `Aₚ` and `Aₛ`, the following equation must be satisfied.
-"""
-
-# ╔═╡ a22543fe-63cd-4cfb-8791-dfc2eb929359
-R1 = diff(arguments(Aratio1) .* reverse(arguments(Aratio2))) |> first |> simplify
-
-# ╔═╡ 288c375f-ff18-45a8-bc12-f5b3cc4fa377
-md"""
-We will reparameterize the Rayleigh function using $\alpha$, $\beta$, and $\rho$, and substitute $ı^2 = -1$. This reparameterized function must be satisfied for a given medium. The root of this function provides the horizontal slowness $p$ at which both the inhomogeneous P and SV plane waves propagate.
-"""
-
-# ╔═╡ d8369538-ab73-4575-bf86-31b9111523cc
-md"""
-Towards plotting, we will now substitute the UI values of $\alpha$, $\beta$ and $\rho$.
-"""
-
-# ╔═╡ a7c6f76d-fbcd-4fa6-a12f-868428cedef8
-md"""
-We will now find the root of the Rayleigh function using the bisection method.
-"""
-
-# ╔═╡ 8ad847c8-3d83-4c15-97f1-9b4490cbf2b0
-md"""
-## Rayleigh Waves
-We shall now substitute the zero of the Rayleigh function into the expressions of inhomogeneous P and SV planewaves that are channeled along the free-surface.
-"""
-
-# ╔═╡ 8d54de78-38f7-4fd0-87e8-cb3ed6009b87
-simplify(substitute(ux, [Aₚ => 1, Aₛ => Aratio1]))
-
-# ╔═╡ 6bdcc2ac-3319-432d-a286-f706bf68234e
-simplify(substitute(uz, [Aₚ => 1, Aₛ => Aratio1]))
-
-# ╔═╡ 379feb55-32e5-4867-b108-b10c2c0782c3
-md"""
-## Appendix
-"""
-
-# ╔═╡ 996bd1d1-09f9-4774-b73f-0f4e58f52455
-# Reparametrize an expression `x` using α, β and ρ, instead of λ, μ, η.
-# Also substitutes ı^2=>-1.
-function subs_αβρ(x)
-    simplify(substitute(x, [ı * ı => -1, λ => α * α * ρ - 2 * β * β * ρ, μ => β * β * ρ, ηₚ * ηₚ => p * p - 1 / α^2, ηₛ * ηₛ => p * p - 1 / β^2, ηₚ => sqrt(p * p - 1 / α^2), ηₛ => sqrt(p * p - 1 / β^2), μ => β * β * ρ]))
-end
-
-# ╔═╡ 1a0819fb-b998-4fac-91d3-b3b375cdfc42
-R = subs_αβρ(R1)
-
-# ╔═╡ 18fa43a1-4e0d-4910-9125-d41d6d174ef1
-# Substitutes UI values of α, β, and ρ.
-function subs_αβρ_plot(x)
-    simplify(substitute(subs_αβρ(x), [α => αp, β => βp, ρ => ρp]))
-end
-
-# ╔═╡ c830a6e9-61bf-49b2-95d1-8dea1b89c154
-RUI = build_function(subs_αβρ_plot(R), p, expression=Val{false})
-
-# ╔═╡ a53444b0-cb7f-4729-a262-38b33766bb74
-begin
-    cmin = 1.0 # minimum possible speed
-    cmax = βp - eps(Float64) # maximum speed, otherwise the SV wave will no longer be evanascent
-    # root
-    cᵣ = find_zero(c -> RUI(inv(c)), (cmin, cmax), Bisection())
-    md"The root is cᵣ=$(cᵣ) (km/s)"
-end
-
-# ╔═╡ 3053571a-096c-448a-9b48-60f9a1b2fce6
-function subs_all_plot(x)
-    simplify(substitute(subs_αβρ_plot(x), [p => inv(cᵣ), ı => im, ω => ωp, Aₚ => 1,]))
-end
-
-# ╔═╡ 872a5a67-b217-424a-bb88-627b7b2db7a9
-uxp = build_function(substitute(subs_all_plot(first(sum(uplot))), [Aₚ => 1, Aₛ => subs_all_plot(Aratio1)]), x, z, t, expression=Val{false})
-
-# ╔═╡ b3faea59-7b99-4070-a9fa-29fc9dc9f48b
-uzp = build_function(substitute(subs_all_plot(last(sum(uplot))), [Aₚ => 1, Aₛ => subs_all_plot(Aratio1)]), x, z, t, expression=Val{false})
-
-# ╔═╡ 79d729c0-57cb-4100-812d-8907a4b3910d
-md"""
-### Plots
-"""
-
-# ╔═╡ 13168a61-831a-4c15-b228-8a035df75cf1
+# ╔═╡ eb78c5bd-33ea-4f97-9b1d-b881e72279d8
 default_plotly_template(:plotly_dark)
 
-# ╔═╡ 4a4dc2cb-46ce-4fed-b67b-708943753f90
-function plot_displacement_field()
-    xgrid = range(0, stop=500, length=10)
-    zgrid = range(0, stop=250, length=10)
-    # evaluate ux and uz on the grids
-    ux = [real(uxp(x, z, tp)) for x in xgrid, z in zgrid]
-    uz = [real(uzp(x, z, tp)) for x in xgrid, z in zgrid]
+# ╔═╡ f6b31173-72cd-4f25-b292-5aad02ec718c
+θgrid = range(0, stop=pi / 2, length=100); # need for reflectance plots
 
+# ╔═╡ afdb5b7d-d670-4a98-a91d-3ff638fb0294
+md"""
+It is evident that the reflection coefficients depend on the velocities of the P and S waves. By selecting whether the incident wave is a P or S wave, the reflection coefficients will vary accordingly.
 
-    # normalize ux and uz
-    ux ./= abs(uxp(0, 0, 0))
-    uz ./= abs(uxp(0, 0, 0))
-    strength = vec(sqrt.(ux .^ 2 .+ uz .^ 2))
+---
+α (km/sec) $(@bind αin NumberField(range(2.0, stop=6.0, step=0.1), default=3.9))
+β (km/sec) $(@bind βin NumberField(range(2.0, stop=6.0, step=0.1), default=2.0))
+ρ (gm/cm³) $(@bind ρin NumberField(range(2.0, stop=6.0, step=0.1), default=2.9))
 
-    xq = [x1 for x1 in xgrid, z1 in zgrid]
-    yq = [z1 for x1 in xgrid, z1 in zgrid]
+Incident Wavefield: $(@bind incident_waves Select(["P", "S"], default="P")) with
+Angle of incidence ∈ [0, π/2]: $(@bind θp Slider(θgrid, default=1.4)) and
+Angular frequency $(@bind ωp Slider(range(0.1, stop=2, length=10), show_value=true, default=0.3))
+"""
 
-
-    scale = 25
-
-    vels = [attr(
-        x=xq[i] + scale * ux[i], y=yq[i] + scale * uz[i],
-        showarrow=true,
-        axref="x",
-        ayref="y",
-        text="∘",
-        arrowcolor="blue",
-        arrowsize=strength[i],
-        arrowwidth=2,
-        arrowhead=3,
-        ax=xq[i],
-        ay=yq[i])
-            for i in 1:length(xq)]
-
-    layout = Layout(; uirevision=1, yaxis=attr(title="Depth", range=(400, -100)), xaxis=attr(title="Distance", range=(-100, 600)), title_text="Rayleigh Displacement Field",
-        autosize=false, width=700, height=500,
-        margin=attr(l=50, r=50, b=50, t=65),
-        showlegend=false,
-        annotations=vels
-    )
-
-    fig = Plot(layout)
-
-    add_trace!(fig, scatter(y=[0, 0], x=extrema(xgrid),
-        mode="lines+markers+text",
-        text=["", "Free Surface"],
-        textfont=attr(
-            family="sans serif",
-            size=15,
-            color="Red"
-        ),
-        textposition="top center",
-        line=attr(
-            color="Red",
-            width=2,
-        )
-    ))
-
-    return plot(fig)
+# ╔═╡ b4a603fb-5ee7-4c97-8e1d-fd0a89692503
+begin
+    if (incident_waves == "P")
+        UxInc = expand_derivatives.(Dx.(incident))
+        UzInc = expand_derivatives.(Dz.(incident))
+    else
+        UxInc = expand_derivatives.(-Dz.(incident))
+        UzInc = expand_derivatives.(Dz.(incident))
+    end
 end
 
-# ╔═╡ bd7562f0-cb14-4ddb-b8c7-ffc2a37b079e
-plot_displacement_field()
+# ╔═╡ 040f1440-14c4-491b-b792-570aa3c2080b
+σzz_incident = expand_derivatives.(λ .* Dx.(UxInc) .+ λ .* Dz.(UzInc)) + expand_derivatives.(2 .* μ .* Dz.(UzInc))
 
-# ╔═╡ 38f7ae72-edae-4ebf-9600-1104e4fd92cf
-function plot_Rayleigh_function()
-    fig = Plot(Layout(title="Rayleigh Function", xaxis_title="Phase Velocity (km/s)", width=700, height=350))
-    # declare a range of speeds for plotting
-    crange = range(cmin, stop=cmax, length=100)
-    add_trace!(fig, PlutoPlotly.scatter(x=crange, y=[RUI(inv(c)) for c in crange], line=attr(width=3, color="white"), name="Rayleigh Function"))
-    add_hline!(fig, 0.0, line=attr(dash="dot"))
-    add_trace!(fig, PlutoPlotly.scatter(x=[cᵣ, cᵣ], y=[-1, 1],
-        name="Rayleigh Phase Velocity (cᵣ)",
-        line=attr(
-            color="Orange",
-            width=4,
-        )
-    ))
-    add_trace!(fig, PlutoPlotly.scatter(x=[αp, αp], y=[-1, 1],
-        name="P-wave Velocity (α)",
-        line=attr(
-            color="Red",
-            width=4,
-        )
-    ))
-    add_trace!(fig, PlutoPlotly.scatter(x=[βp, βp], y=[-1, 1],
-        name="S-wave Velocity (β)",
-        line=attr(
-            color="Blue",
-            width=4,
-        )
-    ))
-    relayout!(fig)
+# ╔═╡ f51dfb73-b5ef-4de8-b4c3-fc8814a31485
+σxz_incident = expand_derivatives.(μ .* Dx.(UzInc) .+ μ .* Dz.(UxInc))
+
+# ╔═╡ 74484bb8-a9dc-4b54-894e-3bf86c18278e
+begin
+    if (incident_waves == "P")
+        UxRef1 = expand_derivatives.(Dx.(reflect1))
+        UzRef1 = expand_derivatives.(Dz.(reflect1))
+    else
+        UxRef1 = expand_derivatives.(-Dz.(reflect1))
+        UzRef1 = expand_derivatives.(Dx.(reflect1))
+    end
+end
+
+# ╔═╡ 3525bf50-b0e5-4c3b-ba75-77689a5799f4
+σzz_reflect1 = expand_derivatives.(λ .* Dx.(UxRef1) .+ λ .* Dz.(UzRef1)) + expand_derivatives.(2 .* μ .* Dz.(UzRef1))
+
+# ╔═╡ 860ac07f-391b-4d62-bf9d-a32abea7cd60
+σxz_reflect1 = expand_derivatives.(μ .* Dx.(UzRef1) .+ μ .* Dz.(UxRef1))
+
+# ╔═╡ fdba06fe-e596-4122-b2d5-81b67dd78a97
+begin
+    if (incident_waves == "P")
+        UxRef2 = expand_derivatives.(-Dz.(reflect2))
+        UzRef2 = expand_derivatives.(Dx.(reflect2))
+    else
+        UxRef2 = expand_derivatives.(Dx.(reflect2))
+        UzRef2 = expand_derivatives.(Dz.(reflect2))
+    end
+
+end
+
+# ╔═╡ 0dfd91aa-f9e1-4d93-a471-0bf99e476af5
+σzz_reflect2 = expand_derivatives.(λ .* Dx.(UxRef2) .+ λ .* Dz.(UzRef2)) + expand_derivatives.(2 .* μ .* Dz.(UzRef2))
+
+# ╔═╡ 06a568fa-ba94-4c5f-815d-f30c6c8a4260
+σzz_z0 = substitute.(σzz_incident .+ σzz_reflect1 .+ σzz_reflect2, z => 0) .~ 0
+
+# ╔═╡ 64164ec7-a3cf-41d0-bcef-e55475eabeea
+σzz = simplify(substitute(σzz_z0, Dict([A => 1, t => 0, x => 0])))
+
+# ╔═╡ 47f2439f-28a1-4ad9-8d8d-67a4a30af5ea
+σxz_reflect2 = expand_derivatives.(μ .* Dx.(UzRef2) .+ μ .* Dz.(UxRef2))
+
+# ╔═╡ b4030cef-75ef-40d1-b75d-0e5f233a3023
+σxz_z0 = substitute.(σxz_incident .+ σxz_reflect1 .+ σxz_reflect2, z => 0) .~ 0
+
+# ╔═╡ 605195de-f4a1-4331-9b82-78e4a061f0a4
+σxz = simplify(substitute(σxz_z0, Dict([A => 1, t => 0, x => 0])))
+
+# ╔═╡ a95e361b-d195-4ec0-b2fd-cd9adb79efc5
+sol = simplify.(Symbolics.symbolic_linear_solve([σzz, σxz], [A₁, A₂]))
+
+# ╔═╡ cd125f77-6203-4a0c-a68b-43300e873ca7
+begin
+    reflected_waves1 = incident_waves
+    reflected_waves2 = filter(x -> x ≠ incident_waves, ["P", "S"])[1]
+end
+
+# ╔═╡ bcb8064e-8379-4b5e-b218-334302df594f
+md"""
+$(@bind plot_waves MultiCheckBox(["i" => "Incident $(incident_waves)", "r1" => "Reflected $(reflected_waves1)", "r2" => "Reflected $(reflected_waves2)"], default=["i", "r1", "r2"]))
+"""
+
+# ╔═╡ 284e4a79-6cfe-4c4a-939b-55fc69611ecb
+rp(θ) = (incident_waves == "P") ? sin(θ) / αin : sin(θ) / βin
+
+# ╔═╡ a06affae-47c3-4dfa-a997-ee75b35ab122
+ηz1(θ) = (incident_waves == "P") ? sqrt((inv(αin)^2 - (rp(θ))^2) + 0im) : sqrt((inv(βin)^2 - (rp(θ))^2) + 0im)
+
+# ╔═╡ edb72f1f-6c99-48fb-b32d-fc4fe7d3328e
+ηz1(45)
+
+# ╔═╡ 23d62611-aeb5-4ed3-897d-822c0d17781c
+ηz2(θ) = (incident_waves == "S") ? sqrt((inv(αin)^2 - (rp(θ))^2) + 0im) : sqrt((inv(βin)^2 - (rp(θ))^2) + 0im)
+
+# ╔═╡ 4c871d5c-1b62-4b1c-9c1e-37cae19cbe0e
+ηz2(45)
+
+# ╔═╡ a089ab5b-4703-4d4d-a7ab-11197b4b907c
+begin
+    Avec = broadcast([sol[1], sol[2]]) do x
+        θ -> simplify(substitute(x, [η₁ => ηz1(θ), η₂ => ηz2(θ), p => rp(θ), λ => ρin * (αin^2 - 2 * βin^2), μ => βin^2 * ρin]))
+    end
+    if ((incident_waves == "S"))
+        Avec = reverse(Avec)
+    end
+end
+
+# ╔═╡ b790898e-11dd-440e-86ef-2403d14a1feb
+u_incident_ex = substitute(plane(rp(θp), ηz1(θp), 1.0), [ω => ωp, ı => im]);
+
+# ╔═╡ cabe33b2-5c0a-45e4-a0fb-d057987d8c95
+u_reflected1_ex = substitute(plane(rp(θp), -ηz1(θp), Avec[1](θp)), [ω => ωp, ı => im]);
+
+# ╔═╡ d5fda5dc-d94e-4b39-94c4-a5c4311e59bd
+u_reflected2_ex = substitute(plane(rp(θp), isequal(imag(ηz2(θp)), 0.0) ? -ηz2(θp) : ηz2(θp), Avec[2](θp)), [ω => ωp, ı => im]);
+
+# ╔═╡ 6cbddba3-0a3c-44b7-a033-532c91e35356
+md"### Plots"
+
+# ╔═╡ 31d34c37-96d5-4257-9815-c33af141b906
+function plot_reflectivity(A, θgrid, title="")
+    degθ = rad2deg.(θgrid)
+    fig = Plot(Layout(title=title, polar=attr(angularaxis_direction="clockwise", sector=(0, 90), radialaxis_range=(-2, 2)),))
+    add_trace!(fig,
+        scatterpolar(r=abs.(A.(θgrid)), theta=degθ, mode="lines", name="Abs"))
+    add_trace!(fig,
+        scatterpolar(r=real.(A.(θgrid)), theta=degθ, mode="lines", name="Real"))
+    add_trace!(fig,
+        scatterpolar(r=imag.(A.(θgrid)), theta=degθ, mode="lines", name="Imag"))
+    add_trace!(fig,
+        barpolar(
+            r=[3.5,],
+            theta=[rad2deg(θp)],
+            width=[2],
+            name="Animation",
+            marker_color=["#E4FF87"],
+            marker_line_color="black",
+            marker_line_width=1,
+            opacity=0.5
+        ),)
+
+    relayout!(
+        fig,
+        height=300,
+        width=350,
+    )
     PlutoPlotly.plot(fig)
 end
 
-# ╔═╡ 31a317e2-0864-4552-83ee-ba4138ab5c0b
-plot_Rayleigh_function()
+# ╔═╡ 6f4ddbaf-0023-499c-a31c-15693797e1fa
+TwoColumn(md"""
+$(plot_reflectivity(Avec[1], θgrid, "P-Reflection Coefficient"))
+""",
+    md"""
+    $(plot_reflectivity(Avec[2], θgrid, "S-Reflection Coefficient"))
+    """)
+
+# ╔═╡ de445666-cd08-4c78-8cab-2d63fd79af43
+function plot_planewave(ui, ur1, ur2, t1=0)
+    # we need to discretize space before plotting 
+    xgrid = range(-200, stop=200, length=200)
+    zgrid_bottom = range(0, stop=200, length=100)
+    zgrid_top = range(-200, stop=0, length=100)
+
+    # substitute imaginary unit
+    ui, ur1, ur2 = map([ui, ur1, ur2]) do ⋅
+        substitute(⋅, [ı => im])
+    end
+    # build functions (reflected and incident)
+    uip, ur1p, ur2p = map([ui, ur1, ur2]) do ⋅
+        fn = build_function(⋅, x, z, t, expression=Val{false})
+        [real(fn(x, z, t1)) for z in zgrid_top, x in xgrid]
+    end
+    # utp = let
+    #     fn = build_function(ut, x, z, t, expression=Val{false})
+    #     [real(fn(x, z, t1)) for z in zgrid_top, x in xgrid]
+    # end
+
+    ("r2" ∉ plot_waves) && fill!(ur2p, 0.0)
+    ("i" ∉ plot_waves) && fill!(uip, 0.0)
+    ("r1" ∉ plot_waves) && fill!(ur1p, 0.0)
+
+    U = cat(ur1p + uip + ur2p, dims=1)
+    cmax = max(maximum(abs, U), maximum(abs, U))
+    fig = Plot(Layout(yaxis=attr(scaleanchor="x"), width=350, height=350, uirevison=1,
+            dragmode="drawopenpath",
+            newshape_line_color="black",
+            title="P-SV Wavefield", shapes=[
+                line(
+                    xref="x", yref="y",
+                    x0=-200, y0=0, x1=200, y1=0,
+                    line=attr(
+                        color="yellow",
+                        width=3,
+                    ),
+                ),]
+        ), config=PlotConfig(displayModeBar=false))
+
+    add_trace!(fig, PlutoPlotly.heatmap(z=U, x=xgrid, y=vcat(zgrid_top, zgrid_bottom), colorscale="seismic",
+        zmin=-cmax, zmax=cmax,))
+    add_trace!(fig,
+        scatter(
+            x=[100],
+            y=[-20],
+            text=["Free-surface"],
+            mode="text",
+            showlegend=false,
+            textfont=attr(
+                color="yellow",
+                size=15,
+                family="Arail",
+            )
+        ))
+
+    add_trace!(fig,
+        scatter(
+            x=[-150, -150],
+            y=[-150, 150],
+            text=["(β₁,ρ₁)", "(β₂,ρ₂)"],
+            mode="text",
+            showlegend=false,
+            textfont=attr(
+                color="yellow",
+                size=15,
+                family="Arail",
+            )
+        ))
+
+    plot(fig)
+
+end
+
+# ╔═╡ 7b346215-4f51-4298-a023-07a99e3c7208
+plot_planewave(u_incident_ex, u_reflected1_ex, u_reflected2_ex, mod(tplot, 10))
 
 # ╔═╡ 00000000-0000-0000-0000-000000000001
 PLUTO_PROJECT_TOML_CONTENTS = """
@@ -394,26 +437,20 @@ PLUTO_PROJECT_TOML_CONTENTS = """
 LaTeXStrings = "b964fa9f-0449-5b57-a5c2-d3ea65f4040f"
 Latexify = "23fbe1c1-3f47-55db-b15f-69d7ec21a316"
 LinearAlgebra = "37e2e46d-f89d-539d-b4ee-838fcccc9c8e"
-Measures = "442fdcdd-2543-5da2-b0f3-8c86c306513e"
-Parameters = "d96e819e-fc66-5662-9728-84c9c7592b0a"
 PlutoPlotly = "8e989ff0-3d88-8e9f-f020-2b208a939ff0"
 PlutoTeachingTools = "661c6b06-c737-4d37-b85c-46df65de6f69"
 PlutoUI = "7f904dfe-b85e-4ff6-b463-dae2292396a8"
-Roots = "f2b01f46-fcfa-551c-844a-d8ac1e96c665"
 SymbolicUtils = "d1185830-fcd6-423d-90d6-eec64667417b"
 Symbolics = "0c5d862f-8b57-4792-8d23-62f2024744c7"
 
 [compat]
 LaTeXStrings = "~1.3.1"
 Latexify = "~0.16.5"
-Measures = "~0.3.2"
-Parameters = "~0.12.3"
 PlutoPlotly = "~0.5.0"
 PlutoTeachingTools = "~0.3.0"
 PlutoUI = "~0.7.60"
-Roots = "~2.2.1"
-SymbolicUtils = "~3.7.1"
-Symbolics = "~6.12.0"
+SymbolicUtils = "~3.7.0"
+Symbolics = "~6.11.0"
 """
 
 # ╔═╡ 00000000-0000-0000-0000-000000000002
@@ -422,12 +459,12 @@ PLUTO_MANIFEST_TOML_CONTENTS = """
 
 julia_version = "1.10.5"
 manifest_format = "2.0"
-project_hash = "56654cd6216d56bcd91d819c9288d22af160ddbd"
+project_hash = "4f44eef2dd3c4b7490ff5b506852f830344a8686"
 
 [[deps.ADTypes]]
-git-tree-sha1 = "5a5eafb8344b81b8c2237f8a6f6b3602b3f6180e"
+git-tree-sha1 = "5f205b5893c5bad5467365ec097249e9c26c2ca6"
 uuid = "47edcb42-4c32-4615-8424-f2b9edc5f35b"
-version = "1.8.1"
+version = "1.8.0"
 
     [deps.ADTypes.extensions]
     ADTypesChainRulesCoreExt = "ChainRulesCore"
@@ -976,11 +1013,6 @@ deps = ["Artifacts", "Libdl"]
 uuid = "c8ffd9c3-330d-5841-b78e-0817d7145fa1"
 version = "2.28.2+1"
 
-[[deps.Measures]]
-git-tree-sha1 = "c13304c81eec1ed3af7fc20e75fb6b26092a1102"
-uuid = "442fdcdd-2543-5da2-b0f3-8c86c306513e"
-version = "0.3.2"
-
 [[deps.Missings]]
 deps = ["DataAPI"]
 git-tree-sha1 = "ec4f7fbeab05d7747bdf98eb74d130a2a2ed298d"
@@ -1133,9 +1165,9 @@ version = "1.2.1"
 
 [[deps.QuadGK]]
 deps = ["DataStructures", "LinearAlgebra"]
-git-tree-sha1 = "cda3b045cf9ef07a08ad46731f5a3165e56cf3da"
+git-tree-sha1 = "1d587203cf851a51bf1ea31ad7ff89eff8d625ea"
 uuid = "1fd47b50-473d-5c70-9696-f719f8f3bcdc"
-version = "2.11.1"
+version = "2.11.0"
 
     [deps.QuadGK.extensions]
     QuadGKEnzymeExt = "Enzyme"
@@ -1211,26 +1243,6 @@ deps = ["Artifacts", "JLLWrappers", "Libdl"]
 git-tree-sha1 = "58cdd8fb2201a6267e1db87ff148dd6c1dbd8ad8"
 uuid = "f50d1b31-88e8-58de-be2c-1cc44531875f"
 version = "0.5.1+0"
-
-[[deps.Roots]]
-deps = ["Accessors", "CommonSolve", "Printf"]
-git-tree-sha1 = "3a7c7e5c3f015415637f5debdf8a674aa2c979c4"
-uuid = "f2b01f46-fcfa-551c-844a-d8ac1e96c665"
-version = "2.2.1"
-
-    [deps.Roots.extensions]
-    RootsChainRulesCoreExt = "ChainRulesCore"
-    RootsForwardDiffExt = "ForwardDiff"
-    RootsIntervalRootFindingExt = "IntervalRootFinding"
-    RootsSymPyExt = "SymPy"
-    RootsSymPyPythonCallExt = "SymPyPythonCall"
-
-    [deps.Roots.weakdeps]
-    ChainRulesCore = "d360d2e6-b24c-11e9-a2a3-2a2ae2dbcce4"
-    ForwardDiff = "f6369f11-7733-5829-9624-2563aa707210"
-    IntervalRootFinding = "d2bf35a9-74e0-55ec-b149-d360ff49b807"
-    SymPy = "24249f21-da20-56a4-8eb1-6a02cf4ae2e6"
-    SymPyPythonCall = "bc8888f7-b21e-4b7c-a06a-5d9c9496438c"
 
 [[deps.RuntimeGeneratedFunctions]]
 deps = ["ExprTools", "SHA", "Serialization"]
@@ -1384,9 +1396,9 @@ version = "0.2.2"
 
 [[deps.SymbolicUtils]]
 deps = ["AbstractTrees", "ArrayInterface", "Bijections", "ChainRulesCore", "Combinatorics", "ConstructionBase", "DataStructures", "DocStringExtensions", "DynamicPolynomials", "IfElse", "LinearAlgebra", "MultivariatePolynomials", "NaNMath", "Setfield", "SparseArrays", "SpecialFunctions", "StaticArrays", "SymbolicIndexingInterface", "TermInterface", "TimerOutputs", "Unityper"]
-git-tree-sha1 = "3927e02dc7648a45ec6aa592bcd8374094a44740"
+git-tree-sha1 = "635cc663e7913678362a6e34bfab5f9b8feb97c4"
 uuid = "d1185830-fcd6-423d-90d6-eec64667417b"
-version = "3.7.1"
+version = "3.7.0"
 
     [deps.SymbolicUtils.extensions]
     SymbolicUtilsLabelledArraysExt = "LabelledArrays"
@@ -1398,9 +1410,9 @@ version = "3.7.1"
 
 [[deps.Symbolics]]
 deps = ["ADTypes", "ArrayInterface", "Bijections", "CommonWorldInvalidations", "ConstructionBase", "DataStructures", "DiffRules", "Distributions", "DocStringExtensions", "DomainSets", "DynamicPolynomials", "IfElse", "LaTeXStrings", "LambertW", "Latexify", "Libdl", "LinearAlgebra", "LogExpFunctions", "MacroTools", "Markdown", "NaNMath", "PrecompileTools", "Primes", "RecipesBase", "Reexport", "RuntimeGeneratedFunctions", "SciMLBase", "Setfield", "SparseArrays", "SpecialFunctions", "StaticArraysCore", "SymbolicIndexingInterface", "SymbolicLimits", "SymbolicUtils", "TermInterface"]
-git-tree-sha1 = "8b48697e7fec6d4b7c4a9fe892857a5ed2bae7e8"
+git-tree-sha1 = "2226d810512c678d2ec9c2a9b2e227c2ebc43573"
 uuid = "0c5d862f-8b57-4792-8d23-62f2024744c7"
-version = "6.12.0"
+version = "6.11.0"
 
     [deps.Symbolics.extensions]
     SymbolicsForwardDiffExt = "ForwardDiff"
@@ -1511,66 +1523,71 @@ version = "17.4.0+2"
 """
 
 # ╔═╡ Cell order:
-# ╠═d921cf1c-ca8b-44d9-8d00-e1ed55267647
-# ╠═915243cb-9619-4eab-8ad4-1d9b821e8d01
-# ╟─07ee82c2-d17b-4b85-9ef6-c107b76d0cfe
-# ╟─544d41b1-b6ce-4844-8269-a0251b391962
-# ╟─31a317e2-0864-4552-83ee-ba4138ab5c0b
-# ╟─318ac5d5-bd8b-417b-a919-b46ee555ca1a
-# ╟─bd7562f0-cb14-4ddb-b8c7-ffc2a37b079e
-# ╟─c8253470-7d3c-436f-bced-141c06786ff9
-# ╠═8afdf9d3-951d-4e53-8478-d5a075acbbe3
-# ╠═aafebaf4-9091-42f0-8e5c-cdae92c21203
-# ╠═91506b9c-af2f-44ab-a200-04ba88bc53df
-# ╟─6eb3e9d6-2afa-450d-915c-81b0bfa92e9d
-# ╠═e19ff895-cee0-45ad-994d-26b91e7c4d3c
-# ╟─3e9930db-b54c-45af-8bb7-fc86568ae504
-# ╟─9409762a-7803-4001-afbd-62c5d40dea2e
-# ╠═296dbce3-8e24-49b2-a8c9-5f59c6586160
-# ╟─a38858bd-d1ea-4918-8445-9b1306840979
-# ╠═ca8f7333-8bb0-42f8-82d4-b99f1b03c2c9
-# ╠═ce12c0d3-1601-431c-9283-a88a44b725b4
-# ╠═1213a9c2-0194-4f57-8b64-5f810b46ee67
-# ╟─ef389316-a822-4a31-865e-5751c8bc6fe0
-# ╠═e88d9f22-d833-4d4c-b651-a7d2e318323e
-# ╟─59c61d01-e0e3-405b-b048-1ceebee0d29b
-# ╠═0ffac267-6380-4288-8080-5f1ae30646d8
-# ╠═ff414220-762b-4e82-950c-833dd0282772
-# ╟─596dccc2-7853-4562-8f25-110108ff97c2
-# ╠═a61d687c-5e13-423a-98b0-9b73371a8044
-# ╟─a254e7a7-d5ef-467a-98eb-f4bb1ceed97c
-# ╠═019ac47c-a41f-4da2-adf5-fd1d6bac7f5d
-# ╟─28291690-152c-4bca-b194-f1aac4b102c7
-# ╠═ff965bbb-61bc-4595-8082-fb7a8b4640ba
-# ╟─127d393b-1cf5-4b4a-bb98-b271d0167b97
-# ╠═0aa629dd-0201-463e-9765-3bc002cdc252
-# ╠═83366f56-03a2-4134-8d94-8d54943ce3ff
-# ╠═6f6af471-2d5f-44ee-bb4f-ccd441dd8248
-# ╠═6308d52d-809c-4f1f-b508-61388b1d6557
-# ╠═a963b758-1ea5-4248-8544-88a612815d88
-# ╠═60409882-81c5-4645-85ac-4c40ac92327b
-# ╠═d2a84a1e-6529-467b-905a-fdcc21135245
-# ╟─3daee10c-54d5-4071-b577-b4a8abd90976
-# ╠═a22543fe-63cd-4cfb-8791-dfc2eb929359
-# ╟─288c375f-ff18-45a8-bc12-f5b3cc4fa377
-# ╠═1a0819fb-b998-4fac-91d3-b3b375cdfc42
-# ╟─d8369538-ab73-4575-bf86-31b9111523cc
-# ╠═c830a6e9-61bf-49b2-95d1-8dea1b89c154
-# ╟─a7c6f76d-fbcd-4fa6-a12f-868428cedef8
-# ╠═a53444b0-cb7f-4729-a262-38b33766bb74
-# ╟─8ad847c8-3d83-4c15-97f1-9b4490cbf2b0
-# ╠═8d54de78-38f7-4fd0-87e8-cb3ed6009b87
-# ╠═6bdcc2ac-3319-432d-a286-f706bf68234e
-# ╟─379feb55-32e5-4867-b108-b10c2c0782c3
-# ╠═5b807994-416d-11ed-22ff-77b37ff3cfac
-# ╠═996bd1d1-09f9-4774-b73f-0f4e58f52455
-# ╠═18fa43a1-4e0d-4910-9125-d41d6d174ef1
-# ╠═3053571a-096c-448a-9b48-60f9a1b2fce6
-# ╠═872a5a67-b217-424a-bb88-627b7b2db7a9
-# ╠═b3faea59-7b99-4070-a9fa-29fc9dc9f48b
-# ╟─79d729c0-57cb-4100-812d-8907a4b3910d
-# ╠═13168a61-831a-4c15-b228-8a035df75cf1
-# ╠═4a4dc2cb-46ce-4fed-b67b-708943753f90
-# ╠═38f7ae72-edae-4ebf-9600-1104e4fd92cf
+# ╠═e6b12602-f3c7-4f5d-9787-9d0cf0e3887b
+# ╠═08429397-3964-4600-bc14-c45d22c915ec
+# ╟─32a757ff-aa7a-41d5-b8b3-6ac9e0125875
+# ╟─afdb5b7d-d670-4a98-a91d-3ff638fb0294
+# ╟─bcb8064e-8379-4b5e-b218-334302df594f
+# ╟─63e459a0-ec85-4337-9b93-47cfd49bbe92
+# ╟─7b346215-4f51-4298-a023-07a99e3c7208
+# ╟─602f13f9-6d14-41fd-9183-b8255d64399b
+# ╟─6f4ddbaf-0023-499c-a31c-15693797e1fa
+# ╟─4476bf78-39e3-4674-a152-db19fe80929a
+# ╠═927dcc43-202c-4ad2-a76c-837d41f1ed6c
+# ╠═c2eacb91-38e8-428e-9247-691950668bc3
+# ╟─0bea69f9-3ffa-4695-a5eb-6e962d2a81ce
+# ╠═e8729ceb-e85f-4c21-89d2-f15ec69a840f
+# ╟─670d5198-f810-472e-8db8-b13385ca294a
+# ╠═6043b904-6991-4776-bc1b-13eda3fcc936
+# ╟─c7c52926-6e2e-4c4c-a01f-09f57c2ececd
+# ╟─33c6aa70-87cb-464a-88f7-b82d17476a2f
+# ╠═fbc6cd6c-0b3b-44e9-b2a6-5edb0eeced1b
+# ╠═8dad08c2-b9a8-40ec-a8ef-c9383e5ec7b1
+# ╠═13b5abc9-10be-4ef1-817d-bcee1271c89e
+# ╟─aae7b893-4b33-44ae-b01c-6345a1180d0d
+# ╠═f488f9f3-e73b-42ae-b3c2-2262661fd839
+# ╠═4dc428b0-f141-4e94-9edb-e847780333aa
+# ╠═8940ee90-2dd1-448c-92cd-09fd1ebbaea7
+# ╟─a1213dc4-3ea9-4b26-aa82-a15cc3e72401
+# ╠═b4a603fb-5ee7-4c97-8e1d-fd0a89692503
+# ╠═74484bb8-a9dc-4b54-894e-3bf86c18278e
+# ╠═fdba06fe-e596-4122-b2d5-81b67dd78a97
+# ╟─52d2ba9b-826a-4805-9583-f1a80b10a926
+# ╠═7cf515f8-2496-4bde-b3b3-9d39d971764a
+# ╠═040f1440-14c4-491b-b792-570aa3c2080b
+# ╠═3525bf50-b0e5-4c3b-ba75-77689a5799f4
+# ╠═0dfd91aa-f9e1-4d93-a471-0bf99e476af5
+# ╠═f51dfb73-b5ef-4de8-b4c3-fc8814a31485
+# ╠═860ac07f-391b-4d62-bf9d-a32abea7cd60
+# ╠═47f2439f-28a1-4ad9-8d8d-67a4a30af5ea
+# ╠═06a568fa-ba94-4c5f-815d-f30c6c8a4260
+# ╠═b4030cef-75ef-40d1-b75d-0e5f233a3023
+# ╠═64164ec7-a3cf-41d0-bcef-e55475eabeea
+# ╠═605195de-f4a1-4331-9b82-78e4a061f0a4
+# ╠═a95e361b-d195-4ec0-b2fd-cd9adb79efc5
+# ╟─5729b459-b283-41ce-95be-c4d33a7c28c0
+# ╠═cd125f77-6203-4a0c-a68b-43300e873ca7
+# ╟─281cb873-760c-411f-98b5-1c64d218e7e9
+# ╠═3d50985b-b79a-45ab-ba1f-5287936c56d9
+# ╠═284e4a79-6cfe-4c4a-939b-55fc69611ecb
+# ╟─a7cb9cd5-7013-461b-960d-5da73db62aea
+# ╠═a06affae-47c3-4dfa-a997-ee75b35ab122
+# ╠═23d62611-aeb5-4ed3-897d-822c0d17781c
+# ╠═edb72f1f-6c99-48fb-b32d-fc4fe7d3328e
+# ╠═4c871d5c-1b62-4b1c-9c1e-37cae19cbe0e
+# ╟─8c81ddb5-bf4d-4610-bfea-3d1a27ffd61f
+# ╠═a089ab5b-4703-4d4d-a7ab-11197b4b907c
+# ╟─dba7ea14-e0dd-4dc4-ad9c-4627fd16cc62
+# ╟─57176a1b-b8cd-40fa-a615-8a589fb7ea73
+# ╠═b790898e-11dd-440e-86ef-2403d14a1feb
+# ╠═cabe33b2-5c0a-45e4-a0fb-d057987d8c95
+# ╠═d5fda5dc-d94e-4b39-94c4-a5c4311e59bd
+# ╟─ea3b7089-bda8-4694-8042-98534b1739bd
+# ╠═eb78c5bd-33ea-4f97-9b1d-b881e72279d8
+# ╠═ab40f79c-3d8a-11ed-0697-a7b794dbba99
+# ╠═f6b31173-72cd-4f25-b292-5aad02ec718c
+# ╟─6cbddba3-0a3c-44b7-a033-532c91e35356
+# ╠═31d34c37-96d5-4257-9815-c33af141b906
+# ╠═de445666-cd08-4c78-8cab-2d63fd79af43
 # ╟─00000000-0000-0000-0000-000000000001
 # ╟─00000000-0000-0000-0000-000000000002

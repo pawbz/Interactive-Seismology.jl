@@ -297,9 +297,6 @@ end;
 # ╔═╡ 092331da-31a4-403d-b0cb-6e7705c6d81b
 ctrue, strue = get_medium(xgrid, zgrid, pert);
 
-# ╔═╡ b1134059-a6e3-4b79-84eb-c8213938aac2
-ctrue
-
 # ╔═╡ 322d1562-2197-4131-bd17-93aed063e55c
 begin
     xgrid_inv = range(-1000, stop=1000, length=floor(Int, 2000 / res.ds_inv))
@@ -341,17 +338,11 @@ dobs = Gtrue * strue;
 # ╔═╡ dce75e41-274b-4e6a-8949-5caaeef7238a
 G = get_forw_operator(xgrid_inv, zgrid_inv, srcx, srcz, recx, recz);
 
-# ╔═╡ dd8f9ae8-64cd-4b37-9883-896ae44fdb82
-G
-
 # ╔═╡ ad441089-505f-4da2-a345-548e8c4dd7d2
 plot(heatmap(z=G), Layout(xaxis_title="model vector index", yaxis_autorange="reversed", yaxis_title="data vector index", width=450, title="Forward Operator"))
 
 # ╔═╡ 1f66502a-bfbe-407f-b869-142f446dfdf6
-Gi = pinv(G, rtol=0.5); # compute Moore-Penrose pseudoinverse
-
-# ╔═╡ 25d9dfed-166f-4145-8140-7f4cb3ad8a3b
-heatmap(z=reshape(Gi* dobs, 12, 12)) |> plot
+Gi = pinv(G); # compute Moore-Penrose pseudoinverse
 
 # ╔═╡ 329b24c6-fd22-4565-86f6-0881cb11942f
 sest = Gi * dobs; # inverse map
@@ -419,11 +410,11 @@ function plot_models()
     add_trace!(fig, heatmap(
             x=xgrid,
             y=zgrid,
-            z=strue, colorscale="jet", colorbar_x=0.35), row=1, col=1)
+            z=reshape(ctrue, length(zgrid) - 1, length(xgrid) -1 ), colorscale="jet", colorbar_x=0.35), row=1, col=1)
     add_trace!(fig, heatmap(
             x=xgrid_inv,
             y=zgrid_inv,
-            z=inv.(c[ckey]), colorscale="jet", colorbar_x=1.0), row=1, col=2)
+            z=(c[ckey]), colorscale="jet", colorbar_x=1.0), row=1, col=2)
 
     return PlutoPlotly.plot(fig)
 
@@ -638,7 +629,7 @@ TikzPictures = "~3.5.0"
 PLUTO_MANIFEST_TOML_CONTENTS = """
 # This file is machine-generated - editing it directly is not advised
 
-julia_version = "1.10.2"
+julia_version = "1.10.5"
 manifest_format = "2.0"
 project_hash = "a699775eb7197459cf6f1f74c59fd3ac3bf4dc27"
 
@@ -739,7 +730,7 @@ weakdeps = ["Dates", "LinearAlgebra"]
 [[deps.CompilerSupportLibraries_jll]]
 deps = ["Artifacts", "Libdl"]
 uuid = "e66e0078-7015-5450-92f7-15fbd957f2ae"
-version = "1.1.0+0"
+version = "1.1.1+0"
 
 [[deps.ConcurrentUtilities]]
 deps = ["Serialization", "Sockets"]
@@ -1714,7 +1705,7 @@ version = "2.0.13+0"
 [[deps.libblastrampoline_jll]]
 deps = ["Artifacts", "Libdl"]
 uuid = "8e850b90-86db-534c-a0d3-1478176c7d93"
-version = "5.8.0+1"
+version = "5.11.0+0"
 
 [[deps.libpng_jll]]
 deps = ["Artifacts", "JLLWrappers", "Libdl", "Zlib_jll"]
@@ -1744,10 +1735,7 @@ version = "0.13.1+0"
 # ╠═35c21158-fc55-45f6-930d-7b82c2c0685d
 # ╟─d9d53d21-09ee-47cd-b661-8787de32f2c1
 # ╟─7608a5c1-20b1-4d49-b12b-a8f2daef192b
-# ╠═842ec98f-505a-4873-9c64-725e2f92cbb9
-# ╠═dd8f9ae8-64cd-4b37-9883-896ae44fdb82
-# ╠═b1134059-a6e3-4b79-84eb-c8213938aac2
-# ╠═25d9dfed-166f-4145-8140-7f4cb3ad8a3b
+# ╟─842ec98f-505a-4873-9c64-725e2f92cbb9
 # ╟─78da0510-bf64-460e-82e7-59ba51c7c7f5
 # ╟─b741a0ec-726e-4ca5-98bf-10a03cdd2d57
 # ╟─4509e5b8-8d54-47e1-9ba7-b4929fd2d2fc
@@ -1786,7 +1774,7 @@ version = "0.13.1+0"
 # ╠═aa36d8d7-a7d4-4aa4-b0ee-b07d36cc453b
 # ╠═acc8d4d0-a332-478f-8630-b22a10e7063b
 # ╠═3c7cddb2-72c6-45d1-a902-f66cb67d2835
-# ╠═70e78f3d-a261-43b1-a590-966c7c96021c
+# ╟─70e78f3d-a261-43b1-a590-966c7c96021c
 # ╟─fe682b63-2a06-4c32-8dc0-2f99ba48a873
 # ╠═f408a310-fce3-4876-819e-3457037bd48f
 # ╟─ae30bfd8-6b42-4aa7-90f2-e7303b359b94

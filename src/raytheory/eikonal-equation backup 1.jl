@@ -2,10 +2,10 @@
 # v0.19.46
 
 #> [frontmatter]
-#> title = "Rayleigh Function"
-#> tags = ["surfacewaves"]
+#> order = "4"
+#> title = "Stress Tensor"
+#> tags = ["introduction"]
 #> layout = "layout.jlhtml"
-#> description = "Particles may go round and round, but don't worry, let the Rayleigh wave pass by! This notebook will help you understand the physics behind it."
 
 using Markdown
 using InteractiveUtils
@@ -13,407 +13,445 @@ using InteractiveUtils
 # This Pluto notebook uses @bind for interactivity. When running this notebook outside of Pluto, the following 'mock version' of @bind gives bound variables a default value (instead of an error).
 macro bind(def, element)
     quote
-        local iv = try
-            Base.loaded_modules[Base.PkgId(Base.UUID("6e696c72-6542-2067-7265-42206c756150"), "AbstractPlutoDingetjes")].Bonds.initial_value
-        catch
-            b -> missing
-        end
+        local iv = try Base.loaded_modules[Base.PkgId(Base.UUID("6e696c72-6542-2067-7265-42206c756150"), "AbstractPlutoDingetjes")].Bonds.initial_value catch; b -> missing; end
         local el = $(esc(element))
         global $(esc(def)) = Core.applicable(Base.get, el) ? Base.get(el) : iv(el)
         el
     end
 end
 
-# ╔═╡ 5b807994-416d-11ed-22ff-77b37ff3cfac
+# ╔═╡ 13a3429e-12f6-11ed-326f-c154f5debceb
 begin
-    using Symbolics
-    using SymbolicUtils
-    using LinearAlgebra
-    using Latexify
-    using LaTeXStrings
-    using PlutoUI
-    using PlutoTeachingTools
-    using PlutoPlotly
-    using Measures
-    using Roots
-    using Parameters
+	using LinearAlgebra
+	using PlutoUI
+	using LaTeXStrings
+	using PlutoTeachingTools
+	using PlutoUI
+	using Symbolics
+	using SymbolicUtils
+	using Einsum
+	using PlutoPlotly
+	using TikzPictures
 end
 
-# ╔═╡ d921cf1c-ca8b-44d9-8d00-e1ed55267647
+# ╔═╡ 261ec03b-6d67-4cf9-8567-df00d124fb3d
 ChooseDisplayMode()
 
-# ╔═╡ 915243cb-9619-4eab-8ad4-1d9b821e8d01
-PlutoUI.TableOfContents()
+# ╔═╡ 3f1bc2d1-2327-48cc-984a-df09c936da87
+TableOfContents()
 
-# ╔═╡ 07ee82c2-d17b-4b85-9ef6-c107b76d0cfe
+# ╔═╡ fcbf936f-57be-4144-ad4d-328eccddbb47
+@variables A::Real N::Real F::Real C::Real L::Real
+
+# ╔═╡ ac13a5a4-b090-4782-810d-d9ef4a4e6975
+@variables λ::Real μ::Real
+
+# ╔═╡ c943bc39-8375-443f-8aec-afeeea2a0ebf
+Ctrans = [[A, A - 2N, F, 0, 0, 0];; [A - 2N, A, F, 0, 0, 0];; [F, F, C, 0, 0, 0];; [0, 0, 0, L, 0, 0];; [0, 0, 0, 0, L, 0];; [0, 0, 0, 0, 0, L]]
+
+# ╔═╡ b2b456ea-0519-4ada-a20f-1131f3d8244c
+Ciso = map(Ctrans) do x
+    substitute(x, [A => λ + 2μ, C => λ + 2 * μ, N => μ, F => λ, L => μ])
+end
+
+# ╔═╡ 2e437507-da06-4d8b-bfd9-b59c2783ff22
+@variables u[1:3] # vector displacement field x[1:3] g[1:3] p::Real
+
+# ╔═╡ e7b1d850-b51a-4468-977d-92f064b33f49
+@syms U₁(t) U₂(t) U₃(t)
+
+# ╔═╡ 7ef83581-3e99-4d73-ac3f-ac76c25ceb9c
+U = [U₁, U₂, U₃]
+
+# ╔═╡ 9ab281a5-97d5-4763-b1f4-05396ea3aaf4
+@syms f(x₁, x₂, x₃)
+
+# ╔═╡ b0f8975c-db6d-4054-94bf-f1efa3e9ce06
+@syms T(x₁, x₂, x₃)
+
+# ╔═╡ 60ec1b0d-1770-43dc-bbd7-906ff73c00e1
+U[2]
+
+# ╔═╡ 5bf4a057-f09d-460d-a24d-9d92a51e6816
+@syms t
+
+# ╔═╡ af20c4d6-d5f0-4fa4-88a4-2783988e4252
+@syms ı ω
+
+# ╔═╡ c16a62ef-8a4f-41e6-b47d-cffa7ec8d8b6
+@variables e[1:3, 1:3] # strain tensor
+
+# ╔═╡ e8aea7dd-e719-4e14-869d-c9260e435caa
+function get_cijkl(C)
+    [C[i*(isequal(i, j))+(1-isequal(i, j))*(9-i-j), k*isequal(k, l)+(1-isequal(k, l))*(9-k-l)] for i in 1:3, j in 1:3, k in 1:3, l in 1:3]
+end
+
+# ╔═╡ 4fa58da5-c7e6-46ad-aa0c-f31a617764e0
+ciso = get_cijkl(Ciso); # for isotropic 
+
+# ╔═╡ 87b94bb3-f5a1-4955-82c6-121188c2c3b9
+@einsum σiso[i, j] := ciso[i, j, k, l] * e[k, l]
+
+# ╔═╡ f32c53d9-ebbd-4487-86a4-416d993be220
+@variables x[1:3] # position vector ~ [x, y, z]
+
+# ╔═╡ 3fd11f31-a595-4092-a661-7aa8e2070e91
+f(x...)
+
+# ╔═╡ 34fe0f06-8651-4059-9e87-6c4a1800f773
+utrail1 = exp(ı * ω * (t - p * dot(s, x)))
+
+# ╔═╡ a7c93e8d-825f-4a78-a851-562842c4564e
+D = [Differential(x[1]), Differential(x[2]), Differential(x[3])]
+
+# ╔═╡ 9c0af9c7-9a5d-44d3-b5e7-c85f6655eb65
+Dt = Differential(t)
+
+# ╔═╡ 265bde5d-0014-4617-99cb-966ca3813567
+@einsum uddot[i] := ciso[i, j, k, l] * D[j](D[l](u[k]))
+
+# ╔═╡ eea6756d-e22b-4541-b40e-659473953882
+@einsum uddot_trail1[i] := ciso[i, j, k, l] * expand_derivatives(D[j](D[l](f(x[1], x[2], x[3]) * U[k](t-T(x[1], x[2], x[3])))))
+
+# ╔═╡ 7814414a-6c4c-4de3-ab7b-a8364cb479f9
+D[1](U[1](t-T(x[1], x[2], x[3]))) |> expand_derivatives
+
+# ╔═╡ 7e4a8279-dca1-4b52-a8b8-497e30ab0afd
+U[1](x[1])
+
+# ╔═╡ fd9c9dbd-679c-4a7a-bedb-9441801f88b4
+[Dt(Dt(f(x[1], x[2], x[3])* U[k])) for k in 1:3]
+
+# ╔═╡ fd14256d-8c69-4d8a-91b5-924a32479866
 md"""
-# Rayleigh Function
-This notebook aims to provide a comprehensive understanding of Rayleigh waves. Unlike previous discussions on reflection coefficients where the incident wave is homogeneous and at least one of the scattered waves is homogeneous, this notebook focuses on scenarios where all interacting plane waves are inhomogeneous. Specifically, we examine inhomogeneous P- and SV-waves interacting with the free surface of a medium. This approach allows us to delve deeper into the unique characteristics and behaviors of Rayleigh waves in seismology.
+# Eikonal Equation
+
 
 ##### [Interactive Seismology Notebooks](https://pawbz.github.io/Interactive-Seismology.jl/)
+
 
 Instructor: *Pawan Bharadwaj*,
 Indian Institute of Science, Bengaluru, India
 """
 
-# ╔═╡ 544d41b1-b6ce-4844-8269-a0251b391962
-TwoColumnWideLeft(md"""
-Choose the medium parameters of the half-space using these sliders. Accordingly, we 
-shall plot the Rayleigh function, where its root gives the phase velocity of the Rayleigh wave $cᵣ$. It can be noticed that this velocity is a few percent less than the shear-wave speed.
-""",
-    md"""
-    α (km/sec) $(@bind αp PlutoUI.Slider(range(4.0, stop=10.0, step=0.1), default=6.0, show_value=true))
-
-    β (km/sec) $(@bind βp PlutoUI.Slider(range(3.0, stop=6.0, step=0.1), default=4.49, show_value=true))
-
-    ρ (gm/cm³) $(@bind ρp PlutoUI.Slider(range(2.0, stop=6.0, step=0.1), default=2.9, show_value=true))
-    """)
-
-# ╔═╡ c8253470-7d3c-436f-bced-141c06786ff9
+# ╔═╡ ff0744cf-c4a7-4430-b3ee-b04c96a64dcf
 md"""
-In this document, we denote 2D spatial coordinates, angular frequency, time and necessary differential operators.
-"""
+The stress tensor three dimensions is given by:
 
-# ╔═╡ 8afdf9d3-951d-4e53-8478-d5a075acbbe3
-@syms x::Real z::Real ω::Real t::Real
-
-# ╔═╡ aafebaf4-9091-42f0-8e5c-cdae92c21203
-begin
-    Dx = Differential(x)
-    Dz = Differential(z)
-end
-
-# ╔═╡ 91506b9c-af2f-44ab-a200-04ba88bc53df
-@syms ı::Complex{Real} # imaginary unit, going to substitute with im later
-
-# ╔═╡ 6eb3e9d6-2afa-450d-915c-81b0bfa92e9d
-md"""
-The medium is assumed to be homogeneous with uniform P- and S-wave velocities 
-$\alpha$ and $\beta$. We use $p$ to denote the horizontal slowness. As both the P- and SV-waves are inhomogeneous, a necessary condition is
 ```math
-\frac{1}{\alpha} < \frac{1}{\beta} < p.
+\sigma = \begin{bmatrix}
+\sigma_{11} & \sigma_{12} & \sigma_{13} \\
+\sigma_{12} & \sigma_{22} & \sigma_{23} \\
+\sigma_{13} & \sigma_{23} & \sigma_{33} \\
+
+\end{bmatrix}
 ```
-The Lame parameters are denoted using $\lambda$ and $\mu$, and $\rho$ is mass density.
+
+|  | | |
+|:--------:|:-------:|:-------:|
+|$σ_{11}$ = $(@bind σ11 Scrubbable(-1:0.01:1, default=1)) | $σ_{22}$ = $(@bind σ22 Scrubbable(-1:0.1:1, default=0))| $σ_{33}$ = $(@bind σ33 Scrubbable(-1:0.1:1, default=0.5))|
+|$σ_{12}$ = $(@bind σ12 Scrubbable(-1:0.1:1, default=0.5)) | $σ_{23}$ = $(@bind σ23 Scrubbable(-1:0.1:1, default=0))| $σ_{13}$ = $(@bind σ13 Scrubbable(-1:0.1:1, default=0))|
+
+
+
+which is symmetric.
+ 
 """
 
-# ╔═╡ e19ff895-cee0-45ad-994d-26b91e7c4d3c
-@syms α::Real p::Real β::Real ρ::Real λ::Real μ::Real
+# ╔═╡ 47a0a800-4384-43e8-a2b8-b6a219c964ff
+@bind resample_normal CounterButton("Resample Imaginary Plane")
 
-# ╔═╡ 3e9930db-b54c-45af-8bb7-fc86568ae504
-tip(md"The inhomegeneous P- and SV-waves are coupled due to the fact that they share the same horizonal slowness $p$. If they are not coupled, one can show that the stress-free conditions cannot be satisfied.")
+# ╔═╡ ca079784-f5ac-4e9b-9d10-8501564c47f0
+md"## UI and Plotting"
 
-# ╔═╡ 9409762a-7803-4001-afbd-62c5d40dea2e
+# ╔═╡ 07845efc-0ac1-49a5-9714-8c77c4d93089
 md"""
-The vertical components of the slowness vectors (corresponding to $\alpha$ and $\beta$) are imaginary. Here, we use $\eta$ to denote the imaginary part of the vertical components of the slowness vector.
+Let us define the functions that we will be using in this notebook.
 """
 
-# ╔═╡ 296dbce3-8e24-49b2-a8c9-5f59c6586160
-@syms ηₚ::Real ηₛ::Real
-
-# ╔═╡ a38858bd-d1ea-4918-8445-9b1306840979
-md"The dispersion relation gives."
-
-# ╔═╡ ca8f7333-8bb0-42f8-82d4-b99f1b03c2c9
-ηₚ ~ sqrt(p^2 - 1 / α^2)
-
-# ╔═╡ ce12c0d3-1601-431c-9283-a88a44b725b4
-ηₛ ~ sqrt(p^2 - 1 / β^2)
-
-# ╔═╡ 1213a9c2-0194-4f57-8b64-5f810b46ee67
-@syms Aₚ A Aₛ
-
-# ╔═╡ ef389316-a822-4a31-865e-5751c8bc6fe0
-md"""
-## Inhomogeneous Plane Waves
-We now derive the expression for an inhomogeneous plane wave with amplitude $A$ and frequency $ω$, propagating in the $x$ direction with slowness $p$. These waves exhibit exponential decay with increasing distance from the surface at $z=0$.
-"""
-
-# ╔═╡ e88d9f22-d833-4d4c-b651-a7d2e318323e
-inhomo_plane(p, η, A) = A * exp(-ω * η * z) * exp(ı * ω * (t - (p * x)))
-
-# ╔═╡ 59c61d01-e0e3-405b-b048-1ceebee0d29b
-md"""
-We now consider two harmonic plane waves that satisfy the scalar wave equations for P and SV potentials $\phi$ and $\psi$. $A_p$ and $A_s$ denote the amplitudes of these potentials.
-"""
-
-# ╔═╡ 0ffac267-6380-4288-8080-5f1ae30646d8
-ϕ = inhomo_plane(p, ηₚ, Aₚ)
-
-# ╔═╡ ff414220-762b-4e82-950c-833dd0282772
-ψ = inhomo_plane(p, ηₛ, Aₛ)
-
-# ╔═╡ 596dccc2-7853-4562-8f25-110108ff97c2
-md"""
-## Total Displacement
-The particle displacement due to the P wave.
-"""
-
-# ╔═╡ a61d687c-5e13-423a-98b0-9b73371a8044
-uₚ = expand_derivatives.([Dx(ϕ), Dz(ϕ)])
-
-# ╔═╡ a254e7a7-d5ef-467a-98eb-f4bb1ceed97c
-md"Similarly for SV wave, we have."
-
-# ╔═╡ 019ac47c-a41f-4da2-adf5-fd1d6bac7f5d
-uₛ = expand_derivatives.([-Dz(ψ), Dx(ψ)])
-
-# ╔═╡ 318ac5d5-bd8b-417b-a919-b46ee555ca1a
-TwoColumnWideLeft(md"""
-Rayleigh waves, a type of surface seismic wave, exhibit unique characteristics due to their elliptical particle motion. For a homogeneous medium, the phase velocity $cᵣ$ of Rayleigh waves is independent of the frequency $ω$, indicating non-dispersive behavior. To visualize the particle motion, we can select a frequency and adjust the time to generate a snapshot. Key observations include:
-- Particles move in an elliptical trajectory, which is retrograde at the free surface.
-- The amplitude of particle motion decreases exponentially with depth, influenced by the frequency.
-- At greater depths, the particle motion transitions to a prograde elliptical trajectory, dominated by the SV wave component.
-""", md"""
-angular frequency: $(@bind ωp PlutoUI.Slider(range(0.05, stop=0.3, length=100), show_value=true)) $(@bind tp Clock(0.5))
-(experimental) plot individual components $(@bind uplot MultiCheckBox([uₚ=>"P", uₛ=>"SV"], default=[uₚ, uₛ]))
-""")
-
-# ╔═╡ 28291690-152c-4bca-b194-f1aac4b102c7
-md"The total displacement field is given by summing the P and SV components. We denote the x and z components of the total displacement field using `ux` and `uz`."
-
-# ╔═╡ ff965bbb-61bc-4595-8082-fb7a8b4640ba
-ux, uz = uₚ .+ uₛ
-
-# ╔═╡ 127d393b-1cf5-4b4a-bb98-b271d0167b97
-md"""
-## Stress-free Condition
-We now evaluate the stress components `σxz` and `σzz` on the free surface and apply the boundary conditions to estimate the ratio `Aₛ/Aₚ` using both boundary conditions. Subsequently, we derive a condition that must be satisfied for this ratio to be unique. This condition provides the Rayleigh function, and the roots of this function give the phase velocities of the Rayleigh waves.
-"""
-
-# ╔═╡ 0aa629dd-0201-463e-9765-3bc002cdc252
-σxz = expand_derivatives(μ * (Dx(uz) + Dz(ux))) |> simplify
-
-# ╔═╡ 83366f56-03a2-4134-8d94-8d54943ce3ff
-σxz_z0 = substitute(σxz, [z => 0, ı * ı => -1]) |> simplify
-
-# ╔═╡ 6f6af471-2d5f-44ee-bb4f-ccd441dd8248
-σxz_z0 ~ 0
-
-# ╔═╡ 6308d52d-809c-4f1f-b508-61388b1d6557
-Aratio1 = Symbolics.symbolic_linear_solve(σxz_z0 ~ 0, Aₛ) / Aₚ |> simplify
-
-# ╔═╡ a963b758-1ea5-4248-8544-88a612815d88
-σzz = expand_derivatives(λ * (Dx(ux) + Dz(uz)) + 2 * μ * (Dz(uz))) |> simplify
-
-# ╔═╡ 60409882-81c5-4645-85ac-4c40ac92327b
-σzz_z0 = simplify(substitute(σzz, [z => 0, ı * ı => -1]))
-
-# ╔═╡ d2a84a1e-6529-467b-905a-fdcc21135245
-Aratio2 = Symbolics.symbolic_linear_solve(σzz_z0 ~ 0, Aₛ) / Aₚ |> simplify
-
-# ╔═╡ 3daee10c-54d5-4071-b577-b4a8abd90976
-md"""
-## Rayleigh Function
-For a non-trivial solution for `Aₚ` and `Aₛ`, the following equation must be satisfied.
-"""
-
-# ╔═╡ a22543fe-63cd-4cfb-8791-dfc2eb929359
-R1 = diff(arguments(Aratio1) .* reverse(arguments(Aratio2))) |> first |> simplify
-
-# ╔═╡ 288c375f-ff18-45a8-bc12-f5b3cc4fa377
-md"""
-We will reparameterize the Rayleigh function using $\alpha$, $\beta$, and $\rho$, and substitute $ı^2 = -1$. This reparameterized function must be satisfied for a given medium. The root of this function provides the horizontal slowness $p$ at which both the inhomogeneous P and SV plane waves propagate.
-"""
-
-# ╔═╡ d8369538-ab73-4575-bf86-31b9111523cc
-md"""
-Towards plotting, we will now substitute the UI values of $\alpha$, $\beta$ and $\rho$.
-"""
-
-# ╔═╡ a7c6f76d-fbcd-4fa6-a12f-868428cedef8
-md"""
-We will now find the root of the Rayleigh function using the bisection method.
-"""
-
-# ╔═╡ 8ad847c8-3d83-4c15-97f1-9b4490cbf2b0
-md"""
-## Rayleigh Waves
-We shall now substitute the zero of the Rayleigh function into the expressions of inhomogeneous P and SV planewaves that are channeled along the free-surface.
-"""
-
-# ╔═╡ 8d54de78-38f7-4fd0-87e8-cb3ed6009b87
-simplify(substitute(ux, [Aₚ => 1, Aₛ => Aratio1]))
-
-# ╔═╡ 6bdcc2ac-3319-432d-a286-f706bf68234e
-simplify(substitute(uz, [Aₚ => 1, Aₛ => Aratio1]))
-
-# ╔═╡ 379feb55-32e5-4867-b108-b10c2c0782c3
-md"""
-## Appendix
-"""
-
-# ╔═╡ 996bd1d1-09f9-4774-b73f-0f4e58f52455
-# Reparametrize an expression `x` using α, β and ρ, instead of λ, μ, η.
-# Also substitutes ı^2=>-1.
-function subs_αβρ(x)
-    simplify(substitute(x, [ı * ı => -1, λ => α * α * ρ - 2 * β * β * ρ, μ => β * β * ρ, ηₚ * ηₚ => p * p - 1 / α^2, ηₛ * ηₛ => p * p - 1 / β^2, ηₚ => sqrt(p * p - 1 / α^2), ηₛ => sqrt(p * p - 1 / β^2), μ => β * β * ρ]))
+# ╔═╡ ca99052e-ff24-4e8a-9d06-74bc24974873
+σinput = let 
+	[σ11 σ12 σ13; σ12 σ22 σ23; σ13 σ23 σ33]
 end
 
-# ╔═╡ 1a0819fb-b998-4fac-91d3-b3b375cdfc42
-R = subs_αβρ(R1)
+# ╔═╡ 987d9253-2f7d-4ca8-8eef-aae8e8d53bc6
+eigsigma = eigen(σinput)
 
-# ╔═╡ 18fa43a1-4e0d-4910-9125-d41d6d174ef1
-# Substitutes UI values of α, β, and ρ.
-function subs_αβρ_plot(x)
-    simplify(substitute(subs_αβρ(x), [α => αp, β => βp, ρ => ρp]))
+# ╔═╡ c807659b-6fc2-43e2-86ca-9a1953b4d75a
+nsample = let
+	resample_normal
+	n = randn(3)
+	n = n ./ sqrt(sum(abs2, n))
 end
 
-# ╔═╡ c830a6e9-61bf-49b2-95d1-8dea1b89c154
-RUI = build_function(subs_αβρ_plot(R), p, expression=Val{false})
+# ╔═╡ c69f6bf9-1aa4-4ff2-a0c4-1aab285bcb9b
+Tinput = σinput * nsample;
 
-# ╔═╡ a53444b0-cb7f-4729-a262-38b33766bb74
-begin
-    cmin = 1.0 # minimum possible speed
-    cmax = βp - eps(Float64) # maximum speed, otherwise the SV wave will no longer be evanascent
-    # root
-    cᵣ = find_zero(c -> RUI(inv(c)), (cmin, cmax), Bisection())
-    md"The root is cᵣ=$(cᵣ) (km/s)"
+# ╔═╡ 2f8aa0b9-37a7-4d77-8cd7-57ed53834544
+function plot3lines_1(v, color, name)
+	p1 = scatter3d(x=[0, v[1]], y=[0, 0], z=[0, 0], mode="lines", name=name, line=attr(color=color), )
+	p2 = scatter3d(x=[0, 0], y=[0, v[2]], z=[0, 0], mode="lines", name=name, line=attr(color=color), )
+	p3 = scatter3d(x=[0, 0], y=[0, 0], z=[0, v[3]], mode="lines", name=name, line=attr(color=color), )
+	return [p1, p2, p3]
 end
 
-# ╔═╡ 3053571a-096c-448a-9b48-60f9a1b2fce6
-function subs_all_plot(x)
-    simplify(substitute(subs_αβρ_plot(x), [p => inv(cᵣ), ı => im, ω => ωp, Aₚ => 1,]))
+# ╔═╡ dfcfae3f-f8df-4e30-8997-f126bbc564b3
+function plot3lines_2(v1,v2,v3, color, name)
+	p1 = scatter3d(x=[0, v1[1]], y=[0, v1[2]], z=[0, v1[3]], mode="lines", name=name, line=attr(color=color), )
+		p2 = scatter3d(x=[0, v2[1]], y=[0, v2[2]], z=[0, v2[3]], mode="lines", name=name, line=attr(color=color), )
+		p3 = scatter3d(x=[0, v3[1]], y=[0, v3[2]], z=[0, v3[3]], mode="lines", name=name, line=attr(color=color), )
+	return [p1, p2, p3]
 end
 
-# ╔═╡ 872a5a67-b217-424a-bb88-627b7b2db7a9
-uxp = build_function(substitute(subs_all_plot(first(sum(uplot))), [Aₚ => 1, Aₛ => subs_all_plot(Aratio1)]), x, z, t, expression=Val{false})
-
-# ╔═╡ b3faea59-7b99-4070-a9fa-29fc9dc9f48b
-uzp = build_function(substitute(subs_all_plot(last(sum(uplot))), [Aₚ => 1, Aₛ => subs_all_plot(Aratio1)]), x, z, t, expression=Val{false})
-
-# ╔═╡ 79d729c0-57cb-4100-812d-8907a4b3910d
-md"""
-### Plots
-"""
-
-# ╔═╡ 13168a61-831a-4c15-b228-8a035df75cf1
-default_plotly_template(:plotly_dark)
-
-# ╔═╡ 4a4dc2cb-46ce-4fed-b67b-708943753f90
-function plot_displacement_field()
-    xgrid = range(0, stop=500, length=10)
-    zgrid = range(0, stop=250, length=10)
-    # evaluate ux and uz on the grids
-    ux = [real(uxp(x, z, tp)) for x in xgrid, z in zgrid]
-    uz = [real(uzp(x, z, tp)) for x in xgrid, z in zgrid]
-
-
-    # normalize ux and uz
-    ux ./= abs(uxp(0, 0, 0))
-    uz ./= abs(uxp(0, 0, 0))
-    strength = vec(sqrt.(ux .^ 2 .+ uz .^ 2))
-
-    xq = [x1 for x1 in xgrid, z1 in zgrid]
-    yq = [z1 for x1 in xgrid, z1 in zgrid]
-
-
-    scale = 25
-
-    vels = [attr(
-        x=xq[i] + scale * ux[i], y=yq[i] + scale * uz[i],
-        showarrow=true,
-        axref="x",
-        ayref="y",
-        text="∘",
-        arrowcolor="blue",
-        arrowsize=strength[i],
-        arrowwidth=2,
-        arrowhead=3,
-        ax=xq[i],
-        ay=yq[i])
-            for i in 1:length(xq)]
-
-    layout = Layout(; uirevision=1, yaxis=attr(title="Depth", range=(400, -100)), xaxis=attr(title="Distance", range=(-100, 600)), title_text="Rayleigh Displacement Field",
-        autosize=false, width=700, height=500,
-        margin=attr(l=50, r=50, b=50, t=65),
-        showlegend=false,
-        annotations=vels
-    )
-
-    fig = Plot(layout)
-
-    add_trace!(fig, scatter(y=[0, 0], x=extrema(xgrid),
-        mode="lines+markers+text",
-        text=["", "Free Surface"],
-        textfont=attr(
-            family="sans serif",
-            size=15,
-            color="Red"
+# ╔═╡ 4ee07ab7-b089-43a5-9928-cb5eca293fad
+function stress_plot()
+	
+	p1= cone(x=[0], y=[0], z=[0], u=[nsample[1]], v=[nsample[2]], w=[nsample[3]], name="Surface Normal", hoverinfo="name", showscale=false, opacity=0.5, anchor="tail", color="black", colorscale=colors.Blues_8, sizeref=0.5)
+	p2 = scatter3d(x=[0, nsample[1]], y=[0, nsample[2]], z=[0, nsample[3]], mode="lines", name="Normal Vector", line=attr(color="gray"), )
+	p3 = plot3lines_1(Tinput, "red", "Traction")
+	p4 = plot3lines_2((collect(eachcol(eigsigma.vectors)) .* eigsigma.values)..., "blue", "Principal")
+	layout = Layout(scene_camera_eye=attr(x=0, y=0, z=0), 
+		width=600,
+		height=500,
+		uirevision=1,
+		 scene=attr(
+        xaxis=attr(
+            nticks=10,
+            range=[-1,1]
         ),
-        textposition="top center",
-        line=attr(
-            color="Red",
-            width=2,
-        )
-    ))
-
-    return plot(fig)
+        yaxis=attr(
+            nticks=10,
+            range=[-1,1]
+        ),
+        zaxis=attr(
+            nticks=10,
+            range=[-1,1]
+        ),),
+)
+	return plot([p1, p2, p3..., p4...], layout)
 end
 
-# ╔═╡ bd7562f0-cb14-4ddb-b8c7-ffc2a37b079e
-plot_displacement_field()
+# ╔═╡ 491a8065-e82d-474a-b0e3-c3875c338c67
+stress_plot()
 
-# ╔═╡ 38f7ae72-edae-4ebf-9600-1104e4fd92cf
-function plot_Rayleigh_function()
-    fig = Plot(Layout(title="Rayleigh Function", xaxis_title="Phase Velocity (km/s)", width=700, height=350))
-    # declare a range of speeds for plotting
-    crange = range(cmin, stop=cmax, length=100)
-    add_trace!(fig, PlutoPlotly.scatter(x=crange, y=[RUI(inv(c)) for c in crange], line=attr(width=3, color="white"), name="Rayleigh Function"))
-    add_hline!(fig, 0.0, line=attr(dash="dot"))
-    add_trace!(fig, PlutoPlotly.scatter(x=[cᵣ, cᵣ], y=[-1, 1],
-        name="Rayleigh Phase Velocity (cᵣ)",
-        line=attr(
-            color="Orange",
-            width=4,
-        )
-    ))
-    add_trace!(fig, PlutoPlotly.scatter(x=[αp, αp], y=[-1, 1],
-        name="P-wave Velocity (α)",
-        line=attr(
-            color="Red",
-            width=4,
-        )
-    ))
-    add_trace!(fig, PlutoPlotly.scatter(x=[βp, βp], y=[-1, 1],
-        name="S-wave Velocity (β)",
-        line=attr(
-            color="Blue",
-            width=4,
-        )
-    ))
-    relayout!(fig)
-    PlutoPlotly.plot(fig)
-end
+# ╔═╡ 6f33c7ed-e8a8-440d-a771-84789ee1f397
+md"""
+#### Appendix
+"""
 
-# ╔═╡ 31a317e2-0864-4552-83ee-ba4138ab5c0b
-plot_Rayleigh_function()
+# ╔═╡ 3a1e536b-064a-44ef-948d-66b96adc2b0c
+md"### Tikz"
+
+# ╔═╡ 8546b3ea-bc7b-46c2-8b36-31176e4da001
+tikz_default_options = raw"""
+  background rectangle/.style={fill=white}, show background rectangle,
+  """
+
+# ╔═╡ 74f7ce13-a920-4504-91c4-a864001d86cc
+tikz_preamble = raw"""
+  \usepackage{tikz}
+  \usepackage{tikz-3dplot}
+  \usetikzlibrary{fit, matrix, shapes.geometric}
+  \tikzset{% use tikzset, not tikzstyle
+      cell/.style={
+          rectangle, rounded corners=5pt, draw,
+      }
+  }
+  \tikzset{% use tikzset, not tikzstyle
+      cellv/.style={
+          rectangle, rounded corners=5pt, draw, rotate=90,
+      }
+  }
+
+  \usepackage{xifthen}
+  \usetikzlibrary{hobby}
+  \usepackage{pgfplots}
+  \usepackage{fontawesome}
+  \usepackage{bm,amsfonts,amsmath}
+  \usetikzlibrary{backgrounds,pgfplots.groupplots,snakes}
+  \usepgfplotslibrary{patchplots}
+  \pgfplotsset{try min ticks=2}
+  \usepackage{pgfplotstable} 
+  \usetikzlibrary{plotmarks,positioning,spy}
+  \usetikzlibrary{shapes.geometric, arrows, fadings}
+  \usepgfplotslibrary{groupplots, polar}
+  \usepackage[space]{grffile}
+
+  \usetikzlibrary{%
+              decorations.pathreplacing,%
+                  decorations.pathmorphing%
+                  }
+                  \usetikzlibrary{positioning,fit,backgrounds}
+
+
+
+  \usetikzlibrary{shapes,arrows}
+  \usetikzlibrary{decorations.markings}
+  \usetikzlibrary{patterns}
+  \usetikzlibrary{plotmarks}
+  \usetikzlibrary{fit}
+  \usetikzlibrary{intersections}
+  \usepgfplotslibrary{fillbetween}
+
+    \pgfplotsset{
+                axis line style={black!10},
+                    every axis label/.append style ={black!10},
+                    every axis title/.append style ={black!10},
+                        every tick label/.append style={black!10}  
+                          }
+
+  % need for pgfplots
+  \newcommand{\axisz}{0cm}
+  \newcommand{\axisx}{0cm}
+
+  \usetikzlibrary{positioning}
+  \usetikzlibrary{shapes.geometric}
+  \usetikzlibrary{backgrounds}
+  """
+
+# ╔═╡ cbec50f6-1da8-4a1e-9a88-660771c732a1
+# t1, t2, t3, tv are texts
+# s1 and s2 are labels with sizes
+plot_plane_normal() = TikzPicture(L"""
+\tdplotsetmaincoords{105}{-30}
+\tdplotsetrotatedcoords{00}{30}{0}
+ \begin{scope}[tdplot_rotated_coords]
+  \begin{scope}[canvas is xy plane at z=0]
+   \fill[gray,fill opacity=0.3] (-2,-3) rectangle (2,3); 
+   \draw[very thick] (-2,0) -- (2,0);
+   \path (-150:2) coordinate (H) (-1.5,0) coordinate(X);
+   \pgflowlevelsynccm
+   \draw[very thick,-stealth,gray] (0,0) -- (-30:1.5);
+  \end{scope} 
+  \draw[stealth-] (H) -- ++ (-1,0,0.2) node[pos=1.3]{$H$};
+  \draw[stealth-] (X) -- ++ (0,1,0.2) node[pos=1.3]{$X$};
+  \draw[very thick,-stealth] (0,0,0) coordinate (O) -- (0,0,3) node[right]{$p$};
+ \end{scope}
+ \pgfmathsetmacro{\Radius}{1.5}
+ \draw[-stealth]  (O)-- (2.5*\Radius,0,0) node[pos=1.15] {spot $0$};
+ \draw[-stealth] (O) -- (0,3.5*\Radius,0) node[pos=1.15] {spot $2$};
+ \draw[-stealth] (O) -- (0,0,2.5*\Radius) node[pos=1.05] {spot $1$};
+  """, options=tikz_default_options, preamble=tikz_preamble, width="12cm")
+
+# ╔═╡ 4d566fea-0823-44fd-ac31-a571a182506f
+plot_plane_normal()
+
+# ╔═╡ d5417cd4-30e2-4e23-837b-df3a98e59f40
+TikzPicture(L"""
+\tdplotsetmaincoords{60}{125}
+\tikzset{
+		cube/.style={very thick,black},
+			grid/.style={very thin,gray},
+			axis/.style={->,blue,thick},}
+
+	%draw a grid in the x-y plane
+	\foreach \x in {-0.5,0,...,2.5}
+		\foreach \y in {-0.5,0,...,2.5}
+		{
+			\draw[grid] (\x,-0.5) -- (\x,2.5);
+			\draw[grid] (-0.5,\y) -- (2.5,\y);
+		}
+			
+	%draw the axes
+	\draw[axis] (0,0,0) -- (3,0,0) node[anchor=west]{$x_1$};
+	\draw[axis] (0,0,0) -- (0,3,0) node[anchor=west]{$x_2$};
+	\draw[axis] (0,0,0) -- (0,0,3) node[anchor=west]{$x_3$};
+
+	%draw the top and bottom of the cube
+	\draw[cube] (0,0,0) -- (0,2,0) -- (2,2,0) -- (2,0,0) -- cycle;
+	\draw[cube] (0,0,2) -- (0,2,2) -- (2,2,2) -- (2,0,2) -- cycle;
+	
+	%draw the edges of the cube
+	\draw[cube] (0,0,0) -- (0,0,2);
+	\draw[cube] (0,2,0) -- (0,2,2);
+	\draw[cube] (2,0,0) -- (2,0,2);
+	\draw[cube] (2,2,0) -- (2,2,2);
+	
+""", options=tikz_default_options, preamble=tikz_preamble, width="12cm")
+
+# ╔═╡ 5bb5af41-e820-496d-8b00-ebe7cb40b6e5
+plot(
+    [scatter3d(x=x, y=y, z=z, mode="lines", name="Plane"),
+    scatter3d(x=[0, normal_vector[1]], y=[0, normal_vector[2]], z=[0, normal_vector[3]], mode="lines+markers", name="Normal Vector", line=attr(color="red"))]
+)
+
+# ╔═╡ 957b8f08-65ac-4868-aead-23dbc2b4c5f5
+plot(scatter3d(x=x, y=y, z=z, mode="lines", name="Plane"))
+
+# ╔═╡ f7826dd2-8584-4f96-a23a-575fb3f565c5
+TikzPicture(L"""
+    % Define the unit normal vector
+    \def\nx{0.5} % x-component of the normal vector
+    \def\ny{0.5} % y-component of the normal vector
+    \def\nz{0.5} % z-component of the normal vector
+
+    % Define the plane equation ax + by + cz = d
+    \def\d{1} % Distance from the origin
+
+    % Calculate the vertices of the small plane
+    \pgfmathsetmacro{\a}{0.5} % Half the side length of the small plane
+
+    % Calculate two vectors perpendicular to the normal vector using Gram-Schmidt process
+    \pgfmathsetmacro{\ux}{\ny}
+    \pgfmathsetmacro{\uy}{-\nx}
+    \pgfmathsetmacro{\uz}{0}
+    \pgfmathsetmacro{\vx}{\nx*\nz}
+    \pgfmathsetmacro{\vy}{\ny*\nz}
+    \pgfmathsetmacro{\vz}{-(\nx^2 + \ny^2)}
+
+    % Normalize the perpendicular vectors
+    \pgfmathsetmacro{\ulen}{sqrt(\ux*\ux + \uy*\uy + \uz*\uz)}
+    \pgfmathsetmacro{\vlen}{sqrt(\vx*\vx + \vy*\vy + \vz*\vz)}
+    \pgfmathsetmacro{\ux}{\ux/\ulen}
+    \pgfmathsetmacro{\uy}{\uy/\ulen}
+    \pgfmathsetmacro{\uz}{\uz/\ulen}
+    \pgfmathsetmacro{\vx}{\vx/\vlen}
+    \pgfmathsetmacro{\vy}{\vy/\vlen}
+    \pgfmathsetmacro{\vz}{\vz/\vlen}
+
+    % Draw the coordinate axes
+    \draw[->] (0,0,0) -- (3,0,0) node[anchor=north east] {$x$};
+    \draw[->] (0,0,0) -- (0,3,0) node[anchor=north west] {$y$};
+    \draw[->] (0,0,0) -- (0,0,3) node[anchor=south] {$z$};
+
+    % Draw the small plane
+    \filldraw[opacity=0.5] 
+        ({\a*\ux}, {\a*\uy}, {\a*\uz}) -- 
+        ({\a*\vx}, {\a*\vy}, {\a*\vz}) -- 
+        ({-\a*\ux}, {-\a*\uy}, {-\a*\uz}) -- 
+        ({-\a*\vx}, {-\a*\vy}, {-\a*\vz}) -- 
+        cycle;
+
+    % Draw the normal vector
+    \draw[->, thick, color=red] (0,0,0) -- (\nx,\ny,\nz);
+    \node at (\nx,\ny,\nz) [anchor=south west] {$\vec{n}$};
+""", options=tikz_default_options, preamble=tikz_preamble, width="12cm")
+
+# ╔═╡ 703da67d-b63f-40d0-88bc-8cf8e0510658
+
 
 # ╔═╡ 00000000-0000-0000-0000-000000000001
 PLUTO_PROJECT_TOML_CONTENTS = """
 [deps]
+Einsum = "b7d42ee7-0b51-5a75-98ca-779d3107e4c0"
 LaTeXStrings = "b964fa9f-0449-5b57-a5c2-d3ea65f4040f"
-Latexify = "23fbe1c1-3f47-55db-b15f-69d7ec21a316"
 LinearAlgebra = "37e2e46d-f89d-539d-b4ee-838fcccc9c8e"
-Measures = "442fdcdd-2543-5da2-b0f3-8c86c306513e"
-Parameters = "d96e819e-fc66-5662-9728-84c9c7592b0a"
 PlutoPlotly = "8e989ff0-3d88-8e9f-f020-2b208a939ff0"
 PlutoTeachingTools = "661c6b06-c737-4d37-b85c-46df65de6f69"
 PlutoUI = "7f904dfe-b85e-4ff6-b463-dae2292396a8"
-Roots = "f2b01f46-fcfa-551c-844a-d8ac1e96c665"
 SymbolicUtils = "d1185830-fcd6-423d-90d6-eec64667417b"
 Symbolics = "0c5d862f-8b57-4792-8d23-62f2024744c7"
+TikzPictures = "37f6aa50-8035-52d0-81c2-5a1d08754b2d"
 
 [compat]
+Einsum = "~0.4.1"
 LaTeXStrings = "~1.3.1"
-Latexify = "~0.16.5"
-Measures = "~0.3.2"
-Parameters = "~0.12.3"
 PlutoPlotly = "~0.5.0"
-PlutoTeachingTools = "~0.3.0"
-PlutoUI = "~0.7.60"
-Roots = "~2.2.1"
-SymbolicUtils = "~3.7.1"
-Symbolics = "~6.12.0"
+PlutoTeachingTools = "~0.2.15"
+PlutoUI = "~0.7.59"
+SymbolicUtils = "~3.1.2"
+Symbolics = "~6.2.0"
+TikzPictures = "~3.5.0"
 """
 
 # ╔═╡ 00000000-0000-0000-0000-000000000002
@@ -422,12 +460,12 @@ PLUTO_MANIFEST_TOML_CONTENTS = """
 
 julia_version = "1.10.5"
 manifest_format = "2.0"
-project_hash = "56654cd6216d56bcd91d819c9288d22af160ddbd"
+project_hash = "bf8ac3ea04d92bf2fda40754800e2714d13e4add"
 
 [[deps.ADTypes]]
-git-tree-sha1 = "5a5eafb8344b81b8c2237f8a6f6b3602b3f6180e"
+git-tree-sha1 = "99a6f5d0ce1c7c6afdb759daa30226f71c54f6b0"
 uuid = "47edcb42-4c32-4615-8424-f2b9edc5f35b"
-version = "1.8.1"
+version = "1.7.1"
 
     [deps.ADTypes.extensions]
     ADTypesChainRulesCoreExt = "ChainRulesCore"
@@ -449,28 +487,24 @@ uuid = "1520ce14-60c1-5f80-bbc7-55ef81b5835c"
 version = "0.4.5"
 
 [[deps.Accessors]]
-deps = ["CompositionsBase", "ConstructionBase", "InverseFunctions", "LinearAlgebra", "MacroTools", "Markdown"]
-git-tree-sha1 = "b392ede862e506d451fc1616e79aa6f4c673dab8"
+deps = ["CompositionsBase", "ConstructionBase", "Dates", "InverseFunctions", "LinearAlgebra", "MacroTools", "Markdown", "Test"]
+git-tree-sha1 = "f61b15be1d76846c0ce31d3fcfac5380ae53db6a"
 uuid = "7d9f7c33-5ae7-4f3b-8dc6-eff91059b697"
-version = "0.1.38"
+version = "0.1.37"
 
     [deps.Accessors.extensions]
     AccessorsAxisKeysExt = "AxisKeys"
-    AccessorsDatesExt = "Dates"
     AccessorsIntervalSetsExt = "IntervalSets"
     AccessorsStaticArraysExt = "StaticArrays"
     AccessorsStructArraysExt = "StructArrays"
-    AccessorsTestExt = "Test"
     AccessorsUnitfulExt = "Unitful"
 
     [deps.Accessors.weakdeps]
     AxisKeys = "94b1ba4f-4ee9-5380-92f1-94cde586c3c5"
-    Dates = "ade2ca70-3891-5945-98fb-dc099432e06a"
     IntervalSets = "8197267c-284f-5f27-9208-e0e47529a953"
     Requires = "ae029012-a4dd-5104-9daa-d747884805df"
     StaticArrays = "90137ffa-7385-5640-81b9-e52037218182"
     StructArrays = "09ab397b-f2b6-538f-b94a-2f83cf4a842a"
-    Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
     Unitful = "1986cc42-f94f-5a68-af5c-568840ba703d"
 
 [[deps.Adapt]]
@@ -495,9 +529,9 @@ version = "1.1.1"
 
 [[deps.ArrayInterface]]
 deps = ["Adapt", "LinearAlgebra"]
-git-tree-sha1 = "3640d077b6dafd64ceb8fd5c1ec76f7ca53bcf76"
+git-tree-sha1 = "f54c23a5d304fb87110de62bace7777d59088c34"
 uuid = "4fba245c-0d91-5ea0-9b3e-6abc04ee57a9"
-version = "7.16.0"
+version = "7.15.0"
 
     [deps.ArrayInterface.extensions]
     ArrayInterfaceBandedMatricesExt = "BandedMatrices"
@@ -535,15 +569,27 @@ uuid = "18cc8868-cbac-4acf-b575-c8ff214dc66f"
 version = "1.2.4"
 
 [[deps.Bijections]]
-git-tree-sha1 = "d8b0439d2be438a5f2cd68ec158fe08a7b2595b7"
+git-tree-sha1 = "95f5c7e2d177b7ba1a240b0518038b975d72a8c0"
 uuid = "e2ed5e7c-b2de-5872-ae92-c73ca462fb04"
-version = "0.1.9"
+version = "0.1.7"
+
+[[deps.Bzip2_jll]]
+deps = ["Artifacts", "JLLWrappers", "Libdl", "Pkg"]
+git-tree-sha1 = "9e2a6b69137e6969bab0152632dcb3bc108c8bdd"
+uuid = "6e34b625-4abd-537c-b88f-471c36dfa7a0"
+version = "1.0.8+1"
+
+[[deps.Cairo_jll]]
+deps = ["Artifacts", "Bzip2_jll", "CompilerSupportLibraries_jll", "Fontconfig_jll", "FreeType2_jll", "Glib_jll", "JLLWrappers", "LZO_jll", "Libdl", "Pixman_jll", "Xorg_libXext_jll", "Xorg_libXrender_jll", "Zlib_jll", "libpng_jll"]
+git-tree-sha1 = "a2f1c8c668c8e3cb4cca4e57a8efdb09067bb3fd"
+uuid = "83423d85-b0ee-5818-9007-b63ccbeb887a"
+version = "1.18.0+2"
 
 [[deps.ChainRulesCore]]
 deps = ["Compat", "LinearAlgebra"]
-git-tree-sha1 = "3e4b134270b372f2ed4d4d0e936aabaefc1802bc"
+git-tree-sha1 = "71acdbf594aab5bbb2cec89b208c41b4c411e49f"
 uuid = "d360d2e6-b24c-11e9-a2a3-2a2ae2dbcce4"
-version = "1.25.0"
+version = "1.24.0"
 weakdeps = ["SparseArrays"]
 
     [deps.ChainRulesCore.extensions]
@@ -593,6 +639,12 @@ git-tree-sha1 = "0eee5eb66b1cf62cd6ad1b460238e60e4b09400c"
 uuid = "38540f10-b2f7-11e9-35d8-d573e4eb0ff2"
 version = "0.2.4"
 
+[[deps.CommonSubexpressions]]
+deps = ["MacroTools", "Test"]
+git-tree-sha1 = "7b8a93dba8af7e3b42fecabf646260105ac373f7"
+uuid = "bbf7d656-a473-5ed7-a52c-81e309532950"
+version = "0.3.0"
+
 [[deps.CommonWorldInvalidations]]
 git-tree-sha1 = "ae52d1c52048455e85a387fbee9be553ec2b68d0"
 uuid = "f70d9fcc-98c5-4d4a-abd7-e4cdeebd8ca8"
@@ -628,14 +680,14 @@ weakdeps = ["InverseFunctions"]
     CompositionsBaseInverseFunctionsExt = "InverseFunctions"
 
 [[deps.ConstructionBase]]
-git-tree-sha1 = "76219f1ed5771adbb096743bff43fb5fdd4c1157"
+deps = ["LinearAlgebra"]
+git-tree-sha1 = "d8a9c0b6ac2d9081bf76324b39c78ca3ce4f0c98"
 uuid = "187b0558-2788-49d3-abe0-74a17ed4e7c9"
-version = "1.5.8"
-weakdeps = ["IntervalSets", "LinearAlgebra", "StaticArrays"]
+version = "1.5.6"
+weakdeps = ["IntervalSets", "StaticArrays"]
 
     [deps.ConstructionBase.extensions]
     ConstructionBaseIntervalSetsExt = "IntervalSets"
-    ConstructionBaseLinearAlgebraExt = "LinearAlgebra"
     ConstructionBaseStaticArraysExt = "StaticArrays"
 
 [[deps.DataAPI]]
@@ -664,6 +716,12 @@ git-tree-sha1 = "9e2f36d3c96a820c678f2f1f1782582fcf685bae"
 uuid = "8bb1440f-4735-579b-a4ab-409b98df4dab"
 version = "1.9.1"
 
+[[deps.DiffResults]]
+deps = ["StaticArraysCore"]
+git-tree-sha1 = "782dd5f4561f5d267313f23853baaaa4c52ea621"
+uuid = "163ba53b-c6d8-5494-b064-1a9d43ac40c5"
+version = "1.1.0"
+
 [[deps.DiffRules]]
 deps = ["IrrationalConstants", "LogExpFunctions", "NaNMath", "Random", "SpecialFunctions"]
 git-tree-sha1 = "23163d55f885173722d1e4cf0f6110cdbaf7e272"
@@ -676,9 +734,9 @@ uuid = "8ba89e20-285c-5b6f-9357-94700520ee1b"
 
 [[deps.Distributions]]
 deps = ["AliasTables", "FillArrays", "LinearAlgebra", "PDMats", "Printf", "QuadGK", "Random", "SpecialFunctions", "Statistics", "StatsAPI", "StatsBase", "StatsFuns"]
-git-tree-sha1 = "e6c693a0e4394f8fda0e51a5bdf5aef26f8235e9"
+git-tree-sha1 = "0e0a1264b0942f1f3abb2b30891f2a590cc652ac"
 uuid = "31c24e10-a181-5473-b8eb-7969acd0382f"
-version = "0.25.111"
+version = "0.25.110"
 
     [deps.Distributions.extensions]
     DistributionsChainRulesCoreExt = "ChainRulesCore"
@@ -714,15 +772,27 @@ uuid = "f43a241f-c20a-4ad4-852c-f6b1247861c6"
 version = "1.6.0"
 
 [[deps.DynamicPolynomials]]
-deps = ["Future", "LinearAlgebra", "MultivariatePolynomials", "MutableArithmetics", "Reexport", "Test"]
-git-tree-sha1 = "bbf1ace0781d9744cb697fb856bd2c3f6568dadb"
+deps = ["Future", "LinearAlgebra", "MultivariatePolynomials", "MutableArithmetics", "Pkg", "Reexport", "Test"]
+git-tree-sha1 = "30a1848c4f4fc35d1d4bbbd125650f6a11b5bc6c"
 uuid = "7c1d4256-1411-5781-91ec-d7bc3513ac07"
-version = "0.6.0"
+version = "0.5.7"
+
+[[deps.Einsum]]
+deps = ["Compat"]
+git-tree-sha1 = "4a6b3eee0161c89700b6c1949feae8b851da5494"
+uuid = "b7d42ee7-0b51-5a75-98ca-779d3107e4c0"
+version = "0.4.1"
 
 [[deps.EnumX]]
 git-tree-sha1 = "bdb1942cd4c45e3c678fd11569d5cccd80976237"
 uuid = "4e289a0a-7415-4d19-859d-a7e5c4648b56"
 version = "1.0.4"
+
+[[deps.Expat_jll]]
+deps = ["Artifacts", "JLLWrappers", "Libdl"]
+git-tree-sha1 = "1c6317308b9dc757616f0b5cb379db10494443a7"
+uuid = "2e619515-83b5-522b-bb60-26c02a35a201"
+version = "2.6.2+0"
 
 [[deps.ExprTools]]
 git-tree-sha1 = "27415f162e6028e81c72b82ef756bf321213b6ec"
@@ -740,9 +810,9 @@ uuid = "7b1f6079-737a-58dc-b8bc-7a2ca5c1b5ee"
 
 [[deps.FillArrays]]
 deps = ["LinearAlgebra"]
-git-tree-sha1 = "6a70198746448456524cb442b8af316927ff3e1a"
+git-tree-sha1 = "0653c0a2396a6da5bc4766c43041ef5fd3efbe57"
 uuid = "1a297f60-69ca-5386-bcde-b61e274b549b"
-version = "1.13.0"
+version = "1.11.0"
 weakdeps = ["PDMats", "SparseArrays", "Statistics"]
 
     [deps.FillArrays.extensions]
@@ -756,10 +826,32 @@ git-tree-sha1 = "05882d6995ae5c12bb5f36dd2ed3f61c98cbb172"
 uuid = "53c48c17-4a7d-5ca2-90c5-79b7896eea93"
 version = "0.8.5"
 
+[[deps.Fontconfig_jll]]
+deps = ["Artifacts", "Bzip2_jll", "Expat_jll", "FreeType2_jll", "JLLWrappers", "Libdl", "Libuuid_jll", "Zlib_jll"]
+git-tree-sha1 = "db16beca600632c95fc8aca29890d83788dd8b23"
+uuid = "a3f928ae-7b40-5064-980b-68af3947d34b"
+version = "2.13.96+0"
+
 [[deps.Format]]
 git-tree-sha1 = "9c68794ef81b08086aeb32eeaf33531668d5f5fc"
 uuid = "1fa38f19-a742-5d3f-a2b9-30dd87b9d5f8"
 version = "1.3.7"
+
+[[deps.ForwardDiff]]
+deps = ["CommonSubexpressions", "DiffResults", "DiffRules", "LinearAlgebra", "LogExpFunctions", "NaNMath", "Preferences", "Printf", "Random", "SpecialFunctions"]
+git-tree-sha1 = "cf0fe81336da9fb90944683b8c41984b08793dad"
+uuid = "f6369f11-7733-5829-9624-2563aa707210"
+version = "0.10.36"
+weakdeps = ["StaticArrays"]
+
+    [deps.ForwardDiff.extensions]
+    ForwardDiffStaticArraysExt = "StaticArrays"
+
+[[deps.FreeType2_jll]]
+deps = ["Artifacts", "Bzip2_jll", "JLLWrappers", "Libdl", "Zlib_jll"]
+git-tree-sha1 = "5c1d8ae0efc6c2e7b1fc502cbe25def8f661b7bc"
+uuid = "d7e528f0-a631-5988-bf34-fe36492bcfd7"
+version = "2.13.2+0"
 
 [[deps.FunctionWrappers]]
 git-tree-sha1 = "d62485945ce5ae9c0c48f124a84998d755bae00e"
@@ -782,6 +874,36 @@ git-tree-sha1 = "ec632f177c0d990e64d955ccc1b8c04c485a0950"
 uuid = "46192b85-c4d5-4398-a991-12ede77f4527"
 version = "0.1.6"
 
+[[deps.Gettext_jll]]
+deps = ["Artifacts", "CompilerSupportLibraries_jll", "JLLWrappers", "Libdl", "Libiconv_jll", "Pkg", "XML2_jll"]
+git-tree-sha1 = "9b02998aba7bf074d14de89f9d37ca24a1a0b046"
+uuid = "78b55507-aeef-58d4-861c-77aaff3498b1"
+version = "0.21.0+0"
+
+[[deps.Glib_jll]]
+deps = ["Artifacts", "Gettext_jll", "JLLWrappers", "Libdl", "Libffi_jll", "Libiconv_jll", "Libmount_jll", "PCRE2_jll", "Zlib_jll"]
+git-tree-sha1 = "7c82e6a6cd34e9d935e9aa4051b66c6ff3af59ba"
+uuid = "7746bdde-850d-59dc-9ae8-88ece973131d"
+version = "2.80.2+0"
+
+[[deps.Graphite2_jll]]
+deps = ["Artifacts", "JLLWrappers", "Libdl", "Pkg"]
+git-tree-sha1 = "344bf40dcab1073aca04aa0df4fb092f920e4011"
+uuid = "3b182d85-2403-5c21-9c21-1e1f0cc25472"
+version = "1.3.14+0"
+
+[[deps.HarfBuzz_ICU_jll]]
+deps = ["Artifacts", "Cairo_jll", "Fontconfig_jll", "FreeType2_jll", "Glib_jll", "Graphite2_jll", "HarfBuzz_jll", "ICU_jll", "JLLWrappers", "Libdl", "Libffi_jll", "Pkg"]
+git-tree-sha1 = "6ccbc4fdf65c8197738c2d68cc55b74b19c97ac2"
+uuid = "655565e8-fb53-5cb3-b0cd-aec1ca0647ea"
+version = "2.8.1+0"
+
+[[deps.HarfBuzz_jll]]
+deps = ["Artifacts", "Cairo_jll", "Fontconfig_jll", "FreeType2_jll", "Glib_jll", "Graphite2_jll", "JLLWrappers", "Libdl", "Libffi_jll", "Pkg"]
+git-tree-sha1 = "129acf094d168394e80ee1dc4bc06ec835e510a3"
+uuid = "2e76f6c2-a576-52d4-95c1-20adfe4de566"
+version = "2.8.1+1"
+
 [[deps.HypergeometricFunctions]]
 deps = ["LinearAlgebra", "OpenLibm_jll", "SpecialFunctions"]
 git-tree-sha1 = "7c4195be1649ae622304031ed46a2f4df989f1eb"
@@ -800,6 +922,12 @@ git-tree-sha1 = "7134810b1afce04bbc1045ca1985fbe81ce17653"
 uuid = "ac1192a8-f4b3-4bfe-ba22-af5b92cd3ab2"
 version = "0.9.5"
 
+[[deps.ICU_jll]]
+deps = ["Artifacts", "JLLWrappers", "Libdl", "Pkg"]
+git-tree-sha1 = "20b6765a3016e1fca0c9c93c80d50061b94218b7"
+uuid = "a51ab1cf-af8e-5615-a023-bc2c838bba6b"
+version = "69.1.0+0"
+
 [[deps.IOCapture]]
 deps = ["Logging", "Random"]
 git-tree-sha1 = "b6d6bfdd7ce25b0f9b2f6b3dd56b2673a66c8770"
@@ -810,11 +938,6 @@ version = "0.2.5"
 git-tree-sha1 = "debdd00ffef04665ccbb3e150747a77560e8fad1"
 uuid = "615f187c-cbe4-4ef1-ba3b-2fcf58d6d173"
 version = "0.1.1"
-
-[[deps.IntegerMathUtils]]
-git-tree-sha1 = "b8ffb903da9f7b8cf695a8bead8e01814aa24b30"
-uuid = "18e54dd8-cb9d-406c-a71d-865a43cbb235"
-version = "0.1.2"
 
 [[deps.InteractiveUtils]]
 deps = ["Markdown"]
@@ -853,9 +976,9 @@ version = "1.0.0"
 
 [[deps.JLLWrappers]]
 deps = ["Artifacts", "Preferences"]
-git-tree-sha1 = "f389674c99bfcde17dc57454011aa44d5a260a40"
+git-tree-sha1 = "7e5d6779a1e09a36db2a7b6cff50942a0a7d0fca"
 uuid = "692b3bcd-3c85-4b1f-b108-f13ce0eb3210"
-version = "1.6.0"
+version = "1.5.0"
 
 [[deps.JSON]]
 deps = ["Dates", "Mmap", "Parsers", "Unicode"]
@@ -863,16 +986,46 @@ git-tree-sha1 = "31e996f0a15c7b280ba9f76636b3ff9e2ae58c9a"
 uuid = "682c06a0-de6a-54ab-a142-c8b1cf79cde6"
 version = "0.21.4"
 
+[[deps.JpegTurbo_jll]]
+deps = ["Artifacts", "JLLWrappers", "Libdl"]
+git-tree-sha1 = "c84a835e1a09b289ffcd2271bf2a337bbdda6637"
+uuid = "aacddb02-875f-59d6-b918-886e6ef4fbf8"
+version = "3.0.3+0"
+
 [[deps.JuliaInterpreter]]
 deps = ["CodeTracking", "InteractiveUtils", "Random", "UUIDs"]
-git-tree-sha1 = "2984284a8abcfcc4784d95a9e2ea4e352dd8ede7"
+git-tree-sha1 = "7ae67d8567853d367e3463719356b8989e236069"
 uuid = "aa1ae85d-cabe-5617-a682-6adf51b2e16a"
-version = "0.9.36"
+version = "0.9.34"
+
+[[deps.LERC_jll]]
+deps = ["Artifacts", "JLLWrappers", "Libdl", "Pkg"]
+git-tree-sha1 = "bf36f528eec6634efc60d7ec062008f171071434"
+uuid = "88015f11-f218-50d7-93a8-a6af411a945d"
+version = "3.0.0+1"
+
+[[deps.LLVMOpenMP_jll]]
+deps = ["Artifacts", "JLLWrappers", "Libdl"]
+git-tree-sha1 = "e16271d212accd09d52ee0ae98956b8a05c4b626"
+uuid = "1d63c593-3942-5779-bab2-d838dc0a180e"
+version = "17.0.6+0"
+
+[[deps.LZO_jll]]
+deps = ["Artifacts", "JLLWrappers", "Libdl"]
+git-tree-sha1 = "70c5da094887fd2cae843b8db33920bac4b6f07d"
+uuid = "dd4b983a-f0e5-5f8d-a1b7-129d4a5fb1ac"
+version = "2.10.2+0"
 
 [[deps.LaTeXStrings]]
 git-tree-sha1 = "50901ebc375ed41dbf8058da26f9de442febbbec"
 uuid = "b964fa9f-0449-5b57-a5c2-d3ea65f4040f"
 version = "1.3.1"
+
+[[deps.LabelledArrays]]
+deps = ["ArrayInterface", "ChainRulesCore", "ForwardDiff", "LinearAlgebra", "MacroTools", "PreallocationTools", "RecursiveArrayTools", "StaticArrays"]
+git-tree-sha1 = "e459fda6b68ea8684b3fcd513d2fd1e5130c4402"
+uuid = "2ee39098-c373-598a-b85f-a56591580800"
+version = "1.16.0"
 
 [[deps.LambertW]]
 git-tree-sha1 = "c5ffc834de5d61d00d2b0e18c96267cffc21f648"
@@ -922,9 +1075,57 @@ version = "1.11.0+1"
 [[deps.Libdl]]
 uuid = "8f399da3-3557-5675-b5ff-fb832c97cbdb"
 
+[[deps.Libffi_jll]]
+deps = ["Artifacts", "JLLWrappers", "Libdl", "Pkg"]
+git-tree-sha1 = "0b4a5d71f3e5200a7dff793393e09dfc2d874290"
+uuid = "e9f186c6-92d2-5b65-8a66-fee21dc1b490"
+version = "3.2.2+1"
+
+[[deps.Libgcrypt_jll]]
+deps = ["Artifacts", "JLLWrappers", "Libdl", "Libgpg_error_jll"]
+git-tree-sha1 = "9fd170c4bbfd8b935fdc5f8b7aa33532c991a673"
+uuid = "d4300ac3-e22c-5743-9152-c294e39db1e4"
+version = "1.8.11+0"
+
+[[deps.Libgpg_error_jll]]
+deps = ["Artifacts", "JLLWrappers", "Libdl"]
+git-tree-sha1 = "fbb1f2bef882392312feb1ede3615ddc1e9b99ed"
+uuid = "7add5ba3-2f88-524e-9cd5-f83b8a55f7b8"
+version = "1.49.0+0"
+
+[[deps.Libiconv_jll]]
+deps = ["Artifacts", "JLLWrappers", "Libdl"]
+git-tree-sha1 = "f9557a255370125b405568f9767d6d195822a175"
+uuid = "94ce4f54-9a6c-5748-9c1c-f9c7231a4531"
+version = "1.17.0+0"
+
+[[deps.Libmount_jll]]
+deps = ["Artifacts", "JLLWrappers", "Libdl"]
+git-tree-sha1 = "0c4f9c4f1a50d8f35048fa0532dabbadf702f81e"
+uuid = "4b2f31a3-9ecc-558c-b454-b3730dcb73e9"
+version = "2.40.1+0"
+
+[[deps.Libtiff_jll]]
+deps = ["Artifacts", "JLLWrappers", "JpegTurbo_jll", "LERC_jll", "Libdl", "Pkg", "Zlib_jll", "Zstd_jll"]
+git-tree-sha1 = "3eb79b0ca5764d4799c06699573fd8f533259713"
+uuid = "89763e89-9b03-5906-acba-b20f662cd828"
+version = "4.4.0+0"
+
+[[deps.Libuuid_jll]]
+deps = ["Artifacts", "JLLWrappers", "Libdl"]
+git-tree-sha1 = "5ee6203157c120d79034c748a2acba45b82b8807"
+uuid = "38a345b3-de98-5d2b-a5d3-14cd9215e700"
+version = "2.40.1+0"
+
 [[deps.LinearAlgebra]]
 deps = ["Libdl", "OpenBLAS_jll", "libblastrampoline_jll"]
 uuid = "37e2e46d-f89d-539d-b4ee-838fcccc9c8e"
+
+[[deps.LittleCMS_jll]]
+deps = ["Artifacts", "JLLWrappers", "JpegTurbo_jll", "Libdl", "Libtiff_jll", "Pkg"]
+git-tree-sha1 = "110897e7db2d6836be22c18bffd9422218ee6284"
+uuid = "d3a379c0-f9a3-5b72-a4c0-6bf4d2e8af0f"
+version = "2.12.0+0"
 
 [[deps.LogExpFunctions]]
 deps = ["DocStringExtensions", "IrrationalConstants", "LinearAlgebra"]
@@ -947,9 +1148,9 @@ uuid = "56ddb016-857b-54e1-b83d-db4d58db5568"
 
 [[deps.LoweredCodeUtils]]
 deps = ["JuliaInterpreter"]
-git-tree-sha1 = "c2b5e92eaf5101404a58ce9c6083d595472361d6"
+git-tree-sha1 = "1ce1834f9644a8f7c011eb0592b7fd6c42c90653"
 uuid = "6f1432cf-f94c-5a45-995e-cdbf5db27b0b"
-version = "3.0.2"
+version = "3.0.1"
 
 [[deps.MIMEs]]
 git-tree-sha1 = "65f28ad4b594aebe22157d6fac869786a255b7eb"
@@ -975,11 +1176,6 @@ uuid = "d6f4376e-aef5-505a-96c1-9c027394607a"
 deps = ["Artifacts", "Libdl"]
 uuid = "c8ffd9c3-330d-5841-b78e-0817d7145fa1"
 version = "2.28.2+1"
-
-[[deps.Measures]]
-git-tree-sha1 = "c13304c81eec1ed3af7fc20e75fb6b26092a1102"
-uuid = "442fdcdd-2543-5da2-b0f3-8c86c306513e"
-version = "0.3.2"
 
 [[deps.Missings]]
 deps = ["DataAPI"]
@@ -1021,10 +1217,22 @@ deps = ["Artifacts", "CompilerSupportLibraries_jll", "Libdl"]
 uuid = "4536629a-c528-5b80-bd46-f80d51c5b363"
 version = "0.3.23+4"
 
+[[deps.OpenJpeg_jll]]
+deps = ["Artifacts", "JLLWrappers", "Libdl", "Libtiff_jll", "LittleCMS_jll", "Pkg", "libpng_jll"]
+git-tree-sha1 = "76374b6e7f632c130e78100b166e5a48464256f8"
+uuid = "643b3616-a352-519d-856d-80112ee9badc"
+version = "2.4.0+0"
+
 [[deps.OpenLibm_jll]]
 deps = ["Artifacts", "Libdl"]
 uuid = "05823500-19ac-5b8b-9628-191a04bc5112"
 version = "0.8.1+2"
+
+[[deps.OpenSSL_jll]]
+deps = ["Artifacts", "JLLWrappers", "Libdl"]
+git-tree-sha1 = "a12e56c72edee3ce6b96667745e6cbbe5498f200"
+uuid = "458c3c95-2e84-50aa-8efc-19380b2a3a95"
+version = "1.1.23+0"
 
 [[deps.OpenSpecFun_jll]]
 deps = ["Artifacts", "CompilerSupportLibraries_jll", "JLLWrappers", "Libdl", "Pkg"]
@@ -1036,6 +1244,11 @@ version = "0.5.5+0"
 git-tree-sha1 = "dfdf5519f235516220579f949664f1bf44e741c5"
 uuid = "bac558e1-5e72-5ebc-8fee-abe8a469f55d"
 version = "1.6.3"
+
+[[deps.PCRE2_jll]]
+deps = ["Artifacts", "Libdl"]
+uuid = "efcefdf7-47ab-520b-bdef-62a2eaa19f15"
+version = "10.42.0+1"
 
 [[deps.PDMats]]
 deps = ["LinearAlgebra", "SparseArrays", "SuiteSparse"]
@@ -1054,6 +1267,12 @@ deps = ["Dates", "PrecompileTools", "UUIDs"]
 git-tree-sha1 = "8489905bcdbcfac64d1daa51ca07c0d8f0283821"
 uuid = "69de0a69-1ddd-5017-9359-2bf0b02dc9f0"
 version = "2.8.1"
+
+[[deps.Pixman_jll]]
+deps = ["Artifacts", "CompilerSupportLibraries_jll", "JLLWrappers", "LLVMOpenMP_jll", "Libdl"]
+git-tree-sha1 = "35621f10a7531bc8fa58f74610b1bfb70a3cfc6b"
+uuid = "30392449-352a-5448-841d-b1acce4e97dc"
+version = "0.43.4+0"
 
 [[deps.Pkg]]
 deps = ["Artifacts", "Dates", "Downloads", "FileWatching", "LibGit2", "Libdl", "Logging", "Markdown", "Printf", "REPL", "Random", "SHA", "Serialization", "TOML", "Tar", "UUIDs", "p7zip_jll"]
@@ -1093,16 +1312,34 @@ version = "0.5.0"
     Unitful = "1986cc42-f94f-5a68-af5c-568840ba703d"
 
 [[deps.PlutoTeachingTools]]
-deps = ["Downloads", "HypertextLiteral", "Latexify", "Markdown", "PlutoLinks", "PlutoUI"]
-git-tree-sha1 = "e2593782a6b53dc5176058d27e20387a0576a59e"
+deps = ["Downloads", "HypertextLiteral", "LaTeXStrings", "Latexify", "Markdown", "PlutoLinks", "PlutoUI", "Random"]
+git-tree-sha1 = "5d9ab1a4faf25a62bb9d07ef0003396ac258ef1c"
 uuid = "661c6b06-c737-4d37-b85c-46df65de6f69"
-version = "0.3.0"
+version = "0.2.15"
 
 [[deps.PlutoUI]]
 deps = ["AbstractPlutoDingetjes", "Base64", "ColorTypes", "Dates", "FixedPointNumbers", "Hyperscript", "HypertextLiteral", "IOCapture", "InteractiveUtils", "JSON", "Logging", "MIMEs", "Markdown", "Random", "Reexport", "URIs", "UUIDs"]
-git-tree-sha1 = "eba4810d5e6a01f612b948c9fa94f905b49087b0"
+git-tree-sha1 = "ab55ee1510ad2af0ff674dbcced5e94921f867a9"
 uuid = "7f904dfe-b85e-4ff6-b463-dae2292396a8"
-version = "0.7.60"
+version = "0.7.59"
+
+[[deps.Poppler_jll]]
+deps = ["Artifacts", "Cairo_jll", "Fontconfig_jll", "Glib_jll", "JLLWrappers", "JpegTurbo_jll", "Libdl", "Libtiff_jll", "OpenJpeg_jll", "Pkg", "libpng_jll"]
+git-tree-sha1 = "02148a0cb2532f22c0589ceb75c110e168fb3d1f"
+uuid = "9c32591e-4766-534b-9725-b71a8799265b"
+version = "21.9.0+0"
+
+[[deps.PreallocationTools]]
+deps = ["Adapt", "ArrayInterface", "ForwardDiff"]
+git-tree-sha1 = "6c62ce45f268f3f958821a1e5192cf91c75ae89c"
+uuid = "d236fae5-4411-538c-8e31-a6e3d9e00b46"
+version = "0.4.24"
+
+    [deps.PreallocationTools.extensions]
+    PreallocationToolsReverseDiffExt = "ReverseDiff"
+
+    [deps.PreallocationTools.weakdeps]
+    ReverseDiff = "37e2e3b7-166d-5795-8a7a-e32c996b4267"
 
 [[deps.PrecompileTools]]
 deps = ["Preferences"]
@@ -1116,32 +1353,20 @@ git-tree-sha1 = "9306f6085165d270f7e3db02af26a400d580f5c6"
 uuid = "21216c6a-2e73-6563-6e65-726566657250"
 version = "1.4.3"
 
-[[deps.Primes]]
-deps = ["IntegerMathUtils"]
-git-tree-sha1 = "cb420f77dc474d23ee47ca8d14c90810cafe69e7"
-uuid = "27ebfcd6-29c5-5fa9-bf4b-fb8fc14df3ae"
-version = "0.5.6"
-
 [[deps.Printf]]
 deps = ["Unicode"]
 uuid = "de0858da-6303-5e67-8744-51eddeeeb8d7"
 
 [[deps.PtrArrays]]
-git-tree-sha1 = "77a42d78b6a92df47ab37e177b2deac405e1c88f"
+git-tree-sha1 = "f011fbb92c4d401059b2212c05c0601b70f8b759"
 uuid = "43287f4e-b6f4-7ad1-bb20-aadabca52c3d"
-version = "1.2.1"
+version = "1.2.0"
 
 [[deps.QuadGK]]
 deps = ["DataStructures", "LinearAlgebra"]
-git-tree-sha1 = "cda3b045cf9ef07a08ad46731f5a3165e56cf3da"
+git-tree-sha1 = "e237232771fdafbae3db5c31275303e056afaa9f"
 uuid = "1fd47b50-473d-5c70-9696-f719f8f3bcdc"
-version = "2.11.1"
-
-    [deps.QuadGK.extensions]
-    QuadGKEnzymeExt = "Enzyme"
-
-    [deps.QuadGK.weakdeps]
-    Enzyme = "7da242da-08ed-463a-9acd-ee780be4f1d9"
+version = "2.10.1"
 
 [[deps.REPL]]
 deps = ["InteractiveUtils", "Markdown", "Sockets", "Unicode"]
@@ -1202,35 +1427,15 @@ version = "3.5.18"
 
 [[deps.Rmath]]
 deps = ["Random", "Rmath_jll"]
-git-tree-sha1 = "852bd0f55565a9e973fcfee83a84413270224dc4"
+git-tree-sha1 = "f65dcb5fa46aee0cf9ed6274ccbd597adc49aa7b"
 uuid = "79098fc4-a85e-5d69-aa6a-4863f24498fa"
-version = "0.8.0"
+version = "0.7.1"
 
 [[deps.Rmath_jll]]
 deps = ["Artifacts", "JLLWrappers", "Libdl"]
-git-tree-sha1 = "58cdd8fb2201a6267e1db87ff148dd6c1dbd8ad8"
+git-tree-sha1 = "e60724fd3beea548353984dc61c943ecddb0e29a"
 uuid = "f50d1b31-88e8-58de-be2c-1cc44531875f"
-version = "0.5.1+0"
-
-[[deps.Roots]]
-deps = ["Accessors", "CommonSolve", "Printf"]
-git-tree-sha1 = "3a7c7e5c3f015415637f5debdf8a674aa2c979c4"
-uuid = "f2b01f46-fcfa-551c-844a-d8ac1e96c665"
-version = "2.2.1"
-
-    [deps.Roots.extensions]
-    RootsChainRulesCoreExt = "ChainRulesCore"
-    RootsForwardDiffExt = "ForwardDiff"
-    RootsIntervalRootFindingExt = "IntervalRootFinding"
-    RootsSymPyExt = "SymPy"
-    RootsSymPyPythonCallExt = "SymPyPythonCall"
-
-    [deps.Roots.weakdeps]
-    ChainRulesCore = "d360d2e6-b24c-11e9-a2a3-2a2ae2dbcce4"
-    ForwardDiff = "f6369f11-7733-5829-9624-2563aa707210"
-    IntervalRootFinding = "d2bf35a9-74e0-55ec-b149-d360ff49b807"
-    SymPy = "24249f21-da20-56a4-8eb1-6a02cf4ae2e6"
-    SymPyPythonCall = "bc8888f7-b21e-4b7c-a06a-5d9c9496438c"
+version = "0.4.3+0"
 
 [[deps.RuntimeGeneratedFunctions]]
 deps = ["ExprTools", "SHA", "Serialization"]
@@ -1244,9 +1449,9 @@ version = "0.7.0"
 
 [[deps.SciMLBase]]
 deps = ["ADTypes", "Accessors", "ArrayInterface", "CommonSolve", "ConstructionBase", "Distributed", "DocStringExtensions", "EnumX", "Expronicon", "FunctionWrappersWrappers", "IteratorInterfaceExtensions", "LinearAlgebra", "Logging", "Markdown", "PrecompileTools", "Preferences", "Printf", "RecipesBase", "RecursiveArrayTools", "Reexport", "RuntimeGeneratedFunctions", "SciMLOperators", "SciMLStructures", "StaticArraysCore", "Statistics", "SymbolicIndexingInterface", "Tables"]
-git-tree-sha1 = "c96f81c3e98d5e2f0848fb42aba4383d772c3bb7"
+git-tree-sha1 = "5123ca064567e81c31fb3acdf15d2c9459bb7cc3"
 uuid = "0bca4576-84f4-4d90-8ffe-ffa030f20462"
-version = "2.53.1"
+version = "2.50.0"
 
     [deps.SciMLBase.extensions]
     SciMLBaseChainRulesCoreExt = "ChainRulesCore"
@@ -1268,21 +1473,17 @@ version = "2.53.1"
     Zygote = "e88e6eb3-aa80-5325-afca-941959d7151f"
 
 [[deps.SciMLOperators]]
-deps = ["Accessors", "ArrayInterface", "DocStringExtensions", "LinearAlgebra", "MacroTools"]
-git-tree-sha1 = "e39c5f217f9aca640c8e27ab21acf557a3967db5"
+deps = ["ArrayInterface", "DocStringExtensions", "LinearAlgebra", "MacroTools", "Setfield", "StaticArraysCore"]
+git-tree-sha1 = "23b02c588ac9a17ecb276cc62ab37f3e4fe37b32"
 uuid = "c0aeaf25-5076-4817-a8d5-81caf7dfa961"
-version = "0.3.10"
-weakdeps = ["SparseArrays", "StaticArraysCore"]
-
-    [deps.SciMLOperators.extensions]
-    SciMLOperatorsSparseArraysExt = "SparseArrays"
-    SciMLOperatorsStaticArraysCoreExt = "StaticArraysCore"
+version = "0.3.9"
+weakdeps = ["SparseArrays"]
 
 [[deps.SciMLStructures]]
 deps = ["ArrayInterface"]
-git-tree-sha1 = "25514a6f200219cd1073e4ff23a6324e4a7efe64"
+git-tree-sha1 = "20ad3e7c137156c50c93c888d0f2bc5b7883c729"
 uuid = "53ae85a6-f571-4167-b2af-e1d143709226"
-version = "1.5.0"
+version = "1.4.2"
 
 [[deps.Serialization]]
 uuid = "9e88b42a-f829-5b0c-bbe9-9e923198166b"
@@ -1352,9 +1553,9 @@ version = "0.34.3"
 
 [[deps.StatsFuns]]
 deps = ["HypergeometricFunctions", "IrrationalConstants", "LogExpFunctions", "Reexport", "Rmath", "SpecialFunctions"]
-git-tree-sha1 = "b423576adc27097764a90e163157bcfc9acf0f46"
+git-tree-sha1 = "cef0472124fab0695b58ca35a77c6fb942fdab8a"
 uuid = "4c63d2b9-4356-54db-8cca-17b64c39e42c"
-version = "1.3.2"
+version = "1.3.1"
 weakdeps = ["ChainRulesCore", "InverseFunctions"]
 
     [deps.StatsFuns.extensions]
@@ -1372,9 +1573,9 @@ version = "7.2.1+1"
 
 [[deps.SymbolicIndexingInterface]]
 deps = ["Accessors", "ArrayInterface", "RuntimeGeneratedFunctions", "StaticArraysCore"]
-git-tree-sha1 = "988e04b34a4c3b824fb656f542473df99a4f610d"
+git-tree-sha1 = "c9fce29fb41a10677e24f74421ebe31220b81ad0"
 uuid = "2efcf032-c050-4f8e-a9bb-153293bab1f5"
-version = "0.3.30"
+version = "0.3.28"
 
 [[deps.SymbolicLimits]]
 deps = ["SymbolicUtils"]
@@ -1383,38 +1584,28 @@ uuid = "19f23fe9-fdab-4a78-91af-e7b7767979c3"
 version = "0.2.2"
 
 [[deps.SymbolicUtils]]
-deps = ["AbstractTrees", "ArrayInterface", "Bijections", "ChainRulesCore", "Combinatorics", "ConstructionBase", "DataStructures", "DocStringExtensions", "DynamicPolynomials", "IfElse", "LinearAlgebra", "MultivariatePolynomials", "NaNMath", "Setfield", "SparseArrays", "SpecialFunctions", "StaticArrays", "SymbolicIndexingInterface", "TermInterface", "TimerOutputs", "Unityper"]
-git-tree-sha1 = "3927e02dc7648a45ec6aa592bcd8374094a44740"
+deps = ["AbstractTrees", "Bijections", "ChainRulesCore", "Combinatorics", "ConstructionBase", "DataStructures", "DocStringExtensions", "DynamicPolynomials", "IfElse", "LabelledArrays", "LinearAlgebra", "MultivariatePolynomials", "NaNMath", "Setfield", "SparseArrays", "SpecialFunctions", "StaticArrays", "SymbolicIndexingInterface", "TermInterface", "TimerOutputs", "Unityper"]
+git-tree-sha1 = "ba393ec8d6072e114d4fdd0d4e24fef3236ac21a"
 uuid = "d1185830-fcd6-423d-90d6-eec64667417b"
-version = "3.7.1"
-
-    [deps.SymbolicUtils.extensions]
-    SymbolicUtilsLabelledArraysExt = "LabelledArrays"
-    SymbolicUtilsReverseDiffExt = "ReverseDiff"
-
-    [deps.SymbolicUtils.weakdeps]
-    LabelledArrays = "2ee39098-c373-598a-b85f-a56591580800"
-    ReverseDiff = "37e2e3b7-166d-5795-8a7a-e32c996b4267"
+version = "3.1.2"
 
 [[deps.Symbolics]]
-deps = ["ADTypes", "ArrayInterface", "Bijections", "CommonWorldInvalidations", "ConstructionBase", "DataStructures", "DiffRules", "Distributions", "DocStringExtensions", "DomainSets", "DynamicPolynomials", "IfElse", "LaTeXStrings", "LambertW", "Latexify", "Libdl", "LinearAlgebra", "LogExpFunctions", "MacroTools", "Markdown", "NaNMath", "PrecompileTools", "Primes", "RecipesBase", "Reexport", "RuntimeGeneratedFunctions", "SciMLBase", "Setfield", "SparseArrays", "SpecialFunctions", "StaticArraysCore", "SymbolicIndexingInterface", "SymbolicLimits", "SymbolicUtils", "TermInterface"]
-git-tree-sha1 = "8b48697e7fec6d4b7c4a9fe892857a5ed2bae7e8"
+deps = ["ADTypes", "ArrayInterface", "Bijections", "CommonWorldInvalidations", "ConstructionBase", "DataStructures", "DiffRules", "Distributions", "DocStringExtensions", "DomainSets", "DynamicPolynomials", "IfElse", "LaTeXStrings", "LambertW", "Latexify", "Libdl", "LinearAlgebra", "LogExpFunctions", "MacroTools", "Markdown", "NaNMath", "PrecompileTools", "RecipesBase", "Reexport", "RuntimeGeneratedFunctions", "SciMLBase", "Setfield", "SparseArrays", "SpecialFunctions", "StaticArraysCore", "SymbolicIndexingInterface", "SymbolicLimits", "SymbolicUtils", "TermInterface"]
+git-tree-sha1 = "4224422f6a5452b1accaec15a65a5ce3c2ca4600"
 uuid = "0c5d862f-8b57-4792-8d23-62f2024744c7"
-version = "6.12.0"
+version = "6.2.0"
 
     [deps.Symbolics.extensions]
     SymbolicsForwardDiffExt = "ForwardDiff"
     SymbolicsGroebnerExt = "Groebner"
-    SymbolicsLuxExt = "Lux"
-    SymbolicsNemoExt = "Nemo"
+    SymbolicsLuxCoreExt = "LuxCore"
     SymbolicsPreallocationToolsExt = ["PreallocationTools", "ForwardDiff"]
     SymbolicsSymPyExt = "SymPy"
 
     [deps.Symbolics.weakdeps]
     ForwardDiff = "f6369f11-7733-5829-9624-2563aa707210"
     Groebner = "0b43b601-686d-58a3-8a1c-6623616c7cd4"
-    Lux = "b2108857-7c20-44ae-9111-449ecde12c47"
-    Nemo = "2edaba10-b0f1-5616-af89-8c11ac63239a"
+    LuxCore = "bb33d45b-7691-41d6-9220-0943567d0623"
     PreallocationTools = "d236fae5-4411-538c-8e31-a6e3d9e00b46"
     SymPy = "24249f21-da20-56a4-8eb1-6a02cf4ae2e6"
 
@@ -1455,6 +1646,12 @@ version = "2.0.0"
 deps = ["InteractiveUtils", "Logging", "Random", "Serialization"]
 uuid = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
 
+[[deps.TikzPictures]]
+deps = ["LaTeXStrings", "Poppler_jll", "Requires", "tectonic_jll"]
+git-tree-sha1 = "79e2d29b216ef24a0f4f905532b900dcf529aa06"
+uuid = "37f6aa50-8035-52d0-81c2-5a1d08754b2d"
+version = "3.5.0"
+
 [[deps.TimerOutputs]]
 deps = ["ExprTools", "Printf"]
 git-tree-sha1 = "5a13ae8a41237cff5ecf34f73eb1b8f42fff6531"
@@ -1489,15 +1686,87 @@ git-tree-sha1 = "25008b734a03736c41e2a7dc314ecb95bd6bbdb0"
 uuid = "a7c27f48-0311-42f6-a7f8-2c11e75eb415"
 version = "0.1.6"
 
+[[deps.XML2_jll]]
+deps = ["Artifacts", "JLLWrappers", "Libdl", "Libiconv_jll", "Zlib_jll"]
+git-tree-sha1 = "d9717ce3518dc68a99e6b96300813760d887a01d"
+uuid = "02c8fc9c-b97f-50b9-bbe4-9be30ff0a78a"
+version = "2.13.1+0"
+
+[[deps.XSLT_jll]]
+deps = ["Artifacts", "JLLWrappers", "Libdl", "Libgcrypt_jll", "Libgpg_error_jll", "Libiconv_jll", "XML2_jll", "Zlib_jll"]
+git-tree-sha1 = "a54ee957f4c86b526460a720dbc882fa5edcbefc"
+uuid = "aed1982a-8fda-507f-9586-7b0439959a61"
+version = "1.1.41+0"
+
+[[deps.Xorg_libX11_jll]]
+deps = ["Artifacts", "JLLWrappers", "Libdl", "Xorg_libxcb_jll", "Xorg_xtrans_jll"]
+git-tree-sha1 = "afead5aba5aa507ad5a3bf01f58f82c8d1403495"
+uuid = "4f6342f7-b3d2-589e-9d20-edeb45f2b2bc"
+version = "1.8.6+0"
+
+[[deps.Xorg_libXau_jll]]
+deps = ["Artifacts", "JLLWrappers", "Libdl"]
+git-tree-sha1 = "6035850dcc70518ca32f012e46015b9beeda49d8"
+uuid = "0c0b7dd1-d40b-584c-a123-a41640f87eec"
+version = "1.0.11+0"
+
+[[deps.Xorg_libXdmcp_jll]]
+deps = ["Artifacts", "JLLWrappers", "Libdl"]
+git-tree-sha1 = "34d526d318358a859d7de23da945578e8e8727b7"
+uuid = "a3789734-cfe1-5b06-b2d0-1dd0d9d62d05"
+version = "1.1.4+0"
+
+[[deps.Xorg_libXext_jll]]
+deps = ["Artifacts", "JLLWrappers", "Libdl", "Xorg_libX11_jll"]
+git-tree-sha1 = "d2d1a5c49fae4ba39983f63de6afcbea47194e85"
+uuid = "1082639a-0dae-5f34-9b06-72781eeb8cb3"
+version = "1.3.6+0"
+
+[[deps.Xorg_libXrender_jll]]
+deps = ["Artifacts", "JLLWrappers", "Libdl", "Xorg_libX11_jll"]
+git-tree-sha1 = "47e45cd78224c53109495b3e324df0c37bb61fbe"
+uuid = "ea2f1a96-1ddc-540d-b46f-429655e07cfa"
+version = "0.9.11+0"
+
+[[deps.Xorg_libpthread_stubs_jll]]
+deps = ["Artifacts", "JLLWrappers", "Libdl"]
+git-tree-sha1 = "8fdda4c692503d44d04a0603d9ac0982054635f9"
+uuid = "14d82f49-176c-5ed1-bb49-ad3f5cbd8c74"
+version = "0.1.1+0"
+
+[[deps.Xorg_libxcb_jll]]
+deps = ["Artifacts", "JLLWrappers", "Libdl", "XSLT_jll", "Xorg_libXau_jll", "Xorg_libXdmcp_jll", "Xorg_libpthread_stubs_jll"]
+git-tree-sha1 = "bcd466676fef0878338c61e655629fa7bbc69d8e"
+uuid = "c7cfdc94-dc32-55de-ac96-5a1b8d977c5b"
+version = "1.17.0+0"
+
+[[deps.Xorg_xtrans_jll]]
+deps = ["Artifacts", "JLLWrappers", "Libdl"]
+git-tree-sha1 = "e92a1a012a10506618f10b7047e478403a046c77"
+uuid = "c5fb5394-a638-5e4d-96e5-b29de1b5cf10"
+version = "1.5.0+0"
+
 [[deps.Zlib_jll]]
 deps = ["Libdl"]
 uuid = "83775a58-1f1d-513f-b197-d71354ab007a"
 version = "1.2.13+1"
 
+[[deps.Zstd_jll]]
+deps = ["Artifacts", "JLLWrappers", "Libdl"]
+git-tree-sha1 = "e678132f07ddb5bfa46857f0d7620fb9be675d3b"
+uuid = "3161d3a3-bdf6-5164-811a-617609db77b4"
+version = "1.5.6+0"
+
 [[deps.libblastrampoline_jll]]
 deps = ["Artifacts", "Libdl"]
 uuid = "8e850b90-86db-534c-a0d3-1478176c7d93"
 version = "5.11.0+0"
+
+[[deps.libpng_jll]]
+deps = ["Artifacts", "JLLWrappers", "Libdl", "Zlib_jll"]
+git-tree-sha1 = "d7015d2e18a5fd9a4f47de711837e980519781a4"
+uuid = "b53b4c65-9356-5827-b1ea-8c7a1a84506f"
+version = "1.6.43+1"
 
 [[deps.nghttp2_jll]]
 deps = ["Artifacts", "Libdl"]
@@ -1508,69 +1777,67 @@ version = "1.52.0+1"
 deps = ["Artifacts", "Libdl"]
 uuid = "3f19e933-33d8-53b3-aaab-bd5110c3b7a0"
 version = "17.4.0+2"
+
+[[deps.tectonic_jll]]
+deps = ["Artifacts", "Fontconfig_jll", "FreeType2_jll", "Graphite2_jll", "HarfBuzz_ICU_jll", "HarfBuzz_jll", "ICU_jll", "JLLWrappers", "Libdl", "OpenSSL_jll", "Zlib_jll", "libpng_jll"]
+git-tree-sha1 = "54867b00af20c70b52a1f9c00043864d8b926a21"
+uuid = "d7dd28d6-a5e6-559c-9131-7eb760cdacc5"
+version = "0.13.1+0"
 """
 
 # ╔═╡ Cell order:
-# ╠═d921cf1c-ca8b-44d9-8d00-e1ed55267647
-# ╠═915243cb-9619-4eab-8ad4-1d9b821e8d01
-# ╟─07ee82c2-d17b-4b85-9ef6-c107b76d0cfe
-# ╟─544d41b1-b6ce-4844-8269-a0251b391962
-# ╟─31a317e2-0864-4552-83ee-ba4138ab5c0b
-# ╟─318ac5d5-bd8b-417b-a919-b46ee555ca1a
-# ╟─bd7562f0-cb14-4ddb-b8c7-ffc2a37b079e
-# ╟─c8253470-7d3c-436f-bced-141c06786ff9
-# ╠═8afdf9d3-951d-4e53-8478-d5a075acbbe3
-# ╠═aafebaf4-9091-42f0-8e5c-cdae92c21203
-# ╠═91506b9c-af2f-44ab-a200-04ba88bc53df
-# ╟─6eb3e9d6-2afa-450d-915c-81b0bfa92e9d
-# ╠═e19ff895-cee0-45ad-994d-26b91e7c4d3c
-# ╟─3e9930db-b54c-45af-8bb7-fc86568ae504
-# ╟─9409762a-7803-4001-afbd-62c5d40dea2e
-# ╠═296dbce3-8e24-49b2-a8c9-5f59c6586160
-# ╟─a38858bd-d1ea-4918-8445-9b1306840979
-# ╠═ca8f7333-8bb0-42f8-82d4-b99f1b03c2c9
-# ╠═ce12c0d3-1601-431c-9283-a88a44b725b4
-# ╠═1213a9c2-0194-4f57-8b64-5f810b46ee67
-# ╟─ef389316-a822-4a31-865e-5751c8bc6fe0
-# ╠═e88d9f22-d833-4d4c-b651-a7d2e318323e
-# ╟─59c61d01-e0e3-405b-b048-1ceebee0d29b
-# ╠═0ffac267-6380-4288-8080-5f1ae30646d8
-# ╠═ff414220-762b-4e82-950c-833dd0282772
-# ╟─596dccc2-7853-4562-8f25-110108ff97c2
-# ╠═a61d687c-5e13-423a-98b0-9b73371a8044
-# ╟─a254e7a7-d5ef-467a-98eb-f4bb1ceed97c
-# ╠═019ac47c-a41f-4da2-adf5-fd1d6bac7f5d
-# ╟─28291690-152c-4bca-b194-f1aac4b102c7
-# ╠═ff965bbb-61bc-4595-8082-fb7a8b4640ba
-# ╟─127d393b-1cf5-4b4a-bb98-b271d0167b97
-# ╠═0aa629dd-0201-463e-9765-3bc002cdc252
-# ╠═83366f56-03a2-4134-8d94-8d54943ce3ff
-# ╠═6f6af471-2d5f-44ee-bb4f-ccd441dd8248
-# ╠═6308d52d-809c-4f1f-b508-61388b1d6557
-# ╠═a963b758-1ea5-4248-8544-88a612815d88
-# ╠═60409882-81c5-4645-85ac-4c40ac92327b
-# ╠═d2a84a1e-6529-467b-905a-fdcc21135245
-# ╟─3daee10c-54d5-4071-b577-b4a8abd90976
-# ╠═a22543fe-63cd-4cfb-8791-dfc2eb929359
-# ╟─288c375f-ff18-45a8-bc12-f5b3cc4fa377
-# ╠═1a0819fb-b998-4fac-91d3-b3b375cdfc42
-# ╟─d8369538-ab73-4575-bf86-31b9111523cc
-# ╠═c830a6e9-61bf-49b2-95d1-8dea1b89c154
-# ╟─a7c6f76d-fbcd-4fa6-a12f-868428cedef8
-# ╠═a53444b0-cb7f-4729-a262-38b33766bb74
-# ╟─8ad847c8-3d83-4c15-97f1-9b4490cbf2b0
-# ╠═8d54de78-38f7-4fd0-87e8-cb3ed6009b87
-# ╠═6bdcc2ac-3319-432d-a286-f706bf68234e
-# ╟─379feb55-32e5-4867-b108-b10c2c0782c3
-# ╠═5b807994-416d-11ed-22ff-77b37ff3cfac
-# ╠═996bd1d1-09f9-4774-b73f-0f4e58f52455
-# ╠═18fa43a1-4e0d-4910-9125-d41d6d174ef1
-# ╠═3053571a-096c-448a-9b48-60f9a1b2fce6
-# ╠═872a5a67-b217-424a-bb88-627b7b2db7a9
-# ╠═b3faea59-7b99-4070-a9fa-29fc9dc9f48b
-# ╟─79d729c0-57cb-4100-812d-8907a4b3910d
-# ╠═13168a61-831a-4c15-b228-8a035df75cf1
-# ╠═4a4dc2cb-46ce-4fed-b67b-708943753f90
-# ╠═38f7ae72-edae-4ebf-9600-1104e4fd92cf
+# ╠═261ec03b-6d67-4cf9-8567-df00d124fb3d
+# ╠═3f1bc2d1-2327-48cc-984a-df09c936da87
+# ╠═fcbf936f-57be-4144-ad4d-328eccddbb47
+# ╠═ac13a5a4-b090-4782-810d-d9ef4a4e6975
+# ╠═c943bc39-8375-443f-8aec-afeeea2a0ebf
+# ╠═b2b456ea-0519-4ada-a20f-1131f3d8244c
+# ╠═87b94bb3-f5a1-4955-82c6-121188c2c3b9
+# ╠═2e437507-da06-4d8b-bfd9-b59c2783ff22
+# ╠═e7b1d850-b51a-4468-977d-92f064b33f49
+# ╠═7ef83581-3e99-4d73-ac3f-ac76c25ceb9c
+# ╠═9ab281a5-97d5-4763-b1f4-05396ea3aaf4
+# ╠═b0f8975c-db6d-4054-94bf-f1efa3e9ce06
+# ╠═60ec1b0d-1770-43dc-bbd7-906ff73c00e1
+# ╠═3fd11f31-a595-4092-a661-7aa8e2070e91
+# ╠═5bf4a057-f09d-460d-a24d-9d92a51e6816
+# ╠═af20c4d6-d5f0-4fa4-88a4-2783988e4252
+# ╠═c16a62ef-8a4f-41e6-b47d-cffa7ec8d8b6
+# ╠═4fa58da5-c7e6-46ad-aa0c-f31a617764e0
+# ╠═e8aea7dd-e719-4e14-869d-c9260e435caa
+# ╠═34fe0f06-8651-4059-9e87-6c4a1800f773
+# ╠═f32c53d9-ebbd-4487-86a4-416d993be220
+# ╠═a7c93e8d-825f-4a78-a851-562842c4564e
+# ╠═9c0af9c7-9a5d-44d3-b5e7-c85f6655eb65
+# ╠═265bde5d-0014-4617-99cb-966ca3813567
+# ╠═eea6756d-e22b-4541-b40e-659473953882
+# ╠═7814414a-6c4c-4de3-ab7b-a8364cb479f9
+# ╠═7e4a8279-dca1-4b52-a8b8-497e30ab0afd
+# ╠═fd9c9dbd-679c-4a7a-bedb-9441801f88b4
+# ╟─fd14256d-8c69-4d8a-91b5-924a32479866
+# ╟─ff0744cf-c4a7-4430-b3ee-b04c96a64dcf
+# ╟─47a0a800-4384-43e8-a2b8-b6a219c964ff
+# ╟─491a8065-e82d-474a-b0e3-c3875c338c67
+# ╟─ca079784-f5ac-4e9b-9d10-8501564c47f0
+# ╟─07845efc-0ac1-49a5-9714-8c77c4d93089
+# ╠═ca99052e-ff24-4e8a-9d06-74bc24974873
+# ╠═987d9253-2f7d-4ca8-8eef-aae8e8d53bc6
+# ╠═c807659b-6fc2-43e2-86ca-9a1953b4d75a
+# ╠═c69f6bf9-1aa4-4ff2-a0c4-1aab285bcb9b
+# ╠═2f8aa0b9-37a7-4d77-8cd7-57ed53834544
+# ╠═dfcfae3f-f8df-4e30-8997-f126bbc564b3
+# ╠═4ee07ab7-b089-43a5-9928-cb5eca293fad
+# ╟─6f33c7ed-e8a8-440d-a771-84789ee1f397
+# ╠═13a3429e-12f6-11ed-326f-c154f5debceb
+# ╟─3a1e536b-064a-44ef-948d-66b96adc2b0c
+# ╠═8546b3ea-bc7b-46c2-8b36-31176e4da001
+# ╠═74f7ce13-a920-4504-91c4-a864001d86cc
+# ╠═4d566fea-0823-44fd-ac31-a571a182506f
+# ╠═cbec50f6-1da8-4a1e-9a88-660771c732a1
+# ╠═d5417cd4-30e2-4e23-837b-df3a98e59f40
+# ╠═5bb5af41-e820-496d-8b00-ebe7cb40b6e5
+# ╠═957b8f08-65ac-4868-aead-23dbc2b4c5f5
+# ╠═f7826dd2-8584-4f96-a23a-575fb3f565c5
+# ╠═703da67d-b63f-40d0-88bc-8cf8e0510658
 # ╟─00000000-0000-0000-0000-000000000001
 # ╟─00000000-0000-0000-0000-000000000002

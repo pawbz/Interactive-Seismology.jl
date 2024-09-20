@@ -3,7 +3,7 @@
 
 #> [frontmatter]
 #> title = "Waves On A String"
-#> tags = ["notebooks"]
+#> tags = ["introduction"]
 #> layout = "layout.jlhtml"
 #> description = "Simulates wave propagation on a string"
 
