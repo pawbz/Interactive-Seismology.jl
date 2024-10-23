@@ -4,6 +4,7 @@
 #> [frontmatter]
 #> layout = "layout.jlhtml"
 #> title = "Boundary Conditions"
+#> tags = ["planewaves"]
 #> description = "Boundary conditions at an interface between two different media"
 
 using Markdown

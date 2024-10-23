@@ -3,6 +3,8 @@
 
 #> [frontmatter]
 #> title = "Seismic Anisotropy"
+#> layout = "layout.jlhtml"
+#> tags = ["planewaves"]
 #> description = "This notebook helps us visualize non-circular wavefronts in a homogenoeus Earth medium due to the presence of anisotropy."
 
 using Markdown
@@ -92,7 +94,7 @@ We follow the Love convention, where the elastic constants are represented using
 
 # ╔═╡ bba0ec5e-32bd-4ab1-84d1-76e18c88dc5a
 md"""
-$(LocalResource("./images/rock_strata.jpg", :width => 300))
+$(LocalResource("../assets/images/rock_strata.jpg", :width => 300))
 
 *Example of SPO: transverse anisotropy because of layered rock materials.*
 """
@@ -104,7 +106,7 @@ $(LocalResource("./images/rock_strata.jpg", :width => 300))
 md"In the case of transverse anisotropy, with rock layers oriented along in the $xy$-plane, the Love constants can be used from the Voigt matrix as follows. In this case, the axis of symmetry is along $z$."
 
 # ╔═╡ 4f7b0a05-004a-417d-81d2-e4b1176909d6
-Ctrans = [[A, A - 2N, F, 0, 0, 0];; [A - 2N, A, F, 0, 0, 0];; [F, F, C, 0, 0, 0];; [0, 0, 0, L, 0, 0];; [0, 0, 0, 0, L, 0];; [0, 0, 0, 0, 0, L]]
+Ctrans = [[A, A - 2N, F, 0, 0, 0];; [A - 2N, A, F, 0, 0, 0];; [F, F, C, 0, 0, 0];; [0, 0, 0, L, 0, 0];; [0, 0, 0, 0, L, 0];; [0, 0, 0, 0, 0, N]]
 
 # ╔═╡ 1de3540c-6e07-4e4e-b411-7a5667b5c742
 aside(tip(md"For layered rocks, the seismic waves travel faster in the direction parallel to the layers, as opposed to the perpendicular direction. This is because the waves can *choose* to travel in the fast layers in the former case."))
@@ -142,6 +144,9 @@ end
 # ╔═╡ 2d4ab726-4257-4fc4-aac0-2cc90ce76e53
 ciso = get_cijkl(Ciso); # for isotropic 
 
+# ╔═╡ eb482986-f6b0-4900-9e4e-441351691e12
+ciso[:,1,:,1]
+
 # ╔═╡ f2c3eeca-4e03-4360-b14b-4fd98e24d530
 ctrans = get_cijkl(Ctrans); # for transverse anisotropy
 
@@ -170,6 +175,9 @@ Doesn't it look easy? If you were confused about the Voigt matrix above, we can 
 # ╔═╡ 4af3c346-f657-4b59-9a79-ee9ff0b79bbd
 @einsum σtrans[i, j] := ctrans[i, j, k, l] * e[k, l]
 
+# ╔═╡ 6bbea2f3-da33-4abe-bf71-e6211275ce41
+@einsum σolivine[i, j] := colivine[i, j, k, l] * e[k, l]
+
 # ╔═╡ 24553b91-78cb-4cde-b0d6-8dbbd7e671d6
 @variables ρ::Real ω::Real t::Real
 
@@ -189,7 +197,7 @@ It is important to realize that we are going to work with homogeneous media, whe
 @variables g[1:3] # amplitude vector (we already used A for one of the elastic constants)
 
 # ╔═╡ 7f0b2df9-6b33-44cb-a1c0-d4842cb666da
-@variables s[1:3] # unit slowness vector 
+@variables s[1:3] # unit slowness vector  (use shat instead?)
 
 # ╔═╡ ffeb806f-875f-4bc8-a15f-3d8db4252e96
 @variables p # slowness magnitude
@@ -446,7 +454,7 @@ Unitful = "~1.17.0"
 PLUTO_MANIFEST_TOML_CONTENTS = """
 # This file is machine-generated - editing it directly is not advised
 
-julia_version = "1.10.4"
+julia_version = "1.10.5"
 manifest_format = "2.0"
 project_hash = "7f5572dc5ead854babe6dbeca641f0b7b4b9e1cb"
 
@@ -2095,7 +2103,7 @@ version = "0.15.1+0"
 [[deps.libblastrampoline_jll]]
 deps = ["Artifacts", "Libdl"]
 uuid = "8e850b90-86db-534c-a0d3-1478176c7d93"
-version = "5.8.0+1"
+version = "5.11.0+0"
 
 [[deps.libevdev_jll]]
 deps = ["Artifacts", "JLLWrappers", "Libdl", "Pkg"]
@@ -2185,6 +2193,7 @@ version = "1.4.1+1"
 # ╠═1fa4ecc5-8c5d-49f6-a023-bb2c4b4d5c27
 # ╟─12a42fbb-bfb7-4852-a638-2dec237c032d
 # ╠═0ea0a70c-72b2-47da-902d-00cd6279fbb5
+# ╠═eb482986-f6b0-4900-9e4e-441351691e12
 # ╠═2d4ab726-4257-4fc4-aac0-2cc90ce76e53
 # ╠═f2c3eeca-4e03-4360-b14b-4fd98e24d530
 # ╠═4ac951fc-0054-4119-9296-fa8feacdd4c2
@@ -2193,6 +2202,7 @@ version = "1.4.1+1"
 # ╠═c6eefa83-676f-464b-85f1-4c7442100cbf
 # ╟─183cc6c5-a4ae-47c6-8c48-2c8ff2e1cbc6
 # ╠═4af3c346-f657-4b59-9a79-ee9ff0b79bbd
+# ╠═6bbea2f3-da33-4abe-bf71-e6211275ce41
 # ╠═24553b91-78cb-4cde-b0d6-8dbbd7e671d6
 # ╟─f940ed1a-1f89-4f7b-bb41-05615e2351a0
 # ╠═54657fec-e8e7-4040-8108-a29ae8df1c24

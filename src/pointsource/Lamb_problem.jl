@@ -57,17 +57,17 @@ end
 
 # ╔═╡ 05ec38ea-3431-490c-bc38-24f8c1b2d54f
 begin
-	function conical_wave(p, ωgrid, x, y, z, c, h)
-	    r = sqrt.(abs2.(x) + abs2.(y))
-	    ξ = get_vertical_wavenumber(c, p)
-	    return Bessels.besselj0.(ωgrid .* p .* r) .* exp.(im .* ωgrid .* ξ .* (h .- z)) .* p / ξ
-	end
-	function conical_wave(p, ωgrid, x, y, z, c1, c2, h)
-	    r = sqrt.(abs2.(x) + abs2.(y))
-	    ξ = get_vertical_wavenumber(c1, p)
-		η = get_vertical_wavenumber(c2, p)
-	    return Bessels.besselj0.(ωgrid .* p .* r) .* exp.(im .* ωgrid .* (ξ .* h .- η .* z)) .* p / ξ
-	end
+    function conical_wave(p, ωgrid, x, y, z, c, h)
+        r = sqrt.(abs2.(x) + abs2.(y))
+        ξ = get_vertical_wavenumber(c, p)
+        return Bessels.besselj0.(ωgrid .* p .* r) .* exp.(im .* ωgrid .* ξ .* (h .- z)) .* p / ξ
+    end
+    function conical_wave(p, ωgrid, x, y, z, c1, c2, h)
+        r = sqrt.(abs2.(x) + abs2.(y))
+        ξ = get_vertical_wavenumber(c1, p)
+        η = get_vertical_wavenumber(c2, p)
+        return Bessels.besselj0.(ωgrid .* p .* r) .* exp.(im .* ωgrid .* (ξ .* h .- η .* z)) .* p / ξ
+    end
 end
 
 # ╔═╡ e2fea7d5-00a3-4796-ad51-26f2dcffa55b
@@ -224,17 +224,17 @@ md"""Select the term $(@bind plot_phase confirm(Select([Direct() => "Direct", Pr
 
 # ╔═╡ 951a5946-ab54-4aff-be89-b8d5ea90fa1a
 begin
-	function get_phase(::Direct, p, param, media, h)
-		return conical_wave(p, param.Ω, param.X, param.Y, -param.Z, media.α₁ + 1e-3, 0.0)
-	end
-	function get_phase(::Preflect, p, param, media, h)
-		A = get_A(Afunctions_vec["Aₚ"], p, media)
-		return A * (conical_wave(p, param.Ω, param.X, param.Y, param.Z, media.α₁ + 1e-3, h))
-	end
-	function get_phase(::Sreflect, p, param, media, h)
-		A = get_A(Afunctions_vec["Aₛ"], p, media)
-		return A * (conical_wave(p, param.Ω, param.X, param.Y, param.Z, media.α₁ + 1e-3, media.β₁ + 1e-3, h))
-	end
+    function get_phase(::Direct, p, param, media, h)
+        return conical_wave(p, param.Ω, param.X, param.Y, -param.Z, media.α₁ + 1e-3, 0.0)
+    end
+    function get_phase(::Preflect, p, param, media, h)
+        A = get_A(Afunctions_vec["Aₚ"], p, media)
+        return A * (conical_wave(p, param.Ω, param.X, param.Y, param.Z, media.α₁ + 1e-3, h))
+    end
+    function get_phase(::Sreflect, p, param, media, h)
+        A = get_A(Afunctions_vec["Aₛ"], p, media)
+        return A * (conical_wave(p, param.Ω, param.X, param.Y, param.Z, media.α₁ + 1e-3, media.β₁ + 1e-3, h))
+    end
 end
 
 # ╔═╡ 2103d1d4-8041-455d-b513-02643762bd3a
@@ -251,17 +251,17 @@ md"## Seismograms"
 # ╔═╡ 12f7733a-edd6-481f-8166-ef967520b35a
 seismograms_param = let
     Nt = 1024
-	freq_snapshot = 1.0
+    freq_snapshot = 1.0
     tgrid = range(0, 200, length=Nt)
     ωgrid = collect(rfftfreq(Nt, inv(step(tgrid)))) * 2 * pi
     f0 = freq_snapshot
     ω0 = 2 * pi * f0
-	xgrid = collect(range(100, 500, length=10))
-	ΩX = collect(Iterators.product(ωgrid, xgrid))
-	Ω = vec(first.(ΩX))
-	X = vec(last.(ΩX))
-	Y = fill(0.0, length(X))
-	Z = fill(0, length(X))
+    xgrid = collect(range(100, 500, length=10))
+    ΩX = collect(Iterators.product(ωgrid, xgrid))
+    Ω = vec(first.(ΩX))
+    X = vec(last.(ΩX))
+    Y = fill(0.0, length(X))
+    Z = fill(0, length(X))
     W = @. exp(-0.1(Ω - ω0)^2)
     (; Nt, Ω, X, Y, Z, W, xgrid, tgrid, ωgrid, ω0, f0)
 end;
@@ -278,7 +278,7 @@ seismograms = irfft(reshape(get_wavefield(seismograms_param, H1, media, plot_pha
 # ╔═╡ 96556fec-4bea-4132-946a-92d17372df54
 let
     U = seismograms
-    Umaxclip = maximum(abs, U) * 0.1
+    Umaxclip = maximum(abs, U) * 0.01
     plot(heatmap(y=seismograms_param.tgrid, x=seismograms_param.xgrid, z=U, zmin=-Umaxclip, zmax=Umaxclip, colorscale=:seismic,), Layout(title="Seismograms", width=300, yaxis_autorange="reversed", xaxis=attr(title="distance to receiver"), yaxis=attr(title="time (s)")))
 end
 
@@ -288,23 +288,23 @@ md"## Snapshot"
 # ╔═╡ e91921c5-4600-4344-85c7-e35820ba2daa
 snapshot_param = let
     N = 101
-	freq_snapshot = 1.0
+    freq_snapshot = 1.0
     zgrid = range(5, stop=99, length=N)
     xgrid = range(-200, stop=200, length=N)
-	ZX = collect(Iterators.product(zgrid, xgrid))
-	Z = vec(first.(ZX))
-	X = vec(last.(ZX))
-	Y = fill(0.0, length(X))
-	Ω = fill(2*pi*freq_snapshot, length(X))
-	W = fill(1.0, length(X))
-	(; X, Y, Z, Ω, W, N, xgrid, zgrid)
+    ZX = collect(Iterators.product(zgrid, xgrid))
+    Z = vec(first.(ZX))
+    X = vec(last.(ZX))
+    Y = fill(0.0, length(X))
+    Ω = fill(2 * pi * freq_snapshot, length(X))
+    W = fill(1.0, length(X))
+    (; X, Y, Z, Ω, W, N, xgrid, zgrid)
 end;
 
 # ╔═╡ 423c7abb-f274-4010-bd08-95adc5890204
 snapshot = reshape(get_wavefield(snapshot_param, H1, media, plot_phase), snapshot_param.N, snapshot_param.N);
 
 # ╔═╡ a7b582ba-57fa-4f90-b017-5a9d059c30e5
-plot(contour(x=snapshot_param.xgrid, y=snapshot_param.zgrid, z=log.(abs.(snapshot))) , Layout(title="Radiation", yaxis_autorange="reversed", height=300, width=650))
+plot(contour(x=snapshot_param.xgrid, y=snapshot_param.zgrid, z=log.(abs.(snapshot))), Layout(title="Radiation", yaxis_autorange="reversed", height=300, width=650))
 
 # ╔═╡ c695e4d3-c49d-4587-8adc-cdd4c001325e
 md"## Appendix"

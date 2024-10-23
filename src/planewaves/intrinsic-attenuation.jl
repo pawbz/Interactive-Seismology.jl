@@ -2,10 +2,10 @@
 # v0.19.46
 
 #> [frontmatter]
-#> title = "P-SV Free-surface Reflection"
-#> layout = "layout.jlhtml"
+#> title = "Seismic Attenuation"
 #> tags = ["planewaves"]
-#> description = "In this notebook, we shall investigate the interaction of plane P waves with Earth's free surface. "
+#> layout = "layout.jlhtml"
+#> description = "This notebook helps us visualize these effects of attenuation on propagating seismic waves."
 
 using Markdown
 using InteractiveUtils
@@ -20,29 +20,28 @@ macro bind(def, element)
     end
 end
 
-# ╔═╡ ab40f79c-3d8a-11ed-0697-a7b794dbba99
+# ╔═╡ 74a3e9e3-ed09-4582-91fc-47944d5744db
 begin
     using Symbolics
-    using PlutoPlotly
     using SymbolicUtils
-    using LinearAlgebra
-    using Latexify
-    using LaTeXStrings
     using PlutoUI
     using PlutoTeachingTools
+    using PlutoPlotly
+    using FFTW
 end
 
-# ╔═╡ e6b12602-f3c7-4f5d-9787-9d0cf0e3887b
-ChooseDisplayMode()
-
-# ╔═╡ 08429397-3964-4600-bc14-c45d22c915ec
+# ╔═╡ a9436d89-ad43-4cb8-8619-67c0e26eb686
 TableOfContents()
 
-# ╔═╡ 32a757ff-aa7a-41d5-b8b3-6ac9e0125875
+# ╔═╡ fbbee9cc-493d-11ed-00fd-b1e3bddbb3fa
 md"""
-# P-SV Free-surface Reflection
-In this notebook, we will delve into the analysis of the reflection coefficients of P and S waves at a free surface, which is a solid-vacuum boundary. By assuming a free surface at \( z=0 \), we will apply stress-free boundary conditions to derive the expressions for the reflection coefficients of both P and S waves. This analysis is crucial for understanding the behavior of seismic waves as they interact with the Earth's surface.
+# Intrinsic Attenuation
+As opposed to adiabatic wave propagation, the wave motion in the earth is spatially attenuated. In other words, for anelastic earth, the integral of kinetic energy and the strain energy is no longer held constant due to internal friction and conversion to heat. In general, the dimensionless quantity $Q$ that summarizes this intrinsic attenuation is dependent on the frequency of the propagating waves. Over the range of frequencies observed in seismology, it has been observed that 
+- observations suggest that $Q$ is effectively constant, and
+- the earth is only mildly anelastic i.e., $Q\gg1$.
+As a result, the high frequencies are attenuated more than the low frequencies; a traveling pulse in the earth gradually loses its high frequencies causing changes in pulse shapes with distance from the source. This notebook helps visualize these effects considering a plane wave with an impulsive shape propagating in the $x$-direction.
 
+Attenuation is observed to be strongest in the upper mantle and inner core. Attenuation decreases rapidly with depth, with a high attenuation in the curst that is attributed to the effects of cracks and fluids. 
 
 ##### [Interactive Seismology Notebooks](https://pawbz.github.io/Interactive-Seismology.jl/)
 
@@ -51,393 +50,171 @@ Instructor: *Pawan Bharadwaj*,
 Indian Institute of Science, Bengaluru, India
 """
 
-# ╔═╡ 63e459a0-ec85-4337-9b93-47cfd49bbe92
+# ╔═╡ 36de89c5-8cf6-44de-baaf-cbe409818578
+@bind medium Radio(["elastic" => "elastic", "anelastic1" => "anelastic (non-dipersive)", "anelastic2" => "anelastic (dispersive)"], default="anelastic1")
+
+# ╔═╡ 5d9fed8c-860b-48d8-a30d-e1c79f5db1e8
+md"Depending on the type of the medium selected above, the planewave solution is given below."
+
+# ╔═╡ 9cc49e2c-864d-4fad-9b49-456a85bcf0a2
 md"""
-$(@bind tplot Clock(0.1))
----
+Towards plotting the plane-wave solution, we shall first choose the frequency wave.
+
+frequency (Hz): $(@bind fp Slider(range(1, stop=5, length=10), default=2, show_value=true)) $(@bind tplot Clock(0.1))
 """
 
-# ╔═╡ 602f13f9-6d14-41fd-9183-b8255d64399b
-Markdown.MD(Markdown.Admonition("observe", "Observations",
-    [md"""
-- The angle of reflection of the S-wave is always less than that of the P-reflected wave. This is because the vertical slowness of the S-reflected wave ($η_β$) is always greater than that of the P-reflected wave.
-- The wavenumber of the S-reflected wave is higher than that of the P-wave. The wavenumber of the S-reflected wave increases as $β$ becomes smaller compared to $α$.
-- When $β$ is very small, the amplitude of the S-reflected wave is negligible.
-- A negative reflection coefficient indicates a phase change of the reflected wave by π.
-- The P-reflection coefficient and S-reflection coefficient follow the conservation of energy. The P-reflection coefficient is maximum when the S-reflection coefficient is minimum.
-"""]
-))
+# ╔═╡ a1c6aea0-35d1-4a5a-9147-461b496a5d82
+md"""
+In the case of anelastic earth, input the quality factor Q to interact with the monochromatic plane wave plotted above. Notice that for a given Q, the high frequencies travel far from $x=0$ without, compared to the low frequencies.
 
-# ╔═╡ 4476bf78-39e3-4674-a152-db19fe80929a
-md"Spatial coordinates, time, and angular frequency."
+Q: $(@bind Qp Slider(range(5, stop=50, length=20), default=5, show_value=true))
+"""
 
-# ╔═╡ 927dcc43-202c-4ad2-a76c-837d41f1ed6c
-@syms x::Real z::Real ω::Real t::Real
+# ╔═╡ 89ef2430-308b-4bbf-b70b-7688fa4d5251
+md"""
+We can synthesize the pulse in the time domain by summing all the Fourier components in order to notice the change in the pulse shape as we increase the $x$ distance from the source.
 
-# ╔═╡ c2eacb91-38e8-428e-9247-691950668bc3
-@syms ı::Complex{Real} # imaginary unit, going to substitute with im later
+distance to the receiver: $(@bind xr Slider(range(30, stop=100, length=25), show_value=true))
+"""
 
-# ╔═╡ 0bea69f9-3ffa-4695-a5eb-6e962d2a81ce
-md"Differential operators."
-
-# ╔═╡ e8729ceb-e85f-4c21-89d2-f15ec69a840f
-begin
-    Dx = Differential(x)
-    Dz = Differential(z)
-end
-
-# ╔═╡ 670d5198-f810-472e-8db8-b13385ca294a
-md"In 2D, a harmonic plane wave with an frequency `ω`, amplitude `A`, horizontal slowness `p` and vertical slowness `η` is defined below."
-
-# ╔═╡ 6043b904-6991-4776-bc1b-13eda3fcc936
-plane(p, η, A) = A * exp(ı * ω * (t - (p * x + η * z)))
-
-# ╔═╡ c7c52926-6e2e-4c4c-a01f-09f57c2ececd
-md"The horizontal slowness i.e., the ray parameter is denoted using $p$."
-
-# ╔═╡ 33c6aa70-87cb-464a-88f7-b82d17476a2f
-md"The vertical component of the slowness vector in the first and second layer are denoted using $\eta$ and $\eta_t$. These plane waves satisfy the scalar wave equation only if the dispersion relation
-```math
-p^2 + η^2 = \frac{1}{β^2}
+# ╔═╡ 53653e30-cec8-467a-bdca-c713f93e67a1
+md"""
+## Quality Factor ($Q$)
+Assuming $Q\gg1$, we can write 
+```math 
+\frac{1}{Q(\omega)} = -\frac{1}{\pi}\frac{\Delta A}{A}.
 ```
-is satisfied."
-
-# ╔═╡ fbc6cd6c-0b3b-44e9-b2a6-5edb0eeced1b
-@syms A A₁ A₂
-
-# ╔═╡ 8dad08c2-b9a8-40ec-a8ef-c9383e5ec7b1
-@syms p::Real
-
-# ╔═╡ 13b5abc9-10be-4ef1-817d-bcee1271c89e
-@syms η₁ η₂
-
-# ╔═╡ aae7b893-4b33-44ae-b01c-6345a1180d0d
-md"""
-## Potentials : Incident P-wave, Reflected P-wave and Reflected SV-wave 
-For the P-SV system on a free surface, all the waves are traveling in the same medium. The velocity of the P-wave is denoted by $α$ and the velocity of the S-wave is denoted by $β$. The plane waves representing potentials share the same horizontal slowness $p$.
-
-- Now, we create an incident wave using the `plane` function with parameters `p`, `η₁`, and `A`, representing the horizontal slowness, verticle slowness, and amplitude, respectively. 
-- Then, two reflected waves, `reflect1` and `reflect2`, are also defined using the `plane` function. The first reflected wave, `reflect1`, uses the parameters `p`, `-η₁`, and `A₁`, indicating a reflection with opposite vertical slowness and a different amplitude. 
-- Similarly, the second reflected wave, `reflect2`, is defined with `p`, `-η₂`, and `A₂`, representing another reflection with a different vertical slowness and amplitude. This setup models the behavior of P and S incident and reflected waves at a free surface.
+Here, $\Delta A$ is the gradual spatial decay in the amplitude of the propagating wave as it travels a distance of one wavelength:
+```math
+\Delta A = \frac{d A}{d x}\lambda = \frac{d A}{d x}\frac{2\pi c}{\omega}.
+```
+This results in an exponentially decaying solution 
+```math
+A(x) = A_0\,\exp\left(-\frac{\omega x}{2 c Q}\right).
+```
 """
 
-# ╔═╡ f488f9f3-e73b-42ae-b3c2-2262661fd839
-incident = plane(p, η₁, A)
 
-# ╔═╡ 4dc428b0-f141-4e94-9edb-e847780333aa
-reflect1 = plane(p, -η₁, A₁)
-
-# ╔═╡ 8940ee90-2dd1-448c-92cd-09fd1ebbaea7
-reflect2 = plane(p, -η₂, A₂)
-
-# ╔═╡ a1213dc4-3ea9-4b26-aa82-a15cc3e72401
+# ╔═╡ ef3cd032-b515-411c-8c6b-cc6d23d2f2f9
 md"""
-## Particle Displacements
-We now write expressions for particle displacements given plane wave potentials.
-Depending on whether the incident wave is P or S, these expressions change.
+## Dispersion
+Attenuation causes a small amount of velocity dispersion. Otherwise, attenuation of high frequencies will cause pulse broadening and violates causality. An important result from Aki & Richards (ch. 5) is that the velocity c is given by the expression below.
 """
 
-# ╔═╡ 52d2ba9b-826a-4805-9583-f1a80b10a926
+# ╔═╡ 4f7a0cf2-d25e-4414-8ac7-62b2f31fe8e0
 md"""
-## Free-surface Condition
-At the free-surface i.e. z=0 , kinematic boundary condition does not exist.
-We have two dynamic boundary conditions $σ_{zz}=0$ and $σ_{xz}=0$  and two unknowns ($A_{1}$,$A_{2}$) to estimate (when assuming $A=1$).
+## Attenuating Planewave
 """
 
-# ╔═╡ 7cf515f8-2496-4bde-b3b3-9d39d971764a
-@syms λ::Real μ::Real
+# ╔═╡ 0685a215-4c7b-420d-b779-a94da325988b
+@syms x z ω Q A₀ t π
 
-# ╔═╡ 5729b459-b283-41ce-95be-c4d33a7c28c0
-md"## Example"
+# ╔═╡ 383f706b-97a9-4f69-a5e1-4b56a91af720
+@syms ı::Complex{Real}
 
-# ╔═╡ 281cb873-760c-411f-98b5-1c64d218e7e9
+# ╔═╡ b11c4313-73e6-4d78-bc10-6c64120ae8a9
+@syms c::Real # amplitude of either P or S waves
+
+# ╔═╡ 2e6ad714-5972-41ce-92c9-f30a8b50f3dd
 md"""
-We shall begin defining a function that computes the ray parameter, given the 
-angle of incidence $θ$.
+## Appendix
 """
 
-# ╔═╡ 3d50985b-b79a-45ab-ba1f-5287936c56d9
-@syms θ::Real
+# ╔═╡ 197dd532-fe5d-43d3-bf51-ac10f960dadf
+# reference wave speed is assumed to be 2 km/s
+cp = 2;
 
-# ╔═╡ a7cb9cd5-7013-461b-960d-5da73db62aea
-md"We now compute the vertical component of the slowness vector for both the reflected waves using the 
-dispersion relation."
+# ╔═╡ 4b67cd08-e56c-42ab-9205-a5b4ed4919dc
+# assume a time grid
+tgrid = range(-100, stop=100, length=2048) .+ xr / cp
 
-# ╔═╡ 8c81ddb5-bf4d-4610-bfea-3d1a27ffd61f
-md"""
-We can finally update the expressions of reflection coefficients using input parameters and plot them.
-"""
+# ╔═╡ 39cbdb94-dc0c-4d26-855a-94ce52b05dde
+# get the corresponding frequency grid
+freqgrid = rfftfreq(length(tgrid), inv(step(tgrid)))
 
-# ╔═╡ dba7ea14-e0dd-4dc4-ad9c-4627fd16cc62
-md"## Appendix"
+# ╔═╡ d237a9eb-775a-4d9c-b53c-192f90952ea1
+@syms c₀::Real ω₀::Real
 
-# ╔═╡ 57176a1b-b8cd-40fa-a615-8a589fb7ea73
-md"""
-Lets print the expression of the wavefield, plotted in the previous example.
-"""
+# ╔═╡ 6d1613fa-5fa0-47b8-b39b-520070d786a8
+function A(medium, A₀)
+    if (medium == "elastic")
+        return A₀
+    elseif (medium == "anelastic1")
+        return A₀ * exp(-ω * x / 2 / c / Q)
+    elseif (medium == "anelastic2")
+        return A₀ * exp(-ω * x / 2 / c / Q) * exp(ı * ω * x * log(ω / ω₀) / π / c₀ / Q)
+    end
+end
 
-# ╔═╡ ea3b7089-bda8-4694-8042-98534b1739bd
-warning_box(md"""
-The sign of the vertical slowness in the transmitted field above is chosen to prevent the exponential growth of the wavefield away from the boundary.
-""")
+# ╔═╡ ca29d9b8-d6a7-46d9-bc4f-4bfc263e7009
+planewave = A(medium, A₀) * exp(ı * ω * (t - (x / c)))
 
-# ╔═╡ eb78c5bd-33ea-4f97-9b1d-b881e72279d8
-default_plotly_template(:plotly_dark)
+# ╔═╡ eb190d1a-3c6b-407a-a586-9b13ed40b106
+planewave
 
-# ╔═╡ f6b31173-72cd-4f25-b292-5aad02ec718c
-θgrid = range(0, stop=pi / 2, length=100); # need for reflectance plots
+# ╔═╡ a3989848-a4ce-4a6d-94a5-245fb57474a0
+c_dispersive(ω, Q, c₀, ω₀) = c₀ * (1 + 1 / π / Q * log(ω / ω₀)) # not used atm
 
-# ╔═╡ afdb5b7d-d670-4a98-a91d-3ff638fb0294
-md"""
-It is evident that the reflection coefficients depend on the velocities of the P and S waves. By selecting whether the incident wave is a P or S wave, the reflection coefficients will vary accordingly.
+# ╔═╡ 4039e2b0-0406-45dc-89c4-058281769ad3
+c ~ c_dispersive(ω, Q, c₀, ω₀)
 
----
-α (km/sec) $(@bind αin NumberField(range(2.0, stop=6.0, step=0.1), default=3.9))
-β (km/sec) $(@bind βin NumberField(range(2.0, stop=6.0, step=0.1), default=2.0))
-ρ (gm/cm³) $(@bind ρin NumberField(range(2.0, stop=6.0, step=0.1), default=2.9))
+# ╔═╡ fe778290-0f29-4a06-9399-4a15ccf38fe4
+# substitute before plotting
+function subs(ex, om=nothing)
+    substitute(ex, [ı => im, π => pi, A₀ => 1, Q => Qp, c₀ => cp, c => cp, ω => om, ω₀ => 2 * pi * 10])
+end
 
-Incident Wavefield: $(@bind incident_waves Select(["P", "S"], default="P")) with
-Angle of incidence ∈ [0, π/2]: $(@bind θp Slider(θgrid, default=1.4)) and
-Angular frequency $(@bind ωp Slider(range(0.1, stop=2, length=10), show_value=true, default=0.3))
-"""
-
-# ╔═╡ b4a603fb-5ee7-4c97-8e1d-fd0a89692503
-begin
-    if (incident_waves == "P")
-        UxInc = expand_derivatives.(Dx.(incident))
-        UzInc = expand_derivatives.(Dz.(incident))
+# ╔═╡ 24edc710-f14e-4bb4-87f5-7bb48f592e2f
+# scalar field at the receiver in the frequency domain
+Ureceiver = map(freqgrid) do f
+    if (iszero(f)) # instability at zero frequency 
+        return complex(1.0, 0.0)
     else
-        UxInc = expand_derivatives.(-Dz.(incident))
-        UzInc = expand_derivatives.(Dz.(incident))
+        return Complex{Float64}(substitute(subs(planewave, 2 * pi * f), [x => xr, t => xr / cp]))
     end
 end
 
-# ╔═╡ 040f1440-14c4-491b-b792-570aa3c2080b
-σzz_incident = expand_derivatives.(λ .* Dx.(UxInc) .+ λ .* Dz.(UzInc)) + expand_derivatives.(2 .* μ .* Dz.(UzInc))
+# ╔═╡ a7ae29f7-52a6-4ded-aed8-d2579fc84076
+# do an fft to get the time series
+ureceiver = fftshift(irfft(Ureceiver, length(tgrid)))
 
-# ╔═╡ f51dfb73-b5ef-4de8-b4c3-fc8814a31485
-σxz_incident = expand_derivatives.(μ .* Dx.(UzInc) .+ μ .* Dz.(UxInc))
-
-# ╔═╡ 74484bb8-a9dc-4b54-894e-3bf86c18278e
-begin
-    if (incident_waves == "P")
-        UxRef1 = expand_derivatives.(Dx.(reflect1))
-        UzRef1 = expand_derivatives.(Dz.(reflect1))
-    else
-        UxRef1 = expand_derivatives.(-Dz.(reflect1))
-        UzRef1 = expand_derivatives.(Dx.(reflect1))
-    end
+# ╔═╡ 434f4be3-ecb2-4a0e-9ffc-d24795ef5560
+let
+    fig = Plot(Layout(title="Recorded pulse at $(xr) km", xaxis=attr(range=(-50, 100), title="time (s)"),
+        yaxis=attr(title="amplitude", range=(0, 0.2e-1))))
+    add_trace!(fig, scatter(x=tgrid, y=ureceiver))
+    plot(fig)
 end
 
-# ╔═╡ 3525bf50-b0e5-4c3b-ba75-77689a5799f4
-σzz_reflect1 = expand_derivatives.(λ .* Dx.(UxRef1) .+ λ .* Dz.(UzRef1)) + expand_derivatives.(2 .* μ .* Dz.(UzRef1))
+# ╔═╡ 2c192f02-3a6b-48fa-9a68-d51c8e6b4bc5
+plot_planewave_fn = build_function(subs(planewave, fp / 2 / pi), x, z, t, expression=Val{false})
 
-# ╔═╡ 860ac07f-391b-4d62-bf9d-a32abea7cd60
-σxz_reflect1 = expand_derivatives.(μ .* Dx.(UzRef1) .+ μ .* Dz.(UxRef1))
-
-# ╔═╡ fdba06fe-e596-4122-b2d5-81b67dd78a97
-begin
-    if (incident_waves == "P")
-        UxRef2 = expand_derivatives.(-Dz.(reflect2))
-        UzRef2 = expand_derivatives.(Dx.(reflect2))
-    else
-        UxRef2 = expand_derivatives.(Dx.(reflect2))
-        UzRef2 = expand_derivatives.(Dz.(reflect2))
-    end
-
-end
-
-# ╔═╡ 0dfd91aa-f9e1-4d93-a471-0bf99e476af5
-σzz_reflect2 = expand_derivatives.(λ .* Dx.(UxRef2) .+ λ .* Dz.(UzRef2)) + expand_derivatives.(2 .* μ .* Dz.(UzRef2))
-
-# ╔═╡ 06a568fa-ba94-4c5f-815d-f30c6c8a4260
-σzz_z0 = substitute.(σzz_incident .+ σzz_reflect1 .+ σzz_reflect2, z => 0) .~ 0
-
-# ╔═╡ 64164ec7-a3cf-41d0-bcef-e55475eabeea
-σzz = simplify(substitute(σzz_z0, Dict([A => 1, t => 0, x => 0])))
-
-# ╔═╡ 47f2439f-28a1-4ad9-8d8d-67a4a30af5ea
-σxz_reflect2 = expand_derivatives.(μ .* Dx.(UzRef2) .+ μ .* Dz.(UxRef2))
-
-# ╔═╡ b4030cef-75ef-40d1-b75d-0e5f233a3023
-σxz_z0 = substitute.(σxz_incident .+ σxz_reflect1 .+ σxz_reflect2, z => 0) .~ 0
-
-# ╔═╡ 605195de-f4a1-4331-9b82-78e4a061f0a4
-σxz = simplify(substitute(σxz_z0, Dict([A => 1, t => 0, x => 0])))
-
-# ╔═╡ a95e361b-d195-4ec0-b2fd-cd9adb79efc5
-sol = simplify.(Symbolics.symbolic_linear_solve([σzz, σxz], [A₁, A₂]))
-
-# ╔═╡ cd125f77-6203-4a0c-a68b-43300e873ca7
-begin
-    reflected_waves1 = incident_waves
-    reflected_waves2 = filter(x -> x ≠ incident_waves, ["P", "S"])[1]
-end
-
-# ╔═╡ bcb8064e-8379-4b5e-b218-334302df594f
-md"""
-$(@bind plot_waves MultiCheckBox(["i" => "Incident $(incident_waves)", "r1" => "Reflected $(reflected_waves1)", "r2" => "Reflected $(reflected_waves2)"], default=["i", "r1", "r2"]))
-"""
-
-# ╔═╡ 284e4a79-6cfe-4c4a-939b-55fc69611ecb
-rp(θ) = (incident_waves == "P") ? sin(θ) / αin : sin(θ) / βin
-
-# ╔═╡ a06affae-47c3-4dfa-a997-ee75b35ab122
-ηz1(θ) = (incident_waves == "P") ? sqrt((inv(αin)^2 - (rp(θ))^2) + 0im) : sqrt((inv(βin)^2 - (rp(θ))^2) + 0im)
-
-# ╔═╡ edb72f1f-6c99-48fb-b32d-fc4fe7d3328e
-ηz1(45)
-
-# ╔═╡ 23d62611-aeb5-4ed3-897d-822c0d17781c
-ηz2(θ) = (incident_waves == "S") ? sqrt((inv(αin)^2 - (rp(θ))^2) + 0im) : sqrt((inv(βin)^2 - (rp(θ))^2) + 0im)
-
-# ╔═╡ 4c871d5c-1b62-4b1c-9c1e-37cae19cbe0e
-ηz2(45)
-
-# ╔═╡ a089ab5b-4703-4d4d-a7ab-11197b4b907c
-begin
-    Avec = broadcast([sol[1], sol[2]]) do x
-        θ -> simplify(substitute(x, [η₁ => ηz1(θ), η₂ => ηz2(θ), p => rp(θ), λ => ρin * (αin^2 - 2 * βin^2), μ => βin^2 * ρin]))
-    end
-    if ((incident_waves == "S"))
-        Avec = reverse(Avec)
-    end
-end
-
-# ╔═╡ b790898e-11dd-440e-86ef-2403d14a1feb
-u_incident_ex = substitute(plane(rp(θp), ηz1(θp), 1.0), [ω => ωp, ı => im]);
-
-# ╔═╡ cabe33b2-5c0a-45e4-a0fb-d057987d8c95
-u_reflected1_ex = substitute(plane(rp(θp), -ηz1(θp), Avec[1](θp)), [ω => ωp, ı => im]);
-
-# ╔═╡ d5fda5dc-d94e-4b39-94c4-a5c4311e59bd
-u_reflected2_ex = substitute(plane(rp(θp), isequal(imag(ηz2(θp)), 0.0) ? -ηz2(θp) : ηz2(θp), Avec[2](θp)), [ω => ωp, ı => im]);
-
-# ╔═╡ 6cbddba3-0a3c-44b7-a033-532c91e35356
-md"### Plots"
-
-# ╔═╡ 31d34c37-96d5-4257-9815-c33af141b906
-function plot_reflectivity(A, θgrid, title="")
-    degθ = rad2deg.(θgrid)
-    fig = Plot(Layout(title=title, polar=attr(angularaxis_direction="clockwise", sector=(0, 90), radialaxis_range=(-2, 2)),))
-    add_trace!(fig,
-        scatterpolar(r=abs.(A.(θgrid)), theta=degθ, mode="lines", name="Abs"))
-    add_trace!(fig,
-        scatterpolar(r=real.(A.(θgrid)), theta=degθ, mode="lines", name="Real"))
-    add_trace!(fig,
-        scatterpolar(r=imag.(A.(θgrid)), theta=degθ, mode="lines", name="Imag"))
-    add_trace!(fig,
-        barpolar(
-            r=[3.5,],
-            theta=[rad2deg(θp)],
-            width=[2],
-            name="Animation",
-            marker_color=["#E4FF87"],
-            marker_line_color="black",
-            marker_line_width=1,
-            opacity=0.5
-        ),)
-
-    relayout!(
-        fig,
-        height=300,
-        width=350,
-    )
-    PlutoPlotly.plot(fig)
-end
-
-# ╔═╡ 6f4ddbaf-0023-499c-a31c-15693797e1fa
-TwoColumn(md"""
-$(plot_reflectivity(Avec[1], θgrid, "P-Reflection Coefficient"))
-""",
-    md"""
-    $(plot_reflectivity(Avec[2], θgrid, "S-Reflection Coefficient"))
-    """)
-
-# ╔═╡ de445666-cd08-4c78-8cab-2d63fd79af43
-function plot_planewave(ui, ur1, ur2, t1=0)
+# ╔═╡ ff83c90d-9f0d-46ce-a8ef-b690273add4f
+function plot_planewave(u, t1=0)
     # we need to discretize space before plotting 
-    xgrid = range(-200, stop=200, length=200)
-    zgrid_bottom = range(0, stop=200, length=100)
-    zgrid_top = range(-200, stop=0, length=100)
+    xgrid = range(-100, stop=100, length=100)
+    zgrid = xgrid
 
-    # substitute imaginary unit
-    ui, ur1, ur2 = map([ui, ur1, ur2]) do ⋅
-        substitute(⋅, [ı => im])
-    end
-    # build functions (reflected and incident)
-    uip, ur1p, ur2p = map([ui, ur1, ur2]) do ⋅
-        fn = build_function(⋅, x, z, t, expression=Val{false})
-        [real(fn(x, z, t1)) for z in zgrid_top, x in xgrid]
-    end
-    # utp = let
-    #     fn = build_function(ut, x, z, t, expression=Val{false})
-    #     [real(fn(x, z, t1)) for z in zgrid_top, x in xgrid]
-    # end
 
-    ("r2" ∉ plot_waves) && fill!(ur2p, 0.0)
-    ("i" ∉ plot_waves) && fill!(uip, 0.0)
-    ("r1" ∉ plot_waves) && fill!(ur1p, 0.0)
 
-    U = cat(ur1p + uip + ur2p, dims=1)
-    cmax = max(maximum(abs, U), maximum(abs, U))
-    fig = Plot(Layout(yaxis=attr(scaleanchor="x"), width=350, height=350, uirevison=1,
-            dragmode="drawopenpath",
-            newshape_line_color="black",
-            title="P-SV Wavefield", shapes=[
-                line(
-                    xref="x", yref="y",
-                    x0=-200, y0=0, x1=200, y1=0,
-                    line=attr(
-                        color="yellow",
-                        width=3,
-                    ),
-                ),]
-        ), config=PlotConfig(displayModeBar=false))
+    up0 = [real(plot_planewave_fn(x, z, 0)) for z in zgrid, x in xgrid]
+    clim = (-maximum(abs.(up0)), maximum(abs.(up0)))
 
-    add_trace!(fig, PlutoPlotly.heatmap(z=U, x=xgrid, y=vcat(zgrid_top, zgrid_bottom), colorscale="seismic",
-        zmin=-cmax, zmax=cmax,))
-    add_trace!(fig,
-        scatter(
-            x=[100],
-            y=[-20],
-            text=["Free-surface"],
-            mode="text",
-            showlegend=false,
-            textfont=attr(
-                color="yellow",
-                size=15,
-                family="Arail",
-            )
-        ))
 
-    add_trace!(fig,
-        scatter(
-            x=[-150, -150],
-            y=[-150, 150],
-            text=["(β₁,ρ₁)", "(β₂,ρ₂)"],
-            mode="text",
-            showlegend=false,
-            textfont=attr(
-                color="yellow",
-                size=15,
-                family="Arail",
-            )
-        ))
-
+    up = [real(plot_planewave_fn(x, z, tplot)) for z in zgrid, x in xgrid]
+    fig = Plot(Layout(width=325, height=300))
+    add_trace!(fig, heatmap(x=xgrid, y=zgrid, z=up, colorscale=:seismic, zmin=clim[1], zmax=clim[2]))
     plot(fig)
 
 end
 
-# ╔═╡ 7b346215-4f51-4298-a023-07a99e3c7208
-plot_planewave(u_incident_ex, u_reflected1_ex, u_reflected2_ex, mod(tplot, 10))
+# ╔═╡ 8e2d55d4-340f-49ca-963d-ef33477ed60d
+plot_planewave(planewave)
 
 # ╔═╡ 00000000-0000-0000-0000-000000000001
 PLUTO_PROJECT_TOML_CONTENTS = """
 [deps]
-LaTeXStrings = "b964fa9f-0449-5b57-a5c2-d3ea65f4040f"
-Latexify = "23fbe1c1-3f47-55db-b15f-69d7ec21a316"
-LinearAlgebra = "37e2e46d-f89d-539d-b4ee-838fcccc9c8e"
+FFTW = "7a1cc6ca-52ef-59f5-83cd-3a7055c09341"
 PlutoPlotly = "8e989ff0-3d88-8e9f-f020-2b208a939ff0"
 PlutoTeachingTools = "661c6b06-c737-4d37-b85c-46df65de6f69"
 PlutoUI = "7f904dfe-b85e-4ff6-b463-dae2292396a8"
@@ -445,13 +222,12 @@ SymbolicUtils = "d1185830-fcd6-423d-90d6-eec64667417b"
 Symbolics = "0c5d862f-8b57-4792-8d23-62f2024744c7"
 
 [compat]
-LaTeXStrings = "~1.3.1"
-Latexify = "~0.16.5"
-PlutoPlotly = "~0.5.0"
-PlutoTeachingTools = "~0.3.0"
+FFTW = "~1.8.0"
+PlutoPlotly = "~0.6.0"
+PlutoTeachingTools = "~0.3.1"
 PlutoUI = "~0.7.60"
-SymbolicUtils = "~3.7.1"
-Symbolics = "~6.12.0"
+SymbolicUtils = "~3.7.2"
+Symbolics = "~6.14.1"
 """
 
 # ╔═╡ 00000000-0000-0000-0000-000000000002
@@ -460,12 +236,12 @@ PLUTO_MANIFEST_TOML_CONTENTS = """
 
 julia_version = "1.10.5"
 manifest_format = "2.0"
-project_hash = "7ed7420f263a41df36149afa97a7e904eb4ea055"
+project_hash = "242e30f9a8d1e01a88396a65121ac8b022ca6bcc"
 
 [[deps.ADTypes]]
-git-tree-sha1 = "5a5eafb8344b81b8c2237f8a6f6b3602b3f6180e"
+git-tree-sha1 = "eea5d80188827b35333801ef97a40c2ed653b081"
 uuid = "47edcb42-4c32-4615-8424-f2b9edc5f35b"
-version = "1.8.1"
+version = "1.9.0"
 
     [deps.ADTypes.extensions]
     ADTypesChainRulesCoreExt = "ChainRulesCore"
@@ -474,6 +250,17 @@ version = "1.8.1"
     [deps.ADTypes.weakdeps]
     ChainRulesCore = "d360d2e6-b24c-11e9-a2a3-2a2ae2dbcce4"
     EnzymeCore = "f151be2c-9106-41f4-ab19-57ee4f262869"
+
+[[deps.AbstractFFTs]]
+deps = ["LinearAlgebra"]
+git-tree-sha1 = "d92ad398961a3ed262d8bf04a1a2b8340f915fef"
+uuid = "621f4979-c628-5d54-868e-fcf4e3e8185c"
+version = "1.5.0"
+weakdeps = ["ChainRulesCore", "Test"]
+
+    [deps.AbstractFFTs.extensions]
+    AbstractFFTsChainRulesCoreExt = "ChainRulesCore"
+    AbstractFFTsTestExt = "Test"
 
 [[deps.AbstractPlutoDingetjes]]
 deps = ["Pkg"]
@@ -566,11 +353,6 @@ uuid = "56f22d72-fd6d-98f1-02f0-08ddc0907c33"
 
 [[deps.Base64]]
 uuid = "2a0f44e3-6c83-55bd-87e4-b1978d98bd5f"
-
-[[deps.BaseDirs]]
-git-tree-sha1 = "cb25e4b105cc927052c2314f8291854ea59bf70a"
-uuid = "18cc8868-cbac-4acf-b575-c8ff214dc66f"
-version = "1.2.4"
 
 [[deps.Bijections]]
 git-tree-sha1 = "d8b0439d2be438a5f2cd68ec158fe08a7b2595b7"
@@ -714,9 +496,9 @@ uuid = "8ba89e20-285c-5b6f-9357-94700520ee1b"
 
 [[deps.Distributions]]
 deps = ["AliasTables", "FillArrays", "LinearAlgebra", "PDMats", "Printf", "QuadGK", "Random", "SpecialFunctions", "Statistics", "StatsAPI", "StatsBase", "StatsFuns"]
-git-tree-sha1 = "e6c693a0e4394f8fda0e51a5bdf5aef26f8235e9"
+git-tree-sha1 = "d7477ecdafb813ddee2ae727afa94e9dcb5f3fb0"
 uuid = "31c24e10-a181-5473-b8eb-7969acd0382f"
-version = "0.25.111"
+version = "0.25.112"
 
     [deps.Distributions.extensions]
     DistributionsChainRulesCoreExt = "ChainRulesCore"
@@ -773,6 +555,18 @@ git-tree-sha1 = "fc3951d4d398b5515f91d7fe5d45fc31dccb3c9b"
 uuid = "6b7a57c9-7cc1-4fdf-b7f5-e857abae3636"
 version = "0.8.5"
 
+[[deps.FFTW]]
+deps = ["AbstractFFTs", "FFTW_jll", "LinearAlgebra", "MKL_jll", "Preferences", "Reexport"]
+git-tree-sha1 = "4820348781ae578893311153d69049a93d05f39d"
+uuid = "7a1cc6ca-52ef-59f5-83cd-3a7055c09341"
+version = "1.8.0"
+
+[[deps.FFTW_jll]]
+deps = ["Artifacts", "JLLWrappers", "Libdl", "Pkg"]
+git-tree-sha1 = "4d81ed14783ec49ce9f2e168208a12ce1815aa25"
+uuid = "f5851436-0d7a-5f13-b9de-f02708fd171a"
+version = "3.3.10+1"
+
 [[deps.FileWatching]]
 uuid = "7b1f6079-737a-58dc-b8bc-7a2ca5c1b5ee"
 
@@ -820,6 +614,11 @@ git-tree-sha1 = "ec632f177c0d990e64d955ccc1b8c04c485a0950"
 uuid = "46192b85-c4d5-4398-a991-12ede77f4527"
 version = "0.1.6"
 
+[[deps.HashArrayMappedTries]]
+git-tree-sha1 = "2eaa69a7cab70a52b9687c8bf950a5a93ec895ae"
+uuid = "076d061b-32b6-4027-95e0-9a2c6f6d7e74"
+version = "0.2.0"
+
 [[deps.HypergeometricFunctions]]
 deps = ["LinearAlgebra", "OpenLibm_jll", "SpecialFunctions"]
 git-tree-sha1 = "7c4195be1649ae622304031ed46a2f4df989f1eb"
@@ -853,6 +652,12 @@ version = "0.1.1"
 git-tree-sha1 = "b8ffb903da9f7b8cf695a8bead8e01814aa24b30"
 uuid = "18e54dd8-cb9d-406c-a71d-865a43cbb235"
 version = "0.1.2"
+
+[[deps.IntelOpenMP_jll]]
+deps = ["Artifacts", "JLLWrappers", "LazyArtifacts", "Libdl"]
+git-tree-sha1 = "10bd689145d2c3b2a9844005d01087cc1194e79e"
+uuid = "1d5cc7b8-4909-519e-a0f8-d0f5ad9712d0"
+version = "2024.2.1+0"
 
 [[deps.InteractiveUtils]]
 deps = ["Markdown"]
@@ -891,9 +696,9 @@ version = "1.0.0"
 
 [[deps.JLLWrappers]]
 deps = ["Artifacts", "Preferences"]
-git-tree-sha1 = "f389674c99bfcde17dc57454011aa44d5a260a40"
+git-tree-sha1 = "be3dc50a92e5a386872a493a10050136d4703f9b"
 uuid = "692b3bcd-3c85-4b1f-b108-f13ce0eb3210"
-version = "1.6.0"
+version = "1.6.1"
 
 [[deps.JSON]]
 deps = ["Dates", "Mmap", "Parsers", "Unicode"]
@@ -908,14 +713,9 @@ uuid = "aa1ae85d-cabe-5617-a682-6adf51b2e16a"
 version = "0.9.36"
 
 [[deps.LaTeXStrings]]
-git-tree-sha1 = "50901ebc375ed41dbf8058da26f9de442febbbec"
+git-tree-sha1 = "dda21b8cbd6a6c40d9d02a73230f9d70fed6918c"
 uuid = "b964fa9f-0449-5b57-a5c2-d3ea65f4040f"
-version = "1.3.1"
-
-[[deps.LambertW]]
-git-tree-sha1 = "c5ffc834de5d61d00d2b0e18c96267cffc21f648"
-uuid = "984bce1d-4616-540c-a9ee-88d1112d94c9"
-version = "0.4.6"
+version = "1.4.0"
 
 [[deps.Latexify]]
 deps = ["Format", "InteractiveUtils", "LaTeXStrings", "MacroTools", "Markdown", "OrderedCollections", "Requires"]
@@ -932,6 +732,10 @@ version = "0.16.5"
     DataFrames = "a93c6f00-e57d-5684-b7b6-d8193f3e46c0"
     SparseArrays = "2f01184e-e22b-5df5-ae63-d93ebab69eaf"
     SymEngine = "123dc426-2d89-5057-bbad-38513e3affd8"
+
+[[deps.LazyArtifacts]]
+deps = ["Artifacts", "Pkg"]
+uuid = "4af54fe1-eca0-43a8-85a7-787d91b784e3"
 
 [[deps.LibCURL]]
 deps = ["LibCURL_jll", "MozillaCACerts_jll"]
@@ -985,14 +789,20 @@ uuid = "56ddb016-857b-54e1-b83d-db4d58db5568"
 
 [[deps.LoweredCodeUtils]]
 deps = ["JuliaInterpreter"]
-git-tree-sha1 = "c2b5e92eaf5101404a58ce9c6083d595472361d6"
+git-tree-sha1 = "260dc274c1bc2cb839e758588c63d9c8b5e639d1"
 uuid = "6f1432cf-f94c-5a45-995e-cdbf5db27b0b"
-version = "3.0.2"
+version = "3.0.5"
 
 [[deps.MIMEs]]
 git-tree-sha1 = "65f28ad4b594aebe22157d6fac869786a255b7eb"
 uuid = "6c6e2e6c-3030-632d-7369-2d6c69616d65"
 version = "0.1.4"
+
+[[deps.MKL_jll]]
+deps = ["Artifacts", "IntelOpenMP_jll", "JLLWrappers", "LazyArtifacts", "Libdl", "oneTBB_jll"]
+git-tree-sha1 = "f046ccd0c6db2832a9f639e2c669c6fe867e5f4f"
+uuid = "856f044c-d86e-5d09-b602-aeab76dc8ba7"
+version = "2024.2.0+0"
 
 [[deps.MLStyle]]
 git-tree-sha1 = "bc38dff0548128765760c79eb7388a4b37fae2c8"
@@ -1029,15 +839,15 @@ version = "2023.1.10"
 
 [[deps.MultivariatePolynomials]]
 deps = ["ChainRulesCore", "DataStructures", "LinearAlgebra", "MutableArithmetics"]
-git-tree-sha1 = "5c1d1d9361e1417e5a065e1f84dc3686cbdaea21"
+git-tree-sha1 = "8d39779e29f80aa6c071e7ac17101c6e31f075d7"
 uuid = "102ac46a-7ee4-5c85-9060-abc95bfdeaa3"
-version = "0.5.6"
+version = "0.5.7"
 
 [[deps.MutableArithmetics]]
 deps = ["LinearAlgebra", "SparseArrays", "Test"]
-git-tree-sha1 = "d0a6b1096b584a2b88efb70a92f8cb8c881eb38a"
+git-tree-sha1 = "90077f1e79de8c9c7c8a90644494411111f4e07b"
 uuid = "d8a4904e-b15c-11e9-3269-09a3773c0cb0"
-version = "1.4.6"
+version = "1.5.2"
 
 [[deps.NaNMath]]
 deps = ["OpenLibm_jll"]
@@ -1112,10 +922,10 @@ uuid = "0ff47ea0-7a50-410d-8455-4348d5de0420"
 version = "0.1.6"
 
 [[deps.PlutoPlotly]]
-deps = ["AbstractPlutoDingetjes", "Artifacts", "BaseDirs", "Colors", "Dates", "Downloads", "HypertextLiteral", "InteractiveUtils", "LaTeXStrings", "Markdown", "Pkg", "PlotlyBase", "Reexport", "TOML"]
-git-tree-sha1 = "653b48f9c4170343c43c2ea0267e451b68d69051"
+deps = ["AbstractPlutoDingetjes", "Artifacts", "Colors", "Dates", "Downloads", "HypertextLiteral", "InteractiveUtils", "LaTeXStrings", "Markdown", "Pkg", "PlotlyBase", "PrecompileTools", "Reexport", "ScopedValues", "Scratch", "TOML"]
+git-tree-sha1 = "0505fafdeb25a1e0e0f843b491332a1a09299117"
 uuid = "8e989ff0-3d88-8e9f-f020-2b208a939ff0"
-version = "0.5.0"
+version = "0.6.0"
 
     [deps.PlutoPlotly.extensions]
     PlotlyKaleidoExt = "PlotlyKaleido"
@@ -1127,9 +937,9 @@ version = "0.5.0"
 
 [[deps.PlutoTeachingTools]]
 deps = ["Downloads", "HypertextLiteral", "Latexify", "Markdown", "PlutoLinks", "PlutoUI"]
-git-tree-sha1 = "e2593782a6b53dc5176058d27e20387a0576a59e"
+git-tree-sha1 = "8252b5de1f81dc103eb0293523ddf917695adea1"
 uuid = "661c6b06-c737-4d37-b85c-46df65de6f69"
-version = "0.3.0"
+version = "0.3.1"
 
 [[deps.PlutoUI]]
 deps = ["AbstractPlutoDingetjes", "Base64", "ColorTypes", "Dates", "FixedPointNumbers", "Hyperscript", "HypertextLiteral", "IOCapture", "InteractiveUtils", "JSON", "Logging", "MIMEs", "Markdown", "Random", "Reexport", "URIs", "UUIDs"]
@@ -1229,9 +1039,9 @@ version = "1.3.0"
 
 [[deps.Revise]]
 deps = ["CodeTracking", "Distributed", "FileWatching", "JuliaInterpreter", "LibGit2", "LoweredCodeUtils", "OrderedCollections", "REPL", "Requires", "UUIDs", "Unicode"]
-git-tree-sha1 = "7b7850bb94f75762d567834d7e9802fc22d62f9c"
+git-tree-sha1 = "7f4228017b83c66bd6aa4fddeb170ce487e53bc7"
 uuid = "295af30f-e4ad-537b-8983-00126c2a3abe"
-version = "3.5.18"
+version = "3.6.2"
 
 [[deps.Rmath]]
 deps = ["Random", "Rmath_jll"]
@@ -1257,9 +1067,9 @@ version = "0.7.0"
 
 [[deps.SciMLBase]]
 deps = ["ADTypes", "Accessors", "ArrayInterface", "CommonSolve", "ConstructionBase", "Distributed", "DocStringExtensions", "EnumX", "Expronicon", "FunctionWrappersWrappers", "IteratorInterfaceExtensions", "LinearAlgebra", "Logging", "Markdown", "PrecompileTools", "Preferences", "Printf", "RecipesBase", "RecursiveArrayTools", "Reexport", "RuntimeGeneratedFunctions", "SciMLOperators", "SciMLStructures", "StaticArraysCore", "Statistics", "SymbolicIndexingInterface", "Tables"]
-git-tree-sha1 = "c96f81c3e98d5e2f0848fb42aba4383d772c3bb7"
+git-tree-sha1 = "50ed64cd5ad79b0bef71fdb6a11d10c3448bfef0"
 uuid = "0bca4576-84f4-4d90-8ffe-ffa030f20462"
-version = "2.53.1"
+version = "2.56.1"
 
     [deps.SciMLBase.extensions]
     SciMLBaseChainRulesCoreExt = "ChainRulesCore"
@@ -1296,6 +1106,18 @@ deps = ["ArrayInterface"]
 git-tree-sha1 = "25514a6f200219cd1073e4ff23a6324e4a7efe64"
 uuid = "53ae85a6-f571-4167-b2af-e1d143709226"
 version = "1.5.0"
+
+[[deps.ScopedValues]]
+deps = ["HashArrayMappedTries", "Logging"]
+git-tree-sha1 = "eef2fbac9538ee6cc60ee1489f028d2f8a1a5249"
+uuid = "7e506255-f358-4e82-b7e4-beb19740aa63"
+version = "1.2.1"
+
+[[deps.Scratch]]
+deps = ["Dates"]
+git-tree-sha1 = "3bac05bc7e74a75fd9cba4295cde4045d9fe2386"
+uuid = "6c6a2e73-6563-6170-7368-637461726353"
+version = "1.2.1"
 
 [[deps.Serialization]]
 uuid = "9e88b42a-f829-5b0c-bbe9-9e923198166b"
@@ -1385,9 +1207,9 @@ version = "7.2.1+1"
 
 [[deps.SymbolicIndexingInterface]]
 deps = ["Accessors", "ArrayInterface", "RuntimeGeneratedFunctions", "StaticArraysCore"]
-git-tree-sha1 = "988e04b34a4c3b824fb656f542473df99a4f610d"
+git-tree-sha1 = "4bc96df5d71515b1cb86dd626915f06f4c0d46f5"
 uuid = "2efcf032-c050-4f8e-a9bb-153293bab1f5"
-version = "0.3.30"
+version = "0.3.33"
 
 [[deps.SymbolicLimits]]
 deps = ["SymbolicUtils"]
@@ -1397,9 +1219,9 @@ version = "0.2.2"
 
 [[deps.SymbolicUtils]]
 deps = ["AbstractTrees", "ArrayInterface", "Bijections", "ChainRulesCore", "Combinatorics", "ConstructionBase", "DataStructures", "DocStringExtensions", "DynamicPolynomials", "IfElse", "LinearAlgebra", "MultivariatePolynomials", "NaNMath", "Setfield", "SparseArrays", "SpecialFunctions", "StaticArrays", "SymbolicIndexingInterface", "TermInterface", "TimerOutputs", "Unityper"]
-git-tree-sha1 = "3927e02dc7648a45ec6aa592bcd8374094a44740"
+git-tree-sha1 = "04e9157537ba51dad58336976f8d04b9ab7122f0"
 uuid = "d1185830-fcd6-423d-90d6-eec64667417b"
-version = "3.7.1"
+version = "3.7.2"
 
     [deps.SymbolicUtils.extensions]
     SymbolicUtilsLabelledArraysExt = "LabelledArrays"
@@ -1410,10 +1232,10 @@ version = "3.7.1"
     ReverseDiff = "37e2e3b7-166d-5795-8a7a-e32c996b4267"
 
 [[deps.Symbolics]]
-deps = ["ADTypes", "ArrayInterface", "Bijections", "CommonWorldInvalidations", "ConstructionBase", "DataStructures", "DiffRules", "Distributions", "DocStringExtensions", "DomainSets", "DynamicPolynomials", "IfElse", "LaTeXStrings", "LambertW", "Latexify", "Libdl", "LinearAlgebra", "LogExpFunctions", "MacroTools", "Markdown", "NaNMath", "PrecompileTools", "Primes", "RecipesBase", "Reexport", "RuntimeGeneratedFunctions", "SciMLBase", "Setfield", "SparseArrays", "SpecialFunctions", "StaticArraysCore", "SymbolicIndexingInterface", "SymbolicLimits", "SymbolicUtils", "TermInterface"]
-git-tree-sha1 = "8b48697e7fec6d4b7c4a9fe892857a5ed2bae7e8"
+deps = ["ADTypes", "ArrayInterface", "Bijections", "CommonWorldInvalidations", "ConstructionBase", "DataStructures", "DiffRules", "Distributions", "DocStringExtensions", "DomainSets", "DynamicPolynomials", "IfElse", "LaTeXStrings", "Latexify", "Libdl", "LinearAlgebra", "LogExpFunctions", "MacroTools", "Markdown", "NaNMath", "PrecompileTools", "Primes", "RecipesBase", "Reexport", "RuntimeGeneratedFunctions", "SciMLBase", "Setfield", "SparseArrays", "SpecialFunctions", "StaticArraysCore", "SymbolicIndexingInterface", "SymbolicLimits", "SymbolicUtils", "TermInterface"]
+git-tree-sha1 = "aa3218c29b81384531631b2e5354fdf034a13ec2"
 uuid = "0c5d862f-8b57-4792-8d23-62f2024744c7"
-version = "6.12.0"
+version = "6.14.1"
 
     [deps.Symbolics.extensions]
     SymbolicsForwardDiffExt = "ForwardDiff"
@@ -1470,9 +1292,9 @@ uuid = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
 
 [[deps.TimerOutputs]]
 deps = ["ExprTools", "Printf"]
-git-tree-sha1 = "5a13ae8a41237cff5ecf34f73eb1b8f42fff6531"
+git-tree-sha1 = "3a6f063d690135f5c1ba351412c82bae4d1402bf"
 uuid = "a759f4b9-e2f1-59dc-863e-4aeb61b1ea8f"
-version = "0.5.24"
+version = "0.5.25"
 
 [[deps.Tricks]]
 git-tree-sha1 = "7822b97e99a1672bfb1b49b668a6d46d58d8cbcb"
@@ -1517,6 +1339,12 @@ deps = ["Artifacts", "Libdl"]
 uuid = "8e850ede-7688-5339-a07c-302acd2aaf8d"
 version = "1.52.0+1"
 
+[[deps.oneTBB_jll]]
+deps = ["Artifacts", "JLLWrappers", "Libdl"]
+git-tree-sha1 = "7d0ea0f4895ef2f5cb83645fa689e52cb55cf493"
+uuid = "1317d2d5-d96f-522e-a858-c73665f53c3e"
+version = "2021.12.0+0"
+
 [[deps.p7zip_jll]]
 deps = ["Artifacts", "Libdl"]
 uuid = "3f19e933-33d8-53b3-aaab-bd5110c3b7a0"
@@ -1524,71 +1352,36 @@ version = "17.4.0+2"
 """
 
 # ╔═╡ Cell order:
-# ╠═e6b12602-f3c7-4f5d-9787-9d0cf0e3887b
-# ╠═08429397-3964-4600-bc14-c45d22c915ec
-# ╟─32a757ff-aa7a-41d5-b8b3-6ac9e0125875
-# ╟─afdb5b7d-d670-4a98-a91d-3ff638fb0294
-# ╟─bcb8064e-8379-4b5e-b218-334302df594f
-# ╟─63e459a0-ec85-4337-9b93-47cfd49bbe92
-# ╟─7b346215-4f51-4298-a023-07a99e3c7208
-# ╟─602f13f9-6d14-41fd-9183-b8255d64399b
-# ╟─6f4ddbaf-0023-499c-a31c-15693797e1fa
-# ╟─4476bf78-39e3-4674-a152-db19fe80929a
-# ╠═927dcc43-202c-4ad2-a76c-837d41f1ed6c
-# ╠═c2eacb91-38e8-428e-9247-691950668bc3
-# ╟─0bea69f9-3ffa-4695-a5eb-6e962d2a81ce
-# ╠═e8729ceb-e85f-4c21-89d2-f15ec69a840f
-# ╟─670d5198-f810-472e-8db8-b13385ca294a
-# ╠═6043b904-6991-4776-bc1b-13eda3fcc936
-# ╟─c7c52926-6e2e-4c4c-a01f-09f57c2ececd
-# ╟─33c6aa70-87cb-464a-88f7-b82d17476a2f
-# ╠═fbc6cd6c-0b3b-44e9-b2a6-5edb0eeced1b
-# ╠═8dad08c2-b9a8-40ec-a8ef-c9383e5ec7b1
-# ╠═13b5abc9-10be-4ef1-817d-bcee1271c89e
-# ╟─aae7b893-4b33-44ae-b01c-6345a1180d0d
-# ╠═f488f9f3-e73b-42ae-b3c2-2262661fd839
-# ╠═4dc428b0-f141-4e94-9edb-e847780333aa
-# ╠═8940ee90-2dd1-448c-92cd-09fd1ebbaea7
-# ╟─a1213dc4-3ea9-4b26-aa82-a15cc3e72401
-# ╠═b4a603fb-5ee7-4c97-8e1d-fd0a89692503
-# ╠═74484bb8-a9dc-4b54-894e-3bf86c18278e
-# ╠═fdba06fe-e596-4122-b2d5-81b67dd78a97
-# ╟─52d2ba9b-826a-4805-9583-f1a80b10a926
-# ╠═7cf515f8-2496-4bde-b3b3-9d39d971764a
-# ╠═040f1440-14c4-491b-b792-570aa3c2080b
-# ╠═3525bf50-b0e5-4c3b-ba75-77689a5799f4
-# ╠═0dfd91aa-f9e1-4d93-a471-0bf99e476af5
-# ╠═f51dfb73-b5ef-4de8-b4c3-fc8814a31485
-# ╠═860ac07f-391b-4d62-bf9d-a32abea7cd60
-# ╠═47f2439f-28a1-4ad9-8d8d-67a4a30af5ea
-# ╠═06a568fa-ba94-4c5f-815d-f30c6c8a4260
-# ╠═b4030cef-75ef-40d1-b75d-0e5f233a3023
-# ╠═64164ec7-a3cf-41d0-bcef-e55475eabeea
-# ╠═605195de-f4a1-4331-9b82-78e4a061f0a4
-# ╠═a95e361b-d195-4ec0-b2fd-cd9adb79efc5
-# ╟─5729b459-b283-41ce-95be-c4d33a7c28c0
-# ╠═cd125f77-6203-4a0c-a68b-43300e873ca7
-# ╟─281cb873-760c-411f-98b5-1c64d218e7e9
-# ╠═3d50985b-b79a-45ab-ba1f-5287936c56d9
-# ╠═284e4a79-6cfe-4c4a-939b-55fc69611ecb
-# ╟─a7cb9cd5-7013-461b-960d-5da73db62aea
-# ╠═a06affae-47c3-4dfa-a997-ee75b35ab122
-# ╠═23d62611-aeb5-4ed3-897d-822c0d17781c
-# ╠═edb72f1f-6c99-48fb-b32d-fc4fe7d3328e
-# ╠═4c871d5c-1b62-4b1c-9c1e-37cae19cbe0e
-# ╟─8c81ddb5-bf4d-4610-bfea-3d1a27ffd61f
-# ╠═a089ab5b-4703-4d4d-a7ab-11197b4b907c
-# ╟─dba7ea14-e0dd-4dc4-ad9c-4627fd16cc62
-# ╟─57176a1b-b8cd-40fa-a615-8a589fb7ea73
-# ╠═b790898e-11dd-440e-86ef-2403d14a1feb
-# ╠═cabe33b2-5c0a-45e4-a0fb-d057987d8c95
-# ╠═d5fda5dc-d94e-4b39-94c4-a5c4311e59bd
-# ╟─ea3b7089-bda8-4694-8042-98534b1739bd
-# ╠═eb78c5bd-33ea-4f97-9b1d-b881e72279d8
-# ╠═ab40f79c-3d8a-11ed-0697-a7b794dbba99
-# ╠═f6b31173-72cd-4f25-b292-5aad02ec718c
-# ╟─6cbddba3-0a3c-44b7-a033-532c91e35356
-# ╠═31d34c37-96d5-4257-9815-c33af141b906
-# ╠═de445666-cd08-4c78-8cab-2d63fd79af43
+# ╠═a9436d89-ad43-4cb8-8619-67c0e26eb686
+# ╟─fbbee9cc-493d-11ed-00fd-b1e3bddbb3fa
+# ╟─36de89c5-8cf6-44de-baaf-cbe409818578
+# ╟─5d9fed8c-860b-48d8-a30d-e1c79f5db1e8
+# ╠═eb190d1a-3c6b-407a-a586-9b13ed40b106
+# ╟─9cc49e2c-864d-4fad-9b49-456a85bcf0a2
+# ╟─8e2d55d4-340f-49ca-963d-ef33477ed60d
+# ╟─a1c6aea0-35d1-4a5a-9147-461b496a5d82
+# ╟─89ef2430-308b-4bbf-b70b-7688fa4d5251
+# ╠═434f4be3-ecb2-4a0e-9ffc-d24795ef5560
+# ╟─53653e30-cec8-467a-bdca-c713f93e67a1
+# ╟─ef3cd032-b515-411c-8c6b-cc6d23d2f2f9
+# ╠═4039e2b0-0406-45dc-89c4-058281769ad3
+# ╟─4f7a0cf2-d25e-4414-8ac7-62b2f31fe8e0
+# ╠═0685a215-4c7b-420d-b779-a94da325988b
+# ╠═383f706b-97a9-4f69-a5e1-4b56a91af720
+# ╠═b11c4313-73e6-4d78-bc10-6c64120ae8a9
+# ╠═ca29d9b8-d6a7-46d9-bc4f-4bfc263e7009
+# ╠═6d1613fa-5fa0-47b8-b39b-520070d786a8
+# ╟─2e6ad714-5972-41ce-92c9-f30a8b50f3dd
+# ╠═74a3e9e3-ed09-4582-91fc-47944d5744db
+# ╠═4b67cd08-e56c-42ab-9205-a5b4ed4919dc
+# ╠═39cbdb94-dc0c-4d26-855a-94ce52b05dde
+# ╠═197dd532-fe5d-43d3-bf51-ac10f960dadf
+# ╠═24edc710-f14e-4bb4-87f5-7bb48f592e2f
+# ╠═a7ae29f7-52a6-4ded-aed8-d2579fc84076
+# ╠═d237a9eb-775a-4d9c-b53c-192f90952ea1
+# ╠═a3989848-a4ce-4a6d-94a5-245fb57474a0
+# ╠═fe778290-0f29-4a06-9399-4a15ccf38fe4
+# ╠═2c192f02-3a6b-48fa-9a68-d51c8e6b4bc5
+# ╠═ff83c90d-9f0d-46ce-a8ef-b690273add4f
 # ╟─00000000-0000-0000-0000-000000000001
 # ╟─00000000-0000-0000-0000-000000000002

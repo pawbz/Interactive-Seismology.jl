@@ -106,12 +106,6 @@ md"We now write an expression for the wavefield in the top layer using the verti
 # ╔═╡ 83e2b2b3-f84a-4926-9332-b5570d52be8b
 u1 = trail_soln(p, η₁, A₁, B₁)
 
-# ╔═╡ e50fd64f-afc0-4ed9-a0d1-ea30af8a8a42
-arguments(u1)
-
-# ╔═╡ 52c90f98-d314-4c5f-8b8d-4aff4c32b6d9
-simplify(expand_derivatives(L1(u1)) / u1)
-
 # ╔═╡ d6dc2422-6be3-447e-b7c1-be655971b6f7
 md"Similarly, for the half space."
 
@@ -1802,8 +1796,6 @@ version = "17.4.0+2"
 # ╟─79c4f3a4-65b6-4e02-9786-f168584c7781
 # ╠═dc709a17-ab03-406f-b232-d7658872a95e
 # ╠═83e2b2b3-f84a-4926-9332-b5570d52be8b
-# ╠═e50fd64f-afc0-4ed9-a0d1-ea30af8a8a42
-# ╠═52c90f98-d314-4c5f-8b8d-4aff4c32b6d9
 # ╟─d6dc2422-6be3-447e-b7c1-be655971b6f7
 # ╠═1a13363a-9f8f-4123-9b37-c6dcad1ccdde
 # ╠═2f80cfcf-9788-41a3-8797-cd1965216738

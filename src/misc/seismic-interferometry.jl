@@ -1,5 +1,10 @@
 ### A Pluto.jl notebook ###
-# v0.19.32
+# v0.19.46
+
+#> [frontmatter]
+#> title = "Seismic Interferometry"
+#> layout = "layout.jlhtml"
+#> tags = ["misc"]
 
 using Markdown
 using InteractiveUtils
@@ -23,7 +28,18 @@ TableOfContents()
 # ╔═╡ bd04a8af-7666-47b7-87cc-a212ec8adcbd
 md"""
 ## Numerical Simulation of Seismic Interferometry
-We create random sources around the 2 receivers and send single wavelet from all the sources to the receivers. The wavelet response due to a source at the 2 receivers are cross-correlated and the cross-correlations of all the sources are stacked to get the approximate Green's function between the 2 receivers.
+We generate wavelet at many sources in a homogeneous medium. There are 2 receivers that are recording the wavelets from all the sources. The wavelet from a source recorded at one of the receivers is cross-correlated with the wavelet recorded at the other receiver. The cross-correlogram of all the sources are stacked to get the approximate Green's function between the 2 receivers.
+"""
+
+# ╔═╡ 1083c0c6-beb2-42ba-8c99-e8d8d77ce83a
+md"""
+### Change the setting:
+* Wavelets $(@bind wtype Select(["Ricker" => "Ricker", "Random" => "Random"])). 
+  * `Ricker` generate same Ricker wavelet at all the sources.
+  * `Random` generate random wavelets at each sources.
+* Number of Sources $(@bind sr Slider(1000:1000:10000,default=1000,show_value=true)).
+* Inner radius limit of the sources $(@bind inrad Slider(1:2:17,default=1,show_value=true))
+* Angular Range $(@bind iang Select(["all" => "Circular","small" => "Sectional","leftarc" => "Right Arc","rightarc" => "Left Arc","new" => "Special case"]))
 """
 
 # ╔═╡ c648890f-ae42-4658-8e87-ba47c6300d69
@@ -67,64 +83,10 @@ return hk
 end
 end
 
-# ╔═╡ 577d411c-88b5-495d-a49a-d2379336f533
-md"""
-## Random Sources
-"""
-
-# ╔═╡ 8d45d812-fb70-45c5-a123-4f93844fef6d
-md"""
-## Receivers
-"""
-
-# ╔═╡ 3b144853-0d82-46e2-a4ee-301516f3ce10
-vel=0.035
-
-# ╔═╡ 3cf54d17-5931-461c-9e35-bad1fc8d9ac3
-function trval(rec,src)
-	dis=sqrt((rec[1]-src[1])^2+(rec[2]-src[2])^2)
-	tm= dis/vel
-	return tm
-end
-
-# ╔═╡ 9ac02f1f-25b2-404b-bd3c-1c6faf9b8cab
-md"""
-### Traveltime between the receivers.
-"""
-
-# ╔═╡ 9c06aa0f-6674-477f-945d-f1a081182ec3
-md"""
-Calculate the maximum possible travel time.
-"""
-
-# ╔═╡ 6397b8ae-62ea-404a-8add-08e79a39cd30
-import PlutoUI: combine
-
-# ╔═╡ 41870289-3874-43ca-9837-3cead43d0200
-function Ricker(;dt::Real=0.002,f0::Real=20.0)
-
-    nw = 2.0/(f0*dt)
-    nc = floor(Int, nw/2)
-    t = dt*collect(- nc:1:nc)
-    b = (pi*f0*t).^2
-    w = (1 .- 2 .* b).*exp.(-b)
-    w = cat(zeros(Float32,75),w,zeros(Float32,75),dims=1)
-end
-
-# ╔═╡ 1083c0c6-beb2-42ba-8c99-e8d8d77ce83a
-md"""
-### Change the setting:
-* Wavelets $(@bind wav Select([Ricker() => "Ricker",get_wav() => "Random"]))
-* Number of Sources $(@bind sr Slider(1000:1000:10000,default=1000,show_value=true))
-* Inner radius limit of the sources $(@bind inrad Slider(1:2:17,default=1,show_value=true))
-* Angular Range $(@bind iang Select(["all" => "Circular","small" => "Sectional","leftarc" => "Right Arc","rightarc" => "Left Arc","new" => "Special case"]))
-"""
-
 # ╔═╡ e1f1fa09-87ef-4cdb-94b1-0d2e0e483323
 begin
-function delaywav(t)
-	ts = wav
-	# ts = get_wav()
+function delaywav(w,t)
+	ts = w
 	ts = cat(zeros(Float32,200),ts,zeros(Float32,1000),dims=1)
 	td= shift(ts,tuple(t-300))
 	return td[1:1000]
@@ -132,17 +94,10 @@ function delaywav(t)
 end
 end
 
-# ╔═╡ 09c19be2-867a-4c16-ace5-6e4a9389472c
-function get_seis(rec1,srcloc)   # get all the responses from all sources at receiver
-	tm=map(1:length(srcloc)) do i 
-		trval(rec1,srcloc[i])
-	end
-	wav=map(1:length(tm)) do h
-		delaywav(tm[h])
-	end
-	wav=stack(wav,dims=2)
-	#wav=sum(wav,dims=2)
-end
+# ╔═╡ 577d411c-88b5-495d-a49a-d2379336f533
+md"""
+## Random Sources
+"""
 
 # ╔═╡ e09b72c2-5d7a-4215-ad77-f994f051cc93
 ang1=range(-0.1*π,stop=0.1*π,length=div(sr,2))
@@ -186,8 +141,82 @@ xs=map(rr,ang) do r,a
 end
  end
 
+# ╔═╡ 8d45d812-fb70-45c5-a123-4f93844fef6d
+md"""
+## Receivers
+"""
+
+# ╔═╡ 3b144853-0d82-46e2-a4ee-301516f3ce10
+vel=0.035
+
+# ╔═╡ 3cf54d17-5931-461c-9e35-bad1fc8d9ac3
+function trval(rec,src)
+	dis=sqrt((rec[1]-src[1])^2+(rec[2]-src[2])^2)
+	tm= dis/vel
+	return tm
+end
+
+# ╔═╡ 9ac02f1f-25b2-404b-bd3c-1c6faf9b8cab
+md"""
+### Traveltime between the receivers.
+"""
+
+# ╔═╡ 9c06aa0f-6674-477f-945d-f1a081182ec3
+md"""
+Calculate the maximum possible travel time.
+"""
+
 # ╔═╡ ddab0b60-818a-4fc0-9aca-05f54c8b8352
 srcloc=[[xs[i],ys[i]] for i in 1:num]  # all the source location
+
+# ╔═╡ 6397b8ae-62ea-404a-8add-08e79a39cd30
+import PlutoUI: combine
+
+# ╔═╡ 41870289-3874-43ca-9837-3cead43d0200
+function Ricker(;dt::Real=0.002,f0::Real=20.0)
+
+    nw = 2.0/(f0*dt)
+    nc = floor(Int, nw/2)
+    t = dt*collect(- nc:1:nc)
+    b = (pi*f0*t).^2
+    w = (1 .- 2 .* b).*exp.(-b)
+    w = cat(zeros(Float32,75),w,zeros(Float32,75),dims=1)
+end
+
+# ╔═╡ 1ea5bea2-0c9d-4095-a395-24ad4f67ba05
+begin
+function wavetype()
+	if (wtype == "Random")
+		wavelet=get_wav()
+	elseif (wtype == "Ricker")
+		wavelet=Ricker()
+	end
+	return wavelet
+end
+end
+
+# ╔═╡ 09c19be2-867a-4c16-ace5-6e4a9389472c
+function get_seis(rec1,rec2,srcloc)   # get all the responses from all sources at two receiver
+	tm1=map(1:length(srcloc)) do i 
+		trval(rec1,srcloc[i])
+	end
+	tm2=map(1:length(srcloc)) do i 
+		trval(rec2,srcloc[i])
+	end
+	wavel=wavetype()
+	wav1=map(1:length(tm1)) do h
+		delaywav(wavel,tm1[h])
+	end
+
+    wav2=map(1:length(tm2)) do h
+		delaywav(wavel,tm2[h])
+	end
+	
+	wav1=stack(wav1,dims=2)
+	wav2=stack(wav2,dims=2)
+	#wav=sum(wav,dims=2)
+	return wav1,wav2
+end
 
 # ╔═╡ d9727185-8f69-49a5-a98f-7514562529ab
 md"""
@@ -303,15 +332,25 @@ rectime=trval(rec1,rec2)
 
 # ╔═╡ 0458e693-5e33-4372-9951-e3c50b301ae5
 begin
-real=delaywav(rectime)
-plot_line([cat(reverse(real),real,dims=1)],title="Expected Response (Both Causal and Acausal)")
+real=delaywav(wavetype(),rectime)
+plot_line([cat(reverse(real),real,dims=1)],title="Actual Wavelet between the Receivers")
 end
 
 # ╔═╡ 280b6269-a022-4846-9071-61481649b008
 trval(rec1,[-20,0])
 
 # ╔═╡ 97289274-85f2-46f7-b9bf-916f0a420301
-seis1=get_seis(rec1,srcloc);
+seis1,seis2=get_seis(rec1,rec2,srcloc);
+
+# ╔═╡ 64a67ad0-2a5f-49c4-8a90-8fe8fb55342f
+#plot_trace(seis2[:,1:100])
+let
+step=div(size(seis2,2),200)
+rr2=stack(map(1:step:size(seis2,2)) do i
+     seis2[:,i]
+end,dims=2)
+plot(heatmap(z=rr2))
+end
 
 # ╔═╡ 617fd9b1-c6be-476e-9622-b6482602c7c7
 #plot_trace(seis1[:,300:400])
@@ -321,19 +360,6 @@ rr1=stack(map(1:step:size(seis1,2)) do i
      seis1[:,i]
 end,dims=2)
 plot(heatmap(z=rr1))
-end
-
-# ╔═╡ db6547b2-0939-4d10-b590-4205f8c10ed3
-seis2=get_seis(rec2,srcloc);
-
-# ╔═╡ 64a67ad0-2a5f-49c4-8a90-8fe8fb55342f
-#plot_trace(seis2[:,1:100])
-let
-step=div(size(seis2,2),200)
-rr2=stack(map(1:step:size(seis2,2)) do i
-     seis2[:,i]
-end,dims=2)
-plot(heatmap(z=rr2))# Layout=attr(yaxis=attr(title="time (s)")))
 end
 
 # ╔═╡ 2bad7a74-1b12-499f-b435-7f99c7d64ae9
@@ -346,7 +372,7 @@ end
 
 # ╔═╡ 46c9b13c-088c-47e7-8fd3-b56aee4a8923
 begin
-gren=mean(cross,dims=2);
+gren=sum(cross,dims=2);
 plot_line([gren[:,1]],title="Stacked Cross-Correlation")
 end
 
@@ -384,23 +410,15 @@ PlutoPlotly = "8e989ff0-3d88-8e9f-f020-2b208a939ff0"
 PlutoUI = "7f904dfe-b85e-4ff6-b463-dae2292396a8"
 Statistics = "10745b16-79ce-11e8-11f9-7d13ad32a3b2"
 StatsBase = "2913bbd2-ae8a-5f71-8c99-4fb6c76f3a91"
-
-[compat]
-DSP = "~0.7.9"
-FFTW = "~1.7.1"
-FourierTools = "~0.4.2"
-PlutoPlotly = "~0.4.2"
-PlutoUI = "~0.7.53"
-StatsBase = "~0.34.2"
 """
 
 # ╔═╡ 00000000-0000-0000-0000-000000000002
 PLUTO_MANIFEST_TOML_CONTENTS = """
 # This file is machine-generated - editing it directly is not advised
 
-julia_version = "1.9.2"
+julia_version = "1.9.3"
 manifest_format = "2.0"
-project_hash = "349afb7eda2e83bd4f869ccb554f5b4e567b9e75"
+project_hash = "dc9a2cd435007b1dbb5a114cd7297b995176c332"
 
 [[deps.AbstractFFTs]]
 deps = ["LinearAlgebra"]
@@ -427,9 +445,9 @@ version = "1.2.0"
 
 [[deps.Adapt]]
 deps = ["LinearAlgebra", "Requires"]
-git-tree-sha1 = "02f731463748db57cc2ebfbd9fbc9ce8280d3433"
+git-tree-sha1 = "68c4c187a232e7abe00ac29e3b03e09af9d77317"
 uuid = "79e6a3ab-5dfb-504d-930d-738a2a938a0e"
-version = "3.7.1"
+version = "3.7.0"
 
     [deps.Adapt.extensions]
     AdaptStaticArraysExt = "StaticArrays"
@@ -675,9 +693,9 @@ version = "0.0.4"
 
 [[deps.HypertextLiteral]]
 deps = ["Tricks"]
-git-tree-sha1 = "7134810b1afce04bbc1045ca1985fbe81ce17653"
+git-tree-sha1 = "c47c5fa4c5308f27ccaac35504858d8914e102f9"
 uuid = "ac1192a8-f4b3-4bfe-ba22-af5b92cd3ab2"
-version = "0.9.5"
+version = "0.9.4"
 
 [[deps.IOCapture]]
 deps = ["Logging", "Random"]
@@ -740,9 +758,9 @@ uuid = "b14d175d-62b4-44ba-8fb7-3064adc8c3ec"
 version = "0.2.4"
 
 [[deps.LaTeXStrings]]
-git-tree-sha1 = "50901ebc375ed41dbf8058da26f9de442febbbec"
+git-tree-sha1 = "f2355693d6778a178ade15952b7ac47a4ff97996"
 uuid = "b964fa9f-0449-5b57-a5c2-d3ea65f4040f"
-version = "1.3.1"
+version = "1.3.0"
 
 [[deps.LazyArtifacts]]
 deps = ["Artifacts", "Pkg"]
@@ -929,9 +947,9 @@ version = "0.8.19"
 
 [[deps.PlutoPlotly]]
 deps = ["AbstractPlutoDingetjes", "BaseDirs", "Colors", "Dates", "Downloads", "HypertextLiteral", "InteractiveUtils", "LaTeXStrings", "Markdown", "Pkg", "PlotlyBase", "Reexport", "TOML"]
-git-tree-sha1 = "d169dae7b340a1b0ca50ef359ed100f07ad677a4"
+git-tree-sha1 = "9fefc3bfea24f08474e86e86743ee7f8f1bf12a0"
 uuid = "8e989ff0-3d88-8e9f-f020-2b208a939ff0"
-version = "0.4.2"
+version = "0.4.1"
 
     [deps.PlutoPlotly.extensions]
     PlotlyKaleidoExt = "PlotlyKaleido"
@@ -943,9 +961,9 @@ version = "0.4.2"
 
 [[deps.PlutoUI]]
 deps = ["AbstractPlutoDingetjes", "Base64", "ColorTypes", "Dates", "FixedPointNumbers", "Hyperscript", "HypertextLiteral", "IOCapture", "InteractiveUtils", "JSON", "Logging", "MIMEs", "Markdown", "Random", "Reexport", "URIs", "UUIDs"]
-git-tree-sha1 = "db8ec28846dbf846228a32de5a6912c63e2052e3"
+git-tree-sha1 = "e47cd150dbe0443c3a3651bc5b9cbd5576ab75b7"
 uuid = "7f904dfe-b85e-4ff6-b463-dae2292396a8"
-version = "0.7.53"
+version = "0.7.52"
 
 [[deps.Polynomials]]
 deps = ["LinearAlgebra", "RecipesBase", "Setfield", "SparseArrays"]
@@ -1125,9 +1143,9 @@ uuid = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
 
 [[deps.Transducers]]
 deps = ["Adapt", "ArgCheck", "BangBang", "Baselet", "CompositionsBase", "ConstructionBase", "DefineSingletons", "Distributed", "InitialValues", "Logging", "Markdown", "MicroCollections", "Requires", "Setfield", "SplittablesBase", "Tables"]
-git-tree-sha1 = "e579d3c991938fecbb225699e8f611fa3fbf2141"
+git-tree-sha1 = "53bd5978b182fa7c57577bdb452c35e5b4fb73a5"
 uuid = "28d57a85-8fef-5791-bfe6-a80928e7c999"
-version = "0.4.79"
+version = "0.4.78"
 
     [deps.Transducers.extensions]
     TransducersBlockArraysExt = "BlockArrays"
@@ -1190,7 +1208,7 @@ version = "17.4.0+0"
 # ╠═f986cb42-7cbe-11ee-22de-cbc3714ed81d
 # ╟─bd04a8af-7666-47b7-87cc-a212ec8adcbd
 # ╟─1083c0c6-beb2-42ba-8c99-e8d8d77ce83a
-# ╟─c4339754-42eb-4969-9045-010ca1d23ef8
+# ╠═c4339754-42eb-4969-9045-010ca1d23ef8
 # ╠═b933216e-203a-47a1-b4f1-901fa5b38f70
 # ╠═46c9b13c-088c-47e7-8fd3-b56aee4a8923
 # ╠═0458e693-5e33-4372-9951-e3c50b301ae5
@@ -1199,10 +1217,11 @@ version = "17.4.0+0"
 # ╠═57730f00-d0d6-4f54-8868-eb03c9482a30
 # ╠═617fd9b1-c6be-476e-9622-b6482602c7c7
 # ╠═1bc0ce25-4de0-4628-a308-8106544fc0ec
-# ╠═e69db63a-52b4-45c0-8b17-5239468cf5ad
+# ╟─e69db63a-52b4-45c0-8b17-5239468cf5ad
 # ╠═e0ae191c-b674-46c7-bf05-bfecade313a5
 # ╠═0279d32c-d884-4990-a1a6-68b43fae2f92
 # ╠═e1f1fa09-87ef-4cdb-94b1-0d2e0e483323
+# ╠═1ea5bea2-0c9d-4095-a395-24ad4f67ba05
 # ╠═577d411c-88b5-495d-a49a-d2379336f533
 # ╠═e09b72c2-5d7a-4215-ad77-f994f051cc93
 # ╠═d3542b58-07f4-4016-9d68-75b7978b79a4
@@ -1218,7 +1237,6 @@ version = "17.4.0+0"
 # ╠═ddab0b60-818a-4fc0-9aca-05f54c8b8352
 # ╠═09c19be2-867a-4c16-ace5-6e4a9389472c
 # ╠═97289274-85f2-46f7-b9bf-916f0a420301
-# ╠═db6547b2-0939-4d10-b590-4205f8c10ed3
 # ╠═2bad7a74-1b12-499f-b435-7f99c7d64ae9
 # ╠═290b50eb-0faf-4a5f-86bf-36628e61ff06
 # ╠═6397b8ae-62ea-404a-8add-08e79a39cd30

@@ -1,8 +1,10 @@
 ### A Pluto.jl notebook ###
-# v0.19.36
+# v0.19.46
 
 #> [frontmatter]
-#> title = "Normal Modes"
+#> title = "Normal Modes 1D"
+#> layout = "layout.jlhtml"
+#> tags = ["normalmodes"]
 #> description = "This notebook attempts to explain the free oscillations of the Earth using a Sturm–Liouville eigenvalue (violin-string) problem."
 
 using Markdown
@@ -70,10 +72,40 @@ md"""
 We begin with a solution of the form.
 """
 
+# ╔═╡ b899e9fe-b707-4a94-bb9c-4ca26842f311
+u(x, t) = U(x, ω) * cos(ω * t)
+
+# ╔═╡ b9b01f1b-92ca-4bfe-9d8c-2fcadbdcbf0f
+u(x, t)
+
+# ╔═╡ d8d39a7a-7f6c-41c2-8cf3-5ebefca14bff
+begin
+    Dx = Differential(x)
+    Dt = Differential(t)
+end
+
+# ╔═╡ a2261203-72f2-4b6e-8d5a-29b42691eaa4
+L(u, ρ, μ) = ρ * Dt(Dt(u)) - Dx(μ * Dx(u))
+
+# ╔═╡ 50cdd3ff-d53b-4477-8654-3cfbca8c3741
+Uex1 = expand_derivatives(L(u(x, t), ρ, μ))
+
+# ╔═╡ e1230cdd-c000-4f80-aabf-705cd47d7f05
+Ueq = simplify(Uex1 / cos(ω * t)) ~ 0
+
 # ╔═╡ 410bfa83-bbf0-4e05-a568-19416314ab87
 md"""
 The differential equation above is in Sturm–Liouville form. If the medium is homogeneous with constant velocity `c`, the solution is given by.
 """
+
+# ╔═╡ 7f70b9ad-9f4e-4ec9-ba3c-04fdd860e4b4
+Usol(x, c) = sin(x / c * ω)
+
+# ╔═╡ 8b5410b6-e7b8-4f2a-a8ce-b0572b7f7f52
+Usol(x, c)
+
+# ╔═╡ 8f1ddc1d-f03f-4a0b-b129-e6de48ecc51c
+substitute(Ueq.lhs, [U(x, ω) => Usol(x, c)]) |> expand_derivatives |> x -> substitute(x, [c^2 => μ / ρ]) |> simplify
 
 # ╔═╡ c7ac6da6-7e5b-4c14-a4aa-b3d83b469550
 md"""
@@ -151,36 +183,6 @@ md"## Appendix"
 
 # ╔═╡ 49d1e6d1-acd0-4cf8-8373-3c9daf61cf6c
 @syms x::Real t::Real ω::Real U(::Real, ::Real)::Real c::Real μ::Real ρ::Real
-
-# ╔═╡ b899e9fe-b707-4a94-bb9c-4ca26842f311
-u(x, t) = U(x, ω) * cos(ω * t)
-
-# ╔═╡ b9b01f1b-92ca-4bfe-9d8c-2fcadbdcbf0f
-u(x, t)
-
-# ╔═╡ d8d39a7a-7f6c-41c2-8cf3-5ebefca14bff
-begin
-    Dx = Differential(x)
-    Dt = Differential(t)
-end
-
-# ╔═╡ a2261203-72f2-4b6e-8d5a-29b42691eaa4
-L(u, ρ, μ) = ρ * Dt(Dt(u)) - Dx(μ * Dx(u))
-
-# ╔═╡ 50cdd3ff-d53b-4477-8654-3cfbca8c3741
-Uex1 = expand_derivatives(L(u(x, t), ρ, μ))
-
-# ╔═╡ e1230cdd-c000-4f80-aabf-705cd47d7f05
-Ueq = simplify(Uex1 / cos(ω * t)) ~ 0
-
-# ╔═╡ 7f70b9ad-9f4e-4ec9-ba3c-04fdd860e4b4
-Usol(x, c) = sin(x / c * ω)
-
-# ╔═╡ 8b5410b6-e7b8-4f2a-a8ce-b0572b7f7f52
-Usol(x, c)
-
-# ╔═╡ 8f1ddc1d-f03f-4a0b-b129-e6de48ecc51c
-substitute(Ueq.lhs, [U(x, ω) => Usol(x, c)]) |> expand_derivatives |> x -> substitute(x, [c^2 => μ / ρ]) |> simplify
 
 # ╔═╡ ede6c92e-9fb8-4e25-b87a-6c6ef5ba30da
 md"""
@@ -278,6 +280,9 @@ end
 md"""
 A simple test to check the differential operator `D`.
 """
+
+# ╔═╡ bef9146b-4965-4a74-87b3-09ddcf8ed3d9
+@test (3 .* cos.(3.0 .* xgrid)) ≈ D * sin.(3.0 .* xgrid)
 
 # ╔═╡ 9bbb4967-134c-4d6c-ac66-ff7ec993e8aa
 md"""
@@ -421,9 +426,6 @@ plot(xgrid, cvec, w=2, title="Wavespeed", label=nothing, size=(600, 200))
 
 # ╔═╡ 9afe5aa9-579f-4c56-8e7a-451efdd10a57
 D = Chebyshev_Diff_Matrix(xgrid, medium.nx - 1);
-
-# ╔═╡ bef9146b-4965-4a74-87b3-09ddcf8ed3d9
-@test (3 .* cos.(3.0 .* xgrid)) ≈ D * sin.(3.0 .* xgrid)
 
 # ╔═╡ 8b8b76d2-ac05-4160-8ceb-e9139908e53f
 Lop, LE = get_op(medium, cvec, D);
