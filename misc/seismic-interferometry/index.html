@@ -1,0 +1,149 @@
+<!DOCTYPE html><html lang="en">
+<head>
+
+<title>Seismic Interferometry — Interactive Seismology </title>
+
+
+<link rel="root" href="../.." />
+
+<link rel="icon" href="../../assets/favicon.ico" />
+<link rel="icon" href="../../assets/favicon.svg" type="image/svg+xml">
+
+<link rel="stylesheet" href="../../assets/styles/index.css" type="text/css" />
+<link rel="stylesheet" href="../../assets/styles/layout.css" type="text/css" />
+<script src="../../assets/scripts/sidebar.js" type="module"></script>
+
+<link rel="pp-search-data" href="../../pp_search_data.json" />
+<script src="https://cdn.jsdelivr.net/npm/lunr@2.3.9/lunr.min.js" integrity="sha256-DFDZACuFeAqEKv/7Vnu1Tt5ALa58bcWZegGGFNgET8g=" crossorigin="anonymous" defer></script>
+<script src="../../assets/scripts/search.js" type="module" defer></script>
+
+<script src="https://cdn.jsdelivr.net/npm/lite-youtube-embed@0.3.0/src/lite-yt-embed.js" integrity="sha256-sDRYYtDc+jNi2rrJPUS5kGxXXMlmnOSCq5ek5tYAk/M=" crossorigin="anonymous" defer></script>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/lite-youtube-embed@0.3.0/src/lite-yt-embed.css" integrity="sha256-lv6SEl7Dhri7d86yiHCTuSWFb9CYROQFewxZ7Je0n5k=" crossorigin="anonymous">
+
+<script defer src='https://static.cloudflareinsights.com/beacon.min.js' data-cf-beacon='{"token": "8572a580bead4b729ad55779ba3a1cd6"}'></script>
+
+<script data-goatcounter="https://computationalthinking-stats.plutojl.org/count" async src="//computationalthinking-stats.plutojl.org/count.js"></script>
+
+<meta name="viewport" content="width=device-width"><meta charset="utf-8">
+<meta name="pluto-insertion-spot-meta">
+<meta name="theme-color" media="(prefers-color-scheme: light)" content="white"><meta name="theme-color" media="(prefers-color-scheme: dark)" content="#2a2928"><meta name="color-scheme" content="light dark"><link rel="pluto-logo-big" href="https://cdn.jsdelivr.net/gh/fonsp/Pluto.jl@0.19.46/frontend-dist/logo.004c1d7c.svg" integrity="sha384-GkQkODcGxsrSRJCkeakBXihum0GUM44cwBgKyutDimectXCbCgj6Vu3jlrueqEcN" crossorigin="anonymous"><link rel="pluto-logo-small" href="https://cdn.jsdelivr.net/gh/fonsp/Pluto.jl@0.19.46/frontend-dist/favicon_unsaturated.d1387b25.svg" integrity="sha384-omwjH+Qy3hpAVf5FYd/pkaDBuVAfsEDRN7eBxEA8Ek00OAWP+aiV+GpEYk3I7lyo" crossorigin="anonymous"><script type="module" src="https://cdn.jsdelivr.net/gh/fonsp/Pluto.jl@0.19.46/frontend-dist/editor.7330d793.js" integrity="sha384-+mLMSKQxWEYKJeUt5VTdKTDfzHvui0mdMSd+iIQKYybm+6crs+6FeCr73c8yxir6" crossorigin="anonymous"></script><link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/fonsp/Pluto.jl@0.19.46/frontend-dist/editor.a682089f.css" integrity="sha384-aiiX4sVkuHqwZaQ4OOVV08zw55gY7JuiYbhRxwmatQyIdMKMsuW2vzbC0paOjVVj" crossorigin="anonymous"><script defer="">console.log("Pluto.jl, by Fons van der Plas (https://github.com/fonsp), Mikołaj Bochenski (https://github.com/malyvsen), Michiel Dral (https://github.com/dralletje) and friends 🌈");</script><script src="https://cdn.jsdelivr.net/gh/fonsp/Pluto.jl@0.19.46/frontend-dist/editor.b8733d72.js" defer="" integrity="sha384-84yPd6AGZ/1IUiaBlssipmMKMFz9WGFQ+u8vYZ9cWicH6bZm7ZOej+kLDXnIIAQJ" crossorigin="anonymous"></script><script src="https://cdn.jsdelivr.net/gh/fonsp/Pluto.jl@0.19.46/frontend-dist/editor.9f9dc874.js" defer="" integrity="sha384-tkFo1EK72I9JvoTmHFa199dfRzW8mkXPUkHb/N7UhYI+bxKzX3Kh8LNCZz1ltsFF" crossorigin="anonymous"></script><script src="https://cdn.jsdelivr.net/gh/fonsp/Pluto.jl@0.19.46/frontend-dist/editor.90ede145.js" defer="" integrity="sha384-CuNU9gQg6fa/yynNqNWjHWzPm4nj+d7O6+HXsNGSqClhs/bYQIbBC3Lw/kh8Ukui" crossorigin="anonymous"></script><script src="https://cdn.jsdelivr.net/gh/fonsp/Pluto.jl@0.19.46/frontend-dist/editor.912b6bfb.js" defer="" integrity="sha384-FRiqeyJfF9LJm/u55iNTcaVZ8AlzYtWo/26uURlz+Iu3ZPUiXXTMnAlu1+rO5HR0" crossorigin="anonymous"></script><script id="iframe-resizer-content-window-script" src="https://cdn.jsdelivr.net/gh/fonsp/Pluto.jl@0.19.46/frontend-dist/editor.6386bd9d.js" crossorigin="anonymous" defer="" integrity="sha384-tgN2a0VDi/lCYwZuDqT7L+A/Y/9kpxf3HV7zv2BJ5Fu7zW0EClq0nM4crfK3TRPs"></script><link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/fonsp/Pluto.jl@0.19.46/frontend-dist/editor.d9776a27.css" type="text/css" integrity="sha384-RK45/h2gdicn8pxD8WqZf1w7pzM3CCb9HD3xyGUreTljRGubIpCJhUckT0KahxtR" crossorigin="anonymous"><link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/fonsp/Pluto.jl@0.19.46/frontend-dist/editor.52bd66ba.css" type="text/css" media="all" data-pluto-file="hide-ui" integrity="sha384-mZn6RuXF1UXCTqkld9/QJshMPUFGT/EBEcr0lZfUV7TULrxk0fZqe+YHXMk+6Qb0" crossorigin="anonymous"><link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/fonsp/Pluto.jl@0.19.46/frontend-dist/editor.d0a5b1f0.css" type="text/css" integrity="sha384-oUdA9RJhs9IlGgJOs6m3tNmyOqOLTPOfpCXeXLUex2W5KOLfSAdyT5HoVuwUEFDQ" crossorigin="anonymous"><link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/fonsp/Pluto.jl@0.19.46/frontend-dist/editor.a79fcc8f.css" type="text/css" integrity="sha384-P7YcsNGWMp1f9Ffi+2kw3mrU2zVCb1nf0E/MJE+UDCc1OOXZUYC6ihS3Jagwyl2h" crossorigin="anonymous"><link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/fonsp/Pluto.jl@0.19.46/frontend-dist/editor.09b09a3f.css" type="text/css" integrity="sha384-dHB2VzrvTc7+CLgp62sndIQSbzeitJhO8vZnxV2zNlO4GHz83BZPqsY+0nTAF7WO" crossorigin="anonymous"><script data-pluto-file="launch-parameters">
+window.pluto_notebook_id = undefined;
+window.pluto_isolated_cell_ids = undefined;
+window.pluto_notebookfile = undefined;
+window.pluto_disable_ui = true;
+window.pluto_slider_server_url = undefined;
+window.pluto_binder_url = "https://mybinder.org/v2/gh/fonsp/pluto-on-binder/v0.19.46";
+window.pluto_statefile = undefined;
+window.pluto_preamble_html = undefined;
+</script>
+
+<meta name="pluto-insertion-spot-parameters">
+<script src="https://cdn.jsdelivr.net/gh/fonsp/Pluto.jl@0.19.46/frontend-dist/editor.c1afbccf.js" type="module" defer="" integrity="sha384-XIOcriU0JO8TxoT9lqiatkgRqchSIByRjJRvQAwJ64OGriaQ9TL6ewp0bFxF1R7L" crossorigin="anonymous"></script><script src="https://cdn.jsdelivr.net/gh/fonsp/Pluto.jl@0.19.46/frontend-dist/editor.8a3292da.js" integrity="sha384-itp4oE2PRbSrrTHVpWh8sqAuVUsz7ja6L2Dgp/JRfMCD2AwVdTk56K96POF3oLmu" crossorigin="anonymous"></script><script type="text/javascript" id="MathJax-script" integrity="sha384-4kE/rQ11E8xT9QgrCBTyvenkuPfQo8rXYQvJZuMgxyPOoUfpatjQPlgdv6V5yhUK" crossorigin="" not-the-src-yet="https://cdn.jsdelivr.net/npm/mathjax@3.2.2/es5/tex-svg-full.js" async=""></script>
+<meta name="pluto-insertion-spot-preload">
+
+
+</head>
+<body>
+    <div id="pages-layout">
+        <button id="toggle-nav" title="Open navigation"></button>
+        <nav id="pages-sidebar">
+        <div>
+        <ul>
+            <li class="sidebar-about">
+                <div class="course-title">
+                    <h1><a href="../.."><span>Interactive Seismology</span></a></h1>
+                    <h2><span>Computational lab to provide the students with interactive simulations that help them to comprehend concepts of seismology</span></h2>
+                </div>
+                <div class="authors">
+                    by <a href="https://ceas.iisc.ac.in/author/pawan-bharadwaj/">Pawan Bharadwaj</a>
+                </div>
+            </li>
+            <li>
+                <div class="search-bar">
+                    <form action="../../search" method="GET">
+                        <input type="search" name="q" placeholder="Search...">
+                        <input type=submit value="🔎">
+                    </form>
+                </div>
+            </li>
+        <li>
+<h3>Welcome</h3>
+<ul>
+<li class=' lecture tag_welcome'><a href='../../introduction/'><span class="entry-number"></span> Seismology</a></li><li class=' lecture tag_welcome'><a href='../../installation/'><span class="entry-number"></span> Software installation</a></li><li class=' lecture tag_welcome'><a href='../../cheatsheets/'><span class="entry-number"></span> Cheatsheets</a></li><li class=' lecture tag_welcome'><a href='../../classes/'><span class="entry-number"></span> Lecture Schedule</a></li><li class=' lecture tag_welcome'><a href='../../logistics/'><span class="entry-number"></span> Course Logistics</a></li><li class=' lecture tag_welcome'><a href='../../references/'><span class="entry-number"></span> References</a></li>
+</ul>
+</li>
+<li>
+<h3>Introduction</h3>
+<ul>
+<li class=' lecture tag_introduction'><a href='../../introduction/strain-tensor/' title='Deformation of a 2-D square element'><span class="entry-number"></span> Strain Tensor</a></li><li class=' lecture tag_introduction'><a href='../../raytheory/eikonal-equation backup 1/'><span class="entry-number"></span> Stress Tensor</a></li><li class=' lecture tag_introduction'><a href='../../raytheory/eikonal-equation/'><span class="entry-number"></span> Stress Tensor</a></li><li class=' lecture tag_introduction'><a href='../../introduction/stress-tensor/'><span class="entry-number"></span> Stress Tensor</a></li><li class=' lecture tag_introduction'><a href='../../introduction/history/' title='Some notes on the historical review and introductory material'><span class="entry-number"></span> Historical Review</a></li><li class=' lecture tag_introduction'><a href='../../introduction/oscillations/' title='Environment for exploring oscillations'><span class="entry-number"></span> Oscillations</a></li><li class=' lecture tag_introduction'><a href='../../introduction/waves-on-string/' title='Simulates wave propagation on a string'><span class="entry-number"></span> Waves On A String</a></li>
+</ul>
+</li>
+<li>
+<h3>Point Source</h3>
+<ul>
+<li class=' lecture tag_pointsource'><a href='../../pointsource/Lamb_problem/' title='Superposition of planewaves'><span class="entry-number"></span> Lamb&apos;s Problem</a></li><li class=' lecture tag_pointsource'><a href='../../pointsource/lame-theorem/' title='Are you in the near-field with P- and S-wave radiation? Don&apos;t worry, the response at your station has a higher-order discontinuity than in the far-field.'><span class="entry-number"></span> Lamé&apos;s Theorem</a></li><li class=' lecture tag_pointsource'><a href='../../pointsource/seismic-sources/' title='Representation of the displacement field due to slip across fault planes in the source region.'><span class="entry-number"></span> Seismic Source Theory</a></li>
+</ul>
+</li>
+<li>
+<h3>Planewaves</h3>
+<ul>
+<li class=' lecture tag_planewaves'><a href='../../planewaves/anisotropy/' title='This notebook helps us visualize non-circular wavefronts in a homogenoeus Earth medium due to the presence of anisotropy.'><span class="entry-number"></span> Seismic Anisotropy</a></li><li class=' lecture tag_planewaves'><a href='../../planewaves/boundary-conditions/' title='Boundary conditions at an interface between two different media'><span class="entry-number"></span> Boundary Conditions</a></li><li class=' lecture tag_planewaves'><a href='../../planewaves/intrinsic-attenuation backup 1/' title='This notebook helps us visualize these effects of attenuation on propagating seismic waves.'><span class="entry-number"></span> Seismic Attenuation</a></li><li class=' lecture tag_planewaves'><a href='../../planewaves/intrinsic-attenuation/' title='This notebook helps us visualize these effects of attenuation on propagating seismic waves.'><span class="entry-number"></span> Seismic Attenuation</a></li><li class=' lecture tag_planewaves'><a href='../../planewaves/reflection-P-SV-free-surface/' title='In this notebook, we shall investigate the interaction of plane P waves with Earth&apos;s free surface. '><span class="entry-number"></span> P-SV Free-surface Reflection</a></li><li class=' lecture tag_planewaves'><a href='../../planewaves/reflection-transmission-SH/' title='In this notebook, we shall investigate the behavior of waves that love to hop between two geological layers like kids in a bouncy castle.'><span class="entry-number"></span> Reflected and Transmitted SH Waves</a></li>
+</ul>
+</li>
+<li>
+<h3>Surface Waves</h3>
+<ul>
+<li class=' lecture tag_surfacewaves'><a href='../../surfacewaves/Love-wave-analytic1/' title='Dive into the world of plane Love waves in a single homogeneous layer overlying a homogeneous half-space, offering a simple yet fascinating exploration of the topic.'><span class="entry-number"></span> Love Waves</a></li><li class=' lecture tag_surfacewaves'><a href='../../surfacewaves/Rayleigh-function/' title='Particles may go round and round, but don&apos;t worry, let the Rayleigh wave pass by! This notebook will help you understand the physics behind it.'><span class="entry-number"></span> Rayleigh Function</a></li>
+</ul>
+</li>
+<li>
+<h3>Ray Theory</h3>
+<ul>
+<li class=' lecture tag_raytheory'><a href='../../raytheory/ray-theory-eikonal-equation/' title='This interactive notebook explores the Eikonal equation under the high-frequency approximation and its applications in tracing seismic rays in heterogeneous Earth models.'><span class="entry-number"></span> Ray Theory and The Eikonal Equation</a></li><li class=' lecture tag_raytheory'><a href='../../raytheory/ray-tomography/' title='This notebook focuses on the inverse formulation of 2-D first-arrival travel times.'><span class="entry-number"></span> Ray Tomography</a></li>
+</ul>
+</li>
+<li>
+<h3>Earthquake Data</h3>
+<ul>
+<li class=' lecture tag_eqdata'><a href='../../eqdata/polarization/'><span class="entry-number"></span> Polarization</a></li>
+</ul>
+</li>
+
+                <li><hr></li>
+            <li class="sidebar-about">
+                <div class="semester-details">
+                    <a href="../../semesters/">Aug 2024</a>
+                    <div class="course-numbers"><span>ES 218</span></div>
+                </div>
+                <div class="logos">
+                    <picture title="Indian Institute of Science">
+                        <img src="../../assets/IISc.svg">
+                    </picture>
+                    <picture title="Julia Programming Language">
+                        <source srcset="../../assets/julia-logo-dark.svg" media="(prefers-color-scheme: dark)" />
+                        <img src="../../assets/julia-logo-color.svg">
+                    </picture>
+                </div>
+            </li>
+        </ul>
+        </div>
+        </nav>
+        <div id="pages-content">
+           <div class="lecture-header" >
+    
+    <h1>Seismic Interferometry</h1>
+    
+    
+</div>
+        <pluto-editor 
+ statefile='../../generated_assets/seismic-interferometry_69bd92bc.plutostate' 
+ notebookfile='../../generated_assets/seismic-interferometry_9f61974c.jl' 
+
+
+	disable_ui
+></pluto-editor>
+
+        </div>
+    </div>
+</body>
+</html>
