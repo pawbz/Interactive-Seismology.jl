@@ -24,9 +24,11 @@ main a img {
 5. Boundary conditions
 6. Planewaves
 7. Lame's theorem; P and S waves
-8. Rayleigh & Love waves; dispersion
-9. Normal models of the Earth
-10. Intrinsic attenuation
-11. Seismic anisotropy
-12. Born approximation and imaging
-13. 
+8. P-SV and SH decomposition
+9. Rayleigh & Love waves; dispersion
+10. Normal models of the Earth
+11. Intrinsic attenuation
+12. Seismic anisotropy
+13. Born approximation and imaging
+14. Seismic interferometry
+15. Representation theorems
