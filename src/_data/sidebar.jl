@@ -6,5 +6,6 @@
     "surfacewaves" => "Surface Waves",
     "raytheory" => "Ray Theory",
     "misc" => "Miscellaneous",
+    "imaging" => "Imaging",
     "eqdata" => "Earthquake Data",
 ]
