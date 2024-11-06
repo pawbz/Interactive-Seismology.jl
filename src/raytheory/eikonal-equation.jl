@@ -2,9 +2,6 @@
 # v0.19.46
 
 #> [frontmatter]
-#> order = "4"
-#> title = "Stress Tensor"
-#> tags = ["introduction"]
 
 using Markdown
 using InteractiveUtils

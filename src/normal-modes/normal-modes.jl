@@ -72,40 +72,10 @@ md"""
 We begin with a solution of the form.
 """
 
-# ╔═╡ b899e9fe-b707-4a94-bb9c-4ca26842f311
-u(x, t) = U(x, ω) * cos(ω * t)
-
-# ╔═╡ b9b01f1b-92ca-4bfe-9d8c-2fcadbdcbf0f
-u(x, t)
-
-# ╔═╡ d8d39a7a-7f6c-41c2-8cf3-5ebefca14bff
-begin
-    Dx = Differential(x)
-    Dt = Differential(t)
-end
-
-# ╔═╡ a2261203-72f2-4b6e-8d5a-29b42691eaa4
-L(u, ρ, μ) = ρ * Dt(Dt(u)) - Dx(μ * Dx(u))
-
-# ╔═╡ 50cdd3ff-d53b-4477-8654-3cfbca8c3741
-Uex1 = expand_derivatives(L(u(x, t), ρ, μ))
-
-# ╔═╡ e1230cdd-c000-4f80-aabf-705cd47d7f05
-Ueq = simplify(Uex1 / cos(ω * t)) ~ 0
-
 # ╔═╡ 410bfa83-bbf0-4e05-a568-19416314ab87
 md"""
 The differential equation above is in Sturm–Liouville form. If the medium is homogeneous with constant velocity `c`, the solution is given by.
 """
-
-# ╔═╡ 7f70b9ad-9f4e-4ec9-ba3c-04fdd860e4b4
-Usol(x, c) = sin(x / c * ω)
-
-# ╔═╡ 8b5410b6-e7b8-4f2a-a8ce-b0572b7f7f52
-Usol(x, c)
-
-# ╔═╡ 8f1ddc1d-f03f-4a0b-b129-e6de48ecc51c
-substitute(Ueq.lhs, [U(x, ω) => Usol(x, c)]) |> expand_derivatives |> x -> substitute(x, [c^2 => μ / ρ]) |> simplify
 
 # ╔═╡ c7ac6da6-7e5b-4c14-a4aa-b3d83b469550
 md"""
@@ -113,7 +83,7 @@ md"""
 """
 
 # ╔═╡ 235eff94-9dca-40e6-a37f-e906d04eb094
-PlutoUI.LocalResource("images/normal-modes1.jpg")
+PlutoUI.LocalResource("../assets/images/normal-modes1.jpg")
 
 # ╔═╡ 04f765cb-826e-4939-800e-9a4952e895bb
 md"""[[image source]](https://www.gwrinstruments.com/low-frequency-seismology-monitoring.html)
@@ -183,6 +153,36 @@ md"## Appendix"
 
 # ╔═╡ 49d1e6d1-acd0-4cf8-8373-3c9daf61cf6c
 @syms x::Real t::Real ω::Real U(::Real, ::Real)::Real c::Real μ::Real ρ::Real
+
+# ╔═╡ b899e9fe-b707-4a94-bb9c-4ca26842f311
+u(x, t) = U(x, ω) * cos(ω * t)
+
+# ╔═╡ b9b01f1b-92ca-4bfe-9d8c-2fcadbdcbf0f
+u(x, t)
+
+# ╔═╡ d8d39a7a-7f6c-41c2-8cf3-5ebefca14bff
+begin
+    Dx = Differential(x)
+    Dt = Differential(t)
+end
+
+# ╔═╡ a2261203-72f2-4b6e-8d5a-29b42691eaa4
+L(u, ρ, μ) = ρ * Dt(Dt(u)) - Dx(μ * Dx(u))
+
+# ╔═╡ 50cdd3ff-d53b-4477-8654-3cfbca8c3741
+Uex1 = expand_derivatives(L(u(x, t), ρ, μ))
+
+# ╔═╡ e1230cdd-c000-4f80-aabf-705cd47d7f05
+Ueq = simplify(Uex1 / cos(ω * t)) ~ 0
+
+# ╔═╡ 7f70b9ad-9f4e-4ec9-ba3c-04fdd860e4b4
+Usol(x, c) = sin(x / c * ω)
+
+# ╔═╡ 8b5410b6-e7b8-4f2a-a8ce-b0572b7f7f52
+Usol(x, c)
+
+# ╔═╡ 8f1ddc1d-f03f-4a0b-b129-e6de48ecc51c
+substitute(Ueq.lhs, [U(x, ω) => Usol(x, c)]) |> expand_derivatives |> x -> substitute(x, [c^2 => μ / ρ]) |> simplify
 
 # ╔═╡ ede6c92e-9fb8-4e25-b87a-6c6ef5ba30da
 md"""
@@ -280,9 +280,6 @@ end
 md"""
 A simple test to check the differential operator `D`.
 """
-
-# ╔═╡ bef9146b-4965-4a74-87b3-09ddcf8ed3d9
-@test (3 .* cos.(3.0 .* xgrid)) ≈ D * sin.(3.0 .* xgrid)
 
 # ╔═╡ 9bbb4967-134c-4d6c-ac66-ff7ec993e8aa
 md"""
@@ -426,6 +423,9 @@ plot(xgrid, cvec, w=2, title="Wavespeed", label=nothing, size=(600, 200))
 
 # ╔═╡ 9afe5aa9-579f-4c56-8e7a-451efdd10a57
 D = Chebyshev_Diff_Matrix(xgrid, medium.nx - 1);
+
+# ╔═╡ bef9146b-4965-4a74-87b3-09ddcf8ed3d9
+@test (3 .* cos.(3.0 .* xgrid)) ≈ D * sin.(3.0 .* xgrid)
 
 # ╔═╡ 8b8b76d2-ac05-4160-8ceb-e9139908e53f
 Lop, LE = get_op(medium, cvec, D);
@@ -588,7 +588,7 @@ Symbolics = "~5.10.0"
 PLUTO_MANIFEST_TOML_CONTENTS = """
 # This file is machine-generated - editing it directly is not advised
 
-julia_version = "1.9.2"
+julia_version = "1.10.5"
 manifest_format = "2.0"
 project_hash = "70b68ad01303abc3b84e29a3dce70b93b18919e9"
 
@@ -774,7 +774,7 @@ weakdeps = ["Dates", "LinearAlgebra"]
 [[deps.CompilerSupportLibraries_jll]]
 deps = ["Artifacts", "Libdl"]
 uuid = "e66e0078-7015-5450-92f7-15fbd957f2ae"
-version = "1.0.5+0"
+version = "1.1.1+0"
 
 [[deps.CompositeTypes]]
 git-tree-sha1 = "02d2316b7ffceff992f3096ae48c7829a8aa0638"
@@ -1265,21 +1265,26 @@ uuid = "4af54fe1-eca0-43a8-85a7-787d91b784e3"
 [[deps.LibCURL]]
 deps = ["LibCURL_jll", "MozillaCACerts_jll"]
 uuid = "b27032c2-a3e7-50c8-80cd-2d36dbcbfd21"
-version = "0.6.3"
+version = "0.6.4"
 
 [[deps.LibCURL_jll]]
 deps = ["Artifacts", "LibSSH2_jll", "Libdl", "MbedTLS_jll", "Zlib_jll", "nghttp2_jll"]
 uuid = "deac9b47-8bc7-5906-a0fe-35ac56dc84c0"
-version = "7.84.0+0"
+version = "8.4.0+0"
 
 [[deps.LibGit2]]
-deps = ["Base64", "NetworkOptions", "Printf", "SHA"]
+deps = ["Base64", "LibGit2_jll", "NetworkOptions", "Printf", "SHA"]
 uuid = "76f85450-5226-5b5a-8eaa-529ad045b433"
+
+[[deps.LibGit2_jll]]
+deps = ["Artifacts", "LibSSH2_jll", "Libdl", "MbedTLS_jll"]
+uuid = "e37daf67-58a4-590a-8e99-b0245dd2ffc5"
+version = "1.6.4+0"
 
 [[deps.LibSSH2_jll]]
 deps = ["Artifacts", "Libdl", "MbedTLS_jll"]
 uuid = "29816b5a-b9ab-546f-933c-edad1886dfa8"
-version = "1.10.2+0"
+version = "1.11.0+1"
 
 [[deps.Libdl]]
 uuid = "8f399da3-3557-5675-b5ff-fb832c97cbdb"
@@ -1403,7 +1408,7 @@ version = "1.1.7"
 [[deps.MbedTLS_jll]]
 deps = ["Artifacts", "Libdl"]
 uuid = "c8ffd9c3-330d-5841-b78e-0817d7145fa1"
-version = "2.28.2+0"
+version = "2.28.2+1"
 
 [[deps.Measures]]
 git-tree-sha1 = "c13304c81eec1ed3af7fc20e75fb6b26092a1102"
@@ -1421,7 +1426,7 @@ uuid = "a63ad114-7e13-5084-954f-fe012c677804"
 
 [[deps.MozillaCACerts_jll]]
 uuid = "14a3606d-f60d-562e-9121-12d972cd8159"
-version = "2022.10.11"
+version = "2023.1.10"
 
 [[deps.MsgPack]]
 deps = ["Serialization"]
@@ -1460,12 +1465,12 @@ version = "1.3.5+1"
 [[deps.OpenBLAS_jll]]
 deps = ["Artifacts", "CompilerSupportLibraries_jll", "Libdl"]
 uuid = "4536629a-c528-5b80-bd46-f80d51c5b363"
-version = "0.3.21+4"
+version = "0.3.23+4"
 
 [[deps.OpenLibm_jll]]
 deps = ["Artifacts", "Libdl"]
 uuid = "05823500-19ac-5b8b-9628-191a04bc5112"
-version = "0.8.1+0"
+version = "0.8.1+2"
 
 [[deps.OpenSSL]]
 deps = ["BitFlags", "Dates", "MozillaCACerts_jll", "OpenSSL_jll", "Sockets"]
@@ -1499,7 +1504,7 @@ version = "1.6.2"
 [[deps.PCRE2_jll]]
 deps = ["Artifacts", "Libdl"]
 uuid = "efcefdf7-47ab-520b-bdef-62a2eaa19f15"
-version = "10.42.0+0"
+version = "10.42.0+1"
 
 [[deps.PDMats]]
 deps = ["LinearAlgebra", "SparseArrays", "SuiteSparse"]
@@ -1527,7 +1532,7 @@ version = "0.42.2+0"
 [[deps.Pkg]]
 deps = ["Artifacts", "Dates", "Downloads", "FileWatching", "LibGit2", "Libdl", "Logging", "Markdown", "Printf", "REPL", "Random", "SHA", "Serialization", "TOML", "Tar", "UUIDs", "p7zip_jll"]
 uuid = "44cfe95a-1eb2-52ea-b672-e2afdf69b78f"
-version = "1.9.2"
+version = "1.10.0"
 
 [[deps.PlotThemes]]
 deps = ["PlotUtils", "Statistics"]
@@ -1653,7 +1658,7 @@ deps = ["InteractiveUtils", "Markdown", "Sockets", "Unicode"]
 uuid = "3fa0cd96-eef1-5676-8a61-b3b8758bbffb"
 
 [[deps.Random]]
-deps = ["SHA", "Serialization"]
+deps = ["SHA"]
 uuid = "9a3f8284-a2c9-5f02-9a11-845980a1fd5c"
 
 [[deps.RandomExtensions]]
@@ -1839,6 +1844,7 @@ version = "1.2.0"
 [[deps.SparseArrays]]
 deps = ["Libdl", "LinearAlgebra", "Random", "Serialization", "SuiteSparse_jll"]
 uuid = "2f01184e-e22b-5df5-ae63-d93ebab69eaf"
+version = "1.10.0"
 
 [[deps.SpecialFunctions]]
 deps = ["IrrationalConstants", "LogExpFunctions", "OpenLibm_jll", "OpenSpecFun_jll"]
@@ -1868,7 +1874,7 @@ version = "1.4.2"
 [[deps.Statistics]]
 deps = ["LinearAlgebra", "SparseArrays"]
 uuid = "10745b16-79ce-11e8-11f9-7d13ad32a3b2"
-version = "1.9.0"
+version = "1.10.0"
 
 [[deps.StatsAPI]]
 deps = ["LinearAlgebra"]
@@ -1901,9 +1907,9 @@ deps = ["Libdl", "LinearAlgebra", "Serialization", "SparseArrays"]
 uuid = "4607b0f0-06f3-5cda-b6b1-a6196a1729e9"
 
 [[deps.SuiteSparse_jll]]
-deps = ["Artifacts", "Libdl", "Pkg", "libblastrampoline_jll"]
+deps = ["Artifacts", "Libdl", "libblastrampoline_jll"]
 uuid = "bea87d4a-7f5b-5778-9afe-8cc45184846c"
-version = "5.10.1+6"
+version = "7.2.1+1"
 
 [[deps.SymbolicIndexingInterface]]
 deps = ["DocStringExtensions"]
@@ -2225,7 +2231,7 @@ version = "1.5.0+0"
 [[deps.Zlib_jll]]
 deps = ["Libdl"]
 uuid = "83775a58-1f1d-513f-b197-d71354ab007a"
-version = "1.2.13+0"
+version = "1.2.13+1"
 
 [[deps.Zstd_jll]]
 deps = ["Artifacts", "JLLWrappers", "Libdl"]
@@ -2266,7 +2272,7 @@ version = "0.15.1+0"
 [[deps.libblastrampoline_jll]]
 deps = ["Artifacts", "Libdl"]
 uuid = "8e850b90-86db-534c-a0d3-1478176c7d93"
-version = "5.8.0+0"
+version = "5.11.0+0"
 
 [[deps.libevdev_jll]]
 deps = ["Artifacts", "JLLWrappers", "Libdl", "Pkg"]
@@ -2307,12 +2313,12 @@ version = "1.1.6+0"
 [[deps.nghttp2_jll]]
 deps = ["Artifacts", "Libdl"]
 uuid = "8e850ede-7688-5339-a07c-302acd2aaf8d"
-version = "1.48.0+0"
+version = "1.52.0+1"
 
 [[deps.p7zip_jll]]
 deps = ["Artifacts", "Libdl"]
 uuid = "3f19e933-33d8-53b3-aaab-bd5110c3b7a0"
-version = "17.4.0+0"
+version = "17.4.0+2"
 
 [[deps.x264_jll]]
 deps = ["Artifacts", "JLLWrappers", "Libdl", "Pkg"]
@@ -2354,7 +2360,7 @@ version = "1.4.1+1"
 # ╟─0d74cf59-6dea-43ac-a5c8-d060eec21936
 # ╟─b74bec20-f8a7-4ebf-93bf-13ac8bec8f44
 # ╠═a8aba6f3-c212-4428-8458-6925c49524cd
-# ╠═e464db0e-97fe-4a38-9309-8595b0c0420b
+# ╟─e464db0e-97fe-4a38-9309-8595b0c0420b
 # ╠═e4597db1-f92e-4513-824b-87c22ecb0f15
 # ╟─73d50ccc-9791-4b8b-8216-2041a3940357
 # ╠═9cda10ec-8e35-4b51-a0be-644c3be56f8e
