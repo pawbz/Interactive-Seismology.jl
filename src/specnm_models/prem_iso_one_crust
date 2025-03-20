@@ -1,0 +1,113 @@
+# Example Polynomial Model Input File for specnm
+# from Adam M. Dziewonski, Don L. Anderson, Preliminary reference Earth model,
+# Physics of the Earth and Planetary Interiors,
+# Volume 25, Issue 4, 1981, Pages 297-356, ISSN 0031-9201,
+# https://doi.org/10.1016/0031-9201(81)90046-7
+NAME                prem_iso_one_crust
+
+# is this model defined by multiple layers [layer] or polynomials [poly]
+MODEL_TYPE          poly
+
+# if anelastic, QMU an QKAPPA are defined, default: False
+ANELASTIC           T
+
+# reference frequency at which the velocities are defined in Hz, default: 1.
+REFERENCE_FREQUENCY 1.
+
+# if anisotropic, velocitities are defined as VPV, VPH, VSV, VSH and ETA is
+# provided. If false, only VP and VS are needed. default: False
+ANISOTROPIC         F
+
+# number of regions in which the model is described by polynomials
+NREGIONS            11
+
+# radii of discontinuties, for whole planets starts from the center (0.0) and includes
+# the free surface. This should hence be NREGIONS + 1 floats
+DISCONTINUITIES     6371.0 6346.6 6291.0 6151.0 5971.0 5771.0 5701.0 5600.0 3630.0 3480.0 1221.5 0.
+
+# index of the Moho discontinuity from the top (0 = surface)
+MOHO_IDX            1
+
+# index of the discontinuity where Moho topography is compenstated from the top (0 = surface)
+MOHO_COMP_IDX       3
+
+# maximum polynomial degree throughout the whole model, default: 3
+MAX_POLY_DEG        3
+
+# prefactor to scale the radius before evaluating the polynomial, default:
+# radius of the planet
+SCALE               6371.0
+
+# Are the units given in meters and meters per second?
+# Allowed values:
+#    m - lengths in m,  velocities in m/s,  density in kg/m^3
+#   km - lengths in km, velocities in km/s, density in g/cm^3 
+UNITS               km
+
+# Indentations by at least two blanks are necessary.
+# Assuming to have same order as DISCONTINUITIES (from center to the surface or vice versa)
+RHO
+  2.6
+  2.6910 0.6924
+  2.6910 0.6924
+  7.1089 -3.8045
+  11.2494 -8.0298
+  5.3197 -1.4836
+  7.9565 -6.4761 5.5283 -3.0807
+  7.9565 -6.4761 5.5283 -3.0807
+  7.9565 -6.4761 5.5283 -3.0807
+  12.5815 -1.2638 -3.6426 -5.5281
+  13.0885 0.0 -8.8381
+
+VP
+  5.8
+  4.1875 3.9382
+  4.1875 3.9382
+  20.3926 -12.2569
+  39.7027 -32.6166
+  19.0957 -9.8672
+  29.2766 -23.6027 5.5242 -2.5514
+  24.9520 -40.4673 51.4832 -26.6419
+  15.3891 -5.3181 5.5242 -2.5514
+  11.0487 -4.0362 4.8023 -13.5732
+  11.2622 0.0 -6.3640
+
+# Fluid is detected by a single 0. value
+VS
+  3.2
+  2.1519 2.3481
+  2.1519 2.3481
+  8.9496 -4.4597 
+  22.3512 -18.5856 
+  9.9839 -4.9324 
+  22.3459 -17.2473 -2.0834 0.9783 
+  11.1671 -13.7818 17.4575 -9.2777 
+  6.9254 1.4672 -2.0834 0.9783 
+  0.0
+  3.6678 0.0 -4.4475 
+
+QKAPPA
+  57827.0
+  57827.0
+  57827.0
+  57827.0
+  57827.0
+  57827.0
+  57827.0
+  57827.0
+  57827.0
+  57827.0
+  1327.7
+
+QMU
+  600.0
+  600.0
+  80.0
+  143.0
+  143.0
+  143.0
+  312.0
+  312.0
+  312.0
+  0.0
+  84.6

@@ -1,5 +1,5 @@
 ### A Pluto.jl notebook ###
-# v0.19.46
+# v0.20.4
 
 #> [frontmatter]
 #> title = "Seismic Full Waveform Inversion"
@@ -12,12 +12,14 @@ using InteractiveUtils
 
 # This Pluto notebook uses @bind for interactivity. When running this notebook outside of Pluto, the following 'mock version' of @bind gives bound variables a default value (instead of an error).
 macro bind(def, element)
+    #! format: off
     quote
         local iv = try Base.loaded_modules[Base.PkgId(Base.UUID("6e696c72-6542-2067-7265-42206c756150"), "AbstractPlutoDingetjes")].Bonds.initial_value catch; b -> missing; end
         local el = $(esc(element))
         global $(esc(def)) = Core.applicable(Base.get, el) ? Base.get(el) : iv(el)
         el
     end
+    #! format: on
 end
 
 # ╔═╡ c5815f5e-9164-11ec-10e1-691834761dff
@@ -2111,7 +2113,7 @@ version = "17.4.0+2"
 # ╠═92d05447-6d0e-4ee0-a330-244b9c65c871
 # ╠═77e134d8-bd8b-4303-8c44-a4920cf0ee81
 # ╟─b3015aff-bdab-4c94-87da-8744c174263a
-# ╠═4adbb7f0-7927-470d-8c00-07d3b3c0cd78
+# ╟─4adbb7f0-7927-470d-8c00-07d3b3c0cd78
 # ╟─7fd6fe40-0065-4074-b8cf-3d8cd8e68319
 # ╟─122c2aa4-baec-4288-ab53-afa1d977c486
 # ╠═7913b296-3010-410d-942f-834a47d599c7

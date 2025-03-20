@@ -1,0 +1,43 @@
+# Example Polynomial Model Input File
+NAME                homo-full-sphere
+
+# is this model defined by multiple layers [layer] or polynomials [poly]
+MODEL_TYPE          poly
+
+# number of regions in which the model is described by polynomials
+NREGIONS            1
+
+# radii of discontinuties, for whole planets starts from the center (0.0) and includes
+# the free surface. This should hence be NREGIONS + 1 floats
+DISCONTINUITIES     6371.0 0.
+
+# index of the Moho discontinuity from the top (0 = surface)
+MOHO_IDX            0
+
+# index of the discontinuity where Moho topography is compenstated from the top (0 = surface)
+MOHO_COMP_IDX       0
+
+# maximum polynomial degree throughout the whole model, default: 3
+MAX_POLY_DEG        0
+
+# prefactor to scale the radius before evaluating the polynomial, default:
+# radius of the planet
+SCALE               6371000.0
+
+# Are the units given in meters and meters per second?
+# Allowed values:
+#    m - lengths in m,  velocities in m/s,  density in kg/m^3
+#   km - lengths in km, velocities in km/s, density in g/cm^3 
+UNITS               m
+
+# Indentations by at least two blanks are necessary.
+# Assuming to have same order as DISCONTINUITIES (from center to the surface or vice versa)
+RHO
+  1000.0
+
+VP
+  1700.0
+
+VS
+  1000.0
+

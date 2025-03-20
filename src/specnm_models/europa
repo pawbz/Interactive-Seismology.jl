@@ -1,0 +1,23 @@
+#  Model for the moon europa from
+#  Stähler, S. C., Panning, M. P., Vance, S. D., Lorenz, R. D., van Driel, M.,
+#  Nissen-Meyer, T., & Kedar, S. (2018). 
+#  Seismic wave propagation in icy ocean worlds. 
+#  Journal of Geophysical Research: Planets, 123, 206–232. 
+#  https://doi.org/10.1002/2017JE005338 
+NAME            europa
+ANELASTIC       T
+ANISOTROPIC     T
+UNITS           m
+# Order of the colums of the model
+COLUMNS     radius      rho         vpv         vsv       vph      vsh     eta     qka       qmu
+# Ice Layer                                                                    
+         1569000.0  1000.00     4000.00     2000.00   4000.00  2000.00 1.00000 57327.0     600.0
+         1549000.0  1000.00     4000.00     2000.00   4000.00  2000.00 1.00000 57327.0     600.0
+# Ocean Layer                                                                  
+         1549000.0  1000.00     1500.00        0.00   1500.00     0.00 1.00000 57327.0       0.0
+         1469000.0  1000.00     1500.00        0.00   1500.00     0.00 1.00000 57327.0       0.0
+# Silicate Interior                                                            
+         1469000.0  3349.33     8050.02     4556.45   8050.02  4556.45 1.00000 57327.0     600.0
+          479000.0  3413.33     8598.39     4813.18   8598.39  4813.18 1.00000 57327.0     600.0
+          479000.0  8000.00     5252.03     2808.02   5252.03  2808.02 1.00000 57327.0     600.0
+               0.0  8277.33     5379.21     2851.00   5379.21  2851.00 1.00000 57327.0     600.0
