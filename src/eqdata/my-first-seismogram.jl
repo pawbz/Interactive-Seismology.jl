@@ -1,6 +1,13 @@
 ### A Pluto.jl notebook ###
 # v0.20.13
 
+#> [frontmatter]
+#> title = "My First Seismogram"
+#> date = "2025-08-06"
+#> layout = "layout.jlhtml"
+#> description = "Plot measured seismic waves due to large magnitude earthquakes"
+#> tags = ["eqdata"]
+
 using Markdown
 using InteractiveUtils
 

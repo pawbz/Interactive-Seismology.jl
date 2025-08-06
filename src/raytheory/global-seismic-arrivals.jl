@@ -1,6 +1,13 @@
 ### A Pluto.jl notebook ###
 # v0.20.13
 
+#> [frontmatter]
+#> title = "Global Bodywave Arrivals"
+#> date = "2025-08-05"
+#> tags = ["raytheory"]
+#> description = "What is the arrival you are looking for?"
+#> layout = "layout.jlhtml"
+
 using Markdown
 using InteractiveUtils
 
@@ -53,7 +60,7 @@ Indian Institute of Science, Bengaluru, India
 
 # ╔═╡ c97001e7-2f6f-46b5-8957-7b48a5fdc51e
 md"""
-> “The joy of being a seismologist comes to you when you find something new about the earth's interior from the observation of seismic waves obtained on the surface, and realize that you did it without penetrating the earth or touching or examining it directly.”
+> “The joy of being a seismologist comes to you when you find something new about the Earth's interior from the observation of seismic waves obtained on the surface, and realize that you did it without penetrating the Earth or touching or examining it directly.”
 > — Keiiti Aki, 1980
 """
 
@@ -85,12 +92,6 @@ phases = [arrival.name for arrival in arrivals]
 
 # ╔═╡ 5a439ed2-6333-4e44-bade-67e227975b92
 @bind selected_phases MultiCheckBox(phases, default=phases[1:1])
-
-# ╔═╡ dc326346-34d3-4543-92d7-c6ee46daf206
-getfield.(pyconvert(Array, arrivals[30].path), :traveltime) |> println
-
-# ╔═╡ e3fe5d4a-aee7-47ee-93b5-a19d08ecb34c
-arrivals[30].time |> println
 
 # ╔═╡ 3c203808-3886-4d94-9e05-b893d0ba6c4d
 arrivals_filtered = model.get_ray_paths(source_depth, receiver_distance, phase_list=selected_phases)
@@ -583,8 +584,6 @@ version = "0.41.3+0"
 # ╠═78b1bb95-14a6-461f-a668-8fbbaa7e5ee0
 # ╠═6dfc1926-4da7-405b-aca4-7eac0aa814c8
 # ╠═3c203808-3886-4d94-9e05-b893d0ba6c4d
-# ╠═dc326346-34d3-4543-92d7-c6ee46daf206
-# ╠═e3fe5d4a-aee7-47ee-93b5-a19d08ecb34c
 # ╟─9b0b4e7e-fd8f-4573-af80-ed76ff2848f5
 # ╠═47b2c09a-2ae8-49f0-ba73-ddb6868417b1
 # ╠═dd4cb9d8-8d6e-4ea8-b6bf-545631fecff8
