@@ -1,5 +1,5 @@
 ### A Pluto.jl notebook ###
-# v0.20.4
+# v0.20.5
 
 #> [frontmatter]
 #> title = "Ray Tomography"
@@ -13,7 +13,7 @@ using InteractiveUtils
 # This Pluto notebook uses @bind for interactivity. When running this notebook outside of Pluto, the following 'mock version' of @bind gives bound variables a default value (instead of an error).
 macro bind(def, element)
     #! format: off
-    quote
+    return quote
         local iv = try Base.loaded_modules[Base.PkgId(Base.UUID("6e696c72-6542-2067-7265-42206c756150"), "AbstractPlutoDingetjes")].Bonds.initial_value catch; b -> missing; end
         local el = $(esc(element))
         global $(esc(def)) = Core.applicable(Base.get, el) ? Base.get(el) : iv(el)
@@ -774,7 +774,7 @@ TikzPictures = "~3.5.0"
 PLUTO_MANIFEST_TOML_CONTENTS = """
 # This file is machine-generated - editing it directly is not advised
 
-julia_version = "1.11.2"
+julia_version = "1.11.4"
 manifest_format = "2.0"
 project_hash = "c0203808996167aa856ad68822a3d3d9386ff250"
 
@@ -1429,7 +1429,7 @@ version = "2.4.0+0"
 [[deps.OpenLibm_jll]]
 deps = ["Artifacts", "Libdl"]
 uuid = "05823500-19ac-5b8b-9628-191a04bc5112"
-version = "0.8.1+2"
+version = "0.8.1+4"
 
 [[deps.OpenSSL]]
 deps = ["BitFlags", "Dates", "MozillaCACerts_jll", "OpenSSL_jll", "Sockets"]
@@ -1947,7 +1947,7 @@ version = "0.13.1+0"
 # ╠═35c21158-fc55-45f6-930d-7b82c2c0685d
 # ╟─d9d53d21-09ee-47cd-b661-8787de32f2c1
 # ╟─7608a5c1-20b1-4d49-b12b-a8f2daef192b
-# ╠═842ec98f-505a-4873-9c64-725e2f92cbb9
+# ╟─842ec98f-505a-4873-9c64-725e2f92cbb9
 # ╠═78da0510-bf64-460e-82e7-59ba51c7c7f5
 # ╟─b741a0ec-726e-4ca5-98bf-10a03cdd2d57
 # ╟─4509e5b8-8d54-47e1-9ba7-b4929fd2d2fc

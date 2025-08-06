@@ -7,5 +7,6 @@
     "raytheory" => "Ray Theory",
     "misc" => "Miscellaneous",
     "imaging" => "Imaging",
+    "normalmodes" => "Normal Modes",
     "eqdata" => "Earthquake Data",
 ]

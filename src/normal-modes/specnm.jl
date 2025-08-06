@@ -1,5 +1,11 @@
 ### A Pluto.jl notebook ###
-# v0.20.4
+# v0.20.13
+
+#> [frontmatter]
+#> title = "PREM Earth Free Oscillations"
+#> tags = ["normalmodes"]
+#> layout = "layout.jlhtml"
+#> description = "Free oscillations of spherically symmetric bodies"
 
 using Markdown
 using InteractiveUtils
@@ -7,7 +13,7 @@ using InteractiveUtils
 # This Pluto notebook uses @bind for interactivity. When running this notebook outside of Pluto, the following 'mock version' of @bind gives bound variables a default value (instead of an error).
 macro bind(def, element)
     #! format: off
-    quote
+    return quote
         local iv = try Base.loaded_modules[Base.PkgId(Base.UUID("6e696c72-6542-2067-7265-42206c756150"), "AbstractPlutoDingetjes")].Bonds.initial_value catch; b -> missing; end
         local el = $(esc(element))
         global $(esc(def)) = Core.applicable(Base.get, el) ? Base.get(el) : iv(el)
@@ -59,6 +65,16 @@ Indian Institute of Science, Bengaluru, India
 
 # ╔═╡ 82cc9219-7633-41c6-91e1-17968904b2b6
 md"## Real Data"
+
+# ╔═╡ 921c2136-563a-4219-98f5-21cafa67e516
+md"""
+Start time after earthquake (min) $(@bind starttime_cut Slider(range(1, 10 * 24 * 60, length=1000), show_value=true, default=12*60))
+"""
+
+# ╔═╡ fe54d35f-8017-4bc0-ac6c-7dee815d1477
+md"""
+End time after earthquake (min) $(@bind endtime_cut Slider(range(starttime_cut, 10 * 24 * 60, length=1000), show_value=true, default=5*24*60))
+"""
 
 # ╔═╡ 5ec5e8d2-681b-4ce4-a581-478f00b91dc9
 md"## Specnm"
@@ -124,10 +140,7 @@ end;
 lov = specnm.love(model_fname, fmax=0.1)
 
 # ╔═╡ 3751319d-d1b8-484a-8a70-ad46a6a65634
-lov_out = lov.love_problem(attenuation_mode="elastic", fmax=0.005)
-
-# ╔═╡ 21d48160-8f70-4b15-9534-a7b0f5131335
-@bind ray_lov_selected Select([[ray, ray_out] => "Spheroidal", [lov, lov_out] => "Toroidal"])
+lov_out = lov.love_problem(attenuation_mode="full", fmax=0.005)
 
 # ╔═╡ c692b5d4-e136-47f4-9cc6-432d4e5ef3fe
 begin
@@ -150,6 +163,12 @@ overtones = vcat([lu != 1 ? collect(0:lc-1) : collect(1:lc) for (lu, lc) in zip(
 # Convert to a single vector
 lov_overtones = collect(reduce(vcat, overtones))
 end;
+
+# ╔═╡ 21d48160-8f70-4b15-9534-a7b0f5131335
+@bind cls_selected Select([(; cls=ray, cls_out=ray_out, angular_orders=ray_angular_orders, frequencies=ray_frequencies, overtones=ray_overtones) => "Spheroidal", (; cls=lov, cls_out=lov_out, angular_orders=lov_angular_orders, frequencies=lov_frequencies, overtones=lov_overtones) => "Toroidal"])
+
+# ╔═╡ 07f59b1f-faf3-46a2-80ff-82ea90ed4344
+cls_selected.angular_orders[31]
 
 # ╔═╡ 526c0fd9-4935-409e-82e0-059f5c084b57
 function read_model(filename::String)
@@ -311,17 +330,17 @@ selected_station = stations[selected_station_index]
 begin
 	freqmin = 0.2 * inv(1000)  # Lower cutoff frequency (Hz)
 	freqmax = 5.0 * inv(1000)    # Upper cutoff frequency (Hz)
-end
+end;
 
 # ╔═╡ 7493f1d5-2017-416b-bc0c-183767bad68a
 begin
-	starttime_data = eq_time + 0.5 * 3600  # Roughly start half a day after earthquake time
-	endtime_data = starttime_data + 48 * 3600  # 6 hours of data
+	starttime_data = eq_time  # Roughly start half a day after earthquake time
+	endtime_data = starttime_data + 10 * 24 * 3600  # 10 hours of data
 	st = client.get_waveforms(
 	        "IU",  # Network (IU, IC, II)
 	        selected_station[1],  # Station code
 	        "*",  # Any location
-	        "LHZ",  # Vertical component, 
+	        "LHE",  # Vertical component, 
 		attach_response=true,
 	        starttime_data, endtime_data
 	    )
@@ -332,13 +351,18 @@ begin
 	
 end
 
-# ╔═╡ b57d88b9-bdd5-447b-ba24-30a7b1ea1e0b
-plot(data)
+# ╔═╡ 3a325fab-9cf2-4cb8-a645-f0731e40b1f5
+istarttime_cut = round(Int, starttime_cut * 60 / sampling_rate)
+
+# ╔═╡ a7d64a11-17c4-4aa0-a10f-e47d39b1eebb
+iendtime_cut = round(Int, endtime_cut * 60 / sampling_rate)
 
 # ╔═╡ c168a471-f21f-4175-b7a0-5ae44d5d30ee
 begin
+	data_cut = data[istarttime_cut:iendtime_cut]
+	
 	# Compute FFT
-	n = length(data)
+	n = length(data_cut)
 	freqs = rfftfreq(n, 1/sampling_rate)
 	
 	# Convert frequency to mHz (as normal modes are in mHz)
@@ -350,9 +374,12 @@ begin
 	freqs_mHz = freqs_mHz[ifmin:ifmax]
 	freqs = freqs[1:ifmax]
 	
-	spectrum = abs.(rfft(data))[ifmin:ifmax]
+	spectrum = abs.(rfft(data_cut))[ifmin:ifmax]
 	
-end
+end;
+
+# ╔═╡ b57d88b9-bdd5-447b-ba24-30a7b1ea1e0b
+plot(data_cut)
 
 # ╔═╡ 1a67d073-bf07-4b01-beea-6c11013965be
 let
@@ -364,7 +391,7 @@ let
 	)]
 
 	# Add vertical lines at each mode frequency
-for (f, l, n) in zip(ray_frequencies, ray_angular_orders, ray_overtones)
+for (f, l, n) in zip(cls_selected[:frequencies], cls_selected[:angular_orders], cls_selected[:overtones])
     push!(spectrum_plot, scatter(
         x=[f, f],  # Vertical line at frequency f
         y=[0, maximum(spectrum)],  # Span full range of l
@@ -422,7 +449,7 @@ function spectrum_plot(cls, cls_out;
 
 # ╔═╡ 58041dd4-fd1c-4223-a00d-d4e98a7ef412
 @bind clicked_mode let
-	p = PlutoPlot(spectrum_plot(ray_lov_selected...))
+	p = PlutoPlot(spectrum_plot(cls_selected[:cls], cls_selected[:cls_out]))
 	add_plotly_listener!(p,"plotly_click", "
 	(e) => {
 
@@ -435,11 +462,19 @@ function spectrum_plot(cls, cls_out;
 	p
 end
 
+# ╔═╡ a9bbb105-3138-481d-9a73-0ec2b8303c36
+PlutoUI.ExperimentalLayout.hbox([plot_Earth_model(model_fname), eigenfunction_plot(cls_selected, clicked_mode)])
+
+# ╔═╡ bf3349da-ad56-4c4b-9b5c-c2e138abd1c0
+clicked_mode
+
 # ╔═╡ ecee2903-a103-498a-9aaf-b5d920f531f4
 """
 Plot eigenfunctions
 """
-function eigenfunction_plot(cls, cls_out, clicked_mode)
+function eigenfunction_plot(cls_selected, clicked_mode)
+	cls = cls_selected[:cls]
+	cls_out = cls_selected[:cls_out]
 	eigenfunctions = pyconvert(Matrix, cls_out["eigenfunctions"])
 	xs = pyconvert(Array, cls_out["angular orders"])
 	fcp = pyconvert(Array, cls_out["frequencies"] * 1000.0) # in mHz
@@ -471,8 +506,10 @@ function eigenfunction_plot(cls, cls_out, clicked_mode)
 	traces = map(efs, plabels) do e, label
 		scatter(x=e[dataid, :], y=depth_grid, name=label)
 	end
+	l = xs[dataid]
+	n = cls_selected[:overtones][dataid]
 	plot(traces, Layout(title="Eigen function; f (mHz): $(round(fcp[dataid], digits=3))<br> 
-	period (min): $(round(inv(fcp[dataid])*1000.0/60.0, digits=3))<br>l=$(xs[dataid])", width=300, height=550, yaxis=attr(range=[7000, -100], title="depth in km")))
+	period (min): $(round(inv(fcp[dataid])*1000.0/60.0, digits=3))<br><sub>$(n)</sub>S<sub>$(l)</sub>", width=300, height=550, yaxis=attr(range=[7000, -100], title="depth in km")))
 	
 	# plot(scatter(x=f[dataid, :], y=cls.r / 1000.0, mode="lines", line_color=oplotcolors[e], name=plabels[e]), )
 end
@@ -500,9 +537,6 @@ function plot_Earth_model(model_fname)
     return fig
 end
 
-# ╔═╡ a9bbb105-3138-481d-9a73-0ec2b8303c36
-PlutoUI.ExperimentalLayout.hbox([plot_Earth_model(model_fname), eigenfunction_plot(ray_lov_selected..., clicked_mode)])
-
 # ╔═╡ 00000000-0000-0000-0000-000000000001
 PLUTO_PROJECT_TOML_CONTENTS = """
 [deps]
@@ -526,7 +560,7 @@ StatsBase = "~0.34.4"
 PLUTO_MANIFEST_TOML_CONTENTS = """
 # This file is machine-generated - editing it directly is not advised
 
-julia_version = "1.11.3"
+julia_version = "1.11.4"
 manifest_format = "2.0"
 project_hash = "18456e1aa235134cfb42b1b67a74a9aa4043e0c3"
 
@@ -1163,12 +1197,16 @@ version = "0.41.3+0"
 # ╟─bdae265d-3a96-4ecc-a6dd-c166357e801c
 # ╟─21d48160-8f70-4b15-9534-a7b0f5131335
 # ╟─58041dd4-fd1c-4223-a00d-d4e98a7ef412
-# ╟─a9bbb105-3138-481d-9a73-0ec2b8303c36
+# ╠═a9bbb105-3138-481d-9a73-0ec2b8303c36
+# ╠═bf3349da-ad56-4c4b-9b5c-c2e138abd1c0
+# ╠═07f59b1f-faf3-46a2-80ff-82ea90ed4344
 # ╟─82cc9219-7633-41c6-91e1-17968904b2b6
 # ╟─849d1a59-2c2f-4e44-b45b-266382255b1a
 # ╟─2d7e4963-1cee-413c-8541-e8e77962c1fe
 # ╠═b57d88b9-bdd5-447b-ba24-30a7b1ea1e0b
-# ╟─1a67d073-bf07-4b01-beea-6c11013965be
+# ╟─921c2136-563a-4219-98f5-21cafa67e516
+# ╟─fe54d35f-8017-4bc0-ac6c-7dee815d1477
+# ╠═1a67d073-bf07-4b01-beea-6c11013965be
 # ╟─5ec5e8d2-681b-4ce4-a581-478f00b91dc9
 # ╠═1b22f312-9197-4044-ba9b-1f12789b88ff
 # ╠═55b7b9a8-caea-4ec6-b47d-937231eaaee8
@@ -1206,6 +1244,8 @@ version = "0.41.3+0"
 # ╠═ba1041f2-8173-4436-9413-ba8c8c85af20
 # ╠═55968681-0b8c-4bb0-8ee9-1a9d81ee34e6
 # ╠═7493f1d5-2017-416b-bc0c-183767bad68a
+# ╠═3a325fab-9cf2-4cb8-a645-f0731e40b1f5
+# ╠═a7d64a11-17c4-4aa0-a10f-e47d39b1eebb
 # ╠═580d562e-4c3f-4adb-94cf-65048ee7ff35
 # ╠═c168a471-f21f-4175-b7a0-5ae44d5d30ee
 # ╟─89c81d3c-67c1-4cc7-b892-d64208d845f2

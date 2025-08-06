@@ -1,5 +1,5 @@
 ### A Pluto.jl notebook ###
-# v0.19.41
+# v0.20.8
 
 using Markdown
 using InteractiveUtils
@@ -215,7 +215,7 @@ pics/crust/.style n args={6}{
   """
 
 # ╔═╡ 7035d9ef-d399-4339-a243-68d4a45bb425
-plot(code; width="", options=raw"") = TikzPicture(code, options=tikz_default_options * options, preamble=tikz_preamble, width=width)
+plot(code; width="", preamble=raw"", options=raw"") = TikzPicture(code, options=tikz_default_options * options, preamble=tikz_preamble * preamble, width=width)
 
 # ╔═╡ 5150711d-5c7d-4788-86d8-848cb072532b
 tikz_default_options * raw"""scale=2"""
