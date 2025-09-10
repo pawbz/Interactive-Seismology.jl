@@ -1,5 +1,5 @@
 ### A Pluto.jl notebook ###
-# v0.20.4
+# v0.20.13
 
 #> [frontmatter]
 #> title = "Born Approximation"
@@ -13,7 +13,7 @@ using InteractiveUtils
 # This Pluto notebook uses @bind for interactivity. When running this notebook outside of Pluto, the following 'mock version' of @bind gives bound variables a default value (instead of an error).
 macro bind(def, element)
     #! format: off
-    quote
+    return quote
         local iv = try Base.loaded_modules[Base.PkgId(Base.UUID("6e696c72-6542-2067-7265-42206c756150"), "AbstractPlutoDingetjes")].Bonds.initial_value catch; b -> missing; end
         local el = $(esc(element))
         global $(esc(def)) = Core.applicable(Base.get, el) ? Base.get(el) : iv(el)
@@ -31,11 +31,11 @@ begin
     using PlutoPlotly
     using PlutoUI
     using PlutoTeachingTools
-    using SpecialFunctions
     using Einsum
-    using Tullio
     using MLUtils
     using PlutoLinks, PlutoHooks
+	using SpecialFunctions
+	using Tullio
 end
 
 # ╔═╡ c0e6e258-7fcb-4bd8-9931-be0203c1adc9
@@ -344,10 +344,10 @@ plot(scatter(x=freqgrid, y=Fsource), Layout(width=400, height=200, title="Source
 begin
     nxUI = 200
     nzUI = 100
-    δxUI = 4.0 # spatial sampling interval
-    xgridUI = range(0, step=δxUI, length=nxUI)
-    zgridUI = range(0, step=δxUI, length=nzUI)
-end
+    δxUI = 4f0 # spatial sampling interval
+    xgridUI = Float32.(collect(range(0.0, step=δxUI, length=nxUI)))
+    zgridUI = Float32.(collect(range(0, step=δxUI, length=nzUI)))
+end;
 
 # ╔═╡ acba3f10-975b-423d-9ab8-ead6d9f9774b
 begin
@@ -362,9 +362,9 @@ paUI = (; tgrid, vp0, rho0, freqgrid, kgrid, Fsource, xgrid=xgridUI, zgrid=zgrid
 
 # ╔═╡ 33a221fe-ab5d-4a41-80bd-105746f949fb
 begin
-    δxplot = 11.0
-    xgrid = range(first(xgridUI), stop=last(xgridUI), step=δxplot)
-    zgrid = range(first(xgridUI), stop=last(zgridUI), step=δxplot)
+    δxplot = 11f0
+    xgrid = Float32.(collect(range(first(xgridUI), stop=last(xgridUI), step=δxplot)))
+    zgrid = Float32.(collect(range(first(xgridUI), stop=last(zgridUI), step=δxplot)))
     nxgrid = length(xgrid)
     nzgrid = length(zgrid)
 end;
@@ -388,15 +388,9 @@ function get_xlocation(I, δ)
 end
 
 # ╔═╡ 453fcb4f-1cc6-4c57-9bec-2e1d7c76244a
-function get_zlocation(I, δ)
+function get_zlocation(I, δ, nzUI)
     Float32.((nzUI - I[2] + 1) * δ)
 end
-
-# ╔═╡ baeaecf7-ad9c-42d5-8946-3c336d28fb8b
-slocs_x = 0.0 # source location(s)
-
-# ╔═╡ 049206ed-3f9e-45c6-9280-2aa80636a630
-slocs_z = -100.0
 
 # ╔═╡ 2ac0ea94-aa5d-43da-a240-db4a57dda204
 nr = 50;
@@ -411,11 +405,25 @@ The seismic source is located near the surface at (x, z)=(0,0),
 and $(length(rUI)) receivers on the surface (z=0).
 """
 
+# ╔═╡ 97b3eaf7-c528-4693-8b89-bd33bdd9184c
+ns = 5;
+
+# ╔═╡ ffd19316-d2ba-4bec-abde-19cf05994ecf
+md"Select Sources $(@bind sUI MultiCheckBox(1:ns, select_all=true, default=collect(1:ns)))"
+
 # ╔═╡ 4389a492-2096-4e2a-b05f-91e9820e15a4
 rlocs_x = [rx for rx in range(0, stop=last(xgridUI), length=nr)] # receiver locations
 
+# ╔═╡ 912a031d-ebed-44b4-a350-2c72fb7623de
+# source x location(s)
+slocs_x = [sx for sx in range(0, stop=last(xgridUI), length=ns)] # source locations
+
 # ╔═╡ 55631892-919f-4950-acfe-d08bf0a691fc
 rlocs_z = fill(-10.0, length(rlocs_x));
+
+# ╔═╡ 0c74076a-a3a1-4b9b-9592-0e67077d2f83
+# source z location(s)
+slocs_z = fill(-20.0, length(slocs_x));
 
 # ╔═╡ 5ffccf58-7f01-49fc-a6c8-8e284a05b2dc
 acq = map((; rlocs_x, rlocs_z, slocs_x, slocs_z)) do x
@@ -463,7 +471,7 @@ end
 md"### Modeling"
 
 # ╔═╡ 7b46eac4-193a-4c25-99b3-b25009ba1260
-function get_forward_operator_with_scatterer_locations(pa, acq, scatterer_locations)
+function get_forward_operator_with_scatterer_locations(pa, acq, scatterer_locations, δxUI, nzUI)
     if (isempty(scatterer_locations))
         return 0.0
     else
@@ -475,12 +483,12 @@ function get_forward_operator_with_scatterer_locations(pa, acq, scatterer_locati
         get_xlocation(l, δxUI)
     end
     scat_z = map(scatterer_locations) do l
-        get_zlocation(l, δxUI)
+        get_zlocation(l, δxUI, nzUI)
     end
     nr = length(acq.rlocs_x)
     nω = length(pa.freqgrid)
     @tullio F[iω] := freqgrid[iω] * freqgrid[iω] * Fsource[iω] * 4.0 * pi * pi
-    @tullio G[iω, ir, iS] := G0(scat_x[iS], scat_z[iS], acq.slocs_x, acq.slocs_z, kgrid[iω], rho0) * G0(acq.rlocs_x[ir], acq.rlocs_z[ir], scat_x[ix], scat_z[iz], kgrid[iω], rho0) * F[iω]
+    @tullio G[iω, ir, iS] := G0(scat_x[iS], scat_z[iS], acq.slocs_x[1], acq.slocs_z[1], kgrid[iω], rho0) * G0(acq.rlocs_x[ir], acq.rlocs_z[ir], scat_x[ix], scat_z[iz], kgrid[iω], rho0) * F[iω]
     # remove zero frequencies
     @tullio G[1, i, j] = complex(0.0)
     return reshape(G, nr * nω, :)
@@ -488,11 +496,11 @@ end
 
 # ╔═╡ 8218676f-0d09-4beb-bd17-8ae5b692c56d
 forward_grid = @use_memo([reset_anim]) do
-    get_forward_operator_with_scatterer_locations(pagrid, acqgrid, slowness_pert_draw_input)
+    get_forward_operator_with_scatterer_locations(pagrid, acqgrid, slowness_pert_draw_input, δxUI, nzUI)
 end;
 
 # ╔═╡ 173adc88-5366-49e7-a1af-6478404e082e
-function get_forward_operator(pa, acq)
+function get_forward_operator(pa, acq, sloc_x, sloc_z)
     (; xgrid, zgrid, freqgrid, kgrid, Fsource, vp0, rho0) = pa
 
     X = Float32.(collect(xgrid))
@@ -502,17 +510,19 @@ function get_forward_operator(pa, acq)
     nr = length(acq.rlocs_x)
     nω = length(pa.freqgrid)
     @tullio F[iω] := freqgrid[iω] * freqgrid[iω] * Fsource[iω] * 4.0 * pi * pi
-    @tullio G[iω, ir, iz, ix] := G0(X[ix], Z[iz], acq.slocs_x, acq.slocs_z, kgrid[iω], rho0) * G0(acq.rlocs_x[ir], acq.rlocs_z[ir], X[ix], Z[iz], kgrid[iω], rho0) * F[iω]
+    @tullio G[iω, ir, iz, ix] := G0(X[ix], Z[iz], sloc_x, sloc_z, kgrid[iω], rho0) * G0(acq.rlocs_x[ir], acq.rlocs_z[ir], X[ix], Z[iz], kgrid[iω], rho0) * F[iω]
     # remove zero frequencies
     @tullio G[1, i, j, k] = complex(0.0)
     return reshape(G, nr * nω, nx * nz)
 end
 
 # ╔═╡ 9ce0b88a-4e39-4c95-83fb-1758ee661b45
-forward_UI = get_forward_operator(paUI, acq);
+forward_UI = map(slocs_x, slocs_z) do sx, sz
+	get_forward_operator(paUI, acq, sx, sz);
+end
 
 # ╔═╡ e5a6e125-c700-4471-9781-abbd0b1c49c7
-function get_reference_wavefield(pa, acq)
+function get_reference_wavefield(pa, acq, tgrid)
     (; xgrid, zgrid, freqgrid, kgrid, Fsource, vp0, rho0) = pa
     @tullio D[iω, ir, is] := G0(acq.rlocs_x[ir], acq.rlocs_z[ir], acq.slocs_x[is], acq.slocs_z[is], kgrid[iω], rho0) * Fsource[iω]
     # remove zero frequencies
@@ -522,10 +532,10 @@ function get_reference_wavefield(pa, acq)
 end
 
 # ╔═╡ 887cc848-e97e-451d-8bb4-3f0eebb20723
-d = get_reference_wavefield(paUI, acq);
+d = get_reference_wavefield(paUI, acq, tgrid);
 
 # ╔═╡ 9f05fce9-9c03-49b4-abeb-70977dcb9892
-dgrid = reshape(get_reference_wavefield(pagrid, acqgrid), :, nzgrid, nxgrid);
+dgrid = reshape(get_reference_wavefield(pagrid, acqgrid, tgrid)[:, :, 1], :, nzgrid, nxgrid);
 
 # ╔═╡ 04669a0d-9bb8-4106-ab87-7afd3ac86597
 function get_scattered_wavefield(slowness, G, acq, pa)
@@ -540,8 +550,11 @@ end
 
 # ╔═╡ 68d92a09-8fc6-485c-aeac-c392a21951e4
 begin
-    δd = get_scattered_wavefield(slowness_grid_input, forward_UI, acq, paUI)
-    δd[:, filter(x -> x ∉ rUI, 1:nr)] .= 0.0f0
+    δd = map(forward_UI) do Gmat
+		d = get_scattered_wavefield(slowness_grid_input, Gmat, acq, paUI)
+		d[:, filter(x -> x ∉ rUI, 1:nr)] .= 0.0f0
+		d
+	end
 end;
 
 # ╔═╡ 2bf0042b-f9b3-4ea3-b3d8-46d89a1ce2fe
@@ -564,14 +577,19 @@ function get_migration_image(δd, G, acq, pa)
 end
 
 # ╔═╡ d8fc5b82-84a7-4f86-88f0-55b09b355a25
-image = get_migration_image(δd, forward_UI, acq, paUI);
+images = map(forward_UI, δd) do Gmat, d
+	get_migration_image(d, Gmat, acq, paUI)
+end;
+
+# ╔═╡ 98d344f7-3ee2-42b7-aefe-d88604abdc8b
+image = sum(images[sUI]);
 
 # ╔═╡ 3c23a484-0b9a-4044-bcec-fec447509991
 md"### Plots"
 
 # ╔═╡ a6f59c95-2271-4f2f-894f-b574401cd545
 function plot_data(d, δd, d1max)
-    fig = Plot(Layout(title="Measured Wavefield", yaxis_autorange="reversed", height=400, width=500, yaxis_title="time [s]", Subplots(shared_xaxes=true, shared_yaxes=true, rows=1, cols=2, subplot_titles=["Reference" "Scattered"], x_title="# Receiver")))
+    fig = Plot(Layout(title="Measured Wavefield (Source #$(first(sUI)))", yaxis_autorange="reversed", height=400, width=500, yaxis_title="time [s]", Subplots(shared_xaxes=true, shared_yaxes=true, rows=1, cols=2, subplot_titles=["Reference" "Scattered"], x_title="# Receiver")))
     
 
     add_trace!(fig, heatmap(y=tgrid, z=d, zmin=-d1max, zmax=d1max, showscale=false, colorscale="jet"), row=1, col=1)
@@ -582,7 +600,7 @@ function plot_data(d, δd, d1max)
 end
 
 # ╔═╡ 56d75f42-6a38-4e79-a0a9-e9f005996ac6
-plot_data(d[:, :, 1], δd[:, :, 1], maximum(abs,d[:,:,1])/2)
+plot_data(d[:, :, first(sUI)], δd[:, :, 1][first(sUI)], maximum(abs,d[:,:,1][first(sUI)])/2)
 
 # ╔═╡ 44dfa401-7f1d-467f-99e9-beab9ec52427
 function add_ageom!(fig, ageom, row=1, col=1)
@@ -616,7 +634,7 @@ plot_image(image)
 # ╔═╡ 1c95eb36-adc8-44f1-867b-eb3521684eb9
 function plot_animations(d1, d2, d1max)
 
-    fig = Plot(Layout(title="Wavefield", yaxis_autorange="reversed", xaxis=attr(range=extrema(xgridUI) .+ [-20, 20]),
+    fig = Plot(Layout(title="Wavefield (Source #$(first(sUI)))", yaxis_autorange="reversed", xaxis=attr(range=extrema(xgridUI) .+ [-20, 20]),
         yaxis=attr(range=extrema(zgridUI) .+ [-10, 10]),
         height=225, width=700, yaxis_title="Depth", xaxis_title="Distance", Subplots(shared_xaxes=true, shared_yaxes=true, rows=1, cols=2, subplot_titles=["Reference" "Scattered"])))
     add_trace!(fig, heatmap(x=xgrid, y=zgrid, z=d1, zmin=-d1max, zmax=d1max, showscale=false, colorscale="Greys"), row=1, col=1)
@@ -687,7 +705,7 @@ Tullio = "~0.3.7"
 PLUTO_MANIFEST_TOML_CONTENTS = """
 # This file is machine-generated - editing it directly is not advised
 
-julia_version = "1.11.3"
+julia_version = "1.11.6"
 manifest_format = "2.0"
 project_hash = "f22ec49e2aaf38de5e39a3ab73387f41bea3dcad"
 
@@ -1518,7 +1536,7 @@ version = "0.3.27+1"
 [[deps.OpenLibm_jll]]
 deps = ["Artifacts", "Libdl"]
 uuid = "05823500-19ac-5b8b-9628-191a04bc5112"
-version = "0.8.1+2"
+version = "0.8.5+0"
 
 [[deps.OpenSpecFun_jll]]
 deps = ["Artifacts", "CompilerSupportLibraries_jll", "JLLWrappers", "Libdl"]
@@ -2100,8 +2118,9 @@ version = "17.4.0+2"
 # ╟─99d5ad02-2897-4f2c-9a80-a146f90e38dd
 # ╟─3d88f8c4-ba31-4d99-8966-3ddf617e5b5f
 # ╟─3786bd54-105a-46d7-8232-b93835b01129
-# ╟─56d75f42-6a38-4e79-a0a9-e9f005996ac6
+# ╟─ffd19316-d2ba-4bec-abde-19cf05994ecf
 # ╟─6e74479f-96ce-4af7-ae7d-603fe32ba88f
+# ╟─56d75f42-6a38-4e79-a0a9-e9f005996ac6
 # ╟─4972f23b-88a8-49d9-acad-75a65bdbe101
 # ╟─9d498284-f702-4f6b-aace-54743c7df206
 # ╟─cff433fb-e1c4-42ae-a310-db85f48d09e3
@@ -2153,6 +2172,7 @@ version = "17.4.0+2"
 # ╠═68d92a09-8fc6-485c-aeac-c392a21951e4
 # ╠═2bf0042b-f9b3-4ea3-b3d8-46d89a1ce2fe
 # ╠═d8fc5b82-84a7-4f86-88f0-55b09b355a25
+# ╠═98d344f7-3ee2-42b7-aefe-d88604abdc8b
 # ╟─b48cf5ec-a033-46e3-aec8-da5864b2386a
 # ╠═8acbffaf-1811-4592-a2d1-a8f561242d85
 # ╠═094b0ad6-1ec0-407a-884f-7147d8a2ec9f
@@ -2172,11 +2192,12 @@ version = "17.4.0+2"
 # ╠═d856645d-39bc-4603-837f-3c39d9df64af
 # ╠═2aa9168a-cadb-4060-9eac-d93a1cf3bf0b
 # ╠═453fcb4f-1cc6-4c57-9bec-2e1d7c76244a
-# ╠═baeaecf7-ad9c-42d5-8946-3c336d28fb8b
-# ╠═049206ed-3f9e-45c6-9280-2aa80636a630
 # ╠═2ac0ea94-aa5d-43da-a240-db4a57dda204
+# ╠═97b3eaf7-c528-4693-8b89-bd33bdd9184c
 # ╠═4389a492-2096-4e2a-b05f-91e9820e15a4
+# ╠═912a031d-ebed-44b4-a350-2c72fb7623de
 # ╠═55631892-919f-4950-acfe-d08bf0a691fc
+# ╠═0c74076a-a3a1-4b9b-9592-0e67077d2f83
 # ╠═5ffccf58-7f01-49fc-a6c8-8e284a05b2dc
 # ╠═3cf87a6e-d244-494b-8675-aaaaac6fbf00
 # ╟─9404b52d-c571-4e23-8dda-d20d10de0457

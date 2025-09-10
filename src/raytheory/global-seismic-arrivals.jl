@@ -58,12 +58,6 @@ Instructor: *Pawan Bharadwaj*,
 Indian Institute of Science, Bengaluru, India
 """
 
-# ╔═╡ c97001e7-2f6f-46b5-8957-7b48a5fdc51e
-md"""
-> “The joy of being a seismologist comes to you when you find something new about the Earth's interior from the observation of seismic waves obtained on the surface, and realize that you did it without penetrating the Earth or touching or examining it directly.”
-> — Keiiti Aki, 1980
-"""
-
 # ╔═╡ 66e7dd53-6423-4c4f-ba45-49d0439d51cf
 md"""
 ## Select Source Depth and Receiver Distance
@@ -574,7 +568,6 @@ version = "0.41.3+0"
 # ╔═╡ Cell order:
 # ╠═025b2827-ed43-45f5-a981-56dd599c72cb
 # ╟─6b3bba88-b693-4e39-8866-8166dfc55c30
-# ╟─c97001e7-2f6f-46b5-8957-7b48a5fdc51e
 # ╟─66e7dd53-6423-4c4f-ba45-49d0439d51cf
 # ╟─5a439ed2-6333-4e44-bade-67e227975b92
 # ╟─10cc4de1-f635-4a4c-b195-19dca1e44d4c

@@ -1,5 +1,5 @@
 ### A Pluto.jl notebook ###
-# v0.20.5
+# v0.20.13
 
 #> [frontmatter]
 #> title = "Lamé's Theorem"
@@ -788,7 +788,7 @@ Symbolics = "~6.2.0"
 PLUTO_MANIFEST_TOML_CONTENTS = """
 # This file is machine-generated - editing it directly is not advised
 
-julia_version = "1.11.4"
+julia_version = "1.11.6"
 manifest_format = "2.0"
 project_hash = "1aacbcca6ef3ad85fdb931ec690a66d6a0714594"
 
@@ -1480,7 +1480,7 @@ version = "0.3.27+1"
 [[deps.OpenLibm_jll]]
 deps = ["Artifacts", "Libdl"]
 uuid = "05823500-19ac-5b8b-9628-191a04bc5112"
-version = "0.8.1+4"
+version = "0.8.5+0"
 
 [[deps.OpenSpecFun_jll]]
 deps = ["Artifacts", "CompilerSupportLibraries_jll", "JLLWrappers", "Libdl"]
@@ -2031,8 +2031,8 @@ version = "17.4.0+2"
 # ╟─d6c09c3c-7fb6-4598-8897-a8f93b3c725e
 # ╟─280472ec-50db-49b6-9c96-5f9d5c80b3bb
 # ╟─d502d260-c562-476f-9e05-5dc1a2ce26b9
-# ╟─7917e7eb-ecef-4efe-9cca-606895199a7d
 # ╟─17f3f3b5-0632-431f-8081-ae5c386171ed
+# ╟─7917e7eb-ecef-4efe-9cca-606895199a7d
 # ╟─44c900ad-e9bf-4bc3-b456-898899ccd36b
 # ╟─25f3761a-3f94-4aa8-9fb8-0fbbe32fe095
 # ╟─2957f6f0-7314-4340-9062-b6da2f1a7089

@@ -23,3 +23,8 @@ Seismology plays a vital role in various fields, including earthquake engineerin
 In this course, we will delve into the fascinating world of seismology, exploring the principles and techniques used to analyze seismic data. By the end of this journey, you will have a solid foundation in seismology and be equipped with the tools to interpret seismic waves and unravel the secrets hidden beneath our feet.
 
 Let's embark on this seismic adventure and discover the captivating realm of seismology together.
+
+
+
+> “The joy of being a seismologist comes to you when you find something new about the Earth's interior from the observation of seismic waves obtained on the surface, and realize that you did it without penetrating the Earth or touching or examining it directly.”
+> — Keiiti Aki, 1980
