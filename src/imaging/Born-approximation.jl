@@ -34,7 +34,7 @@ begin
     using Einsum
     using MLUtils
     using PlutoLinks, PlutoHooks
-	using SpecialFunctions
+	using Bessels
 	using Tullio
 end
 
@@ -306,6 +306,9 @@ md"## Modeling"
 # ╔═╡ b48cf5ec-a033-46e3-aec8-da5864b2386a
 md"## Appendix"
 
+# ╔═╡ 3affdcaf-8b32-496e-81a3-a898578948d2
+import PlutoUIExtra
+
 # ╔═╡ 094b0ad6-1ec0-407a-884f-7147d8a2ec9f
 # reference mass density
 rho0 = 2000.0f0
@@ -499,6 +502,9 @@ forward_grid = @use_memo([reset_anim]) do
     get_forward_operator_with_scatterer_locations(pagrid, acqgrid, slowness_pert_draw_input, δxUI, nzUI)
 end;
 
+# ╔═╡ 8eba66af-f61f-4453-a9b1-ee8c779ab059
+forward_grid
+
 # ╔═╡ 173adc88-5366-49e7-a1af-6478404e082e
 function get_forward_operator(pa, acq, sloc_x, sloc_z)
     (; xgrid, zgrid, freqgrid, kgrid, Fsource, vp0, rho0) = pa
@@ -559,6 +565,9 @@ end;
 
 # ╔═╡ 2bf0042b-f9b3-4ea3-b3d8-46d89a1ce2fe
 δdgrid = reshape(get_scattered_wavefield(1.0f-8 * ones(5), forward_grid, acqgrid, pagrid), :, nzgrid, nxgrid);
+
+# ╔═╡ 661ccded-ddcc-4606-9788-3a0913755d67
+get_scattered_wavefield(1.0f-8 * ones(5), forward_grid, acqgrid, pagrid)
 
 # ╔═╡ 2ebe48c7-e2c2-4002-b57a-2c5b94d90165
 # δs is the perturbation in slowness
@@ -671,6 +680,7 @@ md"""## TODO
 # ╔═╡ 00000000-0000-0000-0000-000000000001
 PLUTO_PROJECT_TOML_CONTENTS = """
 [deps]
+Bessels = "0e736298-9ec6-45e8-9647-e4fc86a2fe38"
 Einsum = "b7d42ee7-0b51-5a75-98ca-779d3107e4c0"
 FFTW = "7a1cc6ca-52ef-59f5-83cd-3a7055c09341"
 Latexify = "23fbe1c1-3f47-55db-b15f-69d7ec21a316"
@@ -680,12 +690,13 @@ PlutoLinks = "0ff47ea0-7a50-410d-8455-4348d5de0420"
 PlutoPlotly = "8e989ff0-3d88-8e9f-f020-2b208a939ff0"
 PlutoTeachingTools = "661c6b06-c737-4d37-b85c-46df65de6f69"
 PlutoUI = "7f904dfe-b85e-4ff6-b463-dae2292396a8"
-SpecialFunctions = "276daf66-3868-5448-9aa4-cd146d93841b"
+PlutoUIExtra = "a011ac08-54e6-4ec3-ad1c-4165f16ac4ce"
 SymbolicUtils = "d1185830-fcd6-423d-90d6-eec64667417b"
 Symbolics = "0c5d862f-8b57-4792-8d23-62f2024744c7"
 Tullio = "bc48ee85-29a4-5162-ae0b-a64e1601d4bc"
 
 [compat]
+Bessels = "~0.2.8"
 Einsum = "~0.4.1"
 FFTW = "~1.7.2"
 Latexify = "~0.16.1"
@@ -695,7 +706,7 @@ PlutoLinks = "~0.1.6"
 PlutoPlotly = "~0.4.4"
 PlutoTeachingTools = "~0.2.14"
 PlutoUI = "~0.7.54"
-SpecialFunctions = "~2.3.1"
+PlutoUIExtra = "~0.1.8"
 SymbolicUtils = "~1.5.0"
 Symbolics = "~5.13.0"
 Tullio = "~0.3.7"
@@ -707,7 +718,7 @@ PLUTO_MANIFEST_TOML_CONTENTS = """
 
 julia_version = "1.11.6"
 manifest_format = "2.0"
-project_hash = "f22ec49e2aaf38de5e39a3ab73387f41bea3dcad"
+project_hash = "29271830d51ccb833d6e2ba70c5d0d1c03800bb8"
 
 [[deps.ADTypes]]
 git-tree-sha1 = "fb97701c117c8162e84dfcf80215caa904aef44f"
@@ -880,6 +891,11 @@ git-tree-sha1 = "aebf55e6d7795e02ca500a689d326ac979aaf89e"
 uuid = "9718e550-a3fa-408a-8086-8db961cd8217"
 version = "0.1.1"
 
+[[deps.Bessels]]
+git-tree-sha1 = "4435559dc39793d53a9e3d278e185e920b4619ef"
+uuid = "0e736298-9ec6-45e8-9647-e4fc86a2fe38"
+version = "0.2.8"
+
 [[deps.Bijections]]
 git-tree-sha1 = "d8b0439d2be438a5f2cd68ec158fe08a7b2595b7"
 uuid = "e2ed5e7c-b2de-5872-ae92-c73ca462fb04"
@@ -1000,6 +1016,11 @@ version = "4.1.1"
 git-tree-sha1 = "abe83f3a2f1b857aac70ef8b269080af17764bbe"
 uuid = "9a962f9c-6df0-11e9-0e5d-c546b8b5ee8a"
 version = "1.16.0"
+
+[[deps.DataPipes]]
+git-tree-sha1 = "29077a8d5c093f4e0988e92c0d76f56c4c581900"
+uuid = "02685ad9-2d12-40c3-9f73-c6aeda6a7ff5"
+version = "0.3.18"
 
 [[deps.DataStructures]]
 deps = ["Compat", "InteractiveUtils", "OrderedCollections"]
@@ -1151,6 +1172,26 @@ deps = ["Statistics"]
 git-tree-sha1 = "05882d6995ae5c12bb5f36dd2ed3f61c98cbb172"
 uuid = "53c48c17-4a7d-5ca2-90c5-79b7896eea93"
 version = "0.8.5"
+
+[[deps.FlexiMaps]]
+deps = ["Accessors", "DataPipes", "InverseFunctions"]
+git-tree-sha1 = "88fb6ab75454c21be1d75a0a430a0ed95f0d3f1e"
+uuid = "6394faf6-06db-4fa8-b750-35ccc60383f7"
+version = "0.1.28"
+
+    [deps.FlexiMaps.extensions]
+    AxisKeysExt = "AxisKeys"
+    DictionariesExt = "Dictionaries"
+    IntervalSetsExt = "IntervalSets"
+    StructArraysExt = "StructArrays"
+    UnitfulExt = "Unitful"
+
+    [deps.FlexiMaps.weakdeps]
+    AxisKeys = "94b1ba4f-4ee9-5380-92f1-94cde586c3c5"
+    Dictionaries = "85a47980-9c8c-11e8-2b9f-f7ca1fa99fb4"
+    IntervalSets = "8197267c-284f-5f27-9208-e0e47529a953"
+    StructArrays = "09ab397b-f2b6-538f-b94a-2f83cf4a842a"
+    Unitful = "1986cc42-f94f-5a68-af5c-568840ba703d"
 
 [[deps.Format]]
 git-tree-sha1 = "9c68794ef81b08086aeb32eeaf33531668d5f5fc"
@@ -1619,6 +1660,12 @@ deps = ["AbstractPlutoDingetjes", "Base64", "ColorTypes", "Dates", "FixedPointNu
 git-tree-sha1 = "7e71a55b87222942f0f9337be62e26b1f103d3e4"
 uuid = "7f904dfe-b85e-4ff6-b463-dae2292396a8"
 version = "0.7.61"
+
+[[deps.PlutoUIExtra]]
+deps = ["AbstractPlutoDingetjes", "ConstructionBase", "FlexiMaps", "HypertextLiteral", "InteractiveUtils", "IntervalSets", "Markdown", "PlutoUI", "Random", "Reexport"]
+git-tree-sha1 = "b4ff5d24e2dc8fbf319cd44f9f81b5356e27bafb"
+uuid = "a011ac08-54e6-4ec3-ad1c-4165f16ac4ce"
+version = "0.1.8"
 
 [[deps.PreallocationTools]]
 deps = ["Adapt", "ArrayInterface", "ForwardDiff"]
@@ -2171,10 +2218,13 @@ version = "17.4.0+2"
 # ╠═acba3f10-975b-423d-9ab8-ead6d9f9774b
 # ╠═68d92a09-8fc6-485c-aeac-c392a21951e4
 # ╠═2bf0042b-f9b3-4ea3-b3d8-46d89a1ce2fe
+# ╠═8eba66af-f61f-4453-a9b1-ee8c779ab059
+# ╠═661ccded-ddcc-4606-9788-3a0913755d67
 # ╠═d8fc5b82-84a7-4f86-88f0-55b09b355a25
 # ╠═98d344f7-3ee2-42b7-aefe-d88604abdc8b
 # ╟─b48cf5ec-a033-46e3-aec8-da5864b2386a
 # ╠═8acbffaf-1811-4592-a2d1-a8f561242d85
+# ╠═3affdcaf-8b32-496e-81a3-a898578948d2
 # ╠═094b0ad6-1ec0-407a-884f-7147d8a2ec9f
 # ╠═135efe98-672e-4013-8e4c-15f0a29e9bab
 # ╟─953e46b3-b507-4ff6-a24b-763250917da3

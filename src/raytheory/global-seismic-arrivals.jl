@@ -137,7 +137,7 @@ PythonPlot = "~1.0.6"
 PLUTO_MANIFEST_TOML_CONTENTS = """
 # This file is machine-generated - editing it directly is not advised
 
-julia_version = "1.11.5"
+julia_version = "1.11.6"
 manifest_format = "2.0"
 project_hash = "69ac542aa99d496049ad79d7603fe3fef8d3bfe3"
 

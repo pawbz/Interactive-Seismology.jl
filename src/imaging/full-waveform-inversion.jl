@@ -40,6 +40,9 @@ begin
   using PlutoTeachingTools
 end
 
+# ╔═╡ edc3701d-922d-4332-95cf-bc25f9934a51
+using PlutoUIExtra
+
 # ╔═╡ d214aa86-e8da-4c05-a7ff-b6f7dec02ae5
 using Random
 
@@ -75,6 +78,9 @@ md"""## True Earth Medium
 Consider a mantle-like medium that has density of $3.22$ $g/cc$ and shear wave velocity of $5$ $km$ $s^{-1}$. Suppose it has a reflector such that the medium has a higher density below the reflector compared to above. You can specify the location and density of the reflector below.
 """
 
+# ╔═╡ 86ed93a1-c7b9-4b3a-8cb5-ca4405cff3df
+
+
 # ╔═╡ fa78af13-e3c6-4d6f-8a3e-1187fe9ae159
 md"""## Reference Medium (Starting Medium)
 """
@@ -86,13 +92,13 @@ Pseudo spectral method is applied for solving the seismic equation given the tru
 """
 
 
-# ╔═╡ 36ff882d-72da-4969-ab38-138defe88bde
-md"""
-Lower frequency by factor: $(@bind source_ffactor confirm(Select([1.0, 0.75, 0.5, 0.25]; default=1.0)))
-"""
-
 # ╔═╡ b572f855-db01-4c4f-8922-968bc0ef5fdf
 md"## Gradients"
+
+# ╔═╡ 92d05447-6d0e-4ee0-a330-244b9c65c871
+md"""
+
+"""
 
 # ╔═╡ b3015aff-bdab-4c94-87da-8744c174263a
 md"## Wave Equation"
@@ -232,10 +238,10 @@ Function to choose the number of sources and receivers
 # ╔═╡ 2ea24e92-d66e-4c60-ad0b-f671d894fef2
 function src_rec_ip()
   return PlutoUI.combine() do Child
-    src = [md"""Number of sources = $(Child("ns", Slider(range(start=1,stop=20,step=1), default=1, show_value=true)))
+    src = [md"""Number of sources = $(Child("ns", PlutoUI.Slider(range(start=1,stop=20,step=1), default=1, show_value=true)))
     """,]
 
-    rec = [md"""Number of receivers = $(Child("nr", Slider(range(start=1, stop=100, step=1), default=50, show_value=true)))
+    rec = [md"""Number of receivers = $(Child("nr", PlutoUI.Slider(range(start=1, stop=100, step=1), default=50, show_value=true)))
     """,]
 
     md"""
@@ -245,8 +251,15 @@ function src_rec_ip()
   end
 end;
 
-# ╔═╡ 86ed93a1-c7b9-4b3a-8cb5-ca4405cff3df
-@bind acq confirm(src_rec_ip())
+# ╔═╡ 9605ad90-2ae2-41a8-84da-4b0c358a1166
+Sidebar(
+	md"#### Modeling Parameters",
+	md"---",
+	(@bind acq confirm(src_rec_ip())),
+	md"",
+	"Lower frequency by factor:",
+	(@bind source_ffactor confirm(PlutoUI.Select([1.0, 0.75, 0.5, 0.25]; default=1.0))),
+location="upper left")
 
 # ╔═╡ 7f797571-055e-4975-9c26-fc968bbc0094
 md"""
@@ -487,7 +500,6 @@ begin
   # Spatial step size
   dx = minimum_wavelength * inv(points_per_wavelength)
   dz = dx
-
   # domain extends
   zgrid = range(0, stop=40, step=dx)
   xgrid = range(-40, stop=40, step=dx)
@@ -599,12 +611,6 @@ end
 
 # ╔═╡ b20b1b5e-fe84-48c5-81c2-62573ebaab7f
 tgrid = range(0, length=nt, step=dt)
-
-# ╔═╡ 92d05447-6d0e-4ee0-a330-244b9c65c871
-md"""
-Time (in seconds) to viz. forward and adjoint wavefields
-$(@bind t_forw Slider(round.(tgrid[2:end-3], digits=4) , show_value=true))
-"""
 
 # ╔═╡ 6937b103-9ce2-4189-8129-aae1e7936d4f
 length(tgrid)
@@ -861,9 +867,6 @@ end;
 # ╔═╡ d812711d-d02f-44bb-9e73-accd1623dea1
 plot(tgrid, source_wavelet, size=(500, 200), w=2, label="Source Wavelet", Layout(width=500, height=250))
 
-# ╔═╡ b6001e39-db63-4f8e-a975-1185d090a744
-source_wavelet |> typeof
-
 # ╔═╡ 77c9696c-58c5-40bf-acd0-16d5cf877810
 begin
   # Initialisation of fields and data
@@ -874,16 +877,23 @@ begin
   @time propagate!(dobs, fields_true, grid_param, medium_true, ageom, source)
 end;
 
-# ╔═╡ 12a0f7d8-64e0-411f-85ad-14d48bd9492d
-md"""
-#### Window Data
-
-**Receiver 1:**  
-$(@bind t_grad1 confirm(RangeSlider(tgrid; left=first(tgrid), right=last(tgrid), show_value=true)))
-
-**Receiver $(size(dobs, 2)) (Last):**  
-$(@bind t_grad2 confirm(RangeSlider(tgrid; left=first(tgrid), right=last(tgrid), show_value=true)))
-"""
+# ╔═╡ b4e04cb6-d82d-4452-9d0a-22106ca6c507
+Sidebar(
+	md"""
+#### Viz. Parameters
+---
+""",
+md"Receiver 1:", 
+(@bind t_grad1 confirm(RangeSlider(tgrid; left=first(tgrid), right=last(tgrid), show_value=true))),
+md"Receiver $(size(dobs, 2)) (Last):",
+	(@bind t_grad2 confirm(RangeSlider(tgrid; left=first(tgrid), right=last(tgrid), show_value=true))),
+	md"---",
+	md"Time (in seconds) for forward and adjoint wavefields",
+(@bind t_forw PlutoUI.Slider(round.(tgrid[2:end-3], digits=4) , show_value=true)),
+	md"",
+	md"Gradient plot scaling",
+	(@bind grad_scale PlutoUI.Slider(logrange(0.00001, 1, length=100), show_value=true,default=0.1)),
+location="center left")
 
 # ╔═╡ 62db1294-0843-46d7-9b51-38180da344d0
 t_window = let
@@ -1066,7 +1076,7 @@ let
       maximum(abs.(y))
     end), zmax2=0.2 * maximum(map(fields_adj.vys) do y
       maximum(abs.(y))
-    end), zscale34=0.5)
+    end), zscale34=grad_scale)
 end
 
 # ╔═╡ 99ba8f6a-551a-432b-abb1-a79be233fa46
@@ -1230,6 +1240,7 @@ MLUtils = "f1d291b0-491e-4a28-83b9-f70985020b54"
 PlutoPlotly = "8e989ff0-3d88-8e9f-f020-2b208a939ff0"
 PlutoTeachingTools = "661c6b06-c737-4d37-b85c-46df65de6f69"
 PlutoUI = "7f904dfe-b85e-4ff6-b463-dae2292396a8"
+PlutoUIExtra = "a011ac08-54e6-4ec3-ad1c-4165f16ac4ce"
 Printf = "de0858da-6303-5e67-8744-51eddeeeb8d7"
 ProgressLogging = "33c8b6b6-d38a-422a-b730-caa89a2f386c"
 Random = "9a3f8284-a2c9-5f02-9a11-845980a1fd5c"
@@ -1249,6 +1260,7 @@ MLUtils = "~0.4.4"
 PlutoPlotly = "~0.6.4"
 PlutoTeachingTools = "~0.2.14"
 PlutoUI = "~0.7.58"
+PlutoUIExtra = "~0.1.8"
 ProgressLogging = "~0.1.4"
 Zygote = "~0.7.10"
 """
@@ -1259,7 +1271,7 @@ PLUTO_MANIFEST_TOML_CONTENTS = """
 
 julia_version = "1.11.6"
 manifest_format = "2.0"
-project_hash = "6ba221de1a4b2690d0f46e79ad3eeb3c0500fdd9"
+project_hash = "c8fef46d16ae13b3b8efec9cc25c79f66355eaa2"
 
 [[deps.AbstractFFTs]]
 deps = ["LinearAlgebra"]
@@ -1520,16 +1532,12 @@ version = "0.3.2"
 git-tree-sha1 = "b4b092499347b18a015186eae3042f72267106cb"
 uuid = "187b0558-2788-49d3-abe0-74a17ed4e7c9"
 version = "1.6.0"
+weakdeps = ["IntervalSets", "LinearAlgebra", "StaticArrays"]
 
     [deps.ConstructionBase.extensions]
     ConstructionBaseIntervalSetsExt = "IntervalSets"
     ConstructionBaseLinearAlgebraExt = "LinearAlgebra"
     ConstructionBaseStaticArraysExt = "StaticArrays"
-
-    [deps.ConstructionBase.weakdeps]
-    IntervalSets = "8197267c-284f-5f27-9208-e0e47529a953"
-    LinearAlgebra = "37e2e46d-f89d-539d-b4ee-838fcccc9c8e"
-    StaticArrays = "90137ffa-7385-5640-81b9-e52037218182"
 
 [[deps.ContextVariablesX]]
 deps = ["Compat", "Logging", "UUIDs"]
@@ -1552,6 +1560,11 @@ version = "0.7.10"
 git-tree-sha1 = "abe83f3a2f1b857aac70ef8b269080af17764bbe"
 uuid = "9a962f9c-6df0-11e9-0e5d-c546b8b5ee8a"
 version = "1.16.0"
+
+[[deps.DataPipes]]
+git-tree-sha1 = "29077a8d5c093f4e0988e92c0d76f56c4c581900"
+uuid = "02685ad9-2d12-40c3-9f73-c6aeda6a7ff5"
+version = "0.3.18"
 
 [[deps.DataStructures]]
 deps = ["Compat", "InteractiveUtils", "OrderedCollections"]
@@ -1669,6 +1682,26 @@ git-tree-sha1 = "05882d6995ae5c12bb5f36dd2ed3f61c98cbb172"
 uuid = "53c48c17-4a7d-5ca2-90c5-79b7896eea93"
 version = "0.8.5"
 
+[[deps.FlexiMaps]]
+deps = ["Accessors", "DataPipes", "InverseFunctions"]
+git-tree-sha1 = "88fb6ab75454c21be1d75a0a430a0ed95f0d3f1e"
+uuid = "6394faf6-06db-4fa8-b750-35ccc60383f7"
+version = "0.1.28"
+
+    [deps.FlexiMaps.extensions]
+    AxisKeysExt = "AxisKeys"
+    DictionariesExt = "Dictionaries"
+    IntervalSetsExt = "IntervalSets"
+    StructArraysExt = "StructArrays"
+    UnitfulExt = "Unitful"
+
+    [deps.FlexiMaps.weakdeps]
+    AxisKeys = "94b1ba4f-4ee9-5380-92f1-94cde586c3c5"
+    Dictionaries = "85a47980-9c8c-11e8-2b9f-f7ca1fa99fb4"
+    IntervalSets = "8197267c-284f-5f27-9208-e0e47529a953"
+    StructArrays = "09ab397b-f2b6-538f-b94a-2f83cf4a842a"
+    Unitful = "1986cc42-f94f-5a68-af5c-568840ba703d"
+
 [[deps.Format]]
 git-tree-sha1 = "9c68794ef81b08086aeb32eeaf33531668d5f5fc"
 uuid = "1fa38f19-a742-5d3f-a2b9-30dd87b9d5f8"
@@ -1768,6 +1801,17 @@ version = "2025.2.0+0"
 deps = ["Markdown"]
 uuid = "b77e0a4c-d291-57a0-90e8-8db25a27a240"
 version = "1.11.0"
+
+[[deps.IntervalSets]]
+git-tree-sha1 = "5fbb102dcb8b1a858111ae81d56682376130517d"
+uuid = "8197267c-284f-5f27-9208-e0e47529a953"
+version = "0.7.11"
+weakdeps = ["Random", "RecipesBase", "Statistics"]
+
+    [deps.IntervalSets.extensions]
+    IntervalSetsRandomExt = "Random"
+    IntervalSetsRecipesBaseExt = "RecipesBase"
+    IntervalSetsStatisticsExt = "Statistics"
 
 [[deps.InverseFunctions]]
 git-tree-sha1 = "a779299d77cd080bf77b97535acecd73e1c5e5cb"
@@ -2166,6 +2210,12 @@ deps = ["AbstractPlutoDingetjes", "Base64", "ColorTypes", "Dates", "Downloads", 
 git-tree-sha1 = "8329a3a4f75e178c11c1ce2342778bcbbbfa7e3c"
 uuid = "7f904dfe-b85e-4ff6-b463-dae2292396a8"
 version = "0.7.71"
+
+[[deps.PlutoUIExtra]]
+deps = ["AbstractPlutoDingetjes", "ConstructionBase", "FlexiMaps", "HypertextLiteral", "InteractiveUtils", "IntervalSets", "Markdown", "PlutoUI", "Random", "Reexport"]
+git-tree-sha1 = "b4ff5d24e2dc8fbf319cd44f9f81b5356e27bafb"
+uuid = "a011ac08-54e6-4ec3-ad1c-4165f16ac4ce"
+version = "0.1.8"
 
 [[deps.Polynomials]]
 deps = ["LinearAlgebra", "OrderedCollections", "RecipesBase", "Requires", "Setfield", "SparseArrays"]
@@ -2579,14 +2629,14 @@ version = "17.4.0+2"
 # ╔═╡ Cell order:
 # ╠═3c540889-49dc-415c-acbc-3494897b260c
 # ╟─9c32f5bc-f6d1-4048-903a-27224aaa1f40
+# ╟─9605ad90-2ae2-41a8-84da-4b0c358a1166
+# ╟─b4e04cb6-d82d-4452-9d0a-22106ca6c507
 # ╟─881c7368-57df-469a-96ec-821512cf98e0
 # ╟─86ed93a1-c7b9-4b3a-8cb5-ca4405cff3df
 # ╟─55c7f981-96a7-40e9-811f-37334622565b
 # ╟─fa78af13-e3c6-4d6f-8a3e-1187fe9ae159
 # ╟─f26f1b1a-18e0-413c-86a9-351ba5dfaebf
 # ╟─e233afec-6049-4277-8be9-95687c4589b5
-# ╟─36ff882d-72da-4969-ab38-138defe88bde
-# ╟─12a0f7d8-64e0-411f-85ad-14d48bd9492d
 # ╟─4171af00-1d14-45ba-9fd3-a2c30d0b759f
 # ╟─b572f855-db01-4c4f-8922-968bc0ef5fdf
 # ╟─77e134d8-bd8b-4303-8c44-a4920cf0ee81
@@ -2622,7 +2672,6 @@ version = "17.4.0+2"
 # ╠═018446a1-8ef7-48be-b4c7-7fb672277431
 # ╠═17dd3d57-d5ca-443c-b003-b3a97b963d57
 # ╠═d812711d-d02f-44bb-9e73-accd1623dea1
-# ╠═b6001e39-db63-4f8e-a975-1185d090a744
 # ╟─8b5372ec-0742-48ea-81c4-d303b96f56c7
 # ╟─14c0cd30-a52c-4f93-9f7b-cae6328c0655
 # ╠═77c9696c-58c5-40bf-acd0-16d5cf877810
@@ -2657,6 +2706,7 @@ version = "17.4.0+2"
 # ╠═99541b49-caf2-40ab-b299-081111e35675
 # ╟─fc49a6d7-a1b1-458a-a9ad-e120282bbabc
 # ╠═c5815f5e-9164-11ec-10e1-691834761dff
+# ╠═edc3701d-922d-4332-95cf-bc25f9934a51
 # ╠═d214aa86-e8da-4c05-a7ff-b6f7dec02ae5
 # ╠═f96c169c-c478-4796-b99d-93ee7d195179
 # ╠═fae33f01-4df0-4410-88c3-d81faf84c8f5

@@ -45,7 +45,7 @@ using HDF5
 ChooseDisplayMode()
 
 # ╔═╡ 35c21158-fc55-45f6-930d-7b82c2c0685d
-TableOfContents()
+TableOfContents(include_definitions=true)
 
 # ╔═╡ d9d53d21-09ee-47cd-b661-8787de32f2c1
 md"""
@@ -109,13 +109,6 @@ Here, we shall simply use the Moore-Penrose pseudoinverse to map the observed tr
 # ╔═╡ 4344de43-abfa-45c6-ab84-8578ba87f60f
 λrange = logrange(1e-5, 1e5, length=100) |> collect
 
-# ╔═╡ 7608a5c1-20b1-4d49-b12b-a8f2daef192b
-md"""
-Choose the regularization parameter $(@bind λ Slider(λrange, show_value=true))
-
-$(@bind regenerate_medium CounterButton("Regenerate Medium"))
-"""
-
 # ╔═╡ 1bc87b69-a59c-4074-b57d-011bf5e3df73
 md"Finally, we will take the inverse of slowness and reshape it to produce the final 2-D seismic velocity model."
 
@@ -156,6 +149,9 @@ We will now vis. rows of data and model resolution matrices.
 
 # ╔═╡ 010a12e2-1abc-4471-a81b-005c30578e63
 md"## Appendix"
+
+# ╔═╡ 6a0e653c-5a60-48d6-a3de-2c9409558b71
+import PlutoUIExtra
 
 # ╔═╡ 442255bc-4d49-4602-b0d4-a935871a9fe8
 # define a for modelling and inversion
@@ -331,7 +327,9 @@ function perturbation_input(xgrid, zgrid)
     return PlutoUI.combine() do Child
         p = [
             md"""
-            x= $(Child("x", Slider(xgrid, default=xgrid[div(nx,2)], show_value=true)))
+x= $(Child("x", Slider(xgrid, default=xgrid[div(nx,2)], show_value=true)))
+			""",
+			md"""
                      and z= $(Child("z", Slider(zgrid, default=zgrid[div(nz,2)], show_value=true)))
                      """,
         ]
@@ -352,7 +350,9 @@ function resolution_input()
     return PlutoUI.combine() do Child
         d = [
             md"""
-            Resolution (m) of true $(Child("ds", Slider(range(10,stop=200), default=25, show_value=true)))
+Resolution (m) of true $(Child("ds", Slider(range(10,stop=200), default=25, show_value=true)))
+			""",
+			md"""
             and inverted $(Child("ds_inv", Slider(range(10,stop=200), default=150, show_value=true))) media
             """,
         ]
@@ -361,8 +361,15 @@ function resolution_input()
     end
 end
 
-# ╔═╡ 32a104fe-bf42-4980-887e-213b904e4d9b
-@bind res confirm(resolution_input())
+# ╔═╡ bd08b641-e332-4b9b-9a44-2aea39d80b6c
+PlutoUIExtra.Sidebar(
+	md"#### Inversion Parameters",
+	(@bind res confirm(resolution_input())),
+	md"---",
+	md"Choose the regularization parameter", (@bind λ Slider(λrange, show_value=true)),
+	
+	location="lower left"
+)
 
 # ╔═╡ da873791-517d-4ac3-80f8-ceae5808be24
 begin
@@ -370,8 +377,12 @@ begin
     zgrid = range(-1000, stop=1000, length=floor(Int, 2000 / res.ds))
 end;
 
-# ╔═╡ 78da0510-bf64-460e-82e7-59ba51c7c7f5
-@bind pert confirm(perturbation_input(xgrid, zgrid))
+# ╔═╡ 81f6f055-fd51-455a-9dae-bc8a03b0d94f
+PlutoUIExtra.Sidebar(
+	(@bind pert confirm(perturbation_input(xgrid, zgrid))),
+	md"---",
+	(@bind regenerate_medium CounterButton("Regenerate Medium")), location="upper left"
+)
 
 # ╔═╡ 092331da-31a4-403d-b0cb-6e7705c6d81b
 begin
@@ -403,8 +414,10 @@ function acq_input()
         d = [
             md"""
             Choose number of sources $(Child("ns", Slider(2:2:50, show_value=true, default=25)))
-            and receivers $(Child("nr", Slider(2:2:50, show_value=true, default=25)))
             """,
+			md"""
+			and receivers $(Child("nr", Slider(2:2:50, show_value=true, default=25)))
+			"""
         ]
 
         md"""
@@ -414,8 +427,10 @@ function acq_input()
     end
 end
 
-# ╔═╡ b741a0ec-726e-4ca5-98bf-10a03cdd2d57
-@bind acq confirm(acq_input())
+# ╔═╡ 3b3342fd-e1f9-4bb0-ac0e-580b2ec2af2b
+PlutoUIExtra.Sidebar(
+	(@bind acq confirm(acq_input())), location="center left"
+)
 
 # ╔═╡ aa9782b5-88be-43a2-b1e1-d68f289a8fec
 srcz, srcx, recx, recz = get_source_receivers_outer_edge(xgrid, zgrid, acq.ns, acq.nr);
@@ -548,8 +563,16 @@ end
 # ╔═╡ 842ec98f-505a-4873-9c64-725e2f92cbb9
 plot_models()
 
+# ╔═╡ 4114f8f4-51a5-4af6-b8b7-e17480d942e3
+# Normalize residuals to [0,1]
+norm_residuals = (data_residual .- minimum(data_residual)) ./ (maximum(data_residual) - minimum(data_residual))
+
+# ╔═╡ e8e733ee-586d-4ef6-a8ad-8c793cc8e3e9
+# Map to seismic colormap (blue → red)
+data_residual_colors = get.(Ref(reverse(colorschemes[:seismic])), norm_residuals)
+
 # ╔═╡ 44eddeed-1763-4c04-b213-b7469983286d
-data_residual_colors = get.(Ref(colorschemes[:seismic]), (data_residual .- minimum(data_residual)) ./ maximum(data_residual));
+# data_residual_colors = get.(Ref(colorschemes[:seismic]), (data_residual .- minimum(data_residual)) ./ maximum(data_residual));
 
 # ╔═╡ 1161cc82-6b2d-42e0-99fe-2dfb1a2d00b6
 ray_setup = broadcast(reshape(1:acq.nr, acq.nr, 1), reshape(1:acq.ns, 1, acq.ns)) do ir, is
@@ -750,6 +773,7 @@ PlutoPlotly = "8e989ff0-3d88-8e9f-f020-2b208a939ff0"
 PlutoTeachingTools = "661c6b06-c737-4d37-b85c-46df65de6f69"
 PlutoTest = "cb4044da-4d16-4ffa-a6a3-8cad7f73ebdc"
 PlutoUI = "7f904dfe-b85e-4ff6-b463-dae2292396a8"
+PlutoUIExtra = "a011ac08-54e6-4ec3-ad1c-4165f16ac4ce"
 SparseArrays = "2f01184e-e22b-5df5-ae63-d93ebab69eaf"
 StatsBase = "2913bbd2-ae8a-5f71-8c99-4fb6c76f3a91"
 TikzPictures = "37f6aa50-8035-52d0-81c2-5a1d08754b2d"
@@ -761,10 +785,12 @@ Distances = "~0.10.11"
 Distributions = "~0.25.115"
 GLMNet = "~0.7.2"
 HDF5 = "~0.17.2"
+Pluto = "~0.20.17"
 PlutoPlotly = "~0.4.4"
 PlutoTeachingTools = "~0.2.14"
 PlutoTest = "~0.2.2"
 PlutoUI = "~0.7.55"
+PlutoUIExtra = "~0.1.8"
 StatsBase = "~0.34.2"
 TikzPictures = "~3.5.0"
 """
@@ -775,13 +801,37 @@ PLUTO_MANIFEST_TOML_CONTENTS = """
 
 julia_version = "1.11.6"
 manifest_format = "2.0"
-project_hash = "0ab8f3f8b3c4699c177505ad93065a6979d4454c"
+project_hash = "de9d1a4b42ceb298009f2250bcf0d168dd315c37"
 
 [[deps.AbstractPlutoDingetjes]]
 deps = ["Pkg"]
 git-tree-sha1 = "6e1d2a35f2f90a4bc7c2ed98079b2ba09c35b83a"
 uuid = "6e696c72-6542-2067-7265-42206c756150"
 version = "1.3.2"
+
+[[deps.Accessors]]
+deps = ["CompositionsBase", "ConstructionBase", "Dates", "InverseFunctions", "MacroTools"]
+git-tree-sha1 = "3b86719127f50670efe356bc11073d84b4ed7a5d"
+uuid = "7d9f7c33-5ae7-4f3b-8dc6-eff91059b697"
+version = "0.1.42"
+
+    [deps.Accessors.extensions]
+    AxisKeysExt = "AxisKeys"
+    IntervalSetsExt = "IntervalSets"
+    LinearAlgebraExt = "LinearAlgebra"
+    StaticArraysExt = "StaticArrays"
+    StructArraysExt = "StructArrays"
+    TestExt = "Test"
+    UnitfulExt = "Unitful"
+
+    [deps.Accessors.weakdeps]
+    AxisKeys = "94b1ba4f-4ee9-5380-92f1-94cde586c3c5"
+    IntervalSets = "8197267c-284f-5f27-9208-e0e47529a953"
+    LinearAlgebra = "37e2e46d-f89d-539d-b4ee-838fcccc9c8e"
+    StaticArrays = "90137ffa-7385-5640-81b9-e52037218182"
+    StructArrays = "09ab397b-f2b6-538f-b94a-2f83cf4a842a"
+    Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
+    Unitful = "1986cc42-f94f-5a68-af5c-568840ba703d"
 
 [[deps.AliasTables]]
 deps = ["PtrArrays", "Random"]
@@ -883,6 +933,15 @@ deps = ["Artifacts", "Libdl"]
 uuid = "e66e0078-7015-5450-92f7-15fbd957f2ae"
 version = "1.1.1+0"
 
+[[deps.CompositionsBase]]
+git-tree-sha1 = "802bb88cd69dfd1509f6670416bd4434015693ad"
+uuid = "a33af91c-f02d-484b-be07-31d278c5ca2b"
+version = "0.1.2"
+weakdeps = ["InverseFunctions"]
+
+    [deps.CompositionsBase.extensions]
+    CompositionsBaseInverseFunctionsExt = "InverseFunctions"
+
 [[deps.ConcurrentUtilities]]
 deps = ["Serialization", "Sockets"]
 git-tree-sha1 = "d9d26935a0bcffc87d2613ce14c527c99fc543fd"
@@ -894,6 +953,21 @@ deps = ["ExproniconLite", "OrderedCollections", "TOML"]
 git-tree-sha1 = "4358750bb58a3caefd5f37a4a0c5bfdbbf075252"
 uuid = "5218b696-f38b-4ac9-8b61-a12ec717816d"
 version = "0.17.6"
+
+[[deps.ConstructionBase]]
+git-tree-sha1 = "b4b092499347b18a015186eae3042f72267106cb"
+uuid = "187b0558-2788-49d3-abe0-74a17ed4e7c9"
+version = "1.6.0"
+
+    [deps.ConstructionBase.extensions]
+    ConstructionBaseIntervalSetsExt = "IntervalSets"
+    ConstructionBaseLinearAlgebraExt = "LinearAlgebra"
+    ConstructionBaseStaticArraysExt = "StaticArrays"
+
+    [deps.ConstructionBase.weakdeps]
+    IntervalSets = "8197267c-284f-5f27-9208-e0e47529a953"
+    LinearAlgebra = "37e2e46d-f89d-539d-b4ee-838fcccc9c8e"
+    StaticArrays = "90137ffa-7385-5640-81b9-e52037218182"
 
 [[deps.Crayons]]
 git-tree-sha1 = "249fe38abf76d48563e2f4556bebd215aa317e15"
@@ -910,6 +984,11 @@ deps = ["Compat", "DataAPI", "DataStructures", "Future", "InlineStrings", "Inver
 git-tree-sha1 = "a37ac0840a1196cd00317b57e39d6586bf0fd6f6"
 uuid = "a93c6f00-e57d-5684-b7b6-d8193f3e46c0"
 version = "1.7.1"
+
+[[deps.DataPipes]]
+git-tree-sha1 = "29077a8d5c093f4e0988e92c0d76f56c4c581900"
+uuid = "02685ad9-2d12-40c3-9f73-c6aeda6a7ff5"
+version = "0.3.18"
 
 [[deps.DataStructures]]
 deps = ["OrderedCollections"]
@@ -1021,6 +1100,26 @@ deps = ["Statistics"]
 git-tree-sha1 = "05882d6995ae5c12bb5f36dd2ed3f61c98cbb172"
 uuid = "53c48c17-4a7d-5ca2-90c5-79b7896eea93"
 version = "0.8.5"
+
+[[deps.FlexiMaps]]
+deps = ["Accessors", "DataPipes", "InverseFunctions"]
+git-tree-sha1 = "88fb6ab75454c21be1d75a0a430a0ed95f0d3f1e"
+uuid = "6394faf6-06db-4fa8-b750-35ccc60383f7"
+version = "0.1.28"
+
+    [deps.FlexiMaps.extensions]
+    AxisKeysExt = "AxisKeys"
+    DictionariesExt = "Dictionaries"
+    IntervalSetsExt = "IntervalSets"
+    StructArraysExt = "StructArrays"
+    UnitfulExt = "Unitful"
+
+    [deps.FlexiMaps.weakdeps]
+    AxisKeys = "94b1ba4f-4ee9-5380-92f1-94cde586c3c5"
+    Dictionaries = "85a47980-9c8c-11e8-2b9f-f7ca1fa99fb4"
+    IntervalSets = "8197267c-284f-5f27-9208-e0e47529a953"
+    StructArrays = "09ab397b-f2b6-538f-b94a-2f83cf4a842a"
+    Unitful = "1986cc42-f94f-5a68-af5c-568840ba703d"
 
 [[deps.Fontconfig_jll]]
 deps = ["Artifacts", "Bzip2_jll", "Expat_jll", "FreeType2_jll", "JLLWrappers", "Libdl", "Libuuid_jll", "Zlib_jll"]
@@ -1157,6 +1256,31 @@ version = "1.4.5"
 deps = ["Markdown"]
 uuid = "b77e0a4c-d291-57a0-90e8-8db25a27a240"
 version = "1.11.0"
+
+[[deps.IntervalSets]]
+git-tree-sha1 = "5fbb102dcb8b1a858111ae81d56682376130517d"
+uuid = "8197267c-284f-5f27-9208-e0e47529a953"
+version = "0.7.11"
+
+    [deps.IntervalSets.extensions]
+    IntervalSetsRandomExt = "Random"
+    IntervalSetsRecipesBaseExt = "RecipesBase"
+    IntervalSetsStatisticsExt = "Statistics"
+
+    [deps.IntervalSets.weakdeps]
+    Random = "9a3f8284-a2c9-5f02-9a11-845980a1fd5c"
+    RecipesBase = "3cdcf5f2-1ef4-517c-9805-6587b60abb01"
+    Statistics = "10745b16-79ce-11e8-11f9-7d13ad32a3b2"
+
+[[deps.InverseFunctions]]
+git-tree-sha1 = "a779299d77cd080bf77b97535acecd73e1c5e5cb"
+uuid = "3587e190-3f89-42d0-90ee-14403ec27112"
+version = "0.1.17"
+weakdeps = ["Dates", "Test"]
+
+    [deps.InverseFunctions.extensions]
+    InverseFunctionsDatesExt = "Dates"
+    InverseFunctionsTestExt = "Test"
 
 [[deps.InvertedIndices]]
 git-tree-sha1 = "6da3c4316095de0f5ee2ebd875df8721e7e0bdbe"
@@ -1565,6 +1689,12 @@ git-tree-sha1 = "8329a3a4f75e178c11c1ce2342778bcbbbfa7e3c"
 uuid = "7f904dfe-b85e-4ff6-b463-dae2292396a8"
 version = "0.7.71"
 
+[[deps.PlutoUIExtra]]
+deps = ["AbstractPlutoDingetjes", "ConstructionBase", "FlexiMaps", "HypertextLiteral", "InteractiveUtils", "IntervalSets", "Markdown", "PlutoUI", "Random", "Reexport"]
+git-tree-sha1 = "b4ff5d24e2dc8fbf319cd44f9f81b5356e27bafb"
+uuid = "a011ac08-54e6-4ec3-ad1c-4165f16ac4ce"
+version = "0.1.8"
+
 [[deps.PooledArrays]]
 deps = ["DataAPI", "Future"]
 git-tree-sha1 = "36d8b4b899628fb92c2749eb488d884a926614d3"
@@ -1949,12 +2079,11 @@ version = "0.13.1+0"
 # ╠═7e72f1fc-345a-4a2d-b03b-8a7549ef6efc
 # ╠═35c21158-fc55-45f6-930d-7b82c2c0685d
 # ╟─d9d53d21-09ee-47cd-b661-8787de32f2c1
-# ╟─7608a5c1-20b1-4d49-b12b-a8f2daef192b
 # ╟─842ec98f-505a-4873-9c64-725e2f92cbb9
-# ╠═78da0510-bf64-460e-82e7-59ba51c7c7f5
-# ╟─b741a0ec-726e-4ca5-98bf-10a03cdd2d57
 # ╟─4509e5b8-8d54-47e1-9ba7-b4929fd2d2fc
-# ╟─32a104fe-bf42-4980-887e-213b904e4d9b
+# ╟─3b3342fd-e1f9-4bb0-ac0e-580b2ec2af2b
+# ╟─81f6f055-fd51-455a-9dae-bc8a03b0d94f
+# ╟─bd08b641-e332-4b9b-9a44-2aea39d80b6c
 # ╟─f9089736-3744-4382-8bc0-68fc04b3cddb
 # ╠═aa9782b5-88be-43a2-b1e1-d68f289a8fec
 # ╠═7df1cd87-40fa-45c1-9d85-1d491c414a18
@@ -2009,6 +2138,7 @@ version = "0.13.1+0"
 # ╠═a3bf8549-fff8-4423-8a87-a81cb21f9eb1
 # ╟─010a12e2-1abc-4471-a81b-005c30578e63
 # ╠═dcaeb6a8-78d1-11ec-24fb-4509de0a7d7b
+# ╠═6a0e653c-5a60-48d6-a3de-2c9409558b71
 # ╠═442255bc-4d49-4602-b0d4-a935871a9fe8
 # ╠═da873791-517d-4ac3-80f8-ceae5808be24
 # ╠═322d1562-2197-4131-bd17-93aed063e55c
@@ -2025,11 +2155,13 @@ version = "0.13.1+0"
 # ╠═272428e7-f865-4d9e-9df1-9fb45dec6a96
 # ╠═0ac7a1d4-f9c4-4e9a-a1fd-ff7629022fad
 # ╟─4dd5df1f-f0bc-49ec-a533-4498ed17d223
-# ╟─208932c4-a57b-487d-9d3b-f165b4a4a4ed
+# ╠═208932c4-a57b-487d-9d3b-f165b4a4a4ed
 # ╠═7e6ae5d6-ff89-45f5-914a-c58d3e185041
 # ╠═6702fde2-8847-407b-9d69-8e099374d6ce
 # ╟─b338591d-cc11-4e9e-827e-7fcee5b2d38b
 # ╠═b1350eb1-059e-4f83-a539-2e2befc3dabb
+# ╠═4114f8f4-51a5-4af6-b8b7-e17480d942e3
+# ╠═e8e733ee-586d-4ef6-a8ad-8c793cc8e3e9
 # ╠═44eddeed-1763-4c04-b213-b7469983286d
 # ╠═1161cc82-6b2d-42e0-99fe-2dfb1a2d00b6
 # ╠═d7dd7859-9489-4bfc-bc77-edec76fe96f2
