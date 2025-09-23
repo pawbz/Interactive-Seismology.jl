@@ -468,8 +468,8 @@ This notebook is inspired by the classical implementation of surface wave theory
 
 Herrmann, R. B. (2013), *Computer Programs in Seismology*.
 
-The Julia code here provides a **clean reimplementation** of some of the ideas behind CPS, designed for **interactive exploration** rather than production‐level modeling.
-md"""
+The Julia code here provides a **clean reimplementation** of some of the ideas behind CPS, designed for **interactive exploration**.
+"""
 
 # ╔═╡ 00000000-0000-0000-0000-000000000001
 PLUTO_PROJECT_TOML_CONTENTS = """
