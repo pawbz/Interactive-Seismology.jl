@@ -16,28 +16,32 @@ macro bind(def, element)
     #! format: on
 end
 
-# ╔═╡ 8d8f440d-4b79-4835-841b-739b5171f979
-using PlutoUI, Printf, Roots, LinearAlgebra
+# ╔═╡ ed6135c9-be36-4a57-b0b8-d54c79efca2f
+using LinearAlgebra, HypertextLiteral
 
-# ╔═╡ 29afa36b-391f-4861-aead-d62918daf3c6
-using HypertextLiteral: @htl
+# ╔═╡ 9a802663-864a-454c-9e36-e5ee2cf60e87
+using PlutoUI
 
-# ╔═╡ 8d5d9594-2197-4ccc-a7a4-0f0d54a2370a
+# ╔═╡ f32a29dc-ed47-4d1e-8ea7-efb287f82c0b
+using Roots
+
+# ╔═╡ 16dabb74-9b91-4d77-92e1-27ddea4e0381
 using PlutoPlotly
 
-# ╔═╡ ee482657-fd34-4c92-95cd-0bf8e254676c
+# ╔═╡ 6e3d880e-82d5-45b0-a823-b2df7d8be6f0
 TableOfContents(include_definitions=true)
 
-# ╔═╡ d3bc6646-b22f-4e22-87a8-da37a9aa1d1a
+# ╔═╡ c3a8bd5e-41c3-46f4-bfb5-773eadfb67ee
 md"""
-# Love Wave Dispersion Curves
-This notebook provides an environment to explore dispersion of Love waves, a type of surface seismic wave that plays a key role in seismology and Earth structure studies.  
+# Rayleigh Wave Dispersion Curves
+This notebook provides an interactive environment to explore the dispersion of Rayleigh waves, a fundamental type of surface seismic wave used in seismology and Earth structure studies.
 
-Love waves are horizontally polarized shear waves that are *trapped* in near-surface low-velocity layers. Their dispersion (variation of phase velocity with period) carries information about the elastic properties and layering of the crust and upper mantle.
+Rayleigh waves involve both vertical and horizontal ground motion and are sensitive to the elastic properties and layering of the crust and upper mantle. Their dispersion (variation of phase velocity with period) reveals information about subsurface structure.
 
-Here,
-- build a layered Earth model interactively, by adjusting thickness, shear velocity (`Vs`), and density (`ρ`) for each layer;
-- compute dispersion curves for Love waves and observe how changes in structure affect the shape of the dispersion curve.
+Here, you can:
+
+- Build a layered Earth model interactively by adjusting thickness, P-wave velocity (Vp), S-wave velocity (Vs), and density (ρ) for each layer;
+- Compute and visualize Rayleigh-wave dispersion curves, observing how changes in the model affect the shape of the curve and the inferred Earth properties.
 
 
 ##### [Interactive Seismology Notebooks](https://pawbz.github.io/Interactive-Seismology.jl/)
@@ -46,8 +50,10 @@ Instructor: *Pawan Bharadwaj*,
 Indian Institute of Science, Bengaluru, India
 """
 
-# ╔═╡ d2c48242-92ce-11f0-01e6-cb1b8fe1fecb
+# ╔═╡ b21471fd-f2f7-4715-b354-48ddd7aa0207
+md"---"
 
+# ╔═╡ 5c136747-07b4-454e-9a75-0998a24560df
 struct Layer
     thickness::Float64   # km
     vp::Float64          # km/s
@@ -57,262 +63,296 @@ struct Layer
     Qs::Float64          # S-wave quality factor
 end
 
-
-# ╔═╡ d058a019-40c2-4546-b578-808381506d1f
+# ╔═╡ 48f94773-cfea-46d5-b341-ae57fbe43e55
 struct EarthModel
     layers::Vector{Layer}
 end
 
-# ╔═╡ 363d8b6d-ddc9-4048-a02b-16346158112c
-"""
-    starting_phase_velocity(vp, vs) -> c
+# ╔═╡ 021afa55-3f7d-4c5e-8768-c91ae697c653
+# Extended trigonometric/hyperbolic functions for matrix elements with exponent tracking
+function varmat(p, q, ra, rb, wvno, xka, xkb, dpth)
+    # Returns a NamedTuple of all needed products for Dunkin matrix, plus exponent exa
+    a0 = 1.0
+    pex = 0.0
+    sex = 0.0
 
-Compute a starting solution for phase velocity using Newton iteration.
-"""
-function starting_phase_velocity(vp::Float64, vs::Float64)
-    c = 0.95 * vs
-    for _ in 1:5
-        γ = vs / vp
-        κ = c / vs
-        k2 = κ^2
-        gk2 = (γ * κ)^2
-        fac1 = sqrt(1 - gk2)
-        fac2 = sqrt(1 - k2)
-        fr = (2 - k2)^2 - 4 * fac1 * fac2
-        frp = -4 * (2 - k2) * κ +
-              4 * fac2 * γ^2 * κ / fac1 +
-              4 * fac1 * κ / fac2
-        frp /= vs
-        c -= fr / frp
+    # P-wave
+    if wvno < xka
+        sinp = sin(p)
+        w = sinp / ra
+        x = -ra * sinp
+        cosp = cos(p)
+    elseif wvno == xka
+        cosp = 1.0
+        w = dpth
+        x = 0.0
+    else
+        pex = p
+        fac = p < 16 ? exp(-2 * p) : 0.0
+        cosp = (1.0 + fac) * 0.5
+        sinp = (1.0 - fac) * 0.5
+        w = sinp / ra
+        x = ra * sinp
     end
-    return c
+
+    # S-wave
+    if wvno < xkb
+        sinq = sin(q)
+        y = sinq / rb
+        z = -rb * sinq
+        cosq = cos(q)
+    elseif wvno == xkb
+        cosq = 1.0
+        y = dpth
+        z = 0.0
+    else
+        sex = q
+        fac = q < 16 ? exp(-2 * q) : 0.0
+        cosq = (1.0 + fac) * 0.5
+        sinq = (1.0 - fac) * 0.5
+        y = sinq / rb
+        z = rb * sinq
+    end
+
+    # Exponent for normalization
+    exa = pex + sex
+    a0 = exa < 60.0 ? exp(-exa) : 0.0
+
+    # Products
+    cpcq = cosp * cosq
+    cpy = cosp * y
+    cpz = cosp * z
+    cqw = cosq * w
+    cqx = cosq * x
+    xy = x * y
+    xz = x * z
+    wy = w * y
+    wz = w * z
+
+    # S-wave normalization for evanescent case
+    qmp = sex - pex
+    fac = qmp > -40.0 ? exp(qmp) : 0.0
+    cosq *= fac
+    y *= fac
+    z *= fac
+
+    return (; a0, cpcq, cpy, cpz, cqw, cqx, xy, xz, wy, wz, exa)
 end
 
-# ╔═╡ 6c766c4b-8a1c-4f8b-9467-fec5a91fcd05
+# ╔═╡ c6e30458-2eff-4a66-88de-f75cdbfcd9a4
+# Normalize vector to avoid overflow/underflow and return exponent
+function normc(ee)
+    t1 = maximum(abs.(ee))
+    if t1 < 1e-40
+        t1 = 1.0
+    end
+    ee ./= t1
+    ex = log(t1)
+    return ee, ex
+end
+
+# ╔═╡ 6930149b-0a3a-453f-bf15-8d581f62c433
+# Dunkin's matrix (see Fortran dnka)
+function dnka(wvno2, gam, gammk, rho, var)
+    ca = zeros(5, 5)
+    one = 1.0
+    two = 2.0
+
+    a0 = var[:a0]
+    cpcq = var[:cpcq]
+    cpy = var[:cpy]
+    cpz = var[:cpz]
+    cqw = var[:cqw]
+    cqx = var[:cqx]
+    xy = var[:xy]
+    xz = var[:xz]
+    wy = var[:wy]
+    wz = var[:wz]
+
+    gamm1 = gam - one
+    twgm1 = gam + gamm1
+    gmgmk = gam * gammk
+    gmgm1 = gam * gamm1
+    gm1sq = gamm1 * gamm1
+    rho2 = rho * rho
+    a0pq = a0 - cpcq
+
+    ca[1, 1] = cpcq - two * gmgm1 * a0pq - gmgmk * xz - wvno2 * gm1sq * wy
+    ca[1, 2] = (wvno2 * cpy - cqx) / rho
+    ca[1, 3] = -(twgm1 * a0pq + gammk * xz + wvno2 * gamm1 * wy) / rho
+    ca[1, 4] = (cpz - wvno2 * cqw) / rho
+    ca[1, 5] = -(two * wvno2 * a0pq + xz + wvno2 * wvno2 * wy) / rho2
+
+    ca[2, 1] = (gmgmk * cpz - gm1sq * cqw) * rho
+    ca[2, 2] = cpcq
+    ca[2, 3] = gammk * cpz - gamm1 * cqw
+    ca[2, 4] = -wz
+    ca[2, 5] = ca[1, 4]
+
+    ca[4, 1] = (gm1sq * cpy - gmgmk * cqx) * rho
+    ca[4, 2] = -xy
+    ca[4, 3] = gamm1 * cpy - gammk * cqx
+    ca[4, 4] = ca[2, 2]
+    ca[4, 5] = ca[1, 2]
+
+    ca[5, 1] = -(two * gmgmk * gm1sq * a0pq + gmgmk * gmgmk * xz +
+                 gm1sq * gm1sq * wy) * rho2
+    ca[5, 2] = ca[4, 1]
+    ca[5, 3] = -(gammk * gamm1 * twgm1 * a0pq + gam * gammk * gammk * xz +
+                 gamm1 * gm1sq * wy) * rho
+    ca[5, 4] = ca[2, 1]
+    ca[5, 5] = ca[1, 1]
+
+    t = -two * wvno2
+    ca[3, 1] = t * ca[5, 3]
+    ca[3, 2] = t * ca[4, 3]
+    ca[3, 3] = a0 + two * (cpcq - ca[1, 1])
+    ca[3, 4] = t * ca[2, 3]
+    ca[3, 5] = t * ca[1, 3]
+
+    return ca
+end
+
+# ╔═╡ 369f3691-78d3-464c-a491-a293f58df913
+"""
+    rayleigh_secular(layers::Vector{Layer}, period::Float64, c::Float64)
+
+Evaluate the Rayleigh secular function for a stack of layers at a given period and trial phase velocity c.
+Returns the value whose zero crossing gives the Rayleigh phase velocity.
+"""
+function rayleigh_secular(layers::Vector{Layer}, ω::Float64, c::Float64)
+
+    wvno = ω / c
+    wvno2 = wvno^2
+
+    # Prepare bottom half-space parameters
+    bottom = layers[end]
+    α = bottom.vp
+    β = bottom.vs
+    ρ = bottom.rho
+
+    xka = ω / α
+    xkb = ω / β
+
+    # Compute vertical slownesses for P and S in half-space
+    wvnop_a = wvno + xka
+    wvnom_a = abs(wvno - xka)
+    ra = sqrt(wvnop_a * wvnom_a)
+
+    wvnop_b = wvno + xkb
+    wvnom_b = abs(wvno - xkb)
+    rb = sqrt(wvnop_b * wvnom_b)
+
+    t = β / ω
+    gammk = 2.0 * t^2
+    gam = gammk * wvno2
+    gamm1 = gam - 1.0
+
+    # E vector for bottom half-space
+    e = zeros(5)
+    e[1] = ρ^2 * (gamm1^2 - gam * gammk * ra * rb)
+    e[2] = -ρ * ra
+    e[3] = ρ * (gamm1 - gammk * ra * rb)
+    e[4] = ρ * rb
+    e[5] = wvno2 - ra * rb
+    # @show e
+    # Upward matrix multiplication through layers
+    for m in length(layers)-1:-1:1
+        lay = layers[m]
+        α = lay.vp
+        β = lay.vs
+        ρ = lay.rho
+        dpth = lay.thickness
+
+        xka = ω / α
+        xkb = ω / β
+
+        wvnop_a = wvno + xka
+        wvnom_a = abs(wvno - xka)
+        ra = sqrt(wvnop_a * wvnom_a)
+
+        wvnop_b = wvno + xkb
+        wvnom_b = abs(wvno - xkb)
+        rb = sqrt(wvnop_b * wvnom_b)
+
+        p = ra * dpth
+        q = rb * dpth
+
+        # Compute extended trigonometric/hyperbolic functions
+        var = varmat(p, q, ra, rb, wvno, xka, xkb, dpth)
+        t = β / ω
+        gammk = 2.0 * t^2
+        gam = gammk * wvno2
+        ca = dnka(wvno2, gam, gammk, ρ, var)
+
+        # Matrix multiplication: e_new = e * ca
+        ee = zeros(5)
+        for i in 1:5
+            for j in 1:5
+                ee[i] += e[j] * ca[j, i]
+            end
+        end
+        # Normalize to avoid overflow/underflow
+        e, _ = normc(ee)
+    end
+    # If top layer is water, apply water layer correction (not shown here, but implemented in CPS)
+    # For most crustal models, just return e[1]
+    return e[1]
+end
+
+# ╔═╡ b0643a5c-b8f3-43f0-91a8-2778d61c2019
+# wrapper secular function returning real or complex as desired
+function rayleigh_secular_real(layers::Vector{Layer}, ω::Float64, c::Float64)
+    val = rayleigh_secular(layers, ω, c)
+    return real(val)
+end
+
+# ╔═╡ 87a1ea4f-e41c-44f0-8712-6dad46b1f2a3
 struct DispersionResult
-    periods::Vector{Float64}
+    period::Float64
     phase_velocities::Vector{Float64}
 end
 
-# ╔═╡ 756e06e3-4f25-4f55-b242-26a45a1b7dd3
-periods = collect(range(5.0, stop=100.0, length=64))
-
-# ╔═╡ 9c9ad5f6-debf-4376-aaf6-759e9b0c949b
-"""
-    layer_matrix_SH(layer::Layer, ω, c)
-
-Return the 2×2 complex transfer matrix for an SH layer of thickness d:
-    [ u_bottom ]   [ A  B ] [ u_top   ]
-    [ t_bottom ] = [ C  D ] [ t_top   ]
-
-Where u is horizontal displacement and t is shear traction.
-"""
-function layer_matrix_SH(layer::Layer, ω::Float64, c::Float64)
-    # angular wavenumber horizontally
-    k = ω / c
-
-    # shear velocity and density
-    vs = layer.vs
-    ρ = layer.rho
-
-    # shear modulus (units consistent if rho in mass/volume and vs in velocity units)
-    μ = ρ * vs^2
-
-    # vertical wavenumber q (can be complex)
-    # q^2 = (ω/vs)^2 - k^2
-    q2 = (ω / vs)^2 - k^2
-    q = sqrt(complex(q2))          # complex sqrt handles evanescent/propagating
-
-    d = layer.thickness
-
-    # if thickness is effectively zero (half-space), return identity (no propagation)
-    if isapprox(d, 0.0; atol=1e-14)
-        return Matrix{ComplexF64}(I, 2, 2)
-    end
-
-    # arguments for trig/hyperbolic via complex arithmetic
-    α = q * d
-
-    # use cos and sin of complex argument (covers cosh/sinh automatically)
-    ca = cos(α)
-    sa = sin(α)
-
-    # Layer transfer matrix for SH (standard form)
-    # [ cos(qd)          sin(qd)/(μ*q)   ]
-    # [ -μ*q*sin(qd)     cos(qd)         ]
-    M = zeros(ComplexF64, 2, 2)
-    M[1, 1] = ca
-    M[1, 2] = sa / (μ * q)
-    M[2, 1] = -μ * q * sa
-    M[2, 2] = ca
-
-    return M
-end
-
-# ╔═╡ ac92ec5d-de77-4235-a701-50de13c502b1
-"""
-    dispersion_function_SH(model, ω, c)
-
-Return complex-valued F(c) whose zero corresponds to a Love-wave mode:
-    F(c) = M21 - R * M11
-where M = product of layer matrices from top -> bottom and
-R = -μ_b * q_b (bottom half-space traction/displacement ratio for decaying solution).
-"""
-function dispersion_function_SH(model::EarthModel, ω::Float64, c::Float64)
-    layers = model.layers
-    N = length(layers)
-    if N < 1
-        error("Model must contain at least one layer (half-space).")
-    end
-
-    # Build total propagator M (top -> bottom)
-    M = Matrix{ComplexF64}(I, 2, 2)
-    for L in layers
-        M = layer_matrix_SH(L, ω, c) * M   # multiply top->down (pre-multiply or post? we choose pre)
-    end
-
-    # bottom (half-space) properties (assumed last entry)
-    Lb = layers[end]
-    vs_b = Lb.vs
-    ρ_b = Lb.rho
-    μ_b = ρ_b * vs_b^2
-
-    # compute bottom vertical wavenumber q_b (for half-space decaying solution)
-    q2_b = (ω / vs_b)^2 - (ω / c)^2
-    q_b = sqrt(complex(q2_b))
-
-    # radiation/decay relation tb/ub = R  (we take R = -μ_b * q_b)
-    R = -μ_b * q_b
-
-    # M maps [u_top; t_top] -> [u_bot; t_bot]. For t_top=0 (free surface), ub = M11*u0, tb = M21*u0.
-    # impose tb/ub = R  => M21/M11 = R  => M21 - R*M11 = 0
-    F = M[2, 1] - R * M[1, 1]
-    return F
-end
-
-
-# ╔═╡ 03e6b940-ba12-41df-a3a2-2b4e0c44d64b
-"""
-    find_root_bracketed(f, cmin, cmax; nsteps=200)
-
-Search for a sign change of real(f(c)) in [cmin, cmax] by sampling nsteps intervals.
-Return (cL, cR) bracket where sign change occurs, or (nothing, nothing) if none found.
-"""
-function find_root_bracketed(f, cmin::Float64, cmax::Float64; nsteps::Int=200)
-    xs = range(cmin, cmax; length=nsteps + 1)
-    prev = real(f(first(xs)))
-    for i in 2:length(xs)
-        x = xs[i]
-        val = real(f(x))
-        if !isfinite(val)
-            prev = val
-            continue
-        end
-        if prev == 0.0
-            return (xs[i-1], xs[i-1])
-        end
-        if sign(prev) != sign(val)
-            return (xs[i-1], x)
-        end
-        prev = val
-    end
-    return (nothing, nothing)
-end
-
-# ╔═╡ e05989a8-f2f1-49ad-a17f-8ddbf5776ab4
-"""
-    solve_phase_velocity_love(model, T; c_search_pad=0.1)
-
-Find a phase velocity at period T (seconds) for Love (SH) waves.
-The search interval is set relative to model layer S velocities.
-"""
-function solve_phase_velocity_love(model, T; c_search_pad=0.10)
+# ╔═╡ c6187aa6-a890-4b35-8fc8-ef66373a4d2e
+# find root in bracket using bisection on real part
+function solve_phase_velocity_rayleigh(layers::Vector{Layer}, T::Float64; cmin=nothing, cmax=nothing)
     ω = 2π / T
+    vs_vals = [L.vs for L in layers]
+    vp_vals = [L.vp for L in layers]
 
-    # set search bounds using layer shear velocities
-    vs_vals = [L.vs for L in model.layers if L.vs > 0.0]
-    if isempty(vs_vals)
-        throw(ArgumentError("Model has no positive shear velocities."))
+    if cmin === nothing
+        cmin = minimum(vs_vals) * 0.5
     end
-    vmin = minimum(vs_vals)
-    vmax = maximum(vs_vals)
-
-    # expand search window by fraction
-    cmin = max(1e-5, (1 - c_search_pad) * vmin)
-    cmax = (1 + c_search_pad) * vmax * 1.5    # allow some margin above vmax
-    @show cmin, cmax
-    f(c) = dispersion_function_SH(model, ω, c)
-
-    # find bracket by sampling
-    (L, R) = find_root_bracketed(f, cmin, cmax; nsteps=800)
-    if L === nothing
-        # No sign change found -> return NaN to indicate no root
-        return NaN
+    if cmax === nothing
+        cmax = maximum(vp_vals) * 1.2
     end
 
-    # If bracketed exactly at same point (rare), return that point
-    if L == R
-        return L
-    end
+    f(c) = rayleigh_secular(layers, ω, c)
 
-    # Use robust bisection on real part of f
-    g(c) = real(f(c))
-    root = find_zero(g, (L, R), Bisection(); tol=1e-6, maxevals=100)
-    return root
+    roots = find_zeros(f, cmin, cmax)
+    return DispersionResult(T, roots)
 end
 
-# ╔═╡ cca474e2-7152-43d5-be66-432847de2897
-"""
-    solve_love_dispersion(model, periods)
-
-Compute Love-wave dispersion (phase velocity for each period).
-Returns DispersionResult.
-"""
-function solve_love_dispersion(model, periods)
-    velocities = Float64[]
-    for T in periods
-        @printf("Solving T=%.3f s ... ", T)
-        c = try
-            c = solve_phase_velocity_love(model, T)
-        catch err
-            @warn "error solving period $T: $err"
-            NaN
-        end
-        if isnan(c)
-            println("no root found")
-        else
-            println(@sprintf("c=%.5f km/s", c))
-        end
-        push!(velocities, c)
+# ╔═╡ 54effe7a-7d35-40e1-a861-4fa7f6ec9c06
+function compute_rayleigh_dispersion(layers::Vector{Layer}, periods::Vector{Float64})
+    R = []
+    for period in periods
+        r = solve_phase_velocity_rayleigh(layers, period)
+        push!(R, r)
     end
-    return DispersionResult(periods, velocities)
+    return R
 end
 
+# ╔═╡ 3e02c803-9bc3-4123-a4d8-ab07021a0062
+periods = collect(range(5.0, stop = 100.0, length=64))
 
-# ╔═╡ bcc394ad-284d-4299-891a-065ec7a6c6b3
-"""
-    solve_phase_velocity(model, T; c0_guess=nothing)
-
-Find phase velocity at period T (s).
-"""
-function solve_phase_velocity(model::EarthModel, T::Float64; c0_guess=nothing)
-    ω = 2π / T
-
-    # crude initial bracket around Vs
-    vsurf = model.layers[1].vs
-    cmin, cmax = 0.9 * vsurf, 1.2 * vsurf
-
-    f(c) = real(dispersion_determinant(model, ω, c))
-
-    # Find root of f(c) = 0
-    croot = find_zero(f, (cmin, cmax), Bisection(), verbose=false)
-    return croot
-end
-
-# ╔═╡ 80086cb5-7e39-444b-a85e-ddf46a67ec42
+# ╔═╡ 2c205b96-d934-4302-a107-ee6aab03c522
 md"## Appendix"
 
-# ╔═╡ 5a43781a-b3e4-4bac-86d1-bd822c169804
+# ╔═╡ 18995223-af32-4f4a-bbaf-a69c4801fb88
+md"### UI"
+
+# ╔═╡ 7e919f31-04b3-447c-a5c0-3d03362fb11a
 const GUTENBERG_MODEL = [
     Layer(19.0, 6.14, 3.55, 2.74, 1000.0, 1000.0),
     Layer(19.0, 6.58, 3.80, 3.00, 1000.0, 1000.0),
@@ -340,32 +380,34 @@ const GUTENBERG_MODEL = [
     Layer(100.0, 11.35, 6.32, 4.63, 1000.0, 1000.0)
 ]
 
-# ╔═╡ 05d910d2-527c-416f-9d63-c259fbe8a45d
+# ╔═╡ 8275ce20-7366-48be-aee1-b6a2c38f1b13
 default_layers = GUTENBERG_MODEL;
 
-# ╔═╡ 1af153bc-e471-4608-984b-61f1116dfa16
+# ╔═╡ 59e635d1-33aa-4917-9e03-7c579ef8518c
 md"""
 Number of layers: $(@bind n_layers Slider(1:length(default_layers), default=length(default_layers), show_value=true))
 """
 
-# ╔═╡ 99e9fc2c-fe13-4f94-b613-86cedb0f3653
-function layer_table_input(n_layers::Int; vp_vs_ratio=1.73)
+# ╔═╡ c1c6a307-13b9-4e47-b391-d271820b6c02
+function layer_table_input(n_layers::Int)
     ui = PlutoUI.combine() do Child
         # header
         header = @htl("""
         <tr style="text-align:center;">
           <th style="padding:6px;">#</th>
           <th style="padding:6px;">Thickness (km)</th>
+          <th style="padding:6px;">Vp (km/s)</th>
           <th style="padding:6px;">Vs (km/s)</th>
           <th style="padding:6px;">Density (gm/cc)</th>
         </tr>
         """)
 
-		 rows = Any[]
+        rows = Any[]
         for i in 1:n_layers
             # Use Gutenberg model values if available, else fallback
-            layer = i <= length(default_layers) ? default_layers[i] : default_layers[end]
+            layer = i <= length(default_layers) ? default_layers[i] : default_layers[i]
             tw = i < n_layers ? Child("thickness_$i", Slider(0.5:0.5:200, default=layer.thickness, show_value=true)) : "∞"
+            vp = Child("vp_$i", Slider(4.0:0.05:12.0, default=layer.vp, show_value=true))
             vs = Child("vs_$i", Slider(2.5:0.01:8.0, default=layer.vs, show_value=true))
             rw = Child("rho_$i", Slider(1.0:0.01:6.0, default=layer.rho, show_value=true))
 
@@ -373,12 +415,12 @@ function layer_table_input(n_layers::Int; vp_vs_ratio=1.73)
                 <tr>
                   <td style="text-align:center; padding:6px;"><b>Layer $i</b></td>
                   <td style="padding:6px; text-align:center;">$tw</td>
+                  <td style="padding:6px; text-align:center;">$vp</td>
                   <td style="padding:6px; text-align:center;">$vs</td>
                   <td style="padding:6px; text-align:center;">$rw</td>
                 </tr>
             """))
         end
-
 
         tbl = @htl("""
         <table style="border-collapse:collapse; border:1px solid #ddd; width:100%;">
@@ -394,7 +436,7 @@ function layer_table_input(n_layers::Int; vp_vs_ratio=1.73)
         Number of layers: **$n_layers**
 
         $tbl
-        _Notes:_  
+        _Notes:_ Constraint enforced: **Vp > Vs**  
         The last layer is treated as a half-space (no thickness).
         """
     end
@@ -403,52 +445,52 @@ function layer_table_input(n_layers::Int; vp_vs_ratio=1.73)
         layers = [
             begin
                 if i < n_layers
-                    t = vals[3*(i-1)+1]
-                    vs = vals[3*(i-1)+2]
-                    ρ = vals[3*(i-1)+3]
+                    t = vals[4*(i-1)+1]
+                    vp = vals[4*(i-1)+2]
+                    vs = vals[4*(i-1)+3]
+                    ρ = vals[4*(i-1)+4]
                 else
-                    # last layer: no thickness slider
+                    # last layer: no thickness slider, so offset indices by -1
                     t = 0.0
-                    vs = vals[3*(i-1)+1]
-                    ρ = vals[3*(i-1)+2]
+                    vp = vals[4*(i-1)+1]      # shift left by one
+                    vs = vals[4*(i-1)+2]
+                    ρ = vals[4*(i-1)+3]
                 end
 
-                vp = vp_vs_ratio * vs # (not used, anyway for love waves )
+                # enforce physical constraint
+                if vs >= vp
+                    vs = vp - 0.01
+                end
 
-                Layer(t, vp, vs, ρ, 100.0, 100.0)
+                Layer(t, vp, vs, ρ, 1000.0, 1000.0)
             end
             for i in 1:n_layers
         ]
-        le = layers[end]
-        # add artificial thick layer to impose radiation condition
-        layer_new = Layer(1000, le.vp, le.vs, le.rho, 100.0, 100.0)
-        layers = vcat(layers[1:end-1], layer_new, le)
+        layers
     end
 end
 
-# ╔═╡ 7bce51e0-9191-42eb-8fe3-cc68f9b2681f
+# ╔═╡ 863ca41a-959c-49b4-af0d-1876165a64a5
 (@bind layers layer_table_input(n_layers))
 
-# ╔═╡ a3cd5bb3-9b59-48a5-a505-4199a04941ed
-model = EarthModel(layers)
+# ╔═╡ 994df54b-fab7-4a39-868d-aa97f87dec9b
+res = compute_rayleigh_dispersion(layers, periods)
 
-# ╔═╡ 45579d35-df74-454f-91d4-03542f77e1ac
-# ╠═╡ show_logs = false
-res = solve_love_dispersion(model, periods)
-
-# ╔═╡ 6e696382-0a37-46f1-8209-0bf5d7dbc82f
+# ╔═╡ dc65b138-737c-44df-a866-74ff223c8489
 let
     plt = Plot(
+		[
         scatter(
-            x=res.periods,
-            y=res.phase_velocities,
+            x=periods,
+            y=map(x->sort(x.phase_velocities)[i], res),
             mode="lines+markers",
             name="Dispersion Curve"
         )
+		for i in 1:1]
     )
 
     plt.layout = Layout(
-        title="Love Fundamental-Mode Dispersion Curve",
+        title="Rayleigh Fundamental-Mode Dispersion Curve",
         xaxis=attr(title="Period (s)", showgrid=true),
         yaxis=attr(
             title="Phase Velocity (km/s)",
@@ -461,7 +503,7 @@ let
     plot(plt)
 end
 
-# ╔═╡ fc1fd90c-020a-4f2d-aedd-66115ac6a287
+# ╔═╡ dd68aded-1346-49c0-aa7d-2ed339e221db
 md"""
 ### Reference
 This notebook is inspired by the classical implementation of surface wave theory in  
@@ -478,12 +520,11 @@ HypertextLiteral = "ac1192a8-f4b3-4bfe-ba22-af5b92cd3ab2"
 LinearAlgebra = "37e2e46d-f89d-539d-b4ee-838fcccc9c8e"
 PlutoPlotly = "8e989ff0-3d88-8e9f-f020-2b208a939ff0"
 PlutoUI = "7f904dfe-b85e-4ff6-b463-dae2292396a8"
-Printf = "de0858da-6303-5e67-8744-51eddeeeb8d7"
 Roots = "f2b01f46-fcfa-551c-844a-d8ac1e96c665"
 
 [compat]
 HypertextLiteral = "~0.9.5"
-PlutoPlotly = "~0.6.4"
+PlutoPlotly = "~0.3.4"
 PlutoUI = "~0.7.71"
 Roots = "~2.2.6"
 """
@@ -494,7 +535,7 @@ PLUTO_MANIFEST_TOML_CONTENTS = """
 
 julia_version = "1.11.6"
 manifest_format = "2.0"
-project_hash = "0264277e532391f8f3beb74860e3dc79469a39a9"
+project_hash = "e62eb0e230a53ef695afa29b01411ab8fc1c9c63"
 
 [[deps.AbstractPlutoDingetjes]]
 deps = ["Pkg"]
@@ -546,15 +587,19 @@ version = "3.30.0"
 
 [[deps.ColorTypes]]
 deps = ["FixedPointNumbers", "Random"]
-git-tree-sha1 = "b10d0b65641d57b8b4d5e234446582de5047050d"
+git-tree-sha1 = "67e11ee83a43eb71ddc950302c53bf33f0690dfe"
 uuid = "3da002f7-5984-5a60-b8a6-cbb66c0b333f"
-version = "0.11.5"
+version = "0.12.1"
+weakdeps = ["StyledStrings"]
+
+    [deps.ColorTypes.extensions]
+    StyledStringsExt = "StyledStrings"
 
 [[deps.ColorVectorSpace]]
 deps = ["ColorTypes", "FixedPointNumbers", "LinearAlgebra", "Requires", "Statistics", "TensorCore"]
-git-tree-sha1 = "a1f44953f2382ebb937d60dafbe2deea4bd23249"
+git-tree-sha1 = "8b3b6f87ce8f65a2b4f857528fd8d70086cd72b1"
 uuid = "c3611d14-8923-5661-9e6a-0046d554d3a4"
-version = "0.10.0"
+version = "0.11.0"
 
     [deps.ColorVectorSpace.extensions]
     SpecialFunctionsExt = "SpecialFunctions"
@@ -564,9 +609,9 @@ version = "0.10.0"
 
 [[deps.Colors]]
 deps = ["ColorTypes", "FixedPointNumbers", "Reexport"]
-git-tree-sha1 = "362a287c3aa50601b0bc359053d5c2468f0e7ce0"
+git-tree-sha1 = "37ea44092930b1811e666c3bc38065d7d87fcc74"
 uuid = "5ae59095-9a9b-59fe-a467-6f913c188581"
-version = "0.12.11"
+version = "0.13.1"
 
 [[deps.CommonSolve]]
 git-tree-sha1 = "0eee5eb66b1cf62cd6ad1b460238e60e4b09400c"
@@ -632,11 +677,6 @@ deps = ["Statistics"]
 git-tree-sha1 = "05882d6995ae5c12bb5f36dd2ed3f61c98cbb172"
 uuid = "53c48c17-4a7d-5ca2-90c5-79b7896eea93"
 version = "0.8.5"
-
-[[deps.HashArrayMappedTries]]
-git-tree-sha1 = "2eaa69a7cab70a52b9687c8bf950a5a93ec895ae"
-uuid = "076d061b-32b6-4027-95e0-9a2c6f6d7e74"
-version = "0.2.0"
 
 [[deps.Hyperscript]]
 deps = ["Test"]
@@ -802,18 +842,10 @@ version = "0.8.21"
     JSON3 = "0f8b85d8-7281-11e9-16c2-39a750bddbf1"
 
 [[deps.PlutoPlotly]]
-deps = ["AbstractPlutoDingetjes", "Artifacts", "ColorSchemes", "Colors", "Dates", "Downloads", "HypertextLiteral", "InteractiveUtils", "LaTeXStrings", "Markdown", "Pkg", "PlotlyBase", "PrecompileTools", "Reexport", "ScopedValues", "Scratch", "TOML"]
-git-tree-sha1 = "232630fee92e588c11c2b260741b4fa70784b4c5"
+deps = ["AbstractPlutoDingetjes", "Dates", "HypertextLiteral", "InteractiveUtils", "LaTeXStrings", "Markdown", "PlotlyBase", "PlutoUI", "Reexport"]
+git-tree-sha1 = "b470931aa2a8112c8b08e66ea096c6c62c60571e"
 uuid = "8e989ff0-3d88-8e9f-f020-2b208a939ff0"
-version = "0.6.4"
-
-    [deps.PlutoPlotly.extensions]
-    PlotlyKaleidoExt = "PlotlyKaleido"
-    UnitfulExt = "Unitful"
-
-    [deps.PlutoPlotly.weakdeps]
-    PlotlyKaleido = "f2990250-8cf9-495f-b13a-cce12b45703c"
-    Unitful = "1986cc42-f94f-5a68-af5c-568840ba703d"
+version = "0.3.4"
 
 [[deps.PlutoUI]]
 deps = ["AbstractPlutoDingetjes", "Base64", "ColorTypes", "Dates", "Downloads", "FixedPointNumbers", "Hyperscript", "HypertextLiteral", "IOCapture", "InteractiveUtils", "JSON", "Logging", "MIMEs", "Markdown", "Random", "Reexport", "URIs", "UUIDs"]
@@ -882,18 +914,6 @@ version = "2.2.6"
 [[deps.SHA]]
 uuid = "ea8e919c-243c-51af-8825-aaa63cd721ce"
 version = "0.7.0"
-
-[[deps.ScopedValues]]
-deps = ["HashArrayMappedTries", "Logging"]
-git-tree-sha1 = "c3b2323466378a2ba15bea4b2f73b081e022f473"
-uuid = "7e506255-f358-4e82-b7e4-beb19740aa63"
-version = "1.5.0"
-
-[[deps.Scratch]]
-deps = ["Dates"]
-git-tree-sha1 = "9b81b8393e50b7d4e6d0a9f14e192294d3b7c109"
-uuid = "6c6a2e73-6563-6170-7368-637461726353"
-version = "1.3.0"
 
 [[deps.Serialization]]
 uuid = "9e88b42a-f829-5b0c-bbe9-9e923198166b"
@@ -986,31 +1006,33 @@ version = "17.4.0+2"
 """
 
 # ╔═╡ Cell order:
-# ╠═ee482657-fd34-4c92-95cd-0bf8e254676c
-# ╟─d3bc6646-b22f-4e22-87a8-da37a9aa1d1a
-# ╟─1af153bc-e471-4608-984b-61f1116dfa16
-# ╟─7bce51e0-9191-42eb-8fe3-cc68f9b2681f
-# ╟─6e696382-0a37-46f1-8209-0bf5d7dbc82f
-# ╠═45579d35-df74-454f-91d4-03542f77e1ac
-# ╠═d2c48242-92ce-11f0-01e6-cb1b8fe1fecb
-# ╠═d058a019-40c2-4546-b578-808381506d1f
-# ╠═363d8b6d-ddc9-4048-a02b-16346158112c
-# ╠═6c766c4b-8a1c-4f8b-9467-fec5a91fcd05
-# ╠═a3cd5bb3-9b59-48a5-a505-4199a04941ed
-# ╠═756e06e3-4f25-4f55-b242-26a45a1b7dd3
-# ╠═9c9ad5f6-debf-4376-aaf6-759e9b0c949b
-# ╠═e05989a8-f2f1-49ad-a17f-8ddbf5776ab4
-# ╠═cca474e2-7152-43d5-be66-432847de2897
-# ╠═ac92ec5d-de77-4235-a701-50de13c502b1
-# ╠═03e6b940-ba12-41df-a3a2-2b4e0c44d64b
-# ╠═bcc394ad-284d-4299-891a-065ec7a6c6b3
-# ╟─80086cb5-7e39-444b-a85e-ddf46a67ec42
-# ╠═8d8f440d-4b79-4835-841b-739b5171f979
-# ╠═29afa36b-391f-4861-aead-d62918daf3c6
-# ╠═8d5d9594-2197-4ccc-a7a4-0f0d54a2370a
-# ╠═99e9fc2c-fe13-4f94-b613-86cedb0f3653
-# ╠═5a43781a-b3e4-4bac-86d1-bd822c169804
-# ╠═05d910d2-527c-416f-9d63-c259fbe8a45d
-# ╟─fc1fd90c-020a-4f2d-aedd-66115ac6a287
+# ╠═6e3d880e-82d5-45b0-a823-b2df7d8be6f0
+# ╟─c3a8bd5e-41c3-46f4-bfb5-773eadfb67ee
+# ╟─59e635d1-33aa-4917-9e03-7c579ef8518c
+# ╟─863ca41a-959c-49b4-af0d-1876165a64a5
+# ╟─dc65b138-737c-44df-a866-74ff223c8489
+# ╟─b21471fd-f2f7-4715-b354-48ddd7aa0207
+# ╠═5c136747-07b4-454e-9a75-0998a24560df
+# ╠═48f94773-cfea-46d5-b341-ae57fbe43e55
+# ╠═021afa55-3f7d-4c5e-8768-c91ae697c653
+# ╠═c6e30458-2eff-4a66-88de-f75cdbfcd9a4
+# ╠═369f3691-78d3-464c-a491-a293f58df913
+# ╠═6930149b-0a3a-453f-bf15-8d581f62c433
+# ╠═b0643a5c-b8f3-43f0-91a8-2778d61c2019
+# ╠═c6187aa6-a890-4b35-8fc8-ef66373a4d2e
+# ╠═54effe7a-7d35-40e1-a861-4fa7f6ec9c06
+# ╠═87a1ea4f-e41c-44f0-8712-6dad46b1f2a3
+# ╠═3e02c803-9bc3-4123-a4d8-ab07021a0062
+# ╠═994df54b-fab7-4a39-868d-aa97f87dec9b
+# ╟─2c205b96-d934-4302-a107-ee6aab03c522
+# ╠═ed6135c9-be36-4a57-b0b8-d54c79efca2f
+# ╠═9a802663-864a-454c-9e36-e5ee2cf60e87
+# ╠═f32a29dc-ed47-4d1e-8ea7-efb287f82c0b
+# ╠═16dabb74-9b91-4d77-92e1-27ddea4e0381
+# ╟─18995223-af32-4f4a-bbaf-a69c4801fb88
+# ╠═c1c6a307-13b9-4e47-b391-d271820b6c02
+# ╠═7e919f31-04b3-447c-a5c0-3d03362fb11a
+# ╠═8275ce20-7366-48be-aee1-b6a2c38f1b13
+# ╟─dd68aded-1346-49c0-aa7d-2ed339e221db
 # ╟─00000000-0000-0000-0000-000000000001
 # ╟─00000000-0000-0000-0000-000000000002

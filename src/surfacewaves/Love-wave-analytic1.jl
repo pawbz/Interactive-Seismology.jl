@@ -630,7 +630,7 @@ Symbolics = "~6.12.0"
 PLUTO_MANIFEST_TOML_CONTENTS = """
 # This file is machine-generated - editing it directly is not advised
 
-julia_version = "1.11.5"
+julia_version = "1.11.6"
 manifest_format = "2.0"
 project_hash = "6148517c7c28f34361da64be253ff296fe4fb695"
 
