@@ -1,5 +1,5 @@
 ### A Pluto.jl notebook ###
-# v0.20.13
+# v0.20.19
 
 #> [frontmatter]
 #> title = "Love Waves"
@@ -200,8 +200,25 @@ md"## Appendix"
 # ╔═╡ 896fb716-861a-44d1-b073-45c47773a4f8
 tgrid = range(0, stop=1000, length=1000)
 
+# ╔═╡ e3f0470d-0317-4a9e-a93b-388b6efca5c4
+md"""
+Select time for stationary phase analysis (s)
+$(@bind tUI Slider(tgrid, default=div(maximum(tgrid), 2), show_value=true))
+"""
+
 # ╔═╡ 4ee3be7e-7fa9-4f4a-b13a-3d20a8863f04
 freqgrid = rfftfreq(length(tgrid), inv(step(tgrid)))
+
+# ╔═╡ 226f1f5c-bfe6-4865-82b8-d39b964f47ca
+TwoColumn(md"""
+		  Receiver location (km) 
+		  $(@bind xrecposUI Slider(range(0, 3000, step=1), default=2000, show_value=true))
+		  """,
+		  md"""
+		  Frequency band
+		  $(@bind freqsUI RangeSlider(range(first(freqgrid), step=step(freqgrid), length=length(freqgrid)), show_value=true))
+		  """
+		  )
 
 # ╔═╡ e4c1cda0-7366-4aa0-a616-47d86a1c9502
 function get_k(c)
@@ -226,8 +243,44 @@ function getη(p, β)
 	end
 end
 
+# ╔═╡ 039a52c9-01b8-4028-9eae-1ff5b779fd78
+function compute_phase_velocities(F_func, freq, medium_params)
+    Fmedium = p -> F_func(p, 2 * pi * freq, getη(p, medium_params.β₁), getη(p, medium_params.β₂))
+    return sort(inv.(find_zeros(real ∘ Fmedium, inv(medium_params.β₁), inv(medium_params.β₂))))
+end
+
+# ╔═╡ a69a71b4-6dbc-4de7-a8d7-5cc3ad744d94
+function compute_dispersion_curves(F_func, freqgrid, medium_params)
+    return map(freqgrid[2:end]) do f
+        F1 = p -> F_func(p, 2 * pi * f, getη(p, medium_params.β₁), getη(p, medium_params.β₂))
+        sort(inv.(find_zeros(real ∘ F1, inv(medium_params.β₁), inv(medium_params.β₂))))
+    end
+end
+
+# ╔═╡ 355e039d-db6d-48b4-a7d7-5f73686e6d56
+# substitute values of medium parameters into the expression x, instead of μ, η.
+# then return a function of horizontal slowness f(p) that can be plotted
+function subs_βρ(x, medium_params; output_function=true)
+    x = substitute(x, [H => medium_params.Hp, μ₁ => medium_params.β₁ * medium_params.β₁ * medium_params.ρ₁, μ₂ => medium_params.β₂ * medium_params.β₂ * medium_params.ρ₂])
+    if (output_function)
+        return build_function(x, p, ω, η₁, η₂, expression=Val{false})
+    else
+        x
+    end
+end
+
 # ╔═╡ 7bd19e44-b4f5-43f3-b6be-b557ca95c67f
 md"In order to plot the displacement wavefield, we will now build functions that output the particle displacement in the first and second layers for input $x$, $z$, $t$ and $p$."
+
+# ╔═╡ cdaefb2c-818e-4d66-b1c3-f6ac8829ba45
+function subs_u1(u, medium_params; output_function=true)
+    u = substitute(subs_βρ(u, medium_params; output_function=false), [ı => im, B₁ => 1, A₁ => 1, B₂ => 0])
+    if (output_function)
+        build_function(u, x, z, t, p, ω, η₁, η₂, expression=Val{false})
+    else
+        u
+    end
+end
 
 # ╔═╡ db4a22f5-74eb-477e-9426-065dcfd1751c
 md"### UI"
@@ -271,14 +324,10 @@ function freq_rec_input()
                      receiver location (km) $(Child("xrecpos", Slider(range(0, 3000, step=1), default=2000, show_value=true)))
                      """,
 			    md"""
-                     frequency band (Hz) $(Child("freqs", RangeSlider(range(first(freqgrid), step=step(freqgrid), length=length(freqgrid)), show_value=true)))
+                   
                      """,
         ]
-        inputs_time = [
-            md"""
-                     time (s) $(Child("T", Slider(tgrid, default=div(maximum(tgrid), 2), show_value=true)))
-                     """,
-        ]
+       
         inputs2 = [
             md"""
              frequency (Hz) $(Child("freq", Slider(range(0.0, 0.25, step=0.01), default=0.08, show_value=true)))
@@ -289,10 +338,6 @@ function freq_rec_input()
         md"""
 ##### Wavefield Animation
   $(inputs2)
-##### Seismogram
-  $(inputs1)
-##### Stationary Phase Analysis
-  $(inputs_time)
         """
     end
 end
@@ -300,7 +345,7 @@ end
 # ╔═╡ 19a31e92-8226-4ce5-aa04-933552953a9d
 TwoColumn(md"""
 $(@bind medium confirm(medium_input()))""", md"""
-                                          $(@bind freq_rec confirm(freq_rec_input()))
+                                          $(@bind freq_rec (freq_rec_input()))
                                           	"""
 )
 
@@ -313,29 +358,14 @@ crange2 = range(medium.β₁ - 0.5, stop=medium.β₁, length=100)
 # ╔═╡ 3fa22358-6d61-4b9a-9aa8-39d2b1c6a917
 crange3 = range(medium.β₂, stop=medium.β₂ + 0.5, length=100)
 
-# ╔═╡ 355e039d-db6d-48b4-a7d7-5f73686e6d56
-# substitute values of medium.Hp, medium.β₁, and medium.ρ₁ into the expression x, instead of μ, η.
-# then return a function of horizontal slowness f(p) that can be plotted
-function subs_βρ(x; output_function=true)
-    x = substitute(x, [H => medium.Hp, μ₁ => medium.β₁ * medium.β₁ * medium.ρ₁, μ₂ => medium.β₂ * medium.β₂ * medium.ρ₂])
-    if (output_function)
-        return build_function(x, p, ω, η₁, η₂, expression=Val{false})
-    else
-        x
-    end
-end
-
 # ╔═╡ 90bc6374-1f5b-407a-8d05-1e84ec5a6690
-subs_βρ(ex1, output_function=true)
+subs_βρ(ex1, medium, output_function=true)
 
 # ╔═╡ ad269679-e1f9-4d9d-827f-468e36f27bfc
-F = subs_βρ(ex1 - ex2; output_function=true)
-
-# ╔═╡ 039a52c9-01b8-4028-9eae-1ff5b779fd78
-Fmedium = p -> F(p, 2 * pi * freq_rec.freq, getη(p, medium.β₁), getη(p, medium.β₂))
+F = subs_βρ(ex1 - ex2, medium; output_function=true)
 
 # ╔═╡ cc173455-2ed0-42f3-a9c0-0dfdbbe982ee
-cn = sort(inv.(find_zeros(real ∘ Fmedium, inv(medium.β₁), inv(medium.β₂))))
+cn = compute_phase_velocities(F, freq_rec.freq, medium)
 
 # ╔═╡ ad78f0ef-460d-4b62-8bbc-0f7059214b38
 # need prettier labels for MultiCheckBox
@@ -343,11 +373,8 @@ names_cn = map(enumerate(cn)) do (i, c)
     c => string(i, ") ", floor(c, digits=2))
 end
 
-# ╔═╡ 42fc96c5-64ca-4df9-bef1-00fe7bf20529
-cn_vec = map(freqgrid[2:end]) do f
-    F1 = p -> F(p, 2 * pi * f, getη(p, medium.β₁), getη(p, medium.β₂))
-    cn = sort(inv.(find_zeros(real ∘ F1, inv(medium.β₁), inv(medium.β₂))))
-end
+# ╔═╡ 5d81104e-16a1-4c44-89a3-a492821021ed
+cn_vec = compute_dispersion_curves(F, freqgrid, medium)
 
 # ╔═╡ a37d91cc-cd80-48c0-8ecc-959df16fb925
 phase_velocities = map(1:4) do i
@@ -370,9 +397,10 @@ group_velocities = map(wavenumbers) do k
     get_group_velocity(k)
 end;
 
-# ╔═╡ cdaefb2c-818e-4d66-b1c3-f6ac8829ba45
-function subs_u1(u; output_function=true)
-    u = substitute(subs_βρ(u; output_function=false), [ı => im, B₁ => 1, A₁ => 1, B₂ => 0])
+# ╔═╡ 236e2338-f057-4c33-80e2-7dd8ea9ce206
+function subs_u2(u, medium_params; output_function=true)
+    A₂p = subs_u1(A₂ex1, medium, output_function=false)
+    u = substitute(subs_βρ(u, medium_params; output_function=false), [ı => im, B₁ => 1, A₁ => 1, B₂ => 0, A₂ => A₂p])
     if (output_function)
         build_function(u, x, z, t, p, ω, η₁, η₂, expression=Val{false})
     else
@@ -381,21 +409,10 @@ function subs_u1(u; output_function=true)
 end
 
 # ╔═╡ 8912a771-1914-42a7-a35b-43cb63971a41
-U1 = subs_u1(u1)
-
-# ╔═╡ 236e2338-f057-4c33-80e2-7dd8ea9ce206
-function subs_u2(u; output_function=true)
-    A₂p = subs_u1(A₂ex1, output_function=false)
-    u = substitute(subs_βρ(u; output_function=false), [ı => im, B₁ => 1, A₁ => 1, B₂ => 0, A₂ => A₂p])
-    if (output_function)
-        build_function(u, x, z, t, p, ω, η₁, η₂, expression=Val{false})
-    else
-        u
-    end
-end
+U1 = subs_u1(u1, medium)
 
 # ╔═╡ d49ae6c9-a4ee-45f0-99c3-ab9f23ab895d
-U2 = subs_u2(u2)
+U2 = subs_u2(u2, medium)
 
 # ╔═╡ d76e9b6a-a33c-4342-985e-48f8ee91bf71
 function mode_input()
@@ -421,20 +438,20 @@ end
 md"### Plots"
 
 # ╔═╡ 730defe8-8e5e-4162-88d4-0766e7df5c7b
-function plot_roots(x1, x2, cgrid)
+function plot_roots(x1, x2, cgrid, medium_params, freq)
 
-    f1 = subs_βρ(x1)
-    f2 = subs_βρ(x2)
+    f1 = subs_βρ(x1, medium_params)
+    f2 = subs_βρ(x2, medium_params)
 	
-    a = [f1(inv(c), 2 * pi * freq_rec.freq, getη(inv(c), medium.β₁), getη(inv(c), medium.β₂))  for c in cgrid]
-    b = [f2(inv(c), 2 * pi * freq_rec.freq, getη(inv(c), medium.β₁), getη(inv(c), medium.β₂)) for c in cgrid]
+    a = [f1(inv(c), 2 * pi * freq, getη(inv(c), medium_params.β₁), getη(inv(c), medium_params.β₂))  for c in cgrid]
+    b = [f2(inv(c), 2 * pi * freq, getη(inv(c), medium_params.β₁), getη(inv(c), medium_params.β₂)) for c in cgrid]
 
     trace1 = scatter(x=cgrid, y=real.(a), mode="lines", line_color="red", name="real(ex1)")
     trace2 = scatter(x=cgrid, y=imag.(a), mode="lines", line_color="blue", name="imag(ex1)")
     trace3 = scatter(x=cgrid, y=real.(b), mode="lines", line_color="red", line_dash="dash", name="real(ex2)")
     trace4 = scatter(x=cgrid, y=imag.(b), mode="lines", line_color="blue", line_dash="dash", name="imag(ex2)")
-    trace5 = scatter(x=[medium.β₁], y=[0], mode="markers", marker_size=8, marker_color="black", marker_symbol="dot", name="β₁")
-    trace6 = scatter(x=[medium.β₂], y=[0], mode="markers", marker_size=8, marker_color="black", marker_symbol="line-ns-open", name="β₂")
+    trace5 = scatter(x=[medium_params.β₁], y=[0], mode="markers", marker_size=8, marker_color="black", marker_symbol="dot", name="β₁")
+    trace6 = scatter(x=[medium_params.β₂], y=[0], mode="markers", marker_size=8, marker_color="black", marker_symbol="line-ns-open", name="β₂")
 
     layout = Layout(title="F(c)=ex1(c) - ex2(c)",
         xaxis_title="phase velocity (c)",
@@ -448,38 +465,42 @@ function plot_roots(x1, x2, cgrid)
 end
 
 # ╔═╡ ca8f817d-8715-40d4-9f48-ded6a79b421e
-plot_roots(ex1, ex2, crange1)
+plot_roots(ex1, ex2, crange1, medium, freq_rec.freq)
 
 # ╔═╡ ed15bab9-c0dd-467a-93cf-e6edb5f03216
-plot_roots(ex1, ex2, crange2)
+plot_roots(ex1, ex2, crange2, medium, freq_rec.freq)
 
 # ╔═╡ ffb3cf31-0d33-48eb-9be0-cfa4e009b315
-plot_roots(ex1, ex2, crange3)
+plot_roots(ex1, ex2, crange3, medium, freq_rec.freq)
 
 # ╔═╡ fdfc93ee-3cf4-456b-9ca9-7098c04dac26
 begin
-    # we need to discretize space before plotting 
-    xgrid = range(50, stop=250, length=100)
-    zgrid1 = range(0, stop=medium.Hp, length=100)
-    zgrid2 = range(medium.Hp, stop=200, length=100)
-    grid = (; xgrid, zgrid1, zgrid2)
+	function create_grid(medium_params)
+	    # we need to discretize space before plotting 
+	    xgrid = range(50, stop=250, length=100)
+	    zgrid1 = range(0, stop=medium_params.Hp, length=100)
+	    zgrid2 = range(medium_params.Hp, stop=200, length=100)
+	    return (; xgrid, zgrid1, zgrid2)
+	end
+	
+	grid = create_grid(medium)
 end
 
 # ╔═╡ e73358b5-87bc-4521-8156-d38d303fd849
-function plot_record(x, z, U1)
+function plot_record(x, z, U1, tUI, medium_params, freqgrid, phase_velocities, tgrid, xrecposUI, freqsUI)
     record = mapreduce(+, freqgrid[2:end], phase_velocities[1]) do f, c
         return broadcast(tgrid) do t
-            real(U1(x, z, t, inv(c), 2 * pi * f, getη(inv(c), medium.β₁), getη(inv(c), medium.β₁))) * (f ∈ freq_rec.freqs)
+            real(U1(x, z, t, inv(c), 2 * pi * f, getη(inv(c), medium_params.β₁), getη(inv(c), medium_params.β₁))) * (f ∈ freqsUI)
         end
     end
-    fig = Plot(Layout(uirevision=1, title="Fundamental Mode Seismogram at $(freq_rec.xrecpos) km", xaxis=attr(title="Time (s)"), yaxis=attr(title="Amplitude", range=(-500, 500))))
+    fig = Plot(Layout(uirevision=1, title="Fundamental Mode Seismogram at $(xrecposUI) km", xaxis=attr(title="Time (s)"), yaxis=attr(title="Amplitude", range=(-500, 500))))
     add_trace!(fig, scatter(x=tgrid, y=record, line_color="black"))
     add_vline!(fig,
-        freq_rec.xrecpos / medium.β₁, line_color="red")
+        xrecposUI / medium_params.β₁, line_color="red")
     add_vline!(fig,
-        freq_rec.xrecpos / medium.β₂, line_color="red")
+        xrecposUI / medium_params.β₂, line_color="red")
     add_vline!(fig,
-        freq_rec.T, line_color="blue")
+        tUI, line_color="blue")
     # fillcolor="LightSalmon", opacity=0.5,
     # layer="below", line_width=0,
 
@@ -487,21 +508,21 @@ function plot_record(x, z, U1)
 end
 
 # ╔═╡ 5328dbcf-b720-48bd-b979-ee853177ffce
-plot_record(freq_rec.xrecpos, 0, U1)
+plot_record(xrecposUI, 0, U1, tUI, medium, freqgrid, phase_velocities, tgrid, xrecposUI, freqsUI)
 
 # ╔═╡ 1b0fa006-6679-42ba-896e-990b7a3fa2ef
-function plot_Love_waves(t, medium, grid, U1, U2, modes)
+function plot_Love_waves(t, medium_params, freq, grid, U1, U2, modes)
     (; xgrid, zgrid1, zgrid2) = grid
 
     U1p = mapreduce(+, modes.c) do c
         return broadcast(Iterators.product(zgrid1, xgrid)) do (z, x)
-            real(U1(x, z, t, inv(c), 2 * pi * freq_rec.freq, getη(inv(c), medium.β₁), getη(inv(c), medium.β₂)))
+            real(U1(x, z, t, inv(c), 2 * pi * freq, getη(inv(c), medium_params.β₁), getη(inv(c), medium_params.β₂)))
         end
     end
 
     U2p = mapreduce(+, modes.c) do c
         return broadcast(Iterators.product(zgrid2, xgrid)) do (z, x)
-            real(U2(x, z, t, inv(c), 2 * pi * freq_rec.freq, getη(inv(c), medium.β₁), getη(inv(c), medium.β₂)))
+            real(U2(x, z, t, inv(c), 2 * pi * freq, getη(inv(c), medium_params.β₁), getη(inv(c), medium_params.β₂)))
         end
     end
 
@@ -521,14 +542,14 @@ function plot_Love_waves(t, medium, grid, U1, U2, modes)
         yaxis_scaleanchor="x",
         yaxis_scaleratio=1,
         yaxis_autorange="reversed",
-        shapes=[Shape("a", type="line", x0=xgrid[1], y0=medium.Hp, x1=xgrid[end], y1=medium.Hp, line=attr(color="black", width=5)), Shape("b", type="line", x0=xgrid[1], y0=0, x1=xgrid[end], y1=0, line=attr(color="black", width=5, dash="dot"))
+        shapes=[Shape("a", type="line", x0=xgrid[1], y0=medium_params.Hp, x1=xgrid[end], y1=medium_params.Hp, line=attr(color="black", width=5)), Shape("b", type="line", x0=xgrid[1], y0=0, x1=xgrid[end], y1=0, line=attr(color="black", width=5, dash="dot"))
         ],
         annotations=[
             # annotation for the first line
             attr(
                 text="Boundary",
                 xref="paper", yref="y",
-                x=0.1, y=medium.Hp,
+                x=0.1, y=medium_params.Hp,
                 font=attr(size=12),
                 showarrow=false, borderpad=4, bgcolor="white",
             ),
@@ -548,7 +569,7 @@ function plot_Love_waves(t, medium, grid, U1, U2, modes)
 end
 
 # ╔═╡ fefb338f-0b89-4902-a85f-c8f87cf5c172
-plot_Love_waves(tt, medium, grid, U1, U2, modes)
+plot_Love_waves(tt, medium, freq_rec.freq, grid, U1, U2, modes)
 
 # ╔═╡ d43097f2-34c3-4326-8473-62317a7c7730
 function plot_dispersion_curves(phase_velocities, group_velocities, freqgrid)
@@ -573,12 +594,12 @@ end
 plot_dispersion_curves(phase_velocities, group_velocities, freqgrid)
 
 # ╔═╡ 5b924c0b-fee5-4ea1-a42d-8d6b82c531a3
-function plot_phase(t)
+function plot_phase(t, xrecpos, medium_params, wavenumbers, freqgrid)
     fig = Plot(Layout(title="Stationary Phase Analysis", yaxis=attr(title="Phase = (kx-ωt)"), xaxis=attr(title="Frequency (Hz)")))
-    t1 = freq_rec.xrecpos / medium.β₁ * 0.5
-    t2 = freq_rec.xrecpos / medium.β₂ * 2
+    t1 = xrecpos / medium_params.β₁ * 0.5
+    t2 = xrecpos / medium_params.β₂ * 2
 
-    phase = wavenumbers[1] * freq_rec.xrecpos .- 2pi .* freqgrid[2:end] * t
+    phase = wavenumbers[1] * xrecpos .- 2pi .* freqgrid[2:end] * t
     min_points, _ = findminima(phase)
     max_points, _ = findmaxima(phase)
     add_trace!(fig, scatter(x=freqgrid[2:end], y=phase, name=string(t)))
@@ -593,12 +614,12 @@ function plot_phase(t)
 end
 
 # ╔═╡ 29f1f30e-449e-47a7-86ce-45e1e8ead5c3
-plot_phase(freq_rec.T)
+plot_phase(tUI, xrecposUI, medium, wavenumbers, freqgrid)
 
 # ╔═╡ 16c826bf-fa48-423c-bfec-195f7fc502f8
 md"""
 ## TODO
-- Have a plot that shows how a wavelet disperses as it propagates, which needs a sum of frequencies, with some initial phases assigned.
+- plot phase velocities as a function of period, too
 """
 
 # ╔═╡ 00000000-0000-0000-0000-000000000001
@@ -630,9 +651,9 @@ Symbolics = "~6.12.0"
 PLUTO_MANIFEST_TOML_CONTENTS = """
 # This file is machine-generated - editing it directly is not advised
 
-julia_version = "1.11.6"
+julia_version = "1.12.0"
 manifest_format = "2.0"
-project_hash = "6148517c7c28f34361da64be253ff296fe4fb695"
+project_hash = "97ec8ad22bc0869888e10cf26fe14eea9bc83a0c"
 
 [[deps.ADTypes]]
 git-tree-sha1 = "e2478490447631aedba0823d4d7a80b2cc8cdb32"
@@ -838,7 +859,7 @@ weakdeps = ["Dates", "LinearAlgebra"]
 [[deps.CompilerSupportLibraries_jll]]
 deps = ["Artifacts", "Libdl"]
 uuid = "e66e0078-7015-5450-92f7-15fbd957f2ae"
-version = "1.1.1+0"
+version = "1.3.0+1"
 
 [[deps.CompositeTypes]]
 git-tree-sha1 = "bce26c3dab336582805503bed209faab1c279768"
@@ -1124,6 +1145,11 @@ git-tree-sha1 = "a434e811d10e7cbf4f0674285542e697dca605d0"
 uuid = "aa1ae85d-cabe-5617-a682-6adf51b2e16a"
 version = "0.9.42"
 
+[[deps.JuliaSyntaxHighlighting]]
+deps = ["StyledStrings"]
+uuid = "ac6e5ff7-fb65-4e79-a425-ec3bc9c03011"
+version = "1.12.0"
+
 [[deps.LaTeXStrings]]
 git-tree-sha1 = "dda21b8cbd6a6c40d9d02a73230f9d70fed6918c"
 uuid = "b964fa9f-0449-5b57-a5c2-d3ea65f4040f"
@@ -1161,24 +1187,24 @@ uuid = "b27032c2-a3e7-50c8-80cd-2d36dbcbfd21"
 version = "0.6.4"
 
 [[deps.LibCURL_jll]]
-deps = ["Artifacts", "LibSSH2_jll", "Libdl", "MbedTLS_jll", "Zlib_jll", "nghttp2_jll"]
+deps = ["Artifacts", "LibSSH2_jll", "Libdl", "OpenSSL_jll", "Zlib_jll", "nghttp2_jll"]
 uuid = "deac9b47-8bc7-5906-a0fe-35ac56dc84c0"
-version = "8.6.0+0"
+version = "8.11.1+1"
 
 [[deps.LibGit2]]
-deps = ["Base64", "LibGit2_jll", "NetworkOptions", "Printf", "SHA"]
+deps = ["LibGit2_jll", "NetworkOptions", "Printf", "SHA"]
 uuid = "76f85450-5226-5b5a-8eaa-529ad045b433"
 version = "1.11.0"
 
 [[deps.LibGit2_jll]]
-deps = ["Artifacts", "LibSSH2_jll", "Libdl", "MbedTLS_jll"]
+deps = ["Artifacts", "LibSSH2_jll", "Libdl", "OpenSSL_jll"]
 uuid = "e37daf67-58a4-590a-8e99-b0245dd2ffc5"
-version = "1.7.2+0"
+version = "1.9.0+0"
 
 [[deps.LibSSH2_jll]]
-deps = ["Artifacts", "Libdl", "MbedTLS_jll"]
+deps = ["Artifacts", "Libdl", "OpenSSL_jll"]
 uuid = "29816b5a-b9ab-546f-933c-edad1886dfa8"
-version = "1.11.0+1"
+version = "1.11.3+1"
 
 [[deps.Libdl]]
 uuid = "8f399da3-3557-5675-b5ff-fb832c97cbdb"
@@ -1187,7 +1213,7 @@ version = "1.11.0"
 [[deps.LinearAlgebra]]
 deps = ["Libdl", "OpenBLAS_jll", "libblastrampoline_jll"]
 uuid = "37e2e46d-f89d-539d-b4ee-838fcccc9c8e"
-version = "1.11.0"
+version = "1.12.0"
 
 [[deps.LogExpFunctions]]
 deps = ["DocStringExtensions", "IrrationalConstants", "LinearAlgebra"]
@@ -1232,14 +1258,9 @@ uuid = "1914dd2f-81c6-5fcd-8719-6d5c9610ff09"
 version = "0.5.15"
 
 [[deps.Markdown]]
-deps = ["Base64"]
+deps = ["Base64", "JuliaSyntaxHighlighting", "StyledStrings"]
 uuid = "d6f4376e-aef5-505a-96c1-9c027394607a"
 version = "1.11.0"
-
-[[deps.MbedTLS_jll]]
-deps = ["Artifacts", "Libdl"]
-uuid = "c8ffd9c3-330d-5841-b78e-0817d7145fa1"
-version = "2.28.6+0"
 
 [[deps.Missings]]
 deps = ["DataAPI"]
@@ -1259,7 +1280,7 @@ version = "0.3.5"
 
 [[deps.MozillaCACerts_jll]]
 uuid = "14a3606d-f60d-562e-9121-12d972cd8159"
-version = "2023.12.12"
+version = "2025.5.20"
 
 [[deps.MultivariatePolynomials]]
 deps = ["ChainRulesCore", "DataStructures", "LinearAlgebra", "MutableArithmetics"]
@@ -1281,17 +1302,22 @@ version = "1.1.2"
 
 [[deps.NetworkOptions]]
 uuid = "ca575930-c2e3-43a9-ace4-1e988b2c1908"
-version = "1.2.0"
+version = "1.3.0"
 
 [[deps.OpenBLAS_jll]]
 deps = ["Artifacts", "CompilerSupportLibraries_jll", "Libdl"]
 uuid = "4536629a-c528-5b80-bd46-f80d51c5b363"
-version = "0.3.27+1"
+version = "0.3.29+0"
 
 [[deps.OpenLibm_jll]]
 deps = ["Artifacts", "Libdl"]
 uuid = "05823500-19ac-5b8b-9628-191a04bc5112"
-version = "0.8.5+0"
+version = "0.8.7+0"
+
+[[deps.OpenSSL_jll]]
+deps = ["Artifacts", "Libdl"]
+uuid = "458c3c95-2e84-50aa-8efc-19380b2a3a95"
+version = "3.5.1+0"
 
 [[deps.OpenSpecFun_jll]]
 deps = ["Artifacts", "CompilerSupportLibraries_jll", "JLLWrappers", "Libdl"]
@@ -1331,7 +1357,7 @@ version = "0.5.3"
 [[deps.Pkg]]
 deps = ["Artifacts", "Dates", "Downloads", "FileWatching", "LibGit2", "Libdl", "Logging", "Markdown", "Printf", "Random", "SHA", "TOML", "Tar", "UUIDs", "p7zip_jll"]
 uuid = "44cfe95a-1eb2-52ea-b672-e2afdf69b78f"
-version = "1.11.0"
+version = "1.12.0"
 weakdeps = ["REPL"]
 
     [deps.Pkg.extensions]
@@ -1434,7 +1460,7 @@ version = "2.11.2"
     Enzyme = "7da242da-08ed-463a-9acd-ee780be4f1d9"
 
 [[deps.REPL]]
-deps = ["InteractiveUtils", "Markdown", "Sockets", "StyledStrings", "Unicode"]
+deps = ["InteractiveUtils", "JuliaSyntaxHighlighting", "Markdown", "Sockets", "StyledStrings", "Unicode"]
 uuid = "3fa0cd96-eef1-5676-8a61-b3b8758bbffb"
 version = "1.11.0"
 
@@ -1613,7 +1639,7 @@ version = "1.2.1"
 [[deps.SparseArrays]]
 deps = ["Libdl", "LinearAlgebra", "Random", "Serialization", "SuiteSparse_jll"]
 uuid = "2f01184e-e22b-5df5-ae63-d93ebab69eaf"
-version = "1.11.0"
+version = "1.12.0"
 
 [[deps.SpecialFunctions]]
 deps = ["IrrationalConstants", "LogExpFunctions", "OpenLibm_jll", "OpenSpecFun_jll"]
@@ -1685,7 +1711,7 @@ uuid = "4607b0f0-06f3-5cda-b6b1-a6196a1729e9"
 [[deps.SuiteSparse_jll]]
 deps = ["Artifacts", "Libdl", "libblastrampoline_jll"]
 uuid = "bea87d4a-7f5b-5778-9afe-8cc45184846c"
-version = "7.7.0+0"
+version = "7.8.3+2"
 
 [[deps.SymbolicIndexingInterface]]
 deps = ["Accessors", "ArrayInterface", "RuntimeGeneratedFunctions", "StaticArraysCore"]
@@ -1818,17 +1844,17 @@ version = "0.1.6"
 [[deps.Zlib_jll]]
 deps = ["Libdl"]
 uuid = "83775a58-1f1d-513f-b197-d71354ab007a"
-version = "1.2.13+1"
+version = "1.3.1+2"
 
 [[deps.libblastrampoline_jll]]
 deps = ["Artifacts", "Libdl"]
 uuid = "8e850b90-86db-534c-a0d3-1478176c7d93"
-version = "5.11.0+0"
+version = "5.13.1+1"
 
 [[deps.nghttp2_jll]]
 deps = ["Artifacts", "Libdl"]
 uuid = "8e850ede-7688-5339-a07c-302acd2aaf8d"
-version = "1.59.0+0"
+version = "1.64.0+1"
 
 [[deps.oneTBB_jll]]
 deps = ["Artifacts", "JLLWrappers", "Libdl"]
@@ -1839,7 +1865,7 @@ version = "2022.0.0+0"
 [[deps.p7zip_jll]]
 deps = ["Artifacts", "Libdl"]
 uuid = "3f19e933-33d8-53b3-aaab-bd5110c3b7a0"
-version = "17.4.0+2"
+version = "17.5.0+2"
 """
 
 # ╔═╡ Cell order:
@@ -1850,8 +1876,10 @@ version = "17.4.0+2"
 # ╟─fefb338f-0b89-4902-a85f-c8f87cf5c172
 # ╟─19a31e92-8226-4ce5-aa04-933552953a9d
 # ╟─2d89a043-dfd3-4662-8c29-8829987fa39c
+# ╟─226f1f5c-bfe6-4865-82b8-d39b964f47ca
+# ╟─e3f0470d-0317-4a9e-a93b-388b6efca5c4
 # ╟─5328dbcf-b720-48bd-b979-ee853177ffce
-# ╠═29f1f30e-449e-47a7-86ce-45e1e8ead5c3
+# ╟─29f1f30e-449e-47a7-86ce-45e1e8ead5c3
 # ╟─481ddc41-0124-439e-ba04-b039a4bef764
 # ╟─9f106bb0-b0c6-4c5b-bdf2-f17c15693b82
 # ╟─a19519d6-a96f-4a8a-8563-d5052f694aff
@@ -1904,7 +1932,8 @@ version = "17.4.0+2"
 # ╠═cc173455-2ed0-42f3-a9c0-0dfdbbe982ee
 # ╠═ad78f0ef-460d-4b62-8bbc-0f7059214b38
 # ╟─8db66193-eb99-478e-bdad-44b0e4e18dad
-# ╠═42fc96c5-64ca-4df9-bef1-00fe7bf20529
+# ╠═a69a71b4-6dbc-4de7-a8d7-5cc3ad744d94
+# ╠═5d81104e-16a1-4c44-89a3-a492821021ed
 # ╠═a37d91cc-cd80-48c0-8ecc-959df16fb925
 # ╠═e4c1cda0-7366-4aa0-a616-47d86a1c9502
 # ╠═6ae71567-4501-4cf5-8055-47b235829f14

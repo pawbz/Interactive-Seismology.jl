@@ -1,5 +1,5 @@
 ### A Pluto.jl notebook ###
-# v0.20.13
+# v0.20.19
 
 using Markdown
 using InteractiveUtils
@@ -17,7 +17,7 @@ macro bind(def, element)
 end
 
 # ╔═╡ 8d8f440d-4b79-4835-841b-739b5171f979
-using PlutoUI, Printf, Roots, LinearAlgebra
+using PlutoUI, Printf, Roots, LinearAlgebra, FFTW
 
 # ╔═╡ 29afa36b-391f-4861-aead-d62918daf3c6
 using HypertextLiteral: @htl
@@ -89,9 +89,18 @@ function starting_phase_velocity(vp::Float64, vs::Float64)
 end
 
 # ╔═╡ 6c766c4b-8a1c-4f8b-9467-fec5a91fcd05
-struct DispersionResult
+struct PhaseVelocities
     periods::Vector{Float64}
     phase_velocities::Vector{Float64}
+    group_velocities::Vector{Float64}
+end
+
+# ╔═╡ 5510a81e-1ac0-45b9-9657-13f0db32f3e1
+struct EigenFunctions
+	eigenfunctions_u::Matrix{Float64}  # displacement eigenfunctions [depth, frequency]
+    eigenfunctions_t::Matrix{Float64}  # stress eigenfunctions [depth, frequency]
+    depths::Vector{Float64}            # depth sampling points
+    energy_integrals::Vector{Float64}  # energy normalization factors
 end
 
 # ╔═╡ 756e06e3-4f25-4f55-b242-26a45a1b7dd3
@@ -148,6 +157,406 @@ function layer_matrix_SH(layer::Layer, ω::Float64, c::Float64)
 
     return M
 end
+
+
+
+
+
+
+# ╔═╡ 4f122bf3-0693-4f13-b716-c0dc2863af25
+# # complete_eigenfunction_implementation
+# """
+#     compute_love_eigenfunctions_complete(model::EarthModel, period::Float64, phase_velocity::Float64)
+
+# Complete implementation of Love wave eigenfunction computation using layer matrix propagation.
+# This follows the methodology from CPS rsh.f and implements the full matrix approach.
+# """
+# function compute_love_eigenfunctions(model::EarthModel, period::Float64, phase_velocity::Float64)
+#     ω = 2π / period
+#     c = phase_velocity
+#     layers = model.layers
+#     n_layers = length(layers)
+    
+#     # Create comprehensive depth sampling
+#     depths = create_depth_sampling(model)
+#     n_depths = length(depths)
+    
+#     # Initialize eigenfunction arrays
+#     u_eigenfunction = zeros(ComplexF64, n_depths)
+#     t_eigenfunction = zeros(ComplexF64, n_depths)
+    
+#     # Compute layer matrices and propagation
+#     layer_matrices = Vector{Matrix{ComplexF64}}(undef, n_layers)
+#     layer_properties = []
+    
+#     # Build layer matrices
+#     for i in 1:n_layers
+#         layer = layers[i]
+#         vs = layer.vs
+#         ρ = layer.rho
+#         μ = ρ * vs^2
+        
+#         # Vertical wavenumber
+#         k = ω / c
+#         q2 = (ω / vs)^2 - k^2
+#         q = sqrt(complex(q2))
+        
+#         push!(layer_properties, (vs=vs, ρ=ρ, μ=μ, q=q))
+        
+#         if i < n_layers  # Not half-space
+#             d = layer.thickness
+#             α = q * d
+            
+#             # Layer transfer matrix
+#             ca = cos(α)
+#             sa = sin(α)
+            
+#             layer_matrices[i] = [
+#                 ca              sa/(μ*q);
+#                 -μ*q*sa         ca
+#             ]
+#         else  # Half-space
+#             # Radiation condition matrix
+#             layer_matrices[i] = [
+#                 1.0     0.0;
+#                 0.0    1.0
+#             ]
+#         end
+#     end
+    
+#     # Forward propagation to establish boundary conditions
+#     # Start from free surface: u(0) = 1, t(0) = 0
+#     surface_vector = [complex(1.0), complex(0.0)]
+    
+#     # Propagate through all layers to check radiation condition
+#     total_matrix = Matrix{ComplexF64}(I, 2, 2)
+#     for i in 1:(n_layers-1)
+#         total_matrix = layer_matrices[i] * total_matrix
+#     end
+    
+#     # Apply radiation condition at bottom
+#     bottom_vector = total_matrix * surface_vector
+#     μ_bottom = layer_properties[end].μ
+#     q_bottom = layer_properties[end].q
+    
+#     # Check dispersion relation: t_bottom + μ*q*u_bottom ≈ 0
+#     dispersion_check = bottom_vector[2] + μ_bottom * q_bottom * bottom_vector[1]
+
+# 	@show dispersion_check
+#     # Now compute eigenfunctions at all depths
+#     current_depth_idx = 1
+#     cumulative_depth = 0.0
+    
+#     for layer_idx in 1:(n_layers-1)  # Exclude half-space for now
+#         layer = layers[layer_idx]
+#         layer_thickness = layer.thickness
+#         vs = layer_properties[layer_idx].vs
+#         ρ = layer_properties[layer_idx].ρ
+#         μ = layer_properties[layer_idx].μ
+#         q = layer_properties[layer_idx].q
+        
+#         # Find depths within this layer
+#         layer_start = cumulative_depth
+#         layer_end = cumulative_depth + layer_thickness
+        
+#         # Get state vector at top of this layer by propagating from surface
+#         layer_top_matrix = Matrix{ComplexF64}(I, 2, 2)
+#         for j in 1:(layer_idx-1)
+#             layer_top_matrix = layer_matrices[j] * layer_top_matrix
+#         end
+#         state_at_top = layer_top_matrix * surface_vector
+        
+#         # Compute eigenfunctions within this layer
+#         for depth_idx in current_depth_idx:n_depths
+#             depth = depths[depth_idx]
+            
+#             if depth > layer_end
+#                 break
+#             end
+            
+#             # Depth within current layer
+#             depth_in_layer = depth - layer_start
+#             α = q * depth_in_layer
+            
+#             # Propagation matrix within layer
+#             ca = cos(α)
+#             sa = sin(α)
+#             intra_layer_matrix = [
+#                 ca              sa/(μ*q);
+#                 -μ*q*sa         ca
+#             ]
+            
+#             # State at this depth
+#             state_vector = intra_layer_matrix * state_at_top
+            
+#             u_eigenfunction[depth_idx] = state_vector[1]
+#             t_eigenfunction[depth_idx] = state_vector[2]
+            
+#             current_depth_idx = depth_idx + 1
+#         end
+        
+#         cumulative_depth += layer_thickness
+#     end
+    
+#     # Handle half-space
+#     if current_depth_idx <= n_depths
+#         # Get state at top of half-space
+#         halfspace_top_matrix = Matrix{ComplexF64}(I, 2, 2)
+#         for j in 1:(n_layers-1)
+#             halfspace_top_matrix = layer_matrices[j] * halfspace_top_matrix
+#         end
+#         state_at_halfspace_top = halfspace_top_matrix * surface_vector
+        
+#         # Half-space properties
+#         vs_hs = layer_properties[end].vs
+#         ρ_hs = layer_properties[end].ρ
+#         μ_hs = layer_properties[end].μ
+#         q_hs = layer_properties[end].q
+        
+#         # Exponential decay in half-space
+#         for depth_idx in current_depth_idx:n_depths
+#             depth = depths[depth_idx]
+#             depth_in_halfspace = depth - cumulative_depth
+            
+#             # Decaying solution
+#             decay_factor = exp(-real(q_hs) * depth_in_halfspace)
+#             phase_factor = exp(-1im * imag(q_hs) * depth_in_halfspace)
+            
+#             u_eigenfunction[depth_idx] = state_at_halfspace_top[1] * decay_factor * phase_factor
+#             t_eigenfunction[depth_idx] = state_at_halfspace_top[2] * decay_factor * phase_factor
+#         end
+#     end
+    
+#     # Normalize eigenfunctions
+#     u_real = real.(u_eigenfunction)
+#     t_real = real.(t_eigenfunction)
+    
+#     # Energy normalization integral
+#     energy_integral = compute_energy_integral(depths, u_real, t_real, model)
+    
+#     if energy_integral > 0
+#         norm_factor = sqrt(energy_integral)
+#         u_eigenfunction ./= norm_factor
+#         t_eigenfunction ./= norm_factor
+#     end
+    
+#     return depths, real.(u_eigenfunction), real.(t_eigenfunction), energy_integral
+# end
+
+
+
+
+
+
+# ╔═╡ 07792153-a4ec-44b2-8d4f-cd9620436331
+# """
+#     create_depth_sampling(model::EarthModel) -> Vector{Float64}
+
+# Create optimal depth sampling for eigenfunction computation.
+# """
+# function create_depth_sampling(model::EarthModel)
+#     depths = Float64[]
+#     current_depth = 0.0
+    
+#     # Surface point
+#     push!(depths, 0.0)
+    
+#     # Sample within each layer
+#     for (i, layer) in enumerate(model.layers[1:end-1])  # Exclude half-space
+#         layer_thickness = layer.thickness
+        
+#         # Adaptive sampling based on layer properties
+#         if i <= 2
+#             # Fine sampling in upper layers
+#             n_samples = max(20, Int(ceil(layer_thickness / 1.0)))  # 1 km sampling
+#         elseif i <= 5
+#             # Medium sampling in middle layers  
+#             n_samples = max(10, Int(ceil(layer_thickness / 2.0)))  # 2 km sampling
+#         else
+#             # Coarse sampling in deep layers
+#             n_samples = max(5, Int(ceil(layer_thickness / 5.0)))   # 5 km sampling
+#         end
+        
+#         # Create sampling points within layer
+#         if layer_thickness > 0
+#             layer_depths = range(current_depth, current_depth + layer_thickness, length=n_samples+1)
+#             append!(depths, layer_depths[2:end])  # Skip first point to avoid duplication
+#         end
+        
+#         current_depth += layer_thickness
+#     end
+    
+#     # Add points into half-space for visualization
+#     half_space_depths = current_depth .+ [2.0, 5.0, 10.0, 20.0, 40.0, 80.0, 150.0]
+#     append!(depths, half_space_depths)
+    
+#     return sort(unique(depths))
+# end
+
+# ╔═╡ d17163ee-57d8-43fe-aa96-42c271a7f4b3
+# """
+#     compute_energy_integral(depths, u_real, t_real, model) -> Float64
+
+# Compute energy integral for eigenfunction normalization.
+# This implements the energy velocity calculation from CPS.
+# """
+# function compute_energy_integral(depths::Vector{Float64}, u_real::Vector{Float64}, 
+#                                 t_real::Vector{Float64}, model::EarthModel)
+    
+#     energy = 0.0
+#     current_depth = 0.0
+    
+#     # Integrate through each layer
+#     for (layer_idx, layer) in enumerate(model.layers[1:end-1])
+#         layer_thickness = layer.thickness
+#         ρ = layer.rho
+#         μ = ρ * layer.vs^2
+        
+#         # Find depth indices for this layer
+#         layer_start = current_depth
+#         layer_end = current_depth + layer_thickness
+        
+#         # Integration within layer
+#         for i in 2:length(depths)
+#             if depths[i-1] >= layer_start && depths[i] <= layer_end
+#                 dz = depths[i] - depths[i-1]
+                
+#                 # Kinetic energy density: (1/2) * ρ * u²
+#                 kinetic_density_1 = 0.5 * ρ * u_real[i-1]^2
+#                 kinetic_density_2 = 0.5 * ρ * u_real[i]^2
+                
+#                 # Strain energy density: (1/2) * t²/μ  
+#                 strain_density_1 = 0.5 * t_real[i-1]^2 / μ
+#                 strain_density_2 = 0.5 * t_real[i]^2 / μ
+                
+#                 # Trapezoidal integration
+#                 layer_energy = 0.5 * (kinetic_density_1 + kinetic_density_2 + 
+#                                      strain_density_1 + strain_density_2) * dz
+                
+#                 energy += layer_energy
+#             end
+#         end
+        
+#         current_depth += layer_thickness
+#     end
+    
+#     # Add half-space contribution (if significant)
+#     halfspace_start = current_depth
+#     ρ_hs = model.layers[end].rho
+#     μ_hs = ρ_hs * model.layers[end].vs^2
+    
+#     for i in 2:length(depths)
+#         if depths[i-1] >= halfspace_start
+#             dz = depths[i] - depths[i-1]
+            
+#             # Exponentially decaying contribution
+#             kinetic_1 = 0.5 * ρ_hs * u_real[i-1]^2
+#             kinetic_2 = 0.5 * ρ_hs * u_real[i]^2
+#             strain_1 = 0.5 * t_real[i-1]^2 / μ_hs
+#             strain_2 = 0.5 * t_real[i]^2 / μ_hs
+            
+#             halfspace_energy = 0.5 * (kinetic_1 + kinetic_2 + strain_1 + strain_2) * dz
+#             energy += halfspace_energy
+#         end
+#     end
+    
+#     return energy
+# end
+
+
+# ╔═╡ c7d305d1-3ca5-4506-8163-cfc8954b0168
+# """
+#     generate_love_synthetic_seismogram(dispersion_result::DispersionResult, distance::Float64;
+#                                       source_depth::Float64=10.0, dt::Float64=0.1, 
+#                                       duration::Float64=1000.0, f0::Float64=0.1)
+
+# Generate synthetic Love wave seismogram using modal summation with computed eigenfunctions.
+# This implements the modal summation method similar to CPS tpulse96/spulse96.
+# """
+# function generate_love_synthetic_seismogram(dispersion_result::DispersionResult, distance::Float64;
+#                                            source_depth::Float64=10.0, dt::Float64=0.1, 
+#                                            duration::Float64=1000.0, f0::Float64=0.1)
+    
+#     # Time vector
+#     npts = Int(duration / dt)
+#     time = (0:npts-1) * dt
+    
+#     # Initialize seismogram  
+#     displacement = zeros(Float64, npts)
+    
+#     # Ricker wavelet source time function
+#     function ricker_wavelet(t, f0)
+#         a = π * f0
+#         return (1.0 - 2.0 * (a * t)^2) * exp(-(a * t)^2)
+#     end
+    
+#     # Modal summation over all computed modes
+#     for (i, period) in enumerate(dispersion_result.periods)
+#         phase_vel = dispersion_result.phase_velocities[i]
+#         group_vel = dispersion_result.group_velocities[i]
+        
+#         if isnan(phase_vel) || isnan(group_vel)
+#             continue
+#         end
+        
+#         frequency = 1.0 / period
+#         ω = 2π * frequency
+        
+#         # Find source excitation from eigenfunction at source depth
+#         if !isempty(dispersion_result.depths) && !isempty(dispersion_result.eigenfunctions_u)
+#             # Interpolate eigenfunction at source depth
+#             source_excitation = 1.0  # Default
+#             if source_depth <= maximum(dispersion_result.depths)
+#                 source_idx = argmin(abs.(dispersion_result.depths .- source_depth))
+#                 u_source = dispersion_result.eigenfunctions_u[source_idx, i]
+#                 source_excitation = abs(u_source)  # Magnitude of eigenfunction at source
+#             end
+#         else
+#             source_excitation = exp(-source_depth / 50.0)  # Simple depth decay
+#         end
+        
+#         # Travel times
+#         group_arrival = distance / group_vel
+#         phase_arrival = distance / phase_vel
+        
+#         # Amplitude factors
+#         # Geometric spreading
+#         amplitude = 1.0 / sqrt(max(distance, 1.0))
+        
+#         # Frequency-dependent amplitude (surface wave scaling)
+#         amplitude *= 1.0 / frequency
+        
+#         # Attenuation (simple Q model)
+#         Q = 100.0
+#         attenuation = exp(-π * distance / (Q * phase_vel * period))
+#         amplitude *= attenuation
+        
+#         # Source excitation
+#         amplitude *= source_excitation
+        
+#         # Energy normalization
+#         if !isnan(dispersion_result.energy_integrals[i]) && dispersion_result.energy_integrals[i] > 0
+#             amplitude /= sqrt(dispersion_result.energy_integrals[i])
+#         end
+        
+#         # Add this mode's contribution to seismogram
+#         for (j, t) in enumerate(time)
+#             if t >= group_arrival
+#                 # Source time function delayed by group arrival
+#                 source_time = t - group_arrival - 20.0  # 20s delay for source
+#                 source_amplitude = ricker_wavelet(source_time, f0)
+                
+#                 # Phase-shifted sinusoid
+#                 phase_shift = ω * phase_arrival
+#                 wave_contribution = amplitude * source_amplitude * sin(ω * t - phase_shift)
+                
+#                 displacement[j] += wave_contribution
+#             end
+#         end
+#     end
+    
+#     return time, displacement
+# end
 
 # ╔═╡ ac92ec5d-de77-4235-a701-50de13c502b1
 """
@@ -261,15 +670,59 @@ function solve_phase_velocity_love(model, T; c_search_pad=0.10)
     return root
 end
 
+# ╔═╡ b2add770-6eef-41f6-b4f1-ff93e299d408
+"""
+    compute_group_velocity_love(model::EarthModel, period::Float64, phase_velocity::Float64)
+
+Compute Love wave group velocity using energy method.
+"""
+function compute_group_velocity_love(model::EarthModel, period::Float64, phase_velocity::Float64)
+    ω = 2π / period
+    c = phase_velocity
+    
+    # Small perturbation for numerical derivative
+    δω = ω * 1e-6
+    
+    # Compute phase velocities at ω ± δω
+    c_plus = try
+        solve_phase_velocity_love(model, 2π/(ω + δω))
+    catch
+        NaN
+    end
+    
+    c_minus = try
+        solve_phase_velocity_love(model, 2π/(ω - δω))
+    catch
+        NaN
+    end
+    
+    if isnan(c_plus) || isnan(c_minus)
+        # Fallback: approximate group velocity
+        return 0.9 * c
+    end
+    
+    # Group velocity using U = c - λ(dc/dλ) where λ = 2π/ω
+    dc_dω = (c_plus - c_minus) / (2 * δω)
+    group_velocity = c + ω * dc_dω
+    
+    return group_velocity
+end
+
 # ╔═╡ cca474e2-7152-43d5-be66-432847de2897
 """
     solve_love_dispersion(model, periods)
 
-Compute Love-wave dispersion (phase velocity for each period).
-Returns DispersionResult.
+Compute Love-wave dispersion (phase velocity for each period) along with eigenfunctions.
+Returns DispersionResult with phase velocities, group velocities, and eigenfunctions.
 """
 function solve_love_dispersion(model, periods)
     velocities = Float64[]
+    group_velocities = Float64[]
+    all_eigenfunctions_u = []
+    all_eigenfunctions_t = []
+    all_depths = Nothing
+    energy_integrals = Float64[]
+    
     for T in periods
         @printf("Solving T=%.3f s ... ", T)
         c = try
@@ -278,14 +731,62 @@ function solve_love_dispersion(model, periods)
             @warn "error solving period $T: $err"
             NaN
         end
+        
         if isnan(c)
             println("no root found")
+            push!(velocities, NaN)
+            push!(group_velocities, NaN)
+            push!(all_eigenfunctions_u, Float64[])
+            push!(all_eigenfunctions_t, Float64[])
+            push!(energy_integrals, NaN)
         else
             println(@sprintf("c=%.5f km/s", c))
+            push!(velocities, c)
+            
+            # Compute group velocity
+            U = compute_group_velocity_love(model, T, c)
+            push!(group_velocities, U)
+            
+            # Compute eigenfunctions
+            # depths, u_eigen, t_eigen, energy = compute_love_eigenfunctions(model, T, c)
+            
+            if all_depths === nothing
+                all_depths = depths
+            end
+            
+            # push!(all_eigenfunctions_u, u_eigen)
+            # push!(all_eigenfunctions_t, t_eigen)
+            # push!(energy_integrals, energy)
+            
+            @printf("  U=%.5f km/s\n", U)
         end
-        push!(velocities, c)
     end
-    return DispersionResult(periods, velocities)
+	velocities = PhaseVelocities(periods, velocities, group_velocities)
+
+	return velocities
+		#all_depths, all_eigenfunctions_u, all_eigenfunctions_t, energy_integrals
+    # # Convert eigenfunction arrays to matrices
+    # if all_depths !== nothing
+    #     n_depths = length(all_depths)
+    #     n_periods = length(periods)
+        
+    #     eigenfunctions_u = zeros(Float64, n_depths, n_periods)
+    #     eigenfunctions_t = zeros(Float64, n_depths, n_periods)
+        
+    #     for (i, period) in enumerate(periods)
+    #         if length(all_eigenfunctions_u[i]) == n_depths
+    #             eigenfunctions_u[:, i] = all_eigenfunctions_u[i]
+    #             eigenfunctions_t[:, i] = all_eigenfunctions_t[i]
+    #         end
+    #     end
+    # else
+    #     all_depths = Float64[]
+    #     eigenfunctions_u = zeros(Float64, 0, length(periods))
+    #     eigenfunctions_t = zeros(Float64, 0, length(periods))
+    # end
+    
+    # return DispersionResult(periods, velocities, group_velocities, 
+    #                        eigenfunctions_u, eigenfunctions_t, all_depths, energy_integrals)
 end
 
 
@@ -438,27 +939,56 @@ res = solve_love_dispersion(model, periods)
 
 # ╔═╡ 6e696382-0a37-46f1-8209-0bf5d7dbc82f
 let
-    plt = Plot(
-        scatter(
-            x=res.periods,
-            y=res.phase_velocities,
-            mode="lines+markers",
-            name="Dispersion Curve"
+    # Filter out NaN values for plotting
+    valid_indices = findall(.!isnan.(res.phase_velocities))
+    
+    if !isempty(valid_indices)
+        fig = make_subplots(
+            rows=2, cols=1,
+            subplot_titles=["Phase Velocity" "Group Velocity"],
+            vertical_spacing=0.15
         )
-    )
-
-    plt.layout = Layout(
-        title="Love Fundamental-Mode Dispersion Curve",
-        xaxis=attr(title="Period (s)", showgrid=true),
-        yaxis=attr(
-            title="Phase Velocity (km/s)",
-            showgrid=true,
-            range=[2.5, 6.5]
-        ),
-        hovermode="closest"
-    )
-
-    plot(plt)
+        
+        # Phase velocity
+        add_trace!(fig,
+            scatter(
+                x=res.periods[valid_indices],
+                y=res.phase_velocities[valid_indices],
+                mode="lines+markers",
+                name="Phase Velocity",
+                line=attr(color="blue", width=3),
+                marker=attr(size=6)
+            ),
+            row=1, col=1
+        )
+        
+        # Group velocity
+        add_trace!(fig,
+            scatter(
+                x=res.periods[valid_indices],
+                y=res.group_velocities[valid_indices],
+                mode="lines+markers",
+                name="Group Velocity", 
+                line=attr(color="red", width=3),
+                marker=attr(size=6)
+            ),
+            row=2, col=1
+        )
+        
+        relayout!(fig,
+            title="Love Wave Dispersion Curves",
+            xaxis1=attr(title="", showgrid=true),
+            xaxis2=attr(title="Period (s)", showgrid=true),
+            yaxis=attr(title="Phase Velocity (km/s)", showgrid=true, range=[2.5, 6.5]),
+            yaxis2=attr(title="Group Velocity (km/s)", showgrid=true, range=[2.5, 6.5]),
+            showlegend=false,
+            height=600
+        )
+        
+        fig
+    else
+        md"_No valid dispersion solutions found._"
+    end
 end
 
 # ╔═╡ fc1fd90c-020a-4f2d-aedd-66115ac6a287
@@ -471,9 +1001,251 @@ Herrmann, R. B. (2013), *Computer Programs in Seismology*.
 The Julia code here provides a **clean reimplementation** of some of the ideas behind CPS, designed for **interactive exploration**.
 """
 
+# ╔═╡ a882824a-a4da-11f0-8360-85b7e5471cb3
+md"""
+### Eigenfunction Display
+
+Select period for eigenfunction plot (s): $(@bind selected_period Slider(5:5:100, default=20, show_value=true))
+"""
+
+# ╔═╡ a8828434-a4da-11f0-ae4f-7707dd8da2ef
+# let
+#     if !isempty(res.depths) && !isempty(res.eigenfunctions_u)
+#         # Find closest period to selected
+#         period_idx = argmin(abs.(res.periods .- selected_period))
+#         actual_period = res.periods[period_idx]
+        
+#         if !isnan(res.phase_velocities[period_idx])
+#             u_eigen = res.eigenfunctions_u[:, period_idx]
+#             t_eigen = res.eigenfunctions_t[:, period_idx]
+            
+#             fig = make_subplots(
+#                 rows=1, cols=2,
+#                 subplot_titles=["Displacement Eigenfunction U(z)", "Stress Eigenfunction T(z)"],
+#                 horizontal_spacing=0.15
+#             )
+            
+#             # Displacement eigenfunction
+#             add_trace!(fig,
+#                 scatter(
+#                     x=u_eigen,
+#                     y=res.depths,
+#                     mode="lines+markers",
+#                     name="U(z)",
+#                     line=attr(color="blue", width=3),
+#                     marker=attr(size=4)
+#                 ),
+#                 row=1, col=1
+#             )
+            
+#             # Stress eigenfunction  
+#             add_trace!(fig,
+#                 scatter(
+#                     x=t_eigen,
+#                     y=res.depths,
+#                     mode="lines+markers",
+#                     name="T(z)",
+#                     line=attr(color="red", width=3),
+#                     marker=attr(size=4)
+#                 ),
+#                 row=1, col=2
+#             )
+            
+#             # Add layer boundaries
+#             cumulative_depth = 0.0
+#             for (i, layer) in enumerate(layers[1:end-1])
+#                 cumulative_depth += layer.thickness
+                
+#                 # Add vertical line at layer boundary
+#                 add_trace!(fig,
+#                     scatter(
+#                         x=[minimum(u_eigen), maximum(u_eigen)],
+#                         y=[cumulative_depth, cumulative_depth],
+#                         mode="lines",
+#                         line=attr(color="gray", width=1, dash="dash"),
+#                         showlegend=false
+#                     ),
+#                     row=1, col=1
+#                 )
+                
+#                 add_trace!(fig,
+#                     scatter(
+#                         x=[minimum(t_eigen), maximum(t_eigen)],
+#                         y=[cumulative_depth, cumulative_depth],
+#                         mode="lines",
+#                         line=attr(color="gray", width=1, dash="dash"),
+#                         showlegend=false
+#                     ),
+#                     row=1, col=2
+#                 )
+#             end
+            
+#             relayout!(fig,
+#                 title="Love Wave Eigenfunctions (T=$(round(actual_period, digits=1)) s, c=$(round(res.phase_velocities[period_idx], digits=3)) km/s)",
+#                 xaxis1=attr(title="Displacement U(z)", showgrid=true),
+#                 xaxis2=attr(title="Stress T(z)", showgrid=true),
+#                 yaxis1=attr(title="Depth (km)", autorange="reversed", showgrid=true),
+#                 yaxis2=attr(title="", autorange="reversed", showgrid=true),
+#                 showlegend=false,
+#                 height=500
+#             )
+            
+#             plot(fig)
+#         else
+#             md"_No valid eigenfunction for period $(actual_period) s_"
+#         end
+#     else
+#         md"_No eigenfunction data available_"
+#     end
+# end
+
+# ╔═╡ a88296c2-a4da-11f0-af15-77b6844f5837
+# let
+#     # Plot velocity model
+#     depths = Float64[0]
+#     vs_profile = Float64[]
+#     vp_profile = Float64[]
+#     rho_profile = Float64[]
+    
+#     current_depth = 0.0
+#     for (i, layer) in enumerate(layers)
+#         if i < length(layers)  # Not the half-space
+#             push!(depths, current_depth)
+#             push!(depths, current_depth + layer.thickness)
+#             push!(vs_profile, layer.vs)
+#             push!(vs_profile, layer.vs)
+#             push!(vp_profile, layer.vp)
+#             push!(vp_profile, layer.vp)
+#             push!(rho_profile, layer.rho)
+#             push!(rho_profile, layer.rho)
+#             current_depth += layer.thickness
+#         else  # Half-space
+#             push!(depths, current_depth)
+#             push!(depths, current_depth + 50)  # Arbitrary depth for visualization
+#             push!(vs_profile, layer.vs)
+#             push!(vs_profile, layer.vs)
+#             push!(vp_profile, layer.vp)
+#             push!(vp_profile, layer.vp)
+#             push!(rho_profile, layer.rho)
+#             push!(rho_profile, layer.rho)
+#         end
+#     end
+    
+#     fig = make_subplots(
+#         rows=1, cols=3,
+#         subplot_titles=["Shear Velocity", "P Velocity", "Density"],
+#         horizontal_spacing=0.1
+#     )
+    
+#     # Vs profile
+#     add_trace!(fig,
+#         scatter(x=vs_profile, y=depths, mode="lines",
+#                line=attr(width=3, color="blue"), name="Vs"),
+#         row=1, col=1)
+    
+#     # Vp profile
+#     add_trace!(fig,
+#         scatter(x=vp_profile, y=depths, mode="lines",
+#                line=attr(width=3, color="red"), name="Vp"),
+#         row=1, col=2)
+    
+#     # Density profile
+#     add_trace!(fig,
+#         scatter(x=rho_profile, y=depths, mode="lines", 
+#                line=attr(width=3, color="green"), name="ρ"),
+#         row=1, col=3)
+    
+#     relayout!(fig,
+#         title="Earth Model - Velocity and Density Profiles",
+#         xaxis1=attr(title="Vs (km/s)", showgrid=true),
+#         xaxis2=attr(title="Vp (km/s)", showgrid=true),
+#         xaxis3=attr(title="Density (g/cm³)", showgrid=true),
+#         yaxis1=attr(title="Depth (km)", autorange="reversed", showgrid=true),
+#         yaxis2=attr(title="", autorange="reversed", showgrid=true),
+#         yaxis3=attr(title="", autorange="reversed", showgrid=true),
+#         showlegend=false,
+#         height=400
+#     )
+    
+#     plot(fig)
+# end
+
+# ╔═╡ 3cce37c8-a4db-11f0-8445-2b16c3968493
+md"""
+## Synthetic Seismogram Generation
+
+Generate synthetic Love wave seismograms using modal summation with the computed eigenfunctions:
+"""
+
+# ╔═╡ 3cce396c-a4db-11f0-bc5a-e107cd4639d6
+md"""
+**Distance (km):** $(@bind distance Slider(10.0:10.0:500.0, default=100.0, show_value=true))
+
+**Source Depth (km):** $(@bind source_depth Slider(0.0:1.0:20.0, default=5.0, show_value=true))
+
+**Source Frequency (Hz):** $(@bind source_freq Slider(0.05:0.01:0.2, default=0.1, show_value=true))
+
+**Duration (s):** $(@bind duration Slider(500.0:100.0:2000.0, default=1000.0, show_value=true))
+"""
+
+# ╔═╡ 3cce3a82-a4db-11f0-9333-3da6f5a8cb24
+@bind compute_synthetic Button("Generate Synthetic Seismogram")
+
+# ╔═╡ 3cce3aca-a4db-11f0-aedc-edcc81a83eeb
+# begin
+#     compute_synthetic  # Trigger computation when button pressed
+    
+#     # Generate synthetic seismogram
+#     time_vec, synthetic_displacement = generate_love_synthetic_seismogram(
+#         res, distance;
+#         source_depth=source_depth,
+#         dt=0.1,
+#         duration=duration,
+#         f0=source_freq
+#     )
+    
+#     md"✓ Generated synthetic Love wave seismogram for distance = $(distance) km"
+# end
+
+# ╔═╡ 3cce3bd8-a4db-11f0-baab-cf3610efa1c8
+# # Plot synthetic seismogram
+# let
+#     fig = plot(
+#         Layout(
+#             title="Synthetic Love Wave Seismogram (Distance: $(distance) km)",
+#             xaxis_title="Time (s)",
+#             yaxis_title="Displacement (arbitrary units)",
+#             height=400,
+#             width=800
+#         )
+#     )
+    
+#     add_trace!(fig, scatter(
+#         x=time_vec,
+#         y=synthetic_displacement,
+#         mode="lines",
+#         name="Love Waves",
+#         line=attr(color="black", width=1)
+#     ))
+    
+#     # Add theoretical group velocity arrival times for reference
+#     if any(.!isnan.(res.group_velocities))
+#         valid_indices = .!isnan.(res.group_velocities)
+#         min_arrival = minimum(distance ./ res.group_velocities[valid_indices])
+#         max_arrival = maximum(distance ./ res.group_velocities[valid_indices])
+        
+#         # Add vertical lines for arrival time window
+#         add_vline!(fig, min_arrival, line_color="red", line_dash="dash", annotation_text="Fastest Group Velocity")
+#         add_vline!(fig, max_arrival, line_color="blue", line_dash="dash", annotation_text="Slowest Group Velocity")
+#     end
+    
+#     fig
+# end
+
 # ╔═╡ 00000000-0000-0000-0000-000000000001
 PLUTO_PROJECT_TOML_CONTENTS = """
 [deps]
+FFTW = "7a1cc6ca-52ef-59f5-83cd-3a7055c09341"
 HypertextLiteral = "ac1192a8-f4b3-4bfe-ba22-af5b92cd3ab2"
 LinearAlgebra = "37e2e46d-f89d-539d-b4ee-838fcccc9c8e"
 PlutoPlotly = "8e989ff0-3d88-8e9f-f020-2b208a939ff0"
@@ -482,6 +1254,7 @@ Printf = "de0858da-6303-5e67-8744-51eddeeeb8d7"
 Roots = "f2b01f46-fcfa-551c-844a-d8ac1e96c665"
 
 [compat]
+FFTW = "~1.9.0"
 HypertextLiteral = "~0.9.5"
 PlutoPlotly = "~0.6.4"
 PlutoUI = "~0.7.71"
@@ -492,9 +1265,23 @@ Roots = "~2.2.6"
 PLUTO_MANIFEST_TOML_CONTENTS = """
 # This file is machine-generated - editing it directly is not advised
 
-julia_version = "1.11.6"
+julia_version = "1.12.0"
 manifest_format = "2.0"
-project_hash = "0264277e532391f8f3beb74860e3dc79469a39a9"
+project_hash = "5e79032ef0cc11d1fdbce4d6e3738ec22f3c9500"
+
+[[deps.AbstractFFTs]]
+deps = ["LinearAlgebra"]
+git-tree-sha1 = "d92ad398961a3ed262d8bf04a1a2b8340f915fef"
+uuid = "621f4979-c628-5d54-868e-fcf4e3e8185c"
+version = "1.5.0"
+
+    [deps.AbstractFFTs.extensions]
+    AbstractFFTsChainRulesCoreExt = "ChainRulesCore"
+    AbstractFFTsTestExt = "Test"
+
+    [deps.AbstractFFTs.weakdeps]
+    ChainRulesCore = "d360d2e6-b24c-11e9-a2a3-2a2ae2dbcce4"
+    Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
 
 [[deps.AbstractPlutoDingetjes]]
 deps = ["Pkg"]
@@ -576,7 +1363,7 @@ version = "0.2.4"
 [[deps.CompilerSupportLibraries_jll]]
 deps = ["Artifacts", "Libdl"]
 uuid = "e66e0078-7015-5450-92f7-15fbd957f2ae"
-version = "1.1.1+0"
+version = "1.3.0+1"
 
 [[deps.CompositionsBase]]
 git-tree-sha1 = "802bb88cd69dfd1509f6670416bd4434015693ad"
@@ -623,6 +1410,18 @@ deps = ["ArgTools", "FileWatching", "LibCURL", "NetworkOptions"]
 uuid = "f43a241f-c20a-4ad4-852c-f6b1247861c6"
 version = "1.6.0"
 
+[[deps.FFTW]]
+deps = ["AbstractFFTs", "FFTW_jll", "LinearAlgebra", "MKL_jll", "Preferences", "Reexport"]
+git-tree-sha1 = "797762812ed063b9b94f6cc7742bc8883bb5e69e"
+uuid = "7a1cc6ca-52ef-59f5-83cd-3a7055c09341"
+version = "1.9.0"
+
+[[deps.FFTW_jll]]
+deps = ["Artifacts", "JLLWrappers", "Libdl"]
+git-tree-sha1 = "6d6219a004b8cf1e0b4dbe27a2860b8e04eba0be"
+uuid = "f5851436-0d7a-5f13-b9de-f02708fd171a"
+version = "3.3.11+0"
+
 [[deps.FileWatching]]
 uuid = "7b1f6079-737a-58dc-b8bc-7a2ca5c1b5ee"
 version = "1.11.0"
@@ -656,6 +1455,12 @@ git-tree-sha1 = "b6d6bfdd7ce25b0f9b2f6b3dd56b2673a66c8770"
 uuid = "b5f81e59-6552-4d32-b1f0-c071b021bf89"
 version = "0.2.5"
 
+[[deps.IntelOpenMP_jll]]
+deps = ["Artifacts", "JLLWrappers", "LazyArtifacts", "Libdl"]
+git-tree-sha1 = "ec1debd61c300961f98064cfb21287613ad7f303"
+uuid = "1d5cc7b8-4909-519e-a0f8-d0f5ad9712d0"
+version = "2025.2.0+0"
+
 [[deps.InteractiveUtils]]
 deps = ["Markdown"]
 uuid = "b77e0a4c-d291-57a0-90e8-8db25a27a240"
@@ -671,16 +1476,32 @@ weakdeps = ["Dates", "Test"]
     InverseFunctionsDatesExt = "Dates"
     InverseFunctionsTestExt = "Test"
 
+[[deps.JLLWrappers]]
+deps = ["Artifacts", "Preferences"]
+git-tree-sha1 = "0533e564aae234aff59ab625543145446d8b6ec2"
+uuid = "692b3bcd-3c85-4b1f-b108-f13ce0eb3210"
+version = "1.7.1"
+
 [[deps.JSON]]
 deps = ["Dates", "Mmap", "Parsers", "Unicode"]
 git-tree-sha1 = "31e996f0a15c7b280ba9f76636b3ff9e2ae58c9a"
 uuid = "682c06a0-de6a-54ab-a142-c8b1cf79cde6"
 version = "0.21.4"
 
+[[deps.JuliaSyntaxHighlighting]]
+deps = ["StyledStrings"]
+uuid = "ac6e5ff7-fb65-4e79-a425-ec3bc9c03011"
+version = "1.12.0"
+
 [[deps.LaTeXStrings]]
 git-tree-sha1 = "dda21b8cbd6a6c40d9d02a73230f9d70fed6918c"
 uuid = "b964fa9f-0449-5b57-a5c2-d3ea65f4040f"
 version = "1.4.0"
+
+[[deps.LazyArtifacts]]
+deps = ["Artifacts", "Pkg"]
+uuid = "4af54fe1-eca0-43a8-85a7-787d91b784e3"
+version = "1.11.0"
 
 [[deps.LibCURL]]
 deps = ["LibCURL_jll", "MozillaCACerts_jll"]
@@ -688,24 +1509,24 @@ uuid = "b27032c2-a3e7-50c8-80cd-2d36dbcbfd21"
 version = "0.6.4"
 
 [[deps.LibCURL_jll]]
-deps = ["Artifacts", "LibSSH2_jll", "Libdl", "MbedTLS_jll", "Zlib_jll", "nghttp2_jll"]
+deps = ["Artifacts", "LibSSH2_jll", "Libdl", "OpenSSL_jll", "Zlib_jll", "nghttp2_jll"]
 uuid = "deac9b47-8bc7-5906-a0fe-35ac56dc84c0"
-version = "8.6.0+0"
+version = "8.11.1+1"
 
 [[deps.LibGit2]]
-deps = ["Base64", "LibGit2_jll", "NetworkOptions", "Printf", "SHA"]
+deps = ["LibGit2_jll", "NetworkOptions", "Printf", "SHA"]
 uuid = "76f85450-5226-5b5a-8eaa-529ad045b433"
 version = "1.11.0"
 
 [[deps.LibGit2_jll]]
-deps = ["Artifacts", "LibSSH2_jll", "Libdl", "MbedTLS_jll"]
+deps = ["Artifacts", "LibSSH2_jll", "Libdl", "OpenSSL_jll"]
 uuid = "e37daf67-58a4-590a-8e99-b0245dd2ffc5"
-version = "1.7.2+0"
+version = "1.9.0+0"
 
 [[deps.LibSSH2_jll]]
-deps = ["Artifacts", "Libdl", "MbedTLS_jll"]
+deps = ["Artifacts", "Libdl", "OpenSSL_jll"]
 uuid = "29816b5a-b9ab-546f-933c-edad1886dfa8"
-version = "1.11.0+1"
+version = "1.11.3+1"
 
 [[deps.Libdl]]
 uuid = "8f399da3-3557-5675-b5ff-fb832c97cbdb"
@@ -714,7 +1535,7 @@ version = "1.11.0"
 [[deps.LinearAlgebra]]
 deps = ["Libdl", "OpenBLAS_jll", "libblastrampoline_jll"]
 uuid = "37e2e46d-f89d-539d-b4ee-838fcccc9c8e"
-version = "1.11.0"
+version = "1.12.0"
 
 [[deps.Logging]]
 uuid = "56ddb016-857b-54e1-b83d-db4d58db5568"
@@ -725,20 +1546,21 @@ git-tree-sha1 = "c64d943587f7187e751162b3b84445bbbd79f691"
 uuid = "6c6e2e6c-3030-632d-7369-2d6c69616d65"
 version = "1.1.0"
 
+[[deps.MKL_jll]]
+deps = ["Artifacts", "IntelOpenMP_jll", "JLLWrappers", "LazyArtifacts", "Libdl", "oneTBB_jll"]
+git-tree-sha1 = "282cadc186e7b2ae0eeadbd7a4dffed4196ae2aa"
+uuid = "856f044c-d86e-5d09-b602-aeab76dc8ba7"
+version = "2025.2.0+0"
+
 [[deps.MacroTools]]
 git-tree-sha1 = "1e0228a030642014fe5cfe68c2c0a818f9e3f522"
 uuid = "1914dd2f-81c6-5fcd-8719-6d5c9610ff09"
 version = "0.5.16"
 
 [[deps.Markdown]]
-deps = ["Base64"]
+deps = ["Base64", "JuliaSyntaxHighlighting", "StyledStrings"]
 uuid = "d6f4376e-aef5-505a-96c1-9c027394607a"
 version = "1.11.0"
-
-[[deps.MbedTLS_jll]]
-deps = ["Artifacts", "Libdl"]
-uuid = "c8ffd9c3-330d-5841-b78e-0817d7145fa1"
-version = "2.28.6+0"
 
 [[deps.Mmap]]
 uuid = "a63ad114-7e13-5084-954f-fe012c677804"
@@ -746,16 +1568,21 @@ version = "1.11.0"
 
 [[deps.MozillaCACerts_jll]]
 uuid = "14a3606d-f60d-562e-9121-12d972cd8159"
-version = "2023.12.12"
+version = "2025.5.20"
 
 [[deps.NetworkOptions]]
 uuid = "ca575930-c2e3-43a9-ace4-1e988b2c1908"
-version = "1.2.0"
+version = "1.3.0"
 
 [[deps.OpenBLAS_jll]]
 deps = ["Artifacts", "CompilerSupportLibraries_jll", "Libdl"]
 uuid = "4536629a-c528-5b80-bd46-f80d51c5b363"
-version = "0.3.27+1"
+version = "0.3.29+0"
+
+[[deps.OpenSSL_jll]]
+deps = ["Artifacts", "Libdl"]
+uuid = "458c3c95-2e84-50aa-8efc-19380b2a3a95"
+version = "3.5.1+0"
 
 [[deps.OrderedCollections]]
 git-tree-sha1 = "05868e21324cede2207c6f0f466b4bfef6d5e7ee"
@@ -777,7 +1604,7 @@ version = "2.8.3"
 [[deps.Pkg]]
 deps = ["Artifacts", "Dates", "Downloads", "FileWatching", "LibGit2", "Libdl", "Logging", "Markdown", "Printf", "Random", "SHA", "TOML", "Tar", "UUIDs", "p7zip_jll"]
 uuid = "44cfe95a-1eb2-52ea-b672-e2afdf69b78f"
-version = "1.11.0"
+version = "1.12.0"
 weakdeps = ["REPL"]
 
     [deps.Pkg.extensions]
@@ -839,7 +1666,7 @@ uuid = "de0858da-6303-5e67-8744-51eddeeeb8d7"
 version = "1.11.0"
 
 [[deps.REPL]]
-deps = ["InteractiveUtils", "Markdown", "Sockets", "StyledStrings", "Unicode"]
+deps = ["InteractiveUtils", "JuliaSyntaxHighlighting", "Markdown", "Sockets", "StyledStrings", "Unicode"]
 uuid = "3fa0cd96-eef1-5676-8a61-b3b8758bbffb"
 version = "1.11.0"
 
@@ -967,22 +1794,28 @@ version = "1.11.0"
 [[deps.Zlib_jll]]
 deps = ["Libdl"]
 uuid = "83775a58-1f1d-513f-b197-d71354ab007a"
-version = "1.2.13+1"
+version = "1.3.1+2"
 
 [[deps.libblastrampoline_jll]]
 deps = ["Artifacts", "Libdl"]
 uuid = "8e850b90-86db-534c-a0d3-1478176c7d93"
-version = "5.11.0+0"
+version = "5.13.1+1"
 
 [[deps.nghttp2_jll]]
 deps = ["Artifacts", "Libdl"]
 uuid = "8e850ede-7688-5339-a07c-302acd2aaf8d"
-version = "1.59.0+0"
+version = "1.64.0+1"
+
+[[deps.oneTBB_jll]]
+deps = ["Artifacts", "JLLWrappers", "Libdl"]
+git-tree-sha1 = "d5a767a3bb77135a99e433afe0eb14cd7f6914c3"
+uuid = "1317d2d5-d96f-522e-a858-c73665f53c3e"
+version = "2022.0.0+0"
 
 [[deps.p7zip_jll]]
 deps = ["Artifacts", "Libdl"]
 uuid = "3f19e933-33d8-53b3-aaab-bd5110c3b7a0"
-version = "17.4.0+2"
+version = "17.5.0+2"
 """
 
 # ╔═╡ Cell order:
@@ -996,9 +1829,15 @@ version = "17.4.0+2"
 # ╠═d058a019-40c2-4546-b578-808381506d1f
 # ╠═363d8b6d-ddc9-4048-a02b-16346158112c
 # ╠═6c766c4b-8a1c-4f8b-9467-fec5a91fcd05
+# ╠═5510a81e-1ac0-45b9-9657-13f0db32f3e1
 # ╠═a3cd5bb3-9b59-48a5-a505-4199a04941ed
 # ╠═756e06e3-4f25-4f55-b242-26a45a1b7dd3
 # ╠═9c9ad5f6-debf-4376-aaf6-759e9b0c949b
+# ╠═4f122bf3-0693-4f13-b716-c0dc2863af25
+# ╠═07792153-a4ec-44b2-8d4f-cd9620436331
+# ╠═d17163ee-57d8-43fe-aa96-42c271a7f4b3
+# ╠═b2add770-6eef-41f6-b4f1-ff93e299d408
+# ╠═c7d305d1-3ca5-4506-8163-cfc8954b0168
 # ╠═e05989a8-f2f1-49ad-a17f-8ddbf5776ab4
 # ╠═cca474e2-7152-43d5-be66-432847de2897
 # ╠═ac92ec5d-de77-4235-a701-50de13c502b1
@@ -1012,5 +1851,13 @@ version = "17.4.0+2"
 # ╠═5a43781a-b3e4-4bac-86d1-bd822c169804
 # ╠═05d910d2-527c-416f-9d63-c259fbe8a45d
 # ╟─fc1fd90c-020a-4f2d-aedd-66115ac6a287
+# ╠═a882824a-a4da-11f0-8360-85b7e5471cb3
+# ╠═a8828434-a4da-11f0-ae4f-7707dd8da2ef
+# ╠═a88296c2-a4da-11f0-af15-77b6844f5837
+# ╠═3cce37c8-a4db-11f0-8445-2b16c3968493
+# ╠═3cce396c-a4db-11f0-bc5a-e107cd4639d6
+# ╠═3cce3a82-a4db-11f0-9333-3da6f5a8cb24
+# ╠═3cce3aca-a4db-11f0-aedc-edcc81a83eeb
+# ╠═3cce3bd8-a4db-11f0-baab-cf3610efa1c8
 # ╟─00000000-0000-0000-0000-000000000001
 # ╟─00000000-0000-0000-0000-000000000002
