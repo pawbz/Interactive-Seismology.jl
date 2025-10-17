@@ -1,5 +1,5 @@
 ### A Pluto.jl notebook ###
-# v0.20.13
+# v0.20.19
 
 #> [frontmatter]
 #> title = "Rayleigh Function"
@@ -252,32 +252,37 @@ R = subs_αβρ(R1)
 
 # ╔═╡ 18fa43a1-4e0d-4910-9125-d41d6d174ef1
 # Substitutes UI values of α, β, and ρ.
-function subs_αβρ_plot(x)
-    simplify(substitute(subs_αβρ(x), [α => αp, β => βp, ρ => ρp]))
+function subs_αβρ_plot(x, αp_val, βp_val, ρp_val)
+    simplify(substitute(subs_αβρ(x), [α => αp_val, β => βp_val, ρ => ρp_val]))
 end
 
 # ╔═╡ c830a6e9-61bf-49b2-95d1-8dea1b89c154
-RUI = build_function(subs_αβρ_plot(R), p, expression=Val{false})
+RUI = build_function(subs_αβρ_plot(R, αp, βp, ρp), p, expression=Val{false})
 
 # ╔═╡ a53444b0-cb7f-4729-a262-38b33766bb74
 begin
-    cmin = 1.0 # minimum possible speed
-    cmax = βp - eps(Float64) # maximum speed, otherwise the SV wave will no longer be evanascent
-    # root
-    cᵣ = find_zero(c -> RUI(inv(c)), (cmin, cmax), Bisection())
+    function compute_rayleigh_velocity(αp_val, βp_val, RUI_func)
+        cmin = 1.0 # minimum possible speed
+        cmax = βp_val - eps(Float64) # maximum speed, otherwise the SV wave will no longer be evanascent
+        # root
+        cᵣ = find_zero(c -> RUI_func(inv(c)), (cmin, cmax), Bisection())
+        return cᵣ
+    end
+    
+    cᵣ = compute_rayleigh_velocity(αp, βp, RUI)
     md"The root is cᵣ=$(cᵣ) (km/s)"
 end
 
 # ╔═╡ 3053571a-096c-448a-9b48-60f9a1b2fce6
-function subs_all_plot(x)
-    simplify(substitute(subs_αβρ_plot(x), [p => inv(cᵣ), ı => im, ω => ωp, Aₚ => 1,]))
+function subs_all_plot(x, αp_val, βp_val, ρp_val, cᵣ_val, ωp_val)
+    simplify(substitute(subs_αβρ_plot(x, αp_val, βp_val, ρp_val), [p => inv(cᵣ_val), ı => im, ω => ωp_val, Aₚ => 1,]))
 end
 
 # ╔═╡ 872a5a67-b217-424a-bb88-627b7b2db7a9
-uxp = build_function(substitute(subs_all_plot(first(sum(uplot))), [Aₚ => 1, Aₛ => subs_all_plot(Aratio1)]), x, z, t, expression=Val{false})
+uxp = build_function(substitute(subs_all_plot(first(sum(uplot)), αp, βp, ρp, cᵣ, ωp), [Aₚ => 1, Aₛ => subs_all_plot(Aratio1, αp, βp, ρp, cᵣ, ωp)]), x, z, t, expression=Val{false})
 
 # ╔═╡ b3faea59-7b99-4070-a9fa-29fc9dc9f48b
-uzp = build_function(substitute(subs_all_plot(last(sum(uplot))), [Aₚ => 1, Aₛ => subs_all_plot(Aratio1)]), x, z, t, expression=Val{false})
+uzp = build_function(substitute(subs_all_plot(last(sum(uplot)), αp, βp, ρp, cᵣ, ωp), [Aₚ => 1, Aₛ => subs_all_plot(Aratio1, αp, βp, ρp, cᵣ, ωp)]), x, z, t, expression=Val{false})
 
 # ╔═╡ 79d729c0-57cb-4100-812d-8907a4b3910d
 md"""
@@ -288,17 +293,17 @@ md"""
 default_plotly_template(:plotly_dark)
 
 # ╔═╡ 4a4dc2cb-46ce-4fed-b67b-708943753f90
-function plot_displacement_field()
+function plot_displacement_field(uxp_func, uzp_func, tp_val)
     xgrid = range(0, stop=500, length=10)
     zgrid = range(0, stop=250, length=10)
     # evaluate ux and uz on the grids
-    ux = [real(uxp(x, z, tp)) for x in xgrid, z in zgrid]
-    uz = [real(uzp(x, z, tp)) for x in xgrid, z in zgrid]
+    ux = [real(uxp_func(x, z, tp_val)) for x in xgrid, z in zgrid]
+    uz = [real(uzp_func(x, z, tp_val)) for x in xgrid, z in zgrid]
 
 
     # normalize ux and uz
-    ux ./= abs(uxp(0, 0, 0))
-    uz ./= abs(uxp(0, 0, 0))
+    ux ./= abs(uxp_func(0, 0, 0))
+    uz ./= abs(uxp_func(0, 0, 0))
     strength = vec(sqrt.(ux .^ 2 .+ uz .^ 2))
 
     xq = [x1 for x1 in xgrid, z1 in zgrid]
@@ -349,30 +354,32 @@ function plot_displacement_field()
 end
 
 # ╔═╡ bd7562f0-cb14-4ddb-b8c7-ffc2a37b079e
-plot_displacement_field()
+plot_displacement_field(uxp, uzp, tp)
 
 # ╔═╡ 38f7ae72-edae-4ebf-9600-1104e4fd92cf
-function plot_Rayleigh_function()
+function plot_Rayleigh_function(RUI_func, cᵣ_val, αp_val, βp_val)
     fig = Plot(Layout(title="Rayleigh Function", xaxis_title="Phase Velocity (km/s)", width=700, height=350))
     # declare a range of speeds for plotting
+    cmin = 1.0 # minimum possible speed
+    cmax = βp_val - eps(Float64) # maximum speed, otherwise the SV wave will no longer be evanascent
     crange = range(cmin, stop=cmax, length=100)
-    add_trace!(fig, PlutoPlotly.scatter(x=crange, y=[RUI(inv(c)) for c in crange], line=attr(width=3, color="white"), name="Rayleigh Function"))
+    add_trace!(fig, PlutoPlotly.scatter(x=crange, y=[RUI_func(inv(c)) for c in crange], line=attr(width=3, color="white"), name="Rayleigh Function"))
     add_hline!(fig, 0.0, line=attr(dash="dot"))
-    add_trace!(fig, PlutoPlotly.scatter(x=[cᵣ, cᵣ], y=[-1, 1],
+    add_trace!(fig, PlutoPlotly.scatter(x=[cᵣ_val, cᵣ_val], y=[-1, 1],
         name="Rayleigh Phase Velocity (cᵣ)",
         line=attr(
             color="Orange",
             width=4,
         )
     ))
-    add_trace!(fig, PlutoPlotly.scatter(x=[αp, αp], y=[-1, 1],
+    add_trace!(fig, PlutoPlotly.scatter(x=[αp_val, αp_val], y=[-1, 1],
         name="P-wave Velocity (α)",
         line=attr(
             color="Red",
             width=4,
         )
     ))
-    add_trace!(fig, PlutoPlotly.scatter(x=[βp, βp], y=[-1, 1],
+    add_trace!(fig, PlutoPlotly.scatter(x=[βp_val, βp_val], y=[-1, 1],
         name="S-wave Velocity (β)",
         line=attr(
             color="Blue",
@@ -384,7 +391,7 @@ function plot_Rayleigh_function()
 end
 
 # ╔═╡ 31a317e2-0864-4552-83ee-ba4138ab5c0b
-plot_Rayleigh_function()
+plot_Rayleigh_function(RUI, cᵣ, αp, βp)
 
 # ╔═╡ 00000000-0000-0000-0000-000000000001
 PLUTO_PROJECT_TOML_CONTENTS = """
@@ -418,9 +425,9 @@ Symbolics = "~6.12.0"
 PLUTO_MANIFEST_TOML_CONTENTS = """
 # This file is machine-generated - editing it directly is not advised
 
-julia_version = "1.11.6"
+julia_version = "1.12.0"
 manifest_format = "2.0"
-project_hash = "a4c9aa60b01da02b7637d7404f9276db98797133"
+project_hash = "793cea3defb3ccddf494a4905d2ea23ab1b3bd0e"
 
 [[deps.ADTypes]]
 git-tree-sha1 = "e2478490447631aedba0823d4d7a80b2cc8cdb32"
@@ -615,7 +622,7 @@ weakdeps = ["Dates", "LinearAlgebra"]
 [[deps.CompilerSupportLibraries_jll]]
 deps = ["Artifacts", "Libdl"]
 uuid = "e66e0078-7015-5450-92f7-15fbd957f2ae"
-version = "1.1.1+0"
+version = "1.3.0+1"
 
 [[deps.CompositeTypes]]
 git-tree-sha1 = "bce26c3dab336582805503bed209faab1c279768"
@@ -883,6 +890,11 @@ git-tree-sha1 = "a434e811d10e7cbf4f0674285542e697dca605d0"
 uuid = "aa1ae85d-cabe-5617-a682-6adf51b2e16a"
 version = "0.9.42"
 
+[[deps.JuliaSyntaxHighlighting]]
+deps = ["StyledStrings"]
+uuid = "ac6e5ff7-fb65-4e79-a425-ec3bc9c03011"
+version = "1.12.0"
+
 [[deps.LaTeXStrings]]
 git-tree-sha1 = "50901ebc375ed41dbf8058da26f9de442febbbec"
 uuid = "b964fa9f-0449-5b57-a5c2-d3ea65f4040f"
@@ -915,24 +927,24 @@ uuid = "b27032c2-a3e7-50c8-80cd-2d36dbcbfd21"
 version = "0.6.4"
 
 [[deps.LibCURL_jll]]
-deps = ["Artifacts", "LibSSH2_jll", "Libdl", "MbedTLS_jll", "Zlib_jll", "nghttp2_jll"]
+deps = ["Artifacts", "LibSSH2_jll", "Libdl", "OpenSSL_jll", "Zlib_jll", "nghttp2_jll"]
 uuid = "deac9b47-8bc7-5906-a0fe-35ac56dc84c0"
-version = "8.6.0+0"
+version = "8.11.1+1"
 
 [[deps.LibGit2]]
-deps = ["Base64", "LibGit2_jll", "NetworkOptions", "Printf", "SHA"]
+deps = ["LibGit2_jll", "NetworkOptions", "Printf", "SHA"]
 uuid = "76f85450-5226-5b5a-8eaa-529ad045b433"
 version = "1.11.0"
 
 [[deps.LibGit2_jll]]
-deps = ["Artifacts", "LibSSH2_jll", "Libdl", "MbedTLS_jll"]
+deps = ["Artifacts", "LibSSH2_jll", "Libdl", "OpenSSL_jll"]
 uuid = "e37daf67-58a4-590a-8e99-b0245dd2ffc5"
-version = "1.7.2+0"
+version = "1.9.0+0"
 
 [[deps.LibSSH2_jll]]
-deps = ["Artifacts", "Libdl", "MbedTLS_jll"]
+deps = ["Artifacts", "Libdl", "OpenSSL_jll"]
 uuid = "29816b5a-b9ab-546f-933c-edad1886dfa8"
-version = "1.11.0+1"
+version = "1.11.3+1"
 
 [[deps.Libdl]]
 uuid = "8f399da3-3557-5675-b5ff-fb832c97cbdb"
@@ -941,7 +953,7 @@ version = "1.11.0"
 [[deps.LinearAlgebra]]
 deps = ["Libdl", "OpenBLAS_jll", "libblastrampoline_jll"]
 uuid = "37e2e46d-f89d-539d-b4ee-838fcccc9c8e"
-version = "1.11.0"
+version = "1.12.0"
 
 [[deps.LogExpFunctions]]
 deps = ["DocStringExtensions", "IrrationalConstants", "LinearAlgebra"]
@@ -980,14 +992,9 @@ uuid = "1914dd2f-81c6-5fcd-8719-6d5c9610ff09"
 version = "0.5.15"
 
 [[deps.Markdown]]
-deps = ["Base64"]
+deps = ["Base64", "JuliaSyntaxHighlighting", "StyledStrings"]
 uuid = "d6f4376e-aef5-505a-96c1-9c027394607a"
 version = "1.11.0"
-
-[[deps.MbedTLS_jll]]
-deps = ["Artifacts", "Libdl"]
-uuid = "c8ffd9c3-330d-5841-b78e-0817d7145fa1"
-version = "2.28.6+0"
 
 [[deps.Measures]]
 git-tree-sha1 = "c13304c81eec1ed3af7fc20e75fb6b26092a1102"
@@ -1012,7 +1019,7 @@ version = "0.3.5"
 
 [[deps.MozillaCACerts_jll]]
 uuid = "14a3606d-f60d-562e-9121-12d972cd8159"
-version = "2023.12.12"
+version = "2025.5.20"
 
 [[deps.MultivariatePolynomials]]
 deps = ["ChainRulesCore", "DataStructures", "LinearAlgebra", "MutableArithmetics"]
@@ -1034,17 +1041,22 @@ version = "1.1.2"
 
 [[deps.NetworkOptions]]
 uuid = "ca575930-c2e3-43a9-ace4-1e988b2c1908"
-version = "1.2.0"
+version = "1.3.0"
 
 [[deps.OpenBLAS_jll]]
 deps = ["Artifacts", "CompilerSupportLibraries_jll", "Libdl"]
 uuid = "4536629a-c528-5b80-bd46-f80d51c5b363"
-version = "0.3.27+1"
+version = "0.3.29+0"
 
 [[deps.OpenLibm_jll]]
 deps = ["Artifacts", "Libdl"]
 uuid = "05823500-19ac-5b8b-9628-191a04bc5112"
-version = "0.8.5+0"
+version = "0.8.7+0"
+
+[[deps.OpenSSL_jll]]
+deps = ["Artifacts", "Libdl"]
+uuid = "458c3c95-2e84-50aa-8efc-19380b2a3a95"
+version = "3.5.1+0"
 
 [[deps.OpenSpecFun_jll]]
 deps = ["Artifacts", "CompilerSupportLibraries_jll", "JLLWrappers", "Libdl"]
@@ -1078,7 +1090,7 @@ version = "2.8.1"
 [[deps.Pkg]]
 deps = ["Artifacts", "Dates", "Downloads", "FileWatching", "LibGit2", "Libdl", "Logging", "Markdown", "Printf", "Random", "SHA", "TOML", "Tar", "UUIDs", "p7zip_jll"]
 uuid = "44cfe95a-1eb2-52ea-b672-e2afdf69b78f"
-version = "1.11.0"
+version = "1.12.0"
 weakdeps = ["REPL"]
 
     [deps.Pkg.extensions]
@@ -1181,7 +1193,7 @@ version = "2.11.2"
     Enzyme = "7da242da-08ed-463a-9acd-ee780be4f1d9"
 
 [[deps.REPL]]
-deps = ["InteractiveUtils", "Markdown", "Sockets", "StyledStrings", "Unicode"]
+deps = ["InteractiveUtils", "JuliaSyntaxHighlighting", "Markdown", "Sockets", "StyledStrings", "Unicode"]
 uuid = "3fa0cd96-eef1-5676-8a61-b3b8758bbffb"
 version = "1.11.0"
 
@@ -1354,7 +1366,7 @@ version = "1.2.1"
 [[deps.SparseArrays]]
 deps = ["Libdl", "LinearAlgebra", "Random", "Serialization", "SuiteSparse_jll"]
 uuid = "2f01184e-e22b-5df5-ae63-d93ebab69eaf"
-version = "1.11.0"
+version = "1.12.0"
 
 [[deps.SpecialFunctions]]
 deps = ["IrrationalConstants", "LogExpFunctions", "OpenLibm_jll", "OpenSpecFun_jll"]
@@ -1426,7 +1438,7 @@ uuid = "4607b0f0-06f3-5cda-b6b1-a6196a1729e9"
 [[deps.SuiteSparse_jll]]
 deps = ["Artifacts", "Libdl", "libblastrampoline_jll"]
 uuid = "bea87d4a-7f5b-5778-9afe-8cc45184846c"
-version = "7.7.0+0"
+version = "7.8.3+2"
 
 [[deps.SymbolicIndexingInterface]]
 deps = ["Accessors", "ArrayInterface", "RuntimeGeneratedFunctions", "StaticArraysCore"]
@@ -1559,22 +1571,22 @@ version = "0.1.6"
 [[deps.Zlib_jll]]
 deps = ["Libdl"]
 uuid = "83775a58-1f1d-513f-b197-d71354ab007a"
-version = "1.2.13+1"
+version = "1.3.1+2"
 
 [[deps.libblastrampoline_jll]]
 deps = ["Artifacts", "Libdl"]
 uuid = "8e850b90-86db-534c-a0d3-1478176c7d93"
-version = "5.11.0+0"
+version = "5.13.1+1"
 
 [[deps.nghttp2_jll]]
 deps = ["Artifacts", "Libdl"]
 uuid = "8e850ede-7688-5339-a07c-302acd2aaf8d"
-version = "1.59.0+0"
+version = "1.64.0+1"
 
 [[deps.p7zip_jll]]
 deps = ["Artifacts", "Libdl"]
 uuid = "3f19e933-33d8-53b3-aaab-bd5110c3b7a0"
-version = "17.4.0+2"
+version = "17.5.0+2"
 """
 
 # ╔═╡ Cell order:

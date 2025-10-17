@@ -2,7 +2,7 @@ Dict(
     "course_name" => "Interactive Seismology",
     "course_subtitle" => "Computational lab to provide the students with interactive simulations that help them to comprehend concepts of seismology",
     "code" => "ES 218",
-    "semester" => "Aug 2024",
+    "semester" => "Aug Semester",
     "authors" => [
         "Pawan Bharadwaj" => "https://ceas.iisc.ac.in/author/pawan-bharadwaj/",
     ],
