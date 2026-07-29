@@ -1,5 +1,5 @@
 ### A Pluto.jl notebook ###
-# v0.20.13
+# v0.20.19
 
 #> [frontmatter]
 #> title = "My First Seismogram"
@@ -22,21 +22,6 @@ macro bind(def, element)
     end
     #! format: on
 end
-
-# ╔═╡ 2cc62eeb-edc2-4fcb-876b-010d8a180162
-begin
-    using CondaPkg
-    CondaPkg.add_pip("obspy")
-end
-
-# ╔═╡ 53f5276e-7954-43d5-bcfb-6898bc6e85ab
-using PythonCall, PlutoPlotly
-
-# ╔═╡ efb48ae5-c01c-4e58-ba08-22f0c885ae4a
-using PlutoUI, FFTW, StatsBase
-
-# ╔═╡ 277155cf-77d8-4cd6-a122-346be2ff1516
-using Colors
 
 # ╔═╡ ca9f95ec-71d2-11f0-2e94-7da041469cdf
 PlutoUI.TableOfContents(include_definitions=true)
@@ -71,77 +56,14 @@ md"""
 - $(@bind total_duration Slider(1000:10:5000, show_value=true, default=4000))
 """
 
-# ╔═╡ d7023542-1db3-42fa-a4c6-f716f8a6fcfb
-md"## Random Earthquake and Station Selection"
+# ╔═╡ 0ec9801f-515e-4e42-9bc0-8c96c1e8937f
+md"""
+### Current Selections
 
-# ╔═╡ eddf7e8c-21e3-4d0d-9cfb-dacb24047b44
-md"## Selected Indices"
+- **Selected Earthquake**: $(selected_earthquake_details)
 
-# ╔═╡ 0a78aecc-932f-4aa9-9172-9d79736b5301
-md"## Station List"
-
-# ╔═╡ 9ef37a61-295d-45ca-b686-9592cb417e5a
-md"## Data Download"
-
-# ╔═╡ 98b22766-a9b2-419e-8ec2-6287f65e2722
-md"## TauP"
-
-# ╔═╡ d77d897a-ca34-4a00-a5c2-fdc988c6b75c
-md"## Earthquake List"
-
-# ╔═╡ d2aba787-dae6-4da5-8f16-0cadfcc38371
-md"## Appendix"
-
-# ╔═╡ 4afe5b07-8c6c-463f-aa77-c866d378ea61
-obspy = pyimport("obspy")
-
-# ╔═╡ 68087281-2e24-40a5-872e-6d549bdd2eaa
-begin
-    starttime = obspy.UTCDateTime("2000-01-01")
-    endtime = obspy.UTCDateTime("2024-12-31")
-    min_magnitude = 7.5
-end
-
-# ╔═╡ 1d74bb4f-eb8b-4e6a-bb12-9f8287bfa05b
-taup = pyimport("obspy.taup")
-
-# ╔═╡ 4b0309a1-e369-4954-8b40-e58fbe41754f
-model = taup.TauPyModel(model="iasp91")
-
-# ╔═╡ 20bf25f7-a56d-4e01-a4cd-ec7506028755
-UTCDateTime = obspy.UTCDateTime
-
-# ╔═╡ 4ee50f18-9d36-43c3-aced-6b33a661a959
-fdsn = pyimport("obspy.clients.fdsn")
-
-# ╔═╡ 08001b34-7cd7-4b72-9fc8-b4a8c869c460
-iris = pyimport("obspy.clients.iris")
-
-# ╔═╡ b4199996-5f1b-41b7-8732-6971a8d1824c
-client = fdsn.Client("IRIS")
-
-# ╔═╡ 00670b47-a0a1-43aa-b304-3a63bd1615c2
-# Fetch events from IRIS
-catalog = client.get_events(starttime=starttime, endtime=endtime, minmagnitude=min_magnitude)
-
-# ╔═╡ ce54afb1-9a66-4d88-aced-e8b94b162776
-# Store earthquake details in a structured format
-earthquake_list = [
-    (
-        "Mw $(event.magnitudes[0].mag) at $(event.origins[0].time)",
-        event.origins[0].time, event.origins[0].latitude,
-        event.origins[0].longitude, event.origins[0].depth / 1000,
-        event.magnitudes[0].mag
-    ) for event in catalog
-]
-
-# ╔═╡ dd849802-4614-4f30-bbce-d87660df3840
-earthquakes = [
-    (
-        event.origins[0].time, event.origins[0].latitude,
-        event.origins[0].longitude, event.magnitudes[0].mag
-    ) for event in catalog
-]
+- **Selected Receiver**: $(selected_station_details)
+"""
 
 # ╔═╡ 1939e9df-8c71-45b9-981f-e410d0a9965b
 @bind clicked_eq let
@@ -166,55 +88,6 @@ earthquakes = [
     p
 end
 
-# ╔═╡ 3e20d6bd-a212-44a2-b7ff-0abba9a36a90
-default_eq = let
-    eq = rand(earthquakes)
-    pyconvert.(Float64, [eq[2], eq[3]])
-end
-
-# ╔═╡ 834f3dae-81dd-4ff4-a891-2e62a1e10ce8
-# Extract details of the selected earthquake (filtered using lat/lon)
-begin
-    selected_eq = (clicked_eq === nothing) ? default_eq : clicked_eq
-    selected_earthquake_index = findall(e -> pyconvert(Float32, e[2]) ≈ selected_eq[1] && pyconvert(Float32, e[3]) ≈ selected_eq[2], earthquakes)[1]
-end
-
-# ╔═╡ c0ba9e33-0365-44ae-8ed9-f3d67d0e20c4
-begin
-    # Find details of the selected earthquake
-    selected_earthquake_details = earthquake_list[selected_earthquake_index]
-
-    eq_time = selected_earthquake_details[2]
-    eq_lat = selected_earthquake_details[3]
-    eq_dep = selected_earthquake_details[5]
-    eq_lon = selected_earthquake_details[4]
-end
-
-# ╔═╡ ad11d31e-2aed-4fc3-9e77-17c40c907e83
-station_list = let
-    # Fetch GSN stations that recorded this earthquake
-    network = "IU"  # IU = Global Seismographic Network (GSN)
-    station_list = client.get_stations(network=network, latitude=eq_lat, longitude=eq_lon, minradius=minradius, maxradius=maxradius)
-end
-
-# ╔═╡ 5c05410d-d364-4f32-a584-5601874887d0
-# Extract station metadata
-stations = [
-    (
-        s.code, s.latitude, s.longitude, s.elevation
-    ) for net in station_list for s in net.stations
-]
-
-# ╔═╡ 97de4846-f1ba-4269-bb25-68068dca274c
-default_station = let
-    st = rand(stations)
-    pyconvert.(Float64, [st[2], st[3]])
-end
-
-# ╔═╡ caf0a5ef-a65b-4e11-bedb-c6a5463f6387
-# Create a dropdown for selecting a station (if stations exist)
-station_names = length(stations) > 0 ? [s[1] for s in stations] : ["No stations found"]
-
 # ╔═╡ ad4d1627-f3ec-4a34-b109-bf07b1ce5bc0
 @bind clicked_station let
     p = PlutoPlot(Plot(scattergeo(
@@ -238,60 +111,8 @@ station_names = length(stations) > 0 ? [s[1] for s in stations] : ["No stations 
     p
 end
 
-# ╔═╡ 1617897a-dd18-4c80-b12a-c2d063965e09
-begin
-    selected_station = (clicked_station === nothing) ? default_station : clicked_station
-    # Extract details of the selected receiver
-    selected_station_index = findall(e -> pyconvert(Float32, e[2]) ≈ selected_station[1] && pyconvert(Float32, e[3]) ≈ selected_station[2], stations)[1]
-end
-
-# ╔═╡ 44944cf9-b2c7-4264-b766-6163e3946d86
-selected_station_details = stations[selected_station_index]
-
-# ╔═╡ 0ec9801f-515e-4e42-9bc0-8c96c1e8937f
-md"""
-### Current Selections
-
-- **Selected Earthquake**: $(selected_earthquake_details)
-
-- **Selected Receiver**: $(selected_station_details)
-"""
-
-# ╔═╡ 4be1db35-014e-4a56-8006-a7fe2ed358f1
-println(station_list)
-
-# ╔═╡ fd936886-101c-4244-898d-dfcf1333555b
-begin
-    starttime_data = eq_time  # Roughly start half a day after earthquake time
-    endtime_data = starttime_data + total_duration
-    traces = client.get_waveforms(
-        "IU",  # Network (IU, IC, II)
-        selected_station_details[1],  # Station code
-        "*",  # Any location
-        "BH?",  # Vertical component, 
-        attach_response=true,
-        starttime_data, endtime_data
-    )
-    traces = traces.filter("bandpass", freqmin=freqmin, freqmax=freqmax, corners=4, zerophase=true)
-    traces = traces.normalize().detrend()
-    # sampling_rate = pyconvert(Float32, first(traces.stats.sampling_rate)
-end
-
-# ╔═╡ 04687d41-3a81-4413-acb8-8c2293e39139
-channels = pyconvert.(String, [s.stats.channel for s in traces])
-
 # ╔═╡ 78e9243e-4981-4489-b120-6fa38352ded3
 @bind selected_channel_index Select([i => channels[i] for i in 1:length(channels)])
-
-# ╔═╡ 84c0bc78-7f66-4a6d-88ee-af6ea5154e49
-begin
-    # Compute distance and arrivals
-    distance_m, az, baz = obspy.geodetics.gps2dist_azimuth(eq_lat, eq_lon, selected_station_details[2], selected_station_details[3])
-    epi_dist_deg = obspy.geodetics.kilometer2degrees(distance_m / 1000.0)
-
-    arrivals = model.get_ray_paths(source_depth_in_km=eq_dep,
-        distance_in_degree=epi_dist_deg)
-end
 
 # ╔═╡ fc1f9bcd-2a4e-4468-a066-cf3540578e27
 let
@@ -328,6 +149,185 @@ let
         yaxis_title="Amplitude"))
 end
 
+# ╔═╡ d7023542-1db3-42fa-a4c6-f716f8a6fcfb
+md"## Random Earthquake and Station Selection"
+
+# ╔═╡ 3e20d6bd-a212-44a2-b7ff-0abba9a36a90
+default_eq = let
+    eq = rand(earthquakes)
+    pyconvert.(Float64, [eq[2], eq[3]])
+end
+
+# ╔═╡ 97de4846-f1ba-4269-bb25-68068dca274c
+default_station = let
+    st = rand(stations)
+    pyconvert.(Float64, [st[2], st[3]])
+end
+
+# ╔═╡ eddf7e8c-21e3-4d0d-9cfb-dacb24047b44
+md"## Selected Indices"
+
+# ╔═╡ 834f3dae-81dd-4ff4-a891-2e62a1e10ce8
+# Extract details of the selected earthquake (filtered using lat/lon)
+begin
+    selected_eq = (clicked_eq === nothing) ? default_eq : clicked_eq
+    selected_earthquake_index = findall(e -> pyconvert(Float32, e[2]) ≈ selected_eq[1] && pyconvert(Float32, e[3]) ≈ selected_eq[2], earthquakes)[1]
+end
+
+# ╔═╡ c0ba9e33-0365-44ae-8ed9-f3d67d0e20c4
+begin
+    # Find details of the selected earthquake
+    selected_earthquake_details = earthquake_list[selected_earthquake_index]
+
+    eq_time = selected_earthquake_details[2]
+    eq_lat = selected_earthquake_details[3]
+    eq_dep = selected_earthquake_details[5]
+    eq_lon = selected_earthquake_details[4]
+end
+
+# ╔═╡ 1617897a-dd18-4c80-b12a-c2d063965e09
+begin
+    selected_station = (clicked_station === nothing) ? default_station : clicked_station
+    # Extract details of the selected receiver
+    selected_station_index = findall(e -> pyconvert(Float32, e[2]) ≈ selected_station[1] && pyconvert(Float32, e[3]) ≈ selected_station[2], stations)[1]
+end
+
+# ╔═╡ 44944cf9-b2c7-4264-b766-6163e3946d86
+selected_station_details = stations[selected_station_index]
+
+# ╔═╡ 0a78aecc-932f-4aa9-9172-9d79736b5301
+md"## Station List"
+
+# ╔═╡ ad11d31e-2aed-4fc3-9e77-17c40c907e83
+station_list = let
+    # Fetch GSN stations that recorded this earthquake
+    network = "IU"  # IU = Global Seismographic Network (GSN)
+    station_list = client.get_stations(network=network, latitude=eq_lat, longitude=eq_lon, minradius=minradius, maxradius=maxradius)
+end
+
+# ╔═╡ 5c05410d-d364-4f32-a584-5601874887d0
+# Extract station metadata
+stations = [
+    (
+        s.code, s.latitude, s.longitude, s.elevation
+    ) for net in station_list for s in net.stations
+]
+
+# ╔═╡ caf0a5ef-a65b-4e11-bedb-c6a5463f6387
+# Create a dropdown for selecting a station (if stations exist)
+station_names = length(stations) > 0 ? [s[1] for s in stations] : ["No stations found"]
+
+# ╔═╡ 4be1db35-014e-4a56-8006-a7fe2ed358f1
+println(station_list)
+
+# ╔═╡ 9ef37a61-295d-45ca-b686-9592cb417e5a
+md"## Data Download"
+
+# ╔═╡ fd936886-101c-4244-898d-dfcf1333555b
+begin
+    starttime_data = eq_time  # Roughly start half a day after earthquake time
+    endtime_data = starttime_data + total_duration
+    traces = client.get_waveforms(
+        "IU",  # Network (IU, IC, II)
+        selected_station_details[1],  # Station code
+        "*",  # Any location
+        "BH?",  # Vertical component, 
+        attach_response=true,
+        starttime_data, endtime_data
+    )
+    traces = traces.filter("bandpass", freqmin=freqmin, freqmax=freqmax, corners=4, zerophase=true)
+    traces = traces.normalize().detrend()
+    # sampling_rate = pyconvert(Float32, first(traces.stats.sampling_rate)
+end
+
+# ╔═╡ 04687d41-3a81-4413-acb8-8c2293e39139
+channels = pyconvert.(String, [s.stats.channel for s in traces])
+
+# ╔═╡ 98b22766-a9b2-419e-8ec2-6287f65e2722
+md"## TauP"
+
+# ╔═╡ 84c0bc78-7f66-4a6d-88ee-af6ea5154e49
+begin
+    # Compute distance and arrivals
+    distance_m, az, baz = obspy.geodetics.gps2dist_azimuth(eq_lat, eq_lon, selected_station_details[2], selected_station_details[3])
+    epi_dist_deg = obspy.geodetics.kilometer2degrees(distance_m / 1000.0)
+
+    arrivals = model.get_ray_paths(source_depth_in_km=eq_dep,
+        distance_in_degree=epi_dist_deg)
+end
+
+# ╔═╡ 4b0309a1-e369-4954-8b40-e58fbe41754f
+model = taup.TauPyModel(model="iasp91")
+
+# ╔═╡ d77d897a-ca34-4a00-a5c2-fdc988c6b75c
+md"## Earthquake List"
+
+# ╔═╡ 68087281-2e24-40a5-872e-6d549bdd2eaa
+begin
+    starttime = obspy.UTCDateTime("2000-01-01")
+    endtime = obspy.UTCDateTime("2024-12-31")
+    min_magnitude = 7.5
+end
+
+# ╔═╡ 00670b47-a0a1-43aa-b304-3a63bd1615c2
+# Fetch events from IRIS
+catalog = client.get_events(starttime=starttime, endtime=endtime, minmagnitude=min_magnitude)
+
+# ╔═╡ ce54afb1-9a66-4d88-aced-e8b94b162776
+# Store earthquake details in a structured format
+earthquake_list = [
+    (
+        "Mw $(event.magnitudes[0].mag) at $(event.origins[0].time)",
+        event.origins[0].time, event.origins[0].latitude,
+        event.origins[0].longitude, event.origins[0].depth / 1000,
+        event.magnitudes[0].mag
+    ) for event in catalog
+]
+
+# ╔═╡ dd849802-4614-4f30-bbce-d87660df3840
+earthquakes = [
+    (
+        event.origins[0].time, event.origins[0].latitude,
+        event.origins[0].longitude, event.magnitudes[0].mag
+    ) for event in catalog
+]
+
+# ╔═╡ d2aba787-dae6-4da5-8f16-0cadfcc38371
+md"## Appendix"
+
+# ╔═╡ 2cc62eeb-edc2-4fcb-876b-010d8a180162
+begin
+    using CondaPkg
+    CondaPkg.add_pip("obspy")
+end
+
+# ╔═╡ 4afe5b07-8c6c-463f-aa77-c866d378ea61
+obspy = pyimport("obspy")
+
+# ╔═╡ 1d74bb4f-eb8b-4e6a-bb12-9f8287bfa05b
+taup = pyimport("obspy.taup")
+
+# ╔═╡ 20bf25f7-a56d-4e01-a4cd-ec7506028755
+UTCDateTime = obspy.UTCDateTime
+
+# ╔═╡ 4ee50f18-9d36-43c3-aced-6b33a661a959
+fdsn = pyimport("obspy.clients.fdsn")
+
+# ╔═╡ 08001b34-7cd7-4b72-9fc8-b4a8c869c460
+iris = pyimport("obspy.clients.iris")
+
+# ╔═╡ b4199996-5f1b-41b7-8732-6971a8d1824c
+client = fdsn.Client("IRIS")
+
+# ╔═╡ 53f5276e-7954-43d5-bcfb-6898bc6e85ab
+using PythonCall, PlutoPlotly
+
+# ╔═╡ efb48ae5-c01c-4e58-ba08-22f0c885ae4a
+using PlutoUI, FFTW, StatsBase
+
+# ╔═╡ 277155cf-77d8-4cd6-a122-346be2ff1516
+using Colors
+
 # ╔═╡ 00000000-0000-0000-0000-000000000001
 PLUTO_PROJECT_TOML_CONTENTS = """
 [deps]
@@ -340,22 +340,22 @@ PythonCall = "6099a3de-0909-46bc-b1f4-468b9a2dfc0d"
 StatsBase = "2913bbd2-ae8a-5f71-8c99-4fb6c76f3a91"
 
 [compat]
-Colors = "~0.12.11"
-CondaPkg = "~0.2.29"
-FFTW = "~1.9.0"
-PlutoPlotly = "~0.6.4"
-PlutoUI = "~0.7.68"
-PythonCall = "~0.9.26"
-StatsBase = "~0.34.5"
+Colors = "~0.13.1"
+CondaPkg = "~0.2.33"
+FFTW = "~1.10.0"
+PlutoPlotly = "~0.6.5"
+PlutoUI = "~0.7.72"
+PythonCall = "~0.9.28"
+StatsBase = "~0.34.7"
 """
 
 # ╔═╡ 00000000-0000-0000-0000-000000000002
 PLUTO_MANIFEST_TOML_CONTENTS = """
 # This file is machine-generated - editing it directly is not advised
 
-julia_version = "1.11.5"
+julia_version = "1.11.7"
 manifest_format = "2.0"
-project_hash = "0034747ae103e5bc15fd622859acb9755389869e"
+project_hash = "e58bc0a205ef851013eb02d7de9cbb3a2823f94a"
 
 [[deps.AbstractFFTs]]
 deps = ["LinearAlgebra"]
@@ -397,21 +397,25 @@ version = "1.11.0"
 
 [[deps.ColorSchemes]]
 deps = ["ColorTypes", "ColorVectorSpace", "Colors", "FixedPointNumbers", "PrecompileTools", "Random"]
-git-tree-sha1 = "a656525c8b46aa6a1c76891552ed5381bb32ae7b"
+git-tree-sha1 = "b0fd3f56fa442f81e0a47815c92245acfaaa4e34"
 uuid = "35d6a980-a343-548e-a6ea-1d62b119f2f4"
-version = "3.30.0"
+version = "3.31.0"
 
 [[deps.ColorTypes]]
 deps = ["FixedPointNumbers", "Random"]
-git-tree-sha1 = "b10d0b65641d57b8b4d5e234446582de5047050d"
+git-tree-sha1 = "67e11ee83a43eb71ddc950302c53bf33f0690dfe"
 uuid = "3da002f7-5984-5a60-b8a6-cbb66c0b333f"
-version = "0.11.5"
+version = "0.12.1"
+weakdeps = ["StyledStrings"]
+
+    [deps.ColorTypes.extensions]
+    StyledStringsExt = "StyledStrings"
 
 [[deps.ColorVectorSpace]]
 deps = ["ColorTypes", "FixedPointNumbers", "LinearAlgebra", "Requires", "Statistics", "TensorCore"]
-git-tree-sha1 = "a1f44953f2382ebb937d60dafbe2deea4bd23249"
+git-tree-sha1 = "8b3b6f87ce8f65a2b4f857528fd8d70086cd72b1"
 uuid = "c3611d14-8923-5661-9e6a-0046d554d3a4"
-version = "0.10.0"
+version = "0.11.0"
 
     [deps.ColorVectorSpace.extensions]
     SpecialFunctionsExt = "SpecialFunctions"
@@ -421,19 +425,9 @@ version = "0.10.0"
 
 [[deps.Colors]]
 deps = ["ColorTypes", "FixedPointNumbers", "Reexport"]
-git-tree-sha1 = "362a287c3aa50601b0bc359053d5c2468f0e7ce0"
+git-tree-sha1 = "37ea44092930b1811e666c3bc38065d7d87fcc74"
 uuid = "5ae59095-9a9b-59fe-a467-6f913c188581"
-version = "0.12.11"
-
-[[deps.Compat]]
-deps = ["TOML", "UUIDs"]
-git-tree-sha1 = "3a3dfb30697e96a440e4149c8c51bf32f818c0f3"
-uuid = "34da2185-b29b-5c13-b0c7-acf172513d20"
-version = "4.17.0"
-weakdeps = ["Dates", "LinearAlgebra"]
-
-    [deps.Compat.extensions]
-    CompatLinearAlgebraExt = "LinearAlgebra"
+version = "0.13.1"
 
 [[deps.CompilerSupportLibraries_jll]]
 deps = ["Artifacts", "Libdl"]
@@ -442,9 +436,9 @@ version = "1.1.1+0"
 
 [[deps.CondaPkg]]
 deps = ["JSON3", "Markdown", "MicroMamba", "Pidfile", "Pkg", "Preferences", "Scratch", "TOML", "pixi_jll"]
-git-tree-sha1 = "93e81a68a84dba7e652e61425d982cd71a1a0835"
+git-tree-sha1 = "bd491d55b97a036caae1d78729bdb70bf7dababc"
 uuid = "992eb4ea-22a4-4c89-a5bb-47a3300528ab"
-version = "0.2.29"
+version = "0.2.33"
 
 [[deps.DataAPI]]
 git-tree-sha1 = "abe83f3a2f1b857aac70ef8b269080af17764bbe"
@@ -452,10 +446,10 @@ uuid = "9a962f9c-6df0-11e9-0e5d-c546b8b5ee8a"
 version = "1.16.0"
 
 [[deps.DataStructures]]
-deps = ["Compat", "InteractiveUtils", "OrderedCollections"]
-git-tree-sha1 = "4e1fe97fdaed23e9dc21d4d664bea76b65fc50a0"
+deps = ["OrderedCollections"]
+git-tree-sha1 = "6c72198e6a101cccdd4c9731d3985e904ba26037"
 uuid = "864edb3b-99cc-5e75-8d2d-829cb0a9cfe8"
-version = "0.18.22"
+version = "0.19.1"
 
 [[deps.DataValueInterfaces]]
 git-tree-sha1 = "bfc1187b79289637fa0ef6d4436ebdfe6905cbd6"
@@ -484,10 +478,10 @@ uuid = "f43a241f-c20a-4ad4-852c-f6b1247861c6"
 version = "1.6.0"
 
 [[deps.FFTW]]
-deps = ["AbstractFFTs", "FFTW_jll", "LinearAlgebra", "MKL_jll", "Preferences", "Reexport"]
-git-tree-sha1 = "797762812ed063b9b94f6cc7742bc8883bb5e69e"
+deps = ["AbstractFFTs", "FFTW_jll", "Libdl", "LinearAlgebra", "MKL_jll", "Preferences", "Reexport"]
+git-tree-sha1 = "97f08406df914023af55ade2f843c39e99c5d969"
 uuid = "7a1cc6ca-52ef-59f5-83cd-3a7055c09341"
-version = "1.9.0"
+version = "1.10.0"
 
 [[deps.FFTW_jll]]
 deps = ["Artifacts", "JLLWrappers", "Libdl"]
@@ -530,9 +524,9 @@ version = "0.2.5"
 
 [[deps.IntelOpenMP_jll]]
 deps = ["Artifacts", "JLLWrappers", "LazyArtifacts", "Libdl"]
-git-tree-sha1 = "0f14a5456bdc6b9731a5682f439a672750a09e48"
+git-tree-sha1 = "ec1debd61c300961f98064cfb21287613ad7f303"
 uuid = "1d5cc7b8-4909-519e-a0f8-d0f5ad9712d0"
-version = "2025.0.4+0"
+version = "2025.2.0+0"
 
 [[deps.InteractiveUtils]]
 deps = ["Markdown"]
@@ -540,9 +534,9 @@ uuid = "b77e0a4c-d291-57a0-90e8-8db25a27a240"
 version = "1.11.0"
 
 [[deps.IrrationalConstants]]
-git-tree-sha1 = "e2222959fbc6c19554dc15174c81bf7bf3aa691c"
+git-tree-sha1 = "b2d91fe939cae05960e760110b328288867b5758"
 uuid = "92d709cd-6900-40b7-9082-c6be49f344b6"
-version = "0.2.4"
+version = "0.2.6"
 
 [[deps.IteratorInterfaceExtensions]]
 git-tree-sha1 = "a3f24677c21f5bbe9d2a714f95dcd58337fb2856"
@@ -644,9 +638,9 @@ version = "1.1.0"
 
 [[deps.MKL_jll]]
 deps = ["Artifacts", "IntelOpenMP_jll", "JLLWrappers", "LazyArtifacts", "Libdl", "oneTBB_jll"]
-git-tree-sha1 = "5de60bc6cb3899cd318d80d627560fae2e2d99ae"
+git-tree-sha1 = "282cadc186e7b2ae0eeadbd7a4dffed4196ae2aa"
 uuid = "856f044c-d86e-5d09-b602-aeab76dc8ba7"
-version = "2025.0.1+1"
+version = "2025.2.0+0"
 
 [[deps.MacroTools]]
 git-tree-sha1 = "1e0228a030642014fe5cfe68c2c0a818f9e3f522"
@@ -744,9 +738,9 @@ version = "0.8.21"
 
 [[deps.PlutoPlotly]]
 deps = ["AbstractPlutoDingetjes", "Artifacts", "ColorSchemes", "Colors", "Dates", "Downloads", "HypertextLiteral", "InteractiveUtils", "LaTeXStrings", "Markdown", "Pkg", "PlotlyBase", "PrecompileTools", "Reexport", "ScopedValues", "Scratch", "TOML"]
-git-tree-sha1 = "232630fee92e588c11c2b260741b4fa70784b4c5"
+git-tree-sha1 = "8acd04abc9a636ef57004f4c2e6f3f6ed4611099"
 uuid = "8e989ff0-3d88-8e9f-f020-2b208a939ff0"
-version = "0.6.4"
+version = "0.6.5"
 
     [deps.PlutoPlotly.extensions]
     PlotlyKaleidoExt = "PlotlyKaleido"
@@ -758,9 +752,9 @@ version = "0.6.4"
 
 [[deps.PlutoUI]]
 deps = ["AbstractPlutoDingetjes", "Base64", "ColorTypes", "Dates", "Downloads", "FixedPointNumbers", "Hyperscript", "HypertextLiteral", "IOCapture", "InteractiveUtils", "JSON", "Logging", "MIMEs", "Markdown", "Random", "Reexport", "URIs", "UUIDs"]
-git-tree-sha1 = "ec9e63bd098c50e4ad28e7cb95ca7a4860603298"
+git-tree-sha1 = "f53232a27a8c1c836d3998ae1e17d898d4df2a46"
 uuid = "7f904dfe-b85e-4ff6-b463-dae2292396a8"
-version = "0.7.68"
+version = "0.7.72"
 
 [[deps.PrecompileTools]]
 deps = ["Preferences"]
@@ -770,9 +764,9 @@ version = "1.2.1"
 
 [[deps.Preferences]]
 deps = ["TOML"]
-git-tree-sha1 = "9306f6085165d270f7e3db02af26a400d580f5c6"
+git-tree-sha1 = "0f27480397253da18fe2c12a4ba4eb9eb208bf3d"
 uuid = "21216c6a-2e73-6563-6e65-726566657250"
-version = "1.4.3"
+version = "1.5.0"
 
 [[deps.Printf]]
 deps = ["Unicode"]
@@ -785,10 +779,18 @@ uuid = "43287f4e-b6f4-7ad1-bb20-aadabca52c3d"
 version = "1.3.0"
 
 [[deps.PythonCall]]
-deps = ["CondaPkg", "Dates", "Libdl", "MacroTools", "Markdown", "Pkg", "Requires", "Serialization", "Tables", "UnsafePointers"]
-git-tree-sha1 = "f03464b21983fb5af2f8cea99106b8d8f48ac69d"
+deps = ["CondaPkg", "Dates", "Libdl", "MacroTools", "Markdown", "Pkg", "Serialization", "Tables", "UnsafePointers"]
+git-tree-sha1 = "34510e11cabd7964291f32f14d28b367e9960e6e"
 uuid = "6099a3de-0909-46bc-b1f4-468b9a2dfc0d"
-version = "0.9.26"
+version = "0.9.28"
+
+    [deps.PythonCall.extensions]
+    CategoricalArraysExt = "CategoricalArrays"
+    PyCallExt = "PyCall"
+
+    [deps.PythonCall.weakdeps]
+    CategoricalArrays = "324d7699-5711-5eae-9e2f-1d82baa6b597"
+    PyCall = "438e738f-606a-5dbb-bf0a-cddfbfd45ab0"
 
 [[deps.REPL]]
 deps = ["InteractiveUtils", "Markdown", "Sockets", "StyledStrings", "Unicode"]
@@ -817,9 +819,9 @@ version = "0.7.0"
 
 [[deps.ScopedValues]]
 deps = ["HashArrayMappedTries", "Logging"]
-git-tree-sha1 = "7f44eef6b1d284465fafc66baf4d9bdcc239a15b"
+git-tree-sha1 = "c3b2323466378a2ba15bea4b2f73b081e022f473"
 uuid = "7e506255-f358-4e82-b7e4-beb19740aa63"
-version = "1.4.0"
+version = "1.5.0"
 
 [[deps.Scratch]]
 deps = ["Dates"]
@@ -837,9 +839,9 @@ version = "1.11.0"
 
 [[deps.SortingAlgorithms]]
 deps = ["DataStructures"]
-git-tree-sha1 = "66e0a8e672a0bdfca2c3f5937efb8538b9ddc085"
+git-tree-sha1 = "64d974c2e6fdf07f8155b5b2ca2ffa9069b608d9"
 uuid = "a2af1166-a08f-5f64-846c-94a0d3cef48c"
-version = "1.2.1"
+version = "1.2.2"
 
 [[deps.SparseArrays]]
 deps = ["Libdl", "LinearAlgebra", "Random", "Serialization", "SuiteSparse_jll"]
@@ -864,9 +866,9 @@ version = "1.7.1"
 
 [[deps.StatsBase]]
 deps = ["AliasTables", "DataAPI", "DataStructures", "LinearAlgebra", "LogExpFunctions", "Missings", "Printf", "Random", "SortingAlgorithms", "SparseArrays", "Statistics", "StatsAPI"]
-git-tree-sha1 = "b81c5035922cc89c2d9523afc6c54be512411466"
+git-tree-sha1 = "a136f98cefaf3e2924a66bd75173d1c891ab7453"
 uuid = "2913bbd2-ae8a-5f71-8c99-4fb6c76f3a91"
-version = "0.34.5"
+version = "0.34.7"
 
 [[deps.StructTypes]]
 deps = ["Dates", "UUIDs"]
@@ -917,9 +919,9 @@ uuid = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
 version = "1.11.0"
 
 [[deps.Tricks]]
-git-tree-sha1 = "0fc001395447da85495b7fef1dfae9789fdd6e31"
+git-tree-sha1 = "372b90fe551c019541fafc6ff034199dc19c8436"
 uuid = "410a4b4d-49e4-4fbc-ab6d-cb71b17b3775"
-version = "0.1.11"
+version = "0.1.12"
 
 [[deps.URIs]]
 git-tree-sha1 = "bef26fb046d031353ef97a82e3fdb6afe7f21b1a"
@@ -967,10 +969,10 @@ uuid = "8e850ede-7688-5339-a07c-302acd2aaf8d"
 version = "1.59.0+0"
 
 [[deps.oneTBB_jll]]
-deps = ["Artifacts", "JLLWrappers", "Libdl"]
-git-tree-sha1 = "d5a767a3bb77135a99e433afe0eb14cd7f6914c3"
+deps = ["Artifacts", "JLLWrappers", "LazyArtifacts", "Libdl"]
+git-tree-sha1 = "1350188a69a6e46f799d3945beef36435ed7262f"
 uuid = "1317d2d5-d96f-522e-a858-c73665f53c3e"
-version = "2022.0.0+0"
+version = "2022.0.0+1"
 
 [[deps.p7zip_jll]]
 deps = ["Artifacts", "Libdl"]

@@ -22,26 +22,6 @@ macro bind(def, element)
     #! format: on
 end
 
-# ╔═╡ a9019660-1f03-4132-bccf-09bdb1421ad9
-begin
-	using CondaPkg
-	CondaPkg.add("pytest")
-	CondaPkg.add("sympy")
-	CondaPkg.add("flake8")
-	CondaPkg.add("Cython")
-	CondaPkg.add("mpi4py")
-	CondaPkg.add("petsc")
-	CondaPkg.add("petsc4py")
-	CondaPkg.add("slepc4py")
-	CondaPkg.add_pip("specnm", version="@https://gitlab.com/JohKem1/specnm/-/archive/main/specnm-main.zip")
-end
-
-# ╔═╡ 447b4e82-fe73-11ef-30b1-69824c8e3d24
-using PythonCall, PlutoPlotly
-
-# ╔═╡ 9f419394-528a-4bde-98a5-d62787c17fa8
-using PlutoUI, FFTW, StatsBase
-
 # ╔═╡ cd3c5ff7-7992-41f7-9a5e-29934a1355ca
 PlutoUI.TableOfContents(include_definitions=true)
 
@@ -63,8 +43,76 @@ Instructor: *Pawan Bharadwaj*,
 Indian Institute of Science, Bengaluru, India
 """
 
+# ╔═╡ 21d48160-8f70-4b15-9534-a7b0f5131335
+@bind cls_selected Select([(; cls=ray, cls_out=ray_out, angular_orders=ray_angular_orders, frequencies=ray_frequencies, overtones=ray_overtones) => "Spheroidal", (; cls=lov, cls_out=lov_out, angular_orders=lov_angular_orders, frequencies=lov_frequencies, overtones=lov_overtones) => "Toroidal"])
+
+# ╔═╡ 58041dd4-fd1c-4223-a00d-d4e98a7ef412
+@bind clicked_mode let
+	p = PlutoPlot(spectrum_plot(cls_selected[:cls], cls_selected[:cls_out]))
+	add_plotly_listener!(p,"plotly_click", "
+	(e) => {
+
+	console.log(e)
+    let dt = e.points[0]
+	PLOT.value = [dt.x, dt.y]
+	PLOT.dispatchEvent(new CustomEvent('input'))
+}
+	")
+	p
+end
+
+# ╔═╡ a9bbb105-3138-481d-9a73-0ec2b8303c36
+PlutoUI.ExperimentalLayout.hbox([plot_Earth_model(model_fname), eigenfunction_plot(cls_selected, clicked_mode)])
+
+# ╔═╡ bf3349da-ad56-4c4b-9b5c-c2e138abd1c0
+clicked_mode
+
+# ╔═╡ 07f59b1f-faf3-46a2-80ff-82ea90ed4344
+cls_selected.angular_orders[31]
+
 # ╔═╡ 82cc9219-7633-41c6-91e1-17968904b2b6
 md"## Real Data"
+
+# ╔═╡ 849d1a59-2c2f-4e44-b45b-266382255b1a
+@bind clicked_eq let
+	p = PlutoPlot(Plot(scattergeo(
+    lon=pyconvert.(Float64, [e[3] for e in earthquakes]), lat=pyconvert.(Float64, [e[2] for e in earthquakes]),
+    text=pyconvert.(String, [string("M", e[4], " at ", e[1]) for e in earthquakes]),
+    mode="markers", marker=attr(size=6, color="red")
+), Layout(title="Earthquakes (click to select)")))
+	add_plotly_listener!(p,"plotly_click", "
+	(e) => {
+
+	console.log(e)
+    let dt = e.points[0]
+	PLOT.value = [dt.lat, dt.lon]
+	PLOT.dispatchEvent(new CustomEvent('input'))
+}
+	")
+	p
+end
+
+# ╔═╡ 2d7e4963-1cee-413c-8541-e8e77962c1fe
+@bind clicked_station let
+	p = PlutoPlot(Plot(scattergeo(
+    lon=pyconvert.(Float32, [e[3] for e in stations]), lat=pyconvert.(Float32, [e[2] for e in stations]),
+    text=pyconvert.(String, [string(e) for e in station_names]),
+    mode="markers", marker=attr(size=6, symbol="triangle-down", color="blue")
+), Layout(title="GSN Stations (click to select)")))
+	add_plotly_listener!(p,"plotly_click", "
+	(e) => {
+
+	console.log(e)
+    let dt = e.points[0]
+	PLOT.value = [dt.lat, dt.lon]
+	PLOT.dispatchEvent(new CustomEvent('input'))
+}
+	")
+	p
+end
+
+# ╔═╡ b57d88b9-bdd5-447b-ba24-30a7b1ea1e0b
+plot(data_cut)
 
 # ╔═╡ 921c2136-563a-4219-98f5-21cafa67e516
 md"""
@@ -76,39 +124,47 @@ md"""
 End time after earthquake (min) $(@bind endtime_cut Slider(range(starttime_cut, 10 * 24 * 60, length=1000), show_value=true, default=5*24*60))
 """
 
+# ╔═╡ 1a67d073-bf07-4b01-beea-6c11013965be
+let
+	# Create spectrum plot
+	spectrum_plot = [scatter(
+	    x=freqs_mHz[freqs_mHz .> 0], y=spectrum[freqs_mHz .> 0],
+	    mode="lines", line=attr(color="blue"),
+		name="",
+	)]
+
+	# Add vertical lines at each mode frequency
+for (f, l, n) in zip(cls_selected[:frequencies], cls_selected[:angular_orders], cls_selected[:overtones])
+    push!(spectrum_plot, scatter(
+        x=[f, f],  # Vertical line at frequency f
+        y=[0, maximum(spectrum)],  # Span full range of l
+        mode="lines",
+		name="$((l,n))",
+        line=attr(color="gray", width=0.5),
+        showlegend=false
+    ))
+end
+
+	
+	
+	# Interactive Plotly figure
+	plot(spectrum_plot, Layout(
+	    title="Normal Mode Spectrum",
+	    xaxis_title="Frequency (mHz)", yaxis_title="Amplitude",
+	))
+end
+
 # ╔═╡ 5ec5e8d2-681b-4ce4-a581-478f00b91dc9
 md"## Specnm"
 
-# ╔═╡ 9b0a9a80-e65f-4385-a377-372e408b19ad
-md"## Appendix"
-
-# ╔═╡ 53495d28-cf5e-4108-9921-0ca016f1b24d
-CondaPkg.add_pip("obspy")
-
-# ╔═╡ 79406ee0-6026-4da8-a29d-245048c27e47
-obspy = pyimport("obspy")
-
-# ╔═╡ acd7956a-855c-43f0-a353-7d5533f6aaf1
-begin
-	# Import ObsPy modules correctly
-	# obspy = pyimport("obspy.core")
-	fdsn = pyimport("obspy.clients.fdsn")
-end
-
-# ╔═╡ 335162fc-52c3-4c3d-bb88-d2e2f4fde37f
-client = fdsn.Client("IRIS")
-
-# ╔═╡ 58baaf3c-a5b3-4995-9f4e-c54946f7e798
-specnm = pyimport("specnm")
-
-# ╔═╡ 5852bfac-a8ff-405e-8ed1-6438c6827091
-md"### Select Earth Model"
-
-# ╔═╡ d99b1935-4f90-4b82-809c-b6a801c37e0d
-model_fname = "../specnm_models/prem_ani"
-
 # ╔═╡ 1b22f312-9197-4044-ba9b-1f12789b88ff
 ray = specnm.rayleigh(model_fname, fmax=0.1)
+
+# ╔═╡ 55b7b9a8-caea-4ec6-b47d-937231eaaee8
+lov = specnm.love(model_fname, fmax=0.1)
+
+# ╔═╡ 3751319d-d1b8-484a-8a70-ad46a6a65634
+lov_out = lov.love_problem(attenuation_mode="full", fmax=0.005)
 
 # ╔═╡ d9c71796-e79f-404d-89ef-54adfbd3335c
 ray_out = ray.rayleigh_problem(attenuation_mode="elastic", fmax=0.005)
@@ -117,6 +173,12 @@ ray_out = ray.rayleigh_problem(attenuation_mode="elastic", fmax=0.005)
 begin
 	ray_angular_orders = pyconvert(Array, ray_out["angular orders"])
 	ray_frequencies = pyconvert(Array, ray_out["frequencies"] * 1000.0) # in mHz
+end;
+
+# ╔═╡ c692b5d4-e136-47f4-9cc6-432d4e5ef3fe
+begin
+	lov_angular_orders = pyconvert(Array, lov_out["angular orders"])
+	lov_frequencies = pyconvert(Array, lov_out["frequencies"] * 1000.0) # in mHz
 end;
 
 # ╔═╡ 69699338-d461-4e05-bbb4-a874ad4ad970
@@ -136,18 +198,6 @@ overtones = vcat([lu != 1 ? collect(0:lc-1) : collect(2:lc+1) for (lu, lc) in zi
 ray_overtones = collect(reduce(vcat, overtones))
 end;
 
-# ╔═╡ 55b7b9a8-caea-4ec6-b47d-937231eaaee8
-lov = specnm.love(model_fname, fmax=0.1)
-
-# ╔═╡ 3751319d-d1b8-484a-8a70-ad46a6a65634
-lov_out = lov.love_problem(attenuation_mode="full", fmax=0.005)
-
-# ╔═╡ c692b5d4-e136-47f4-9cc6-432d4e5ef3fe
-begin
-	lov_angular_orders = pyconvert(Array, lov_out["angular orders"])
-	lov_frequencies = pyconvert(Array, lov_out["frequencies"] * 1000.0) # in mHz
-end;
-
 # ╔═╡ c1238b16-770c-4a31-9e04-c8c9fb45e1f5
 lov_overtones = let 
 	angular_orders = pyconvert(Vector{Int}, lov_out["angular orders"])
@@ -164,11 +214,53 @@ overtones = vcat([lu != 1 ? collect(0:lc-1) : collect(1:lc) for (lu, lc) in zip(
 lov_overtones = collect(reduce(vcat, overtones))
 end;
 
-# ╔═╡ 21d48160-8f70-4b15-9534-a7b0f5131335
-@bind cls_selected Select([(; cls=ray, cls_out=ray_out, angular_orders=ray_angular_orders, frequencies=ray_frequencies, overtones=ray_overtones) => "Spheroidal", (; cls=lov, cls_out=lov_out, angular_orders=lov_angular_orders, frequencies=lov_frequencies, overtones=lov_overtones) => "Toroidal"])
+# ╔═╡ 9b0a9a80-e65f-4385-a377-372e408b19ad
+md"## Appendix"
 
-# ╔═╡ 07f59b1f-faf3-46a2-80ff-82ea90ed4344
-cls_selected.angular_orders[31]
+# ╔═╡ a9019660-1f03-4132-bccf-09bdb1421ad9
+begin
+	using CondaPkg
+	CondaPkg.add("pytest")
+	CondaPkg.add("sympy")
+	CondaPkg.add("flake8")
+	CondaPkg.add("Cython")
+	CondaPkg.add("mpi4py")
+	CondaPkg.add("petsc")
+	CondaPkg.add("petsc4py")
+	CondaPkg.add("slepc4py")
+	CondaPkg.add_pip("specnm", version="@https://gitlab.com/JohKem1/specnm/-/archive/main/specnm-main.zip")
+end
+
+# ╔═╡ 53495d28-cf5e-4108-9921-0ca016f1b24d
+CondaPkg.add_pip("obspy")
+
+# ╔═╡ 79406ee0-6026-4da8-a29d-245048c27e47
+obspy = pyimport("obspy")
+
+# ╔═╡ acd7956a-855c-43f0-a353-7d5533f6aaf1
+begin
+	# Import ObsPy modules correctly
+	# obspy = pyimport("obspy.core")
+	fdsn = pyimport("obspy.clients.fdsn")
+end
+
+# ╔═╡ 335162fc-52c3-4c3d-bb88-d2e2f4fde37f
+client = fdsn.Client("IRIS")
+
+# ╔═╡ 447b4e82-fe73-11ef-30b1-69824c8e3d24
+using PythonCall, PlutoPlotly
+
+# ╔═╡ 9f419394-528a-4bde-98a5-d62787c17fa8
+using PlutoUI, FFTW, StatsBase
+
+# ╔═╡ 58baaf3c-a5b3-4995-9f4e-c54946f7e798
+specnm = pyimport("specnm")
+
+# ╔═╡ 5852bfac-a8ff-405e-8ed1-6438c6827091
+md"### Select Earth Model"
+
+# ╔═╡ d99b1935-4f90-4b82-809c-b6a801c37e0d
+model_fname = "../specnm_models/prem_ani"
 
 # ╔═╡ 526c0fd9-4935-409e-82e0-059f5c084b57
 function read_model(filename::String)
@@ -233,25 +325,6 @@ earthquakes = [
     ) for event in catalog
 ]
 
-# ╔═╡ 849d1a59-2c2f-4e44-b45b-266382255b1a
-@bind clicked_eq let
-	p = PlutoPlot(Plot(scattergeo(
-    lon=pyconvert.(Float64, [e[3] for e in earthquakes]), lat=pyconvert.(Float64, [e[2] for e in earthquakes]),
-    text=pyconvert.(String, [string("M", e[4], " at ", e[1]) for e in earthquakes]),
-    mode="markers", marker=attr(size=6, color="red")
-), Layout(title="Earthquakes (click to select)")))
-	add_plotly_listener!(p,"plotly_click", "
-	(e) => {
-
-	console.log(e)
-    let dt = e.points[0]
-	PLOT.value = [dt.lat, dt.lon]
-	PLOT.dispatchEvent(new CustomEvent('input'))
-}
-	")
-	p
-end
-
 # ╔═╡ 902f56d9-041d-4b4a-af72-1adcf20a4db1
 # Extract details of the selected earthquake (filtered using lat/lon)
 selected_event_index = findall(e -> pyconvert(Float32, e[2]) ≈ clicked_eq[1] && pyconvert(Float32, e[3]) ≈ clicked_eq[2], earthquakes)[1]
@@ -289,25 +362,6 @@ stations = [
 # Create a dropdown for selecting a station (if stations exist)
 station_names = length(stations) > 0 ? [s[1] for s in stations] : ["No stations found"]
 
-# ╔═╡ 2d7e4963-1cee-413c-8541-e8e77962c1fe
-@bind clicked_station let
-	p = PlutoPlot(Plot(scattergeo(
-    lon=pyconvert.(Float32, [e[3] for e in stations]), lat=pyconvert.(Float32, [e[2] for e in stations]),
-    text=pyconvert.(String, [string(e) for e in station_names]),
-    mode="markers", marker=attr(size=6, symbol="triangle-down", color="blue")
-), Layout(title="GSN Stations (click to select)")))
-	add_plotly_listener!(p,"plotly_click", "
-	(e) => {
-
-	console.log(e)
-    let dt = e.points[0]
-	PLOT.value = [dt.lat, dt.lon]
-	PLOT.dispatchEvent(new CustomEvent('input'))
-}
-	")
-	p
-end
-
 # ╔═╡ 5360665a-81ba-4cdb-8fdc-55829c6f4255
 # Extract details of the selected earthquake (filtered using lat/lon)
 selected_station_index = findall(e -> pyconvert(Float32, e[2]) ≈ clicked_station[1] && pyconvert(Float32, e[3]) ≈ clicked_station[2], stations)[1]
@@ -325,12 +379,6 @@ selected_station = stations[selected_station_index]
 # ╔═╡ 55968681-0b8c-4bb0-8ee9-1a9d81ee34e6
    available_channels = [c.code for net in inventory for sta in net.stations for c in sta.channels]
 
-
-# ╔═╡ 580d562e-4c3f-4adb-94cf-65048ee7ff35
-begin
-	freqmin = 0.2 * inv(1000)  # Lower cutoff frequency (Hz)
-	freqmax = 5.0 * inv(1000)    # Upper cutoff frequency (Hz)
-end;
 
 # ╔═╡ 7493f1d5-2017-416b-bc0c-183767bad68a
 begin
@@ -357,6 +405,12 @@ istarttime_cut = round(Int, starttime_cut * 60 / sampling_rate)
 # ╔═╡ a7d64a11-17c4-4aa0-a10f-e47d39b1eebb
 iendtime_cut = round(Int, endtime_cut * 60 / sampling_rate)
 
+# ╔═╡ 580d562e-4c3f-4adb-94cf-65048ee7ff35
+begin
+	freqmin = 0.2 * inv(1000)  # Lower cutoff frequency (Hz)
+	freqmax = 5.0 * inv(1000)    # Upper cutoff frequency (Hz)
+end;
+
 # ╔═╡ c168a471-f21f-4175-b7a0-5ae44d5d30ee
 begin
 	data_cut = data[istarttime_cut:iendtime_cut]
@@ -377,39 +431,6 @@ begin
 	spectrum = abs.(rfft(data_cut))[ifmin:ifmax]
 	
 end;
-
-# ╔═╡ b57d88b9-bdd5-447b-ba24-30a7b1ea1e0b
-plot(data_cut)
-
-# ╔═╡ 1a67d073-bf07-4b01-beea-6c11013965be
-let
-	# Create spectrum plot
-	spectrum_plot = [scatter(
-	    x=freqs_mHz[freqs_mHz .> 0], y=spectrum[freqs_mHz .> 0],
-	    mode="lines", line=attr(color="blue"),
-		name="",
-	)]
-
-	# Add vertical lines at each mode frequency
-for (f, l, n) in zip(cls_selected[:frequencies], cls_selected[:angular_orders], cls_selected[:overtones])
-    push!(spectrum_plot, scatter(
-        x=[f, f],  # Vertical line at frequency f
-        y=[0, maximum(spectrum)],  # Span full range of l
-        mode="lines",
-		name="$((l,n))",
-        line=attr(color="gray", width=0.5),
-        showlegend=false
-    ))
-end
-
-	
-	
-	# Interactive Plotly figure
-	plot(spectrum_plot, Layout(
-	    title="Normal Mode Spectrum",
-	    xaxis_title="Frequency (mHz)", yaxis_title="Amplitude",
-	))
-end
 
 # ╔═╡ 89c81d3c-67c1-4cc7-b892-d64208d845f2
 md"### Plots"
@@ -446,27 +467,6 @@ function spectrum_plot(cls, cls_out;
         return Plot(scatter(x=xs, y=fcp, mode="markers", marker_size=4, marker_color="black"), Layout(xaxis=attr(title=xlabel), yaxis=attr(title=ylabel), title="Type: $(cls.mode), Modelname: $(cls.modelname)"))
 
     end
-
-# ╔═╡ 58041dd4-fd1c-4223-a00d-d4e98a7ef412
-@bind clicked_mode let
-	p = PlutoPlot(spectrum_plot(cls_selected[:cls], cls_selected[:cls_out]))
-	add_plotly_listener!(p,"plotly_click", "
-	(e) => {
-
-	console.log(e)
-    let dt = e.points[0]
-	PLOT.value = [dt.x, dt.y]
-	PLOT.dispatchEvent(new CustomEvent('input'))
-}
-	")
-	p
-end
-
-# ╔═╡ a9bbb105-3138-481d-9a73-0ec2b8303c36
-PlutoUI.ExperimentalLayout.hbox([plot_Earth_model(model_fname), eigenfunction_plot(cls_selected, clicked_mode)])
-
-# ╔═╡ bf3349da-ad56-4c4b-9b5c-c2e138abd1c0
-clicked_mode
 
 # ╔═╡ ecee2903-a103-498a-9aaf-b5d920f531f4
 """
@@ -548,21 +548,21 @@ PythonCall = "6099a3de-0909-46bc-b1f4-468b9a2dfc0d"
 StatsBase = "2913bbd2-ae8a-5f71-8c99-4fb6c76f3a91"
 
 [compat]
-CondaPkg = "~0.2.26"
-FFTW = "~1.8.1"
-PlutoPlotly = "~0.6.2"
-PlutoUI = "~0.7.61"
-PythonCall = "~0.9.24"
-StatsBase = "~0.34.4"
+CondaPkg = "~0.2.33"
+FFTW = "~1.10.0"
+PlutoPlotly = "~0.6.5"
+PlutoUI = "~0.7.72"
+PythonCall = "~0.9.28"
+StatsBase = "~0.34.7"
 """
 
 # ╔═╡ 00000000-0000-0000-0000-000000000002
 PLUTO_MANIFEST_TOML_CONTENTS = """
 # This file is machine-generated - editing it directly is not advised
 
-julia_version = "1.11.4"
+julia_version = "1.11.7"
 manifest_format = "2.0"
-project_hash = "18456e1aa235134cfb42b1b67a74a9aa4043e0c3"
+project_hash = "b1dc00f9c714f390cb5f6e7bcd2b86be171eccb5"
 
 [[deps.AbstractFFTs]]
 deps = ["LinearAlgebra"]
@@ -604,21 +604,25 @@ version = "1.11.0"
 
 [[deps.ColorSchemes]]
 deps = ["ColorTypes", "ColorVectorSpace", "Colors", "FixedPointNumbers", "PrecompileTools", "Random"]
-git-tree-sha1 = "403f2d8e209681fcbd9468a8514efff3ea08452e"
+git-tree-sha1 = "b0fd3f56fa442f81e0a47815c92245acfaaa4e34"
 uuid = "35d6a980-a343-548e-a6ea-1d62b119f2f4"
-version = "3.29.0"
+version = "3.31.0"
 
 [[deps.ColorTypes]]
 deps = ["FixedPointNumbers", "Random"]
-git-tree-sha1 = "b10d0b65641d57b8b4d5e234446582de5047050d"
+git-tree-sha1 = "67e11ee83a43eb71ddc950302c53bf33f0690dfe"
 uuid = "3da002f7-5984-5a60-b8a6-cbb66c0b333f"
-version = "0.11.5"
+version = "0.12.1"
+weakdeps = ["StyledStrings"]
+
+    [deps.ColorTypes.extensions]
+    StyledStringsExt = "StyledStrings"
 
 [[deps.ColorVectorSpace]]
 deps = ["ColorTypes", "FixedPointNumbers", "LinearAlgebra", "Requires", "Statistics", "TensorCore"]
-git-tree-sha1 = "a1f44953f2382ebb937d60dafbe2deea4bd23249"
+git-tree-sha1 = "8b3b6f87ce8f65a2b4f857528fd8d70086cd72b1"
 uuid = "c3611d14-8923-5661-9e6a-0046d554d3a4"
-version = "0.10.0"
+version = "0.11.0"
 
     [deps.ColorVectorSpace.extensions]
     SpecialFunctionsExt = "SpecialFunctions"
@@ -628,19 +632,9 @@ version = "0.10.0"
 
 [[deps.Colors]]
 deps = ["ColorTypes", "FixedPointNumbers", "Reexport"]
-git-tree-sha1 = "362a287c3aa50601b0bc359053d5c2468f0e7ce0"
+git-tree-sha1 = "37ea44092930b1811e666c3bc38065d7d87fcc74"
 uuid = "5ae59095-9a9b-59fe-a467-6f913c188581"
-version = "0.12.11"
-
-[[deps.Compat]]
-deps = ["TOML", "UUIDs"]
-git-tree-sha1 = "8ae8d32e09f0dcf42a36b90d4e17f5dd2e4c4215"
-uuid = "34da2185-b29b-5c13-b0c7-acf172513d20"
-version = "4.16.0"
-weakdeps = ["Dates", "LinearAlgebra"]
-
-    [deps.Compat.extensions]
-    CompatLinearAlgebraExt = "LinearAlgebra"
+version = "0.13.1"
 
 [[deps.CompilerSupportLibraries_jll]]
 deps = ["Artifacts", "Libdl"]
@@ -649,9 +643,9 @@ version = "1.1.1+0"
 
 [[deps.CondaPkg]]
 deps = ["JSON3", "Markdown", "MicroMamba", "Pidfile", "Pkg", "Preferences", "Scratch", "TOML", "pixi_jll"]
-git-tree-sha1 = "44d759495ed1711e3c0ca469f8d609429318b332"
+git-tree-sha1 = "bd491d55b97a036caae1d78729bdb70bf7dababc"
 uuid = "992eb4ea-22a4-4c89-a5bb-47a3300528ab"
-version = "0.2.26"
+version = "0.2.33"
 
 [[deps.DataAPI]]
 git-tree-sha1 = "abe83f3a2f1b857aac70ef8b269080af17764bbe"
@@ -659,10 +653,10 @@ uuid = "9a962f9c-6df0-11e9-0e5d-c546b8b5ee8a"
 version = "1.16.0"
 
 [[deps.DataStructures]]
-deps = ["Compat", "InteractiveUtils", "OrderedCollections"]
-git-tree-sha1 = "1d0a14036acb104d9e89698bd408f63ab58cdc82"
+deps = ["OrderedCollections"]
+git-tree-sha1 = "6c72198e6a101cccdd4c9731d3985e904ba26037"
 uuid = "864edb3b-99cc-5e75-8d2d-829cb0a9cfe8"
-version = "0.18.20"
+version = "0.19.1"
 
 [[deps.DataValueInterfaces]]
 git-tree-sha1 = "bfc1187b79289637fa0ef6d4436ebdfe6905cbd6"
@@ -681,10 +675,9 @@ uuid = "8bb1440f-4735-579b-a4ab-409b98df4dab"
 version = "1.9.1"
 
 [[deps.DocStringExtensions]]
-deps = ["LibGit2"]
-git-tree-sha1 = "2fb1e02f2b635d0845df5d7c167fec4dd739b00d"
+git-tree-sha1 = "7442a5dfe1ebb773c29cc2962a8980f47221d76c"
 uuid = "ffbed154-4ef7-542d-bbb7-c09d3a79fcae"
-version = "0.9.3"
+version = "0.9.5"
 
 [[deps.Downloads]]
 deps = ["ArgTools", "FileWatching", "LibCURL", "NetworkOptions"]
@@ -692,16 +685,16 @@ uuid = "f43a241f-c20a-4ad4-852c-f6b1247861c6"
 version = "1.6.0"
 
 [[deps.FFTW]]
-deps = ["AbstractFFTs", "FFTW_jll", "LinearAlgebra", "MKL_jll", "Preferences", "Reexport"]
-git-tree-sha1 = "7de7c78d681078f027389e067864a8d53bd7c3c9"
+deps = ["AbstractFFTs", "FFTW_jll", "Libdl", "LinearAlgebra", "MKL_jll", "Preferences", "Reexport"]
+git-tree-sha1 = "97f08406df914023af55ade2f843c39e99c5d969"
 uuid = "7a1cc6ca-52ef-59f5-83cd-3a7055c09341"
-version = "1.8.1"
+version = "1.10.0"
 
 [[deps.FFTW_jll]]
-deps = ["Artifacts", "JLLWrappers", "Libdl", "Pkg"]
-git-tree-sha1 = "4d81ed14783ec49ce9f2e168208a12ce1815aa25"
+deps = ["Artifacts", "JLLWrappers", "Libdl"]
+git-tree-sha1 = "6d6219a004b8cf1e0b4dbe27a2860b8e04eba0be"
 uuid = "f5851436-0d7a-5f13-b9de-f02708fd171a"
-version = "3.3.10+3"
+version = "3.3.11+0"
 
 [[deps.FileWatching]]
 uuid = "7b1f6079-737a-58dc-b8bc-7a2ca5c1b5ee"
@@ -738,9 +731,9 @@ version = "0.2.5"
 
 [[deps.IntelOpenMP_jll]]
 deps = ["Artifacts", "JLLWrappers", "LazyArtifacts", "Libdl"]
-git-tree-sha1 = "0f14a5456bdc6b9731a5682f439a672750a09e48"
+git-tree-sha1 = "ec1debd61c300961f98064cfb21287613ad7f303"
 uuid = "1d5cc7b8-4909-519e-a0f8-d0f5ad9712d0"
-version = "2025.0.4+0"
+version = "2025.2.0+0"
 
 [[deps.InteractiveUtils]]
 deps = ["Markdown"]
@@ -748,9 +741,9 @@ uuid = "b77e0a4c-d291-57a0-90e8-8db25a27a240"
 version = "1.11.0"
 
 [[deps.IrrationalConstants]]
-git-tree-sha1 = "e2222959fbc6c19554dc15174c81bf7bf3aa691c"
+git-tree-sha1 = "b2d91fe939cae05960e760110b328288867b5758"
 uuid = "92d709cd-6900-40b7-9082-c6be49f344b6"
-version = "0.2.4"
+version = "0.2.6"
 
 [[deps.IteratorInterfaceExtensions]]
 git-tree-sha1 = "a3f24677c21f5bbe9d2a714f95dcd58337fb2856"
@@ -759,9 +752,9 @@ version = "1.0.0"
 
 [[deps.JLLWrappers]]
 deps = ["Artifacts", "Preferences"]
-git-tree-sha1 = "a007feb38b422fbdab534406aeca1b86823cb4d6"
+git-tree-sha1 = "0533e564aae234aff59ab625543145446d8b6ec2"
 uuid = "692b3bcd-3c85-4b1f-b108-f13ce0eb3210"
-version = "1.7.0"
+version = "1.7.1"
 
 [[deps.JSON]]
 deps = ["Dates", "Mmap", "Parsers", "Unicode"]
@@ -771,9 +764,9 @@ version = "0.21.4"
 
 [[deps.JSON3]]
 deps = ["Dates", "Mmap", "Parsers", "PrecompileTools", "StructTypes", "UUIDs"]
-git-tree-sha1 = "1d322381ef7b087548321d3f878cb4c9bd8f8f9b"
+git-tree-sha1 = "411eccfe8aba0814ffa0fdf4860913ed09c34975"
 uuid = "0f8b85d8-7281-11e9-16c2-39a750bddbf1"
-version = "1.14.1"
+version = "1.14.3"
 
     [deps.JSON3.extensions]
     JSON3ArrowExt = ["ArrowTypes"]
@@ -846,20 +839,20 @@ uuid = "56ddb016-857b-54e1-b83d-db4d58db5568"
 version = "1.11.0"
 
 [[deps.MIMEs]]
-git-tree-sha1 = "1833212fd6f580c20d4291da9c1b4e8a655b128e"
+git-tree-sha1 = "c64d943587f7187e751162b3b84445bbbd79f691"
 uuid = "6c6e2e6c-3030-632d-7369-2d6c69616d65"
-version = "1.0.0"
+version = "1.1.0"
 
 [[deps.MKL_jll]]
 deps = ["Artifacts", "IntelOpenMP_jll", "JLLWrappers", "LazyArtifacts", "Libdl", "oneTBB_jll"]
-git-tree-sha1 = "5de60bc6cb3899cd318d80d627560fae2e2d99ae"
+git-tree-sha1 = "282cadc186e7b2ae0eeadbd7a4dffed4196ae2aa"
 uuid = "856f044c-d86e-5d09-b602-aeab76dc8ba7"
-version = "2025.0.1+1"
+version = "2025.2.0+0"
 
 [[deps.MacroTools]]
-git-tree-sha1 = "72aebe0b5051e5143a079a4685a46da330a40472"
+git-tree-sha1 = "1e0228a030642014fe5cfe68c2c0a818f9e3f522"
 uuid = "1914dd2f-81c6-5fcd-8719-6d5c9610ff09"
-version = "0.5.15"
+version = "0.5.16"
 
 [[deps.Markdown]]
 deps = ["Base64"]
@@ -901,9 +894,9 @@ uuid = "4536629a-c528-5b80-bd46-f80d51c5b363"
 version = "0.3.27+1"
 
 [[deps.OrderedCollections]]
-git-tree-sha1 = "cc4054e898b852042d7b503313f7ad03de99c3dd"
+git-tree-sha1 = "05868e21324cede2207c6f0f466b4bfef6d5e7ee"
 uuid = "bac558e1-5e72-5ebc-8fee-abe8a469f55d"
-version = "1.8.0"
+version = "1.8.1"
 
 [[deps.Parameters]]
 deps = ["OrderedCollections", "UnPack"]
@@ -913,9 +906,9 @@ version = "0.12.3"
 
 [[deps.Parsers]]
 deps = ["Dates", "PrecompileTools", "UUIDs"]
-git-tree-sha1 = "8489905bcdbcfac64d1daa51ca07c0d8f0283821"
+git-tree-sha1 = "7d2f8f21da5db6a806faf7b9b292296da42b2810"
 uuid = "69de0a69-1ddd-5017-9359-2bf0b02dc9f0"
-version = "2.8.1"
+version = "2.8.3"
 
 [[deps.Pidfile]]
 deps = ["FileWatching", "Test"]
@@ -934,9 +927,9 @@ weakdeps = ["REPL"]
 
 [[deps.PlotlyBase]]
 deps = ["ColorSchemes", "Colors", "Dates", "DelimitedFiles", "DocStringExtensions", "JSON", "LaTeXStrings", "Logging", "Parameters", "Pkg", "REPL", "Requires", "Statistics", "UUIDs"]
-git-tree-sha1 = "90af5c9238c1b3b25421f1fdfffd1e8fca7a7133"
+git-tree-sha1 = "28278bb0053da0fd73537be94afd1682cc5a0a83"
 uuid = "a03496cd-edff-5a9b-9e67-9cda94a718b5"
-version = "0.8.20"
+version = "0.8.21"
 
     [deps.PlotlyBase.extensions]
     DataFramesExt = "DataFrames"
@@ -952,9 +945,9 @@ version = "0.8.20"
 
 [[deps.PlutoPlotly]]
 deps = ["AbstractPlutoDingetjes", "Artifacts", "ColorSchemes", "Colors", "Dates", "Downloads", "HypertextLiteral", "InteractiveUtils", "LaTeXStrings", "Markdown", "Pkg", "PlotlyBase", "PrecompileTools", "Reexport", "ScopedValues", "Scratch", "TOML"]
-git-tree-sha1 = "9ebe25fc4703d4112cc418834d5e4c9a4b29087d"
+git-tree-sha1 = "8acd04abc9a636ef57004f4c2e6f3f6ed4611099"
 uuid = "8e989ff0-3d88-8e9f-f020-2b208a939ff0"
-version = "0.6.2"
+version = "0.6.5"
 
     [deps.PlutoPlotly.extensions]
     PlotlyKaleidoExt = "PlotlyKaleido"
@@ -965,10 +958,10 @@ version = "0.6.2"
     Unitful = "1986cc42-f94f-5a68-af5c-568840ba703d"
 
 [[deps.PlutoUI]]
-deps = ["AbstractPlutoDingetjes", "Base64", "ColorTypes", "Dates", "FixedPointNumbers", "Hyperscript", "HypertextLiteral", "IOCapture", "InteractiveUtils", "JSON", "Logging", "MIMEs", "Markdown", "Random", "Reexport", "URIs", "UUIDs"]
-git-tree-sha1 = "7e71a55b87222942f0f9337be62e26b1f103d3e4"
+deps = ["AbstractPlutoDingetjes", "Base64", "ColorTypes", "Dates", "Downloads", "FixedPointNumbers", "Hyperscript", "HypertextLiteral", "IOCapture", "InteractiveUtils", "JSON", "Logging", "MIMEs", "Markdown", "Random", "Reexport", "URIs", "UUIDs"]
+git-tree-sha1 = "f53232a27a8c1c836d3998ae1e17d898d4df2a46"
 uuid = "7f904dfe-b85e-4ff6-b463-dae2292396a8"
-version = "0.7.61"
+version = "0.7.72"
 
 [[deps.PrecompileTools]]
 deps = ["Preferences"]
@@ -978,9 +971,9 @@ version = "1.2.1"
 
 [[deps.Preferences]]
 deps = ["TOML"]
-git-tree-sha1 = "9306f6085165d270f7e3db02af26a400d580f5c6"
+git-tree-sha1 = "0f27480397253da18fe2c12a4ba4eb9eb208bf3d"
 uuid = "21216c6a-2e73-6563-6e65-726566657250"
-version = "1.4.3"
+version = "1.5.0"
 
 [[deps.Printf]]
 deps = ["Unicode"]
@@ -993,10 +986,18 @@ uuid = "43287f4e-b6f4-7ad1-bb20-aadabca52c3d"
 version = "1.3.0"
 
 [[deps.PythonCall]]
-deps = ["CondaPkg", "Dates", "Libdl", "MacroTools", "Markdown", "Pkg", "Requires", "Serialization", "Tables", "UnsafePointers"]
-git-tree-sha1 = "feab249add2d40873acbd6b286b450bd30b083dd"
+deps = ["CondaPkg", "Dates", "Libdl", "MacroTools", "Markdown", "Pkg", "Serialization", "Tables", "UnsafePointers"]
+git-tree-sha1 = "34510e11cabd7964291f32f14d28b367e9960e6e"
 uuid = "6099a3de-0909-46bc-b1f4-468b9a2dfc0d"
-version = "0.9.24"
+version = "0.9.28"
+
+    [deps.PythonCall.extensions]
+    CategoricalArraysExt = "CategoricalArrays"
+    PyCallExt = "PyCall"
+
+    [deps.PythonCall.weakdeps]
+    CategoricalArrays = "324d7699-5711-5eae-9e2f-1d82baa6b597"
+    PyCall = "438e738f-606a-5dbb-bf0a-cddfbfd45ab0"
 
 [[deps.REPL]]
 deps = ["InteractiveUtils", "Markdown", "Sockets", "StyledStrings", "Unicode"]
@@ -1025,15 +1026,15 @@ version = "0.7.0"
 
 [[deps.ScopedValues]]
 deps = ["HashArrayMappedTries", "Logging"]
-git-tree-sha1 = "1147f140b4c8ddab224c94efa9569fc23d63ab44"
+git-tree-sha1 = "c3b2323466378a2ba15bea4b2f73b081e022f473"
 uuid = "7e506255-f358-4e82-b7e4-beb19740aa63"
-version = "1.3.0"
+version = "1.5.0"
 
 [[deps.Scratch]]
 deps = ["Dates"]
-git-tree-sha1 = "3bac05bc7e74a75fd9cba4295cde4045d9fe2386"
+git-tree-sha1 = "9b81b8393e50b7d4e6d0a9f14e192294d3b7c109"
 uuid = "6c6a2e73-6563-6170-7368-637461726353"
-version = "1.2.1"
+version = "1.3.0"
 
 [[deps.Serialization]]
 uuid = "9e88b42a-f829-5b0c-bbe9-9e923198166b"
@@ -1045,9 +1046,9 @@ version = "1.11.0"
 
 [[deps.SortingAlgorithms]]
 deps = ["DataStructures"]
-git-tree-sha1 = "66e0a8e672a0bdfca2c3f5937efb8538b9ddc085"
+git-tree-sha1 = "64d974c2e6fdf07f8155b5b2ca2ffa9069b608d9"
 uuid = "a2af1166-a08f-5f64-846c-94a0d3cef48c"
-version = "1.2.1"
+version = "1.2.2"
 
 [[deps.SparseArrays]]
 deps = ["Libdl", "LinearAlgebra", "Random", "Serialization", "SuiteSparse_jll"]
@@ -1066,15 +1067,15 @@ weakdeps = ["SparseArrays"]
 
 [[deps.StatsAPI]]
 deps = ["LinearAlgebra"]
-git-tree-sha1 = "1ff449ad350c9c4cbc756624d6f8a8c3ef56d3ed"
+git-tree-sha1 = "9d72a13a3f4dd3795a195ac5a44d7d6ff5f552ff"
 uuid = "82ae8749-77ed-4fe6-ae5f-f523153014b0"
-version = "1.7.0"
+version = "1.7.1"
 
 [[deps.StatsBase]]
 deps = ["AliasTables", "DataAPI", "DataStructures", "LinearAlgebra", "LogExpFunctions", "Missings", "Printf", "Random", "SortingAlgorithms", "SparseArrays", "Statistics", "StatsAPI"]
-git-tree-sha1 = "29321314c920c26684834965ec2ce0dacc9cf8e5"
+git-tree-sha1 = "a136f98cefaf3e2924a66bd75173d1c891ab7453"
 uuid = "2913bbd2-ae8a-5f71-8c99-4fb6c76f3a91"
-version = "0.34.4"
+version = "0.34.7"
 
 [[deps.StructTypes]]
 deps = ["Dates", "UUIDs"]
@@ -1104,9 +1105,9 @@ version = "1.0.1"
 
 [[deps.Tables]]
 deps = ["DataAPI", "DataValueInterfaces", "IteratorInterfaceExtensions", "OrderedCollections", "TableTraits"]
-git-tree-sha1 = "598cd7c1f68d1e205689b1c2fe65a9f85846f297"
+git-tree-sha1 = "f2c1efbc8f3a609aadf318094f8fc5204bdaf344"
 uuid = "bd369af6-aec1-5ad0-b16a-f7cc5008161c"
-version = "1.12.0"
+version = "1.12.1"
 
 [[deps.Tar]]
 deps = ["ArgTools", "SHA"]
@@ -1125,14 +1126,14 @@ uuid = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
 version = "1.11.0"
 
 [[deps.Tricks]]
-git-tree-sha1 = "6cae795a5a9313bbb4f60683f7263318fc7d1505"
+git-tree-sha1 = "372b90fe551c019541fafc6ff034199dc19c8436"
 uuid = "410a4b4d-49e4-4fbc-ab6d-cb71b17b3775"
-version = "0.1.10"
+version = "0.1.12"
 
 [[deps.URIs]]
-git-tree-sha1 = "67db6cc7b3821e19ebe75791a9dd19c9b1188f2b"
+git-tree-sha1 = "bef26fb046d031353ef97a82e3fdb6afe7f21b1a"
 uuid = "5c2747f8-b7ea-4ff2-ba2e-563bfd36b1d4"
-version = "1.5.1"
+version = "1.6.1"
 
 [[deps.UUIDs]]
 deps = ["Random", "SHA"]
@@ -1165,9 +1166,9 @@ version = "5.11.0+0"
 
 [[deps.micromamba_jll]]
 deps = ["Artifacts", "JLLWrappers", "LazyArtifacts", "Libdl"]
-git-tree-sha1 = "b4a5a3943078f9fd11ae0b5ab1bdbf7718617945"
+git-tree-sha1 = "2ca2ac0b23a8e6b76752453e08428b3b4de28095"
 uuid = "f8abcde7-e9b7-5caa-b8af-a437887ae8e4"
-version = "1.5.8+0"
+version = "1.5.12+0"
 
 [[deps.nghttp2_jll]]
 deps = ["Artifacts", "Libdl"]
@@ -1175,10 +1176,10 @@ uuid = "8e850ede-7688-5339-a07c-302acd2aaf8d"
 version = "1.59.0+0"
 
 [[deps.oneTBB_jll]]
-deps = ["Artifacts", "JLLWrappers", "Libdl"]
-git-tree-sha1 = "d5a767a3bb77135a99e433afe0eb14cd7f6914c3"
+deps = ["Artifacts", "JLLWrappers", "LazyArtifacts", "Libdl"]
+git-tree-sha1 = "1350188a69a6e46f799d3945beef36435ed7262f"
 uuid = "1317d2d5-d96f-522e-a858-c73665f53c3e"
-version = "2022.0.0+0"
+version = "2022.0.0+1"
 
 [[deps.p7zip_jll]]
 deps = ["Artifacts", "Libdl"]

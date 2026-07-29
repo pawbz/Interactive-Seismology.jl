@@ -22,17 +22,6 @@ macro bind(def, element)
     #! format: on
 end
 
-# ╔═╡ bd18b862-a581-11f0-9c3a-d75bd0f4186b
-begin
-	using CondaPkg
-	CondaPkg.add_pip("obspy")
-	CondaPkg.add_pip("matplotlib")
-	
-	using PlutoUI, PlutoPlotly
-	using PythonCall
-	using Dates, LinearAlgebra
-end
-
 # ╔═╡ bd18bcc4-a581-11f0-a887-f7159f142a24
 TableOfContents(include_definitions=true)
 
@@ -53,6 +42,13 @@ Instructor: *Pawan Bharadwaj*,
 Indian Institute of Science, Bengaluru, India
 """
 
+# ╔═╡ 78677a5a-a586-11f0-b3b3-7fe00db28da7
+md"""
+**Select Earthquake by Index:** $(@bind selected_earthquake_index Slider(1:length(earthquake_catalog), default=1, show_value=true))
+
+**Selected:** $(earthquake_catalog[selected_earthquake_index].name)
+"""
+
 # ╔═╡ 8553843a-89df-4800-b967-02caabb12512
 md"""
 ##### Frequency Band Controls
@@ -68,8 +64,188 @@ Adjust the frequency band to observe dispersion effects:
 **Normalize Amplitudes:** $(@bind normalize_amplitudes CheckBox(default=true))
 """
 
+# ╔═╡ 40c1ebd2-a584-11f0-a0ec-5d4ca09a95cf
+begin
+    if @isdefined(seismic_data) && !isempty(seismic_data) && !isnothing(earthquake_info)
+        
+        # Create the main dispersion plot
+        fig = plot(Layout(
+            title="Love Wave Dispersion: $(earthquake_info.name) (M $(earthquake_info.mag))<br>Frequency Band: $(freq_low)-$(freq_high) Hz",
+            xaxis_title="Time after Origin (seconds)",
+            yaxis_title="Distance (km) + Normalized Amplitude",
+            height=700,
+            showlegend=false,
+            font=attr(size=10)
+        ))
+        
+        # Plot each station's Love wave data
+        for (i, station_data) in enumerate(seismic_data)
+            time = station_data["time"]
+            distance = station_data["distance_km"]
+            
+            # Select data to display
+            amplitude = show_raw ? station_data["transverse_raw"] : station_data["transverse"]
+            
+            # Additional normalization for raw data
+            if show_raw && normalize_amplitudes && maximum(abs.(amplitude)) > 0
+                amplitude ./= maximum(abs.(amplitude))
+            end
+            
+            # Scale amplitude for plotting clarity
+            scale_factor = 40  # Adjust trace separation
+            y_plot = distance .+ amplitude .* scale_factor
+            
+            # Color coding based on distance
+            color_intensity = i / length(seismic_data)
+            color = "rgb($(Int(floor(255*color_intensity))), $(Int(floor(255*(1-color_intensity)))), 100)"
+            
+            add_trace!(fig, scatter(
+                x=time,
+                y=pyconvert(Array{Float64}, y_plot),
+                mode="lines",
+                name="$(station_data["station"])_$(round(pyconvert(Float64, distance), digits=0))km",
+                line=attr(color=color, width=1.2),
+                hovertemplate="Station: $(station_data["station"])<br>" *
+                            "Network: $(station_data["network"])<br>" *
+                            "Distance: $(round(pyconvert(Float64, distance), digits=1)) km<br>" *
+                            "Azimuth: $(round(pyconvert(Float64, station_data["azimuth"]), digits=1))°<br>" *
+                            "Time: %{x:.1f} s<br>" *
+                            "<extra></extra>"
+            ))
+        end
+        
+        # Add theoretical Love wave velocity curves
+        if length(seismic_data) >= 2
+            min_dist = pyconvert(Float64, minimum([s["distance_km"] for s in seismic_data]))
+            max_dist = pyconvert(Float64, maximum([s["distance_km"] for s in seismic_data]))
+            min_time = 0  # Start from origin time
+            
+            # Theoretical Love wave velocities (km/s)
+            velocities = [3.0, 3.5, 4.0, 4.5, 5.0]
+            velocity_colors = ["red", "blue", "green", "orange", "purple"]
+            
+            for (v, color) in zip(velocities, velocity_colors)
+                t_min = min_dist / v
+                t_max = max_dist / v
+                
+                if pyconvert(Float64, t_min) >= min_time  # Only show if visible in time window
+                    add_trace!(fig, scatter(
+                        x=[t_min, t_max],
+                        y=[min_dist, max_dist],
+                        mode="lines",
+                        name="$(v) km/s",
+                        line=attr(color=color, width=2, dash="dash"),
+                        opacity=0.7,
+                        showlegend=true
+                    ))
+                end
+            end
+        end
+	end
+        
+        fig
+end
+
 # ╔═╡ 7031673d-23af-41d9-a254-fc57b27dd417
 md"# Appendix"
+
+# ╔═╡ bd18b862-a581-11f0-9c3a-d75bd0f4186b
+begin
+	using CondaPkg
+	CondaPkg.add_pip("obspy")
+	CondaPkg.add_pip("matplotlib")
+	
+	using PlutoUI, PlutoPlotly
+	using PythonCall
+	using Dates, LinearAlgebra
+end
+
+# ╔═╡ bd18d1a6-a581-11f0-a393-05b8ff32c765
+"""
+Process seismic data to extract Love waves
+"""
+function process_love_waves(waveforms, freq_low, freq_high, normalize_amp=true)
+    processed_data = []
+    
+    for wf_data in waveforms
+        try
+            st = wf_data["stream"]
+            sta_info = wf_data["station_info"]
+            origin_time = wf_data["origin_time"]
+            
+            # Find horizontal components
+            north_tr = nothing
+            east_tr = nothing
+            
+            for tr in st
+                if occursin("N", tr.stats.channel) || occursin("1", tr.stats.channel)
+                    north_tr = tr
+                elseif occursin("E", tr.stats.channel) || occursin("2", tr.stats.channel)
+                    east_tr = tr
+                end
+            end
+            
+            if north_tr === nothing || east_tr === nothing
+                continue
+            end
+            
+            # Ensure same sampling rate and length
+            if north_tr.stats.sampling_rate != east_tr.stats.sampling_rate
+                continue
+            end
+            
+            min_len = min(length(north_tr.data), length(east_tr.data))
+            north_tr.data = north_tr.data[1:min_len]
+            east_tr.data = east_tr.data[1:min_len]
+            
+            # Rotate to radial-transverse
+            radial, transverse = rotate_to_rt(north_tr, east_tr, sta_info["back_azimuth"])
+            
+            if radial === nothing || transverse === nothing
+                continue
+            end
+            
+            # Create time array
+            dt = 1.0 / north_tr.stats.sampling_rate
+            t_start = (north_tr.stats.starttime - origin_time)
+            time_array = collect(t_start:dt:(t_start + (length(transverse)-1)*dt))
+            
+            # Filter for Love waves (transverse component)
+            nyquist = north_tr.stats.sampling_rate / 2
+            if freq_high >= nyquist
+                freq_high = nyquist * 0.9
+            end
+            
+            # Design Butterworth filter
+            sos = scipy_signal.butter(4, [freq_low, freq_high], btype="band", 
+                                    fs=north_tr.stats.sampling_rate, output="sos")
+            transverse_filtered = scipy_signal.sosfilt(sos, transverse)
+            
+            # Normalize amplitude if requested
+            if normalize_amp && maximum(abs.(transverse_filtered)) > 0
+                transverse_filtered ./= maximum(abs.(transverse_filtered))
+            end
+            
+            push!(processed_data, Dict(
+                "transverse" => transverse_filtered,
+                "transverse_raw" => transverse,
+                "time" => time_array,
+                "distance_km" => sta_info["distance_km"],
+                "station" => "$(sta_info["network"]).$(sta_info["station"])",
+                "sampling_rate" => north_tr.stats.sampling_rate
+            ))
+            
+        catch e
+            println("Error processing station: $e")
+            continue
+        end
+    end
+    
+    # Sort by distance
+    sort!(processed_data, by = x -> x["distance_km"])
+    
+    return processed_data
+end
 
 # ╔═╡ bd18e4ea-a581-11f0-9752-d7101c5581f0
 md"""
@@ -135,13 +311,6 @@ begin
 		)
 	)
 end
-
-# ╔═╡ 78677a5a-a586-11f0-b3b3-7fe00db28da7
-md"""
-**Select Earthquake by Index:** $(@bind selected_earthquake_index Slider(1:length(earthquake_catalog), default=1, show_value=true))
-
-**Selected:** $(earthquake_catalog[selected_earthquake_index].name)
-"""
 
 # ╔═╡ bfd8a3ee-a583-11f0-9977-c9f4d0d5cfa5
 begin
@@ -385,92 +554,8 @@ function rotate_to_rt(north_data, east_data, back_azimuth)
     end
 end
 
-# ╔═╡ bd18d1a6-a581-11f0-a393-05b8ff32c765
-"""
-Process seismic data to extract Love waves
-"""
-function process_love_waves(waveforms, freq_low, freq_high, normalize_amp=true)
-    processed_data = []
-    
-    for wf_data in waveforms
-        try
-            st = wf_data["stream"]
-            sta_info = wf_data["station_info"]
-            origin_time = wf_data["origin_time"]
-            
-            # Find horizontal components
-            north_tr = nothing
-            east_tr = nothing
-            
-            for tr in st
-                if occursin("N", tr.stats.channel) || occursin("1", tr.stats.channel)
-                    north_tr = tr
-                elseif occursin("E", tr.stats.channel) || occursin("2", tr.stats.channel)
-                    east_tr = tr
-                end
-            end
-            
-            if north_tr === nothing || east_tr === nothing
-                continue
-            end
-            
-            # Ensure same sampling rate and length
-            if north_tr.stats.sampling_rate != east_tr.stats.sampling_rate
-                continue
-            end
-            
-            min_len = min(length(north_tr.data), length(east_tr.data))
-            north_tr.data = north_tr.data[1:min_len]
-            east_tr.data = east_tr.data[1:min_len]
-            
-            # Rotate to radial-transverse
-            radial, transverse = rotate_to_rt(north_tr, east_tr, sta_info["back_azimuth"])
-            
-            if radial === nothing || transverse === nothing
-                continue
-            end
-            
-            # Create time array
-            dt = 1.0 / north_tr.stats.sampling_rate
-            t_start = (north_tr.stats.starttime - origin_time)
-            time_array = collect(t_start:dt:(t_start + (length(transverse)-1)*dt))
-            
-            # Filter for Love waves (transverse component)
-            nyquist = north_tr.stats.sampling_rate / 2
-            if freq_high >= nyquist
-                freq_high = nyquist * 0.9
-            end
-            
-            # Design Butterworth filter
-            sos = scipy_signal.butter(4, [freq_low, freq_high], btype="band", 
-                                    fs=north_tr.stats.sampling_rate, output="sos")
-            transverse_filtered = scipy_signal.sosfilt(sos, transverse)
-            
-            # Normalize amplitude if requested
-            if normalize_amp && maximum(abs.(transverse_filtered)) > 0
-                transverse_filtered ./= maximum(abs.(transverse_filtered))
-            end
-            
-            push!(processed_data, Dict(
-                "transverse" => transverse_filtered,
-                "transverse_raw" => transverse,
-                "time" => time_array,
-                "distance_km" => sta_info["distance_km"],
-                "station" => "$(sta_info["network"]).$(sta_info["station"])",
-                "sampling_rate" => north_tr.stats.sampling_rate
-            ))
-            
-        catch e
-            println("Error processing station: $e")
-            continue
-        end
-    end
-    
-    # Sort by distance
-    sort!(processed_data, by = x -> x["distance_km"])
-    
-    return processed_data
-end
+# ╔═╡ a50fcf5d-ef3f-4d75-a20e-6d36ccaa08af
+seismic_data = process_love_wave_signals(waveforms_data, freq_low, freq_high, normalize_amplitudes)
 
 # ╔═╡ 6aaafe83-5ddf-42b0-a401-59cd93ba56fa
 """
@@ -581,93 +666,8 @@ end
 # ╔═╡ cfe0821b-c768-4824-b8b6-f1b9808641af
 waveforms_data =waveforms_result[1]
 
-# ╔═╡ a50fcf5d-ef3f-4d75-a20e-6d36ccaa08af
-seismic_data = process_love_wave_signals(waveforms_data, freq_low, freq_high, normalize_amplitudes)
-
 # ╔═╡ a5620ac8-5a4b-4c55-9f5e-980c0a6d0995
 earthquake_info = earthquake_catalog[selected_earthquake_index]
-
-# ╔═╡ 40c1ebd2-a584-11f0-a0ec-5d4ca09a95cf
-begin
-    if @isdefined(seismic_data) && !isempty(seismic_data) && !isnothing(earthquake_info)
-        
-        # Create the main dispersion plot
-        fig = plot(Layout(
-            title="Love Wave Dispersion: $(earthquake_info.name) (M $(earthquake_info.mag))<br>Frequency Band: $(freq_low)-$(freq_high) Hz",
-            xaxis_title="Time after Origin (seconds)",
-            yaxis_title="Distance (km) + Normalized Amplitude",
-            height=700,
-            showlegend=false,
-            font=attr(size=10)
-        ))
-        
-        # Plot each station's Love wave data
-        for (i, station_data) in enumerate(seismic_data)
-            time = station_data["time"]
-            distance = station_data["distance_km"]
-            
-            # Select data to display
-            amplitude = show_raw ? station_data["transverse_raw"] : station_data["transverse"]
-            
-            # Additional normalization for raw data
-            if show_raw && normalize_amplitudes && maximum(abs.(amplitude)) > 0
-                amplitude ./= maximum(abs.(amplitude))
-            end
-            
-            # Scale amplitude for plotting clarity
-            scale_factor = 40  # Adjust trace separation
-            y_plot = distance .+ amplitude .* scale_factor
-            
-            # Color coding based on distance
-            color_intensity = i / length(seismic_data)
-            color = "rgb($(Int(floor(255*color_intensity))), $(Int(floor(255*(1-color_intensity)))), 100)"
-            
-            add_trace!(fig, scatter(
-                x=time,
-                y=pyconvert(Array{Float64}, y_plot),
-                mode="lines",
-                name="$(station_data["station"])_$(round(pyconvert(Float64, distance), digits=0))km",
-                line=attr(color=color, width=1.2),
-                hovertemplate="Station: $(station_data["station"])<br>" *
-                            "Network: $(station_data["network"])<br>" *
-                            "Distance: $(round(pyconvert(Float64, distance), digits=1)) km<br>" *
-                            "Azimuth: $(round(pyconvert(Float64, station_data["azimuth"]), digits=1))°<br>" *
-                            "Time: %{x:.1f} s<br>" *
-                            "<extra></extra>"
-            ))
-        end
-        
-        # Add theoretical Love wave velocity curves
-        if length(seismic_data) >= 2
-            min_dist = pyconvert(Float64, minimum([s["distance_km"] for s in seismic_data]))
-            max_dist = pyconvert(Float64, maximum([s["distance_km"] for s in seismic_data]))
-            min_time = 0  # Start from origin time
-            
-            # Theoretical Love wave velocities (km/s)
-            velocities = [3.0, 3.5, 4.0, 4.5, 5.0]
-            velocity_colors = ["red", "blue", "green", "orange", "purple"]
-            
-            for (v, color) in zip(velocities, velocity_colors)
-                t_min = min_dist / v
-                t_max = max_dist / v
-                
-                if pyconvert(Float64, t_min) >= min_time  # Only show if visible in time window
-                    add_trace!(fig, scatter(
-                        x=[t_min, t_max],
-                        y=[min_dist, max_dist],
-                        mode="lines",
-                        name="$(v) km/s",
-                        line=attr(color=color, width=2, dash="dash"),
-                        opacity=0.7,
-                        showlegend=true
-                    ))
-                end
-            end
-        end
-	end
-        
-        fig
-end
 
 # ╔═╡ 00000000-0000-0000-0000-000000000001
 PLUTO_PROJECT_TOML_CONTENTS = """
@@ -680,19 +680,19 @@ PlutoUI = "7f904dfe-b85e-4ff6-b463-dae2292396a8"
 PythonCall = "6099a3de-0909-46bc-b1f4-468b9a2dfc0d"
 
 [compat]
-CondaPkg = "~0.2.29"
-PlutoPlotly = "~0.6.4"
-PlutoUI = "~0.7.71"
-PythonCall = "~0.9.26"
+CondaPkg = "~0.2.33"
+PlutoPlotly = "~0.6.5"
+PlutoUI = "~0.7.72"
+PythonCall = "~0.9.28"
 """
 
 # ╔═╡ 00000000-0000-0000-0000-000000000002
 PLUTO_MANIFEST_TOML_CONTENTS = """
 # This file is machine-generated - editing it directly is not advised
 
-julia_version = "1.12.0"
+julia_version = "1.11.7"
 manifest_format = "2.0"
-project_hash = "471b2b64296292cae9bb3e5b11d1f5b5106fcd28"
+project_hash = "505cfdf1a79ea0ac44d582f31df7d2e3265451c1"
 
 [[deps.AbstractPlutoDingetjes]]
 deps = ["Pkg"]
@@ -714,21 +714,25 @@ version = "1.11.0"
 
 [[deps.ColorSchemes]]
 deps = ["ColorTypes", "ColorVectorSpace", "Colors", "FixedPointNumbers", "PrecompileTools", "Random"]
-git-tree-sha1 = "a656525c8b46aa6a1c76891552ed5381bb32ae7b"
+git-tree-sha1 = "b0fd3f56fa442f81e0a47815c92245acfaaa4e34"
 uuid = "35d6a980-a343-548e-a6ea-1d62b119f2f4"
-version = "3.30.0"
+version = "3.31.0"
 
 [[deps.ColorTypes]]
 deps = ["FixedPointNumbers", "Random"]
-git-tree-sha1 = "b10d0b65641d57b8b4d5e234446582de5047050d"
+git-tree-sha1 = "67e11ee83a43eb71ddc950302c53bf33f0690dfe"
 uuid = "3da002f7-5984-5a60-b8a6-cbb66c0b333f"
-version = "0.11.5"
+version = "0.12.1"
+weakdeps = ["StyledStrings"]
+
+    [deps.ColorTypes.extensions]
+    StyledStringsExt = "StyledStrings"
 
 [[deps.ColorVectorSpace]]
 deps = ["ColorTypes", "FixedPointNumbers", "LinearAlgebra", "Requires", "Statistics", "TensorCore"]
-git-tree-sha1 = "a1f44953f2382ebb937d60dafbe2deea4bd23249"
+git-tree-sha1 = "8b3b6f87ce8f65a2b4f857528fd8d70086cd72b1"
 uuid = "c3611d14-8923-5661-9e6a-0046d554d3a4"
-version = "0.10.0"
+version = "0.11.0"
 
     [deps.ColorVectorSpace.extensions]
     SpecialFunctionsExt = "SpecialFunctions"
@@ -738,20 +742,20 @@ version = "0.10.0"
 
 [[deps.Colors]]
 deps = ["ColorTypes", "FixedPointNumbers", "Reexport"]
-git-tree-sha1 = "362a287c3aa50601b0bc359053d5c2468f0e7ce0"
+git-tree-sha1 = "37ea44092930b1811e666c3bc38065d7d87fcc74"
 uuid = "5ae59095-9a9b-59fe-a467-6f913c188581"
-version = "0.12.11"
+version = "0.13.1"
 
 [[deps.CompilerSupportLibraries_jll]]
 deps = ["Artifacts", "Libdl"]
 uuid = "e66e0078-7015-5450-92f7-15fbd957f2ae"
-version = "1.3.0+1"
+version = "1.1.1+0"
 
 [[deps.CondaPkg]]
 deps = ["JSON3", "Markdown", "MicroMamba", "Pidfile", "Pkg", "Preferences", "Scratch", "TOML", "pixi_jll"]
-git-tree-sha1 = "93e81a68a84dba7e652e61425d982cd71a1a0835"
+git-tree-sha1 = "bd491d55b97a036caae1d78729bdb70bf7dababc"
 uuid = "992eb4ea-22a4-4c89-a5bb-47a3300528ab"
-version = "0.2.29"
+version = "0.2.33"
 
 [[deps.DataAPI]]
 git-tree-sha1 = "abe83f3a2f1b857aac70ef8b269080af17764bbe"
@@ -851,11 +855,6 @@ version = "1.14.3"
     [deps.JSON3.weakdeps]
     ArrowTypes = "31f734f8-188a-4ce0-8406-c8a06bd891cd"
 
-[[deps.JuliaSyntaxHighlighting]]
-deps = ["StyledStrings"]
-uuid = "ac6e5ff7-fb65-4e79-a425-ec3bc9c03011"
-version = "1.12.0"
-
 [[deps.LaTeXStrings]]
 git-tree-sha1 = "dda21b8cbd6a6c40d9d02a73230f9d70fed6918c"
 uuid = "b964fa9f-0449-5b57-a5c2-d3ea65f4040f"
@@ -872,24 +871,24 @@ uuid = "b27032c2-a3e7-50c8-80cd-2d36dbcbfd21"
 version = "0.6.4"
 
 [[deps.LibCURL_jll]]
-deps = ["Artifacts", "LibSSH2_jll", "Libdl", "OpenSSL_jll", "Zlib_jll", "nghttp2_jll"]
+deps = ["Artifacts", "LibSSH2_jll", "Libdl", "MbedTLS_jll", "Zlib_jll", "nghttp2_jll"]
 uuid = "deac9b47-8bc7-5906-a0fe-35ac56dc84c0"
-version = "8.11.1+1"
+version = "8.6.0+0"
 
 [[deps.LibGit2]]
-deps = ["LibGit2_jll", "NetworkOptions", "Printf", "SHA"]
+deps = ["Base64", "LibGit2_jll", "NetworkOptions", "Printf", "SHA"]
 uuid = "76f85450-5226-5b5a-8eaa-529ad045b433"
 version = "1.11.0"
 
 [[deps.LibGit2_jll]]
-deps = ["Artifacts", "LibSSH2_jll", "Libdl", "OpenSSL_jll"]
+deps = ["Artifacts", "LibSSH2_jll", "Libdl", "MbedTLS_jll"]
 uuid = "e37daf67-58a4-590a-8e99-b0245dd2ffc5"
-version = "1.9.0+0"
+version = "1.7.2+0"
 
 [[deps.LibSSH2_jll]]
-deps = ["Artifacts", "Libdl", "OpenSSL_jll"]
+deps = ["Artifacts", "Libdl", "MbedTLS_jll"]
 uuid = "29816b5a-b9ab-546f-933c-edad1886dfa8"
-version = "1.11.3+1"
+version = "1.11.0+1"
 
 [[deps.Libdl]]
 uuid = "8f399da3-3557-5675-b5ff-fb832c97cbdb"
@@ -898,7 +897,7 @@ version = "1.11.0"
 [[deps.LinearAlgebra]]
 deps = ["Libdl", "OpenBLAS_jll", "libblastrampoline_jll"]
 uuid = "37e2e46d-f89d-539d-b4ee-838fcccc9c8e"
-version = "1.12.0"
+version = "1.11.0"
 
 [[deps.Logging]]
 uuid = "56ddb016-857b-54e1-b83d-db4d58db5568"
@@ -915,9 +914,14 @@ uuid = "1914dd2f-81c6-5fcd-8719-6d5c9610ff09"
 version = "0.5.16"
 
 [[deps.Markdown]]
-deps = ["Base64", "JuliaSyntaxHighlighting", "StyledStrings"]
+deps = ["Base64"]
 uuid = "d6f4376e-aef5-505a-96c1-9c027394607a"
 version = "1.11.0"
+
+[[deps.MbedTLS_jll]]
+deps = ["Artifacts", "Libdl"]
+uuid = "c8ffd9c3-330d-5841-b78e-0817d7145fa1"
+version = "2.28.6+0"
 
 [[deps.MicroMamba]]
 deps = ["Pkg", "Scratch", "micromamba_jll"]
@@ -931,21 +935,16 @@ version = "1.11.0"
 
 [[deps.MozillaCACerts_jll]]
 uuid = "14a3606d-f60d-562e-9121-12d972cd8159"
-version = "2025.5.20"
+version = "2023.12.12"
 
 [[deps.NetworkOptions]]
 uuid = "ca575930-c2e3-43a9-ace4-1e988b2c1908"
-version = "1.3.0"
+version = "1.2.0"
 
 [[deps.OpenBLAS_jll]]
 deps = ["Artifacts", "CompilerSupportLibraries_jll", "Libdl"]
 uuid = "4536629a-c528-5b80-bd46-f80d51c5b363"
-version = "0.3.29+0"
-
-[[deps.OpenSSL_jll]]
-deps = ["Artifacts", "Libdl"]
-uuid = "458c3c95-2e84-50aa-8efc-19380b2a3a95"
-version = "3.5.1+0"
+version = "0.3.27+1"
 
 [[deps.OrderedCollections]]
 git-tree-sha1 = "05868e21324cede2207c6f0f466b4bfef6d5e7ee"
@@ -973,7 +972,7 @@ version = "1.3.0"
 [[deps.Pkg]]
 deps = ["Artifacts", "Dates", "Downloads", "FileWatching", "LibGit2", "Libdl", "Logging", "Markdown", "Printf", "Random", "SHA", "TOML", "Tar", "UUIDs", "p7zip_jll"]
 uuid = "44cfe95a-1eb2-52ea-b672-e2afdf69b78f"
-version = "1.12.0"
+version = "1.11.0"
 weakdeps = ["REPL"]
 
     [deps.Pkg.extensions]
@@ -999,9 +998,9 @@ version = "0.8.21"
 
 [[deps.PlutoPlotly]]
 deps = ["AbstractPlutoDingetjes", "Artifacts", "ColorSchemes", "Colors", "Dates", "Downloads", "HypertextLiteral", "InteractiveUtils", "LaTeXStrings", "Markdown", "Pkg", "PlotlyBase", "PrecompileTools", "Reexport", "ScopedValues", "Scratch", "TOML"]
-git-tree-sha1 = "232630fee92e588c11c2b260741b4fa70784b4c5"
+git-tree-sha1 = "8acd04abc9a636ef57004f4c2e6f3f6ed4611099"
 uuid = "8e989ff0-3d88-8e9f-f020-2b208a939ff0"
-version = "0.6.4"
+version = "0.6.5"
 
     [deps.PlutoPlotly.extensions]
     PlotlyKaleidoExt = "PlotlyKaleido"
@@ -1013,15 +1012,15 @@ version = "0.6.4"
 
 [[deps.PlutoUI]]
 deps = ["AbstractPlutoDingetjes", "Base64", "ColorTypes", "Dates", "Downloads", "FixedPointNumbers", "Hyperscript", "HypertextLiteral", "IOCapture", "InteractiveUtils", "JSON", "Logging", "MIMEs", "Markdown", "Random", "Reexport", "URIs", "UUIDs"]
-git-tree-sha1 = "8329a3a4f75e178c11c1ce2342778bcbbbfa7e3c"
+git-tree-sha1 = "f53232a27a8c1c836d3998ae1e17d898d4df2a46"
 uuid = "7f904dfe-b85e-4ff6-b463-dae2292396a8"
-version = "0.7.71"
+version = "0.7.72"
 
 [[deps.PrecompileTools]]
 deps = ["Preferences"]
-git-tree-sha1 = "07a921781cab75691315adc645096ed5e370cb77"
+git-tree-sha1 = "5aa36f7049a63a1528fe8f7c3f2113413ffd4e1f"
 uuid = "aea7be01-6a6a-4083-8856-8a6e6704d82a"
-version = "1.3.3"
+version = "1.2.1"
 
 [[deps.Preferences]]
 deps = ["TOML"]
@@ -1035,13 +1034,21 @@ uuid = "de0858da-6303-5e67-8744-51eddeeeb8d7"
 version = "1.11.0"
 
 [[deps.PythonCall]]
-deps = ["CondaPkg", "Dates", "Libdl", "MacroTools", "Markdown", "Pkg", "Requires", "Serialization", "Tables", "UnsafePointers"]
-git-tree-sha1 = "f03464b21983fb5af2f8cea99106b8d8f48ac69d"
+deps = ["CondaPkg", "Dates", "Libdl", "MacroTools", "Markdown", "Pkg", "Serialization", "Tables", "UnsafePointers"]
+git-tree-sha1 = "34510e11cabd7964291f32f14d28b367e9960e6e"
 uuid = "6099a3de-0909-46bc-b1f4-468b9a2dfc0d"
-version = "0.9.26"
+version = "0.9.28"
+
+    [deps.PythonCall.extensions]
+    CategoricalArraysExt = "CategoricalArrays"
+    PyCallExt = "PyCall"
+
+    [deps.PythonCall.weakdeps]
+    CategoricalArrays = "324d7699-5711-5eae-9e2f-1d82baa6b597"
+    PyCall = "438e738f-606a-5dbb-bf0a-cddfbfd45ab0"
 
 [[deps.REPL]]
-deps = ["InteractiveUtils", "JuliaSyntaxHighlighting", "Markdown", "Sockets", "StyledStrings", "Unicode"]
+deps = ["InteractiveUtils", "Markdown", "Sockets", "StyledStrings", "Unicode"]
 uuid = "3fa0cd96-eef1-5676-8a61-b3b8758bbffb"
 version = "1.11.0"
 
@@ -1172,12 +1179,12 @@ version = "1.0.0"
 [[deps.Zlib_jll]]
 deps = ["Libdl"]
 uuid = "83775a58-1f1d-513f-b197-d71354ab007a"
-version = "1.3.1+2"
+version = "1.2.13+1"
 
 [[deps.libblastrampoline_jll]]
 deps = ["Artifacts", "Libdl"]
 uuid = "8e850b90-86db-534c-a0d3-1478176c7d93"
-version = "5.13.1+1"
+version = "5.11.0+0"
 
 [[deps.micromamba_jll]]
 deps = ["Artifacts", "JLLWrappers", "LazyArtifacts", "Libdl"]
@@ -1188,12 +1195,12 @@ version = "1.5.12+0"
 [[deps.nghttp2_jll]]
 deps = ["Artifacts", "Libdl"]
 uuid = "8e850ede-7688-5339-a07c-302acd2aaf8d"
-version = "1.64.0+1"
+version = "1.59.0+0"
 
 [[deps.p7zip_jll]]
 deps = ["Artifacts", "Libdl"]
 uuid = "3f19e933-33d8-53b3-aaab-bd5110c3b7a0"
-version = "17.5.0+2"
+version = "17.4.0+2"
 
 [[deps.pixi_jll]]
 deps = ["Artifacts", "JLLWrappers", "LazyArtifacts", "Libdl"]

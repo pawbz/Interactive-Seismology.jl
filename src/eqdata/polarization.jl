@@ -1,5 +1,5 @@
 ### A Pluto.jl notebook ###
-# v0.20.4
+# v0.20.19
 
 #> [frontmatter]
 #> layout = "layout.jlhtml"
@@ -12,27 +12,13 @@ using InteractiveUtils
 # This Pluto notebook uses @bind for interactivity. When running this notebook outside of Pluto, the following 'mock version' of @bind gives bound variables a default value (instead of an error).
 macro bind(def, element)
     #! format: off
-    quote
+    return quote
         local iv = try Base.loaded_modules[Base.PkgId(Base.UUID("6e696c72-6542-2067-7265-42206c756150"), "AbstractPlutoDingetjes")].Bonds.initial_value catch; b -> missing; end
         local el = $(esc(element))
         global $(esc(def)) = Core.applicable(Base.get, el) ? Base.get(el) : iv(el)
         el
     end
     #! format: on
-end
-
-# ╔═╡ 1d229d0c-2ffd-11ed-0cb3-1964ddd3b5af
-begin
-	using Pkg
-	Pkg.add(url="https://github.com/anowacki/Geodesics.jl")
-	Pkg.add(url="https://github.com/anowacki/Seis.jl")
-	Pkg.add(url="https://github.com/anowacki/SeisRequests.jl")
-	Pkg.add("GeoMakie")
-	Pkg.add("CairoMakie")
-	Pkg.add("PlutoUI")
-	using Dates, Geodesics, Seis, SeisRequests
-	using GeoMakie, CairoMakie
-	using PlutoUI
 end
 
 # ╔═╡ f1035bd5-77b8-4a79-8445-4b11d01583e5
@@ -98,6 +84,20 @@ end
 md"""
 ## Packages
 """
+
+# ╔═╡ 1d229d0c-2ffd-11ed-0cb3-1964ddd3b5af
+begin
+	using Pkg
+	Pkg.add(url="https://github.com/anowacki/Geodesics.jl")
+	Pkg.add(url="https://github.com/anowacki/Seis.jl")
+	Pkg.add(url="https://github.com/anowacki/SeisRequests.jl")
+	Pkg.add("GeoMakie")
+	Pkg.add("CairoMakie")
+	Pkg.add("PlutoUI")
+	using Dates, Geodesics, Seis, SeisRequests
+	using GeoMakie, CairoMakie
+	using PlutoUI
+end
 
 # ╔═╡ Cell order:
 # ╟─f1035bd5-77b8-4a79-8445-4b11d01583e5

@@ -1,5 +1,5 @@
 ### A Pluto.jl notebook ###
-# v0.20.13
+# v0.20.19
 
 #> [frontmatter]
 #> title = "Spherical Harmonics"
@@ -20,18 +20,6 @@ macro bind(def, element)
     end
     #! format: on
 end
-
-# ╔═╡ 348240ee-f35f-11ef-01ab-d11599b51ca1
-begin
-    using PlutoUI, PlutoPlotly, SpecialFunctions, LinearAlgebra, Printf, AssociatedLegendrePolynomials, LaTeXStrings, Bessels
-
-
-
-	
-end
-
-# ╔═╡ 88195cf5-894b-4676-99bc-a559e0d5ebd9
-using ForwardDiff
 
 # ╔═╡ ca388aaf-f515-4c8e-8b39-a7173641dca0
 TableOfContents()
@@ -66,8 +54,35 @@ $( @bind ω_value Slider(range(0, 0.1, length=1000), default=0.05, show_value=tr
 
 """
 
+# ╔═╡ d7ac1aac-2949-4ca3-a0e9-f233a0a6c1b9
+begin
+	PlutoUI.ExperimentalLayout.hbox([plot(surface(x=X, y=Y, z=Z, surfacecolor=Ylm_grid, colorscale="Seismic", showscale=true), Layout(width=500, title="Spherical Surface Harmonic <br> l=$l_value, m=$m_value")), plot(
+scatter(x=R, y=radius_grid, mode="lines", line=attr(color="blue", width=3), name="Radial Function"), Layout(width=200, yaxis=attr(title="radius (km)"),title="Radial Wave Function<br>period = $(round(2*pi/ω_value/60, digits=2)) min"))])
+end
+
 # ╔═╡ 54b2c235-e693-4f1f-bd1f-1c651e4dbffc
 @bind mode Select(["R", "S", "T"])
+
+# ╔═╡ 790e31fe-4cc3-44cd-b33c-0ab0925ce23a
+begin
+    plot(
+        cone(
+            x=vec(X), y=vec(Y), z=vec(Z), u=real(vec(Ux)), v=real(vec(Uy)), w=real(vec(Uz)),
+            colorscale="Reds", showscale=false, sizeref=(mode == "R" ? 1.0 : 0.15), name="Vector Field"
+        )
+    , Layout(
+        title="$mode <br> l=$l_value, m=$m_value",
+        scene=attr(
+            xaxis=attr(title="X"),
+            yaxis=attr(title="Y"),
+            zaxis=attr(title="Z"),
+            aspectmode="cube"
+        )
+    ))
+end
+
+# ╔═╡ 4d8bfdc4-175d-4f7a-ad65-338726ad343e
+R = Bessels.sphericalbesselj.(l_value, ω_value .* radius_grid ./c);
 
 # ╔═╡ fff4b588-59c3-4cd5-b333-222026b8d666
 c = 5.0 # in km/s
@@ -75,8 +90,29 @@ c = 5.0 # in km/s
 # ╔═╡ 6750df2d-459b-4467-b405-1bd8177bee42
 md"## Appendix"
 
+# ╔═╡ 348240ee-f35f-11ef-01ab-d11599b51ca1
+begin
+    using PlutoUI, PlutoPlotly, SpecialFunctions, LinearAlgebra, Printf, AssociatedLegendrePolynomials, LaTeXStrings, Bessels
+
+
+
+	
+end
+
+# ╔═╡ 88195cf5-894b-4676-99bc-a559e0d5ebd9
+using ForwardDiff
+
 # ╔═╡ 4c892f32-ffa3-4b45-a840-6f1a165293b3
 md"### Surface Spherical Harmonics "
+
+# ╔═╡ 7eb05e0a-12e1-4033-b081-1fc79b38218a
+function spherical_harmonics(l, m, θ, φ)
+        if abs(m) > l
+            return zero(θ)
+        end
+        Y = Y_lm(l, m, θ, φ)
+        return Y  # Return the real part for visualization
+end
 
 # ╔═╡ 186c6279-4573-4fda-8589-5fabcbc1cc0e
 function Y_lm(l, m, θ, φ)
@@ -89,17 +125,15 @@ function Y_lm(l, m, thetaphi)
 	return Y_lm(l, m, thetaphi[1], thetaphi[2])
 end
 
-# ╔═╡ 7eb05e0a-12e1-4033-b081-1fc79b38218a
-function spherical_harmonics(l, m, θ, φ)
-        if abs(m) > l
-            return zero(θ)
-        end
-        Y = Y_lm(l, m, θ, φ)
-        return Y  # Return the real part for visualization
-end
+# ╔═╡ 665f39ad-0764-4166-8872-8179eba23374
+# Compute spherical harmonics
+Ylm_grid = [real(spherical_harmonics(l_value, m_value, θ, φ)) for (θ, φ) in zip(θ_grid, φ_grid)];
 
 # ╔═╡ 79fa4c7b-5f93-44f9-bf33-311f5efecf32
 md"### Vector Spherical Harmonics"
+
+# ╔═╡ ca84a03e-053e-47c3-aefc-e81202f0f9f3
+spherical_harmonic_gradient(l_value, m_value, 1.2, -0.1)
 
 # ╔═╡ ea0d2403-03ea-4c42-a452-59f830c22a16
 function spherical_harmonic_gradient(l::Int, m::Int, θ, φ)
@@ -112,9 +146,6 @@ function spherical_harmonic_gradient(l::Int, m::Int, θ, φ)
 
     return dY
 end
-
-# ╔═╡ ca84a03e-053e-47c3-aefc-e81202f0f9f3
-spherical_harmonic_gradient(l_value, m_value, 1.2, -0.1)
 
 # ╔═╡ 38e90f9a-5cba-451f-bae3-341f03988e3c
 function vector_spherical_harmonics(l, m, θ, φ, mode_type)
@@ -136,21 +167,6 @@ function vector_spherical_harmonics(l, m, θ, φ, mode_type)
     end
 end
 
-# ╔═╡ 433d799f-9243-4140-ab1f-006feeaf8816
-md"### Grids"
-
-# ╔═╡ 7100ad22-5762-465c-a6a4-bbb06e11ac2f
-begin
-	    θ_range = range(0, π, length=50)  # Latitude
-	    φ_range = range(0, 2π, length=100)  # Longitude
-	    θ_grid = first.(Iterators.product(θ_range, φ_range))
-		φ_grid = last.(Iterators.product(θ_range, φ_range))
-end;
-
-# ╔═╡ 665f39ad-0764-4166-8872-8179eba23374
-# Compute spherical harmonics
-Ylm_grid = [real(spherical_harmonics(l_value, m_value, θ, φ)) for (θ, φ) in zip(θ_grid, φ_grid)];
-
 # ╔═╡ eaa2c2dd-f109-4a2b-b8b8-4f15d5576ca8
 begin
 	    # Compute selected VSH function in spherical coordinates
@@ -166,6 +182,17 @@ begin
 	
 end;
 
+# ╔═╡ 433d799f-9243-4140-ab1f-006feeaf8816
+md"### Grids"
+
+# ╔═╡ 7100ad22-5762-465c-a6a4-bbb06e11ac2f
+begin
+	    θ_range = range(0, π, length=50)  # Latitude
+	    φ_range = range(0, 2π, length=100)  # Longitude
+	    θ_grid = first.(Iterators.product(θ_range, φ_range))
+		φ_grid = last.(Iterators.product(θ_range, φ_range))
+end;
+
 # ╔═╡ 32fa5f32-72b4-4ce2-8d6b-0ab12acff038
 begin
 	 # Convert spherical to Cartesian coordinates
@@ -174,38 +201,11 @@ begin
 	Z = cos.(θ_grid) #.* Ylm_grid
 end;
 
-# ╔═╡ 790e31fe-4cc3-44cd-b33c-0ab0925ce23a
-begin
-    plot(
-        cone(
-            x=vec(X), y=vec(Y), z=vec(Z), u=real(vec(Ux)), v=real(vec(Uy)), w=real(vec(Uz)),
-            colorscale="Reds", showscale=false, sizeref=(mode == "R" ? 1.0 : 0.15), name="Vector Field"
-        )
-    , Layout(
-        title="$mode <br> l=$l_value, m=$m_value",
-        scene=attr(
-            xaxis=attr(title="X"),
-            yaxis=attr(title="Y"),
-            zaxis=attr(title="Z"),
-            aspectmode="cube"
-        )
-    ))
-end
-
 # ╔═╡ 71c529bf-77d8-481c-94d3-86a80dfcd641
 radius_max = 6000 # in km
 
 # ╔═╡ 8ed29e6e-583c-4fb3-86d3-f34b8d025c0f
 radius_grid = range(0., radius_max, length=1000);
-
-# ╔═╡ 4d8bfdc4-175d-4f7a-ad65-338726ad343e
-R = Bessels.sphericalbesselj.(l_value, ω_value .* radius_grid ./c);
-
-# ╔═╡ d7ac1aac-2949-4ca3-a0e9-f233a0a6c1b9
-begin
-	PlutoUI.ExperimentalLayout.hbox([plot(surface(x=X, y=Y, z=Z, surfacecolor=Ylm_grid, colorscale="Seismic", showscale=true), Layout(width=500, title="Spherical Surface Harmonic <br> l=$l_value, m=$m_value")), plot(
-scatter(x=R, y=radius_grid, mode="lines", line=attr(color="blue", width=3), name="Radial Function"), Layout(width=200, yaxis=attr(title="radius (km)"),title="Radial Wave Function<br>period = $(round(2*pi/ω_value/60, digits=2)) min"))])
-end
 
 # ╔═╡ 00000000-0000-0000-0000-000000000001
 PLUTO_PROJECT_TOML_CONTENTS = """
@@ -221,22 +221,22 @@ Printf = "de0858da-6303-5e67-8744-51eddeeeb8d7"
 SpecialFunctions = "276daf66-3868-5448-9aa4-cd146d93841b"
 
 [compat]
-AssociatedLegendrePolynomials = "~1.0.1"
+AssociatedLegendrePolynomials = "~1.0.2"
 Bessels = "~0.2.8"
-ForwardDiff = "~0.10.38"
+ForwardDiff = "~1.2.2"
 LaTeXStrings = "~1.4.0"
-PlutoPlotly = "~0.6.2"
-PlutoUI = "~0.7.61"
-SpecialFunctions = "~2.5.0"
+PlutoPlotly = "~0.6.5"
+PlutoUI = "~0.7.72"
+SpecialFunctions = "~2.6.1"
 """
 
 # ╔═╡ 00000000-0000-0000-0000-000000000002
 PLUTO_MANIFEST_TOML_CONTENTS = """
 # This file is machine-generated - editing it directly is not advised
 
-julia_version = "1.11.4"
+julia_version = "1.11.7"
 manifest_format = "2.0"
-project_hash = "14265a9cf5fbed589d03875dd12d7c3bb2a4478c"
+project_hash = "2bd2c87cf81219280577daf8f71fd79883fc0265"
 
 [[deps.AbstractPlutoDingetjes]]
 deps = ["Pkg"]
@@ -253,9 +253,9 @@ uuid = "56f22d72-fd6d-98f1-02f0-08ddc0907c33"
 version = "1.11.0"
 
 [[deps.AssociatedLegendrePolynomials]]
-git-tree-sha1 = "3204d769e06c5678b23cf928d850f2f4ad5ec8a5"
+git-tree-sha1 = "c5b6a5ac656586d038dd04441b6e165a21c80f09"
 uuid = "2119f1ac-fb78-50f5-8cc0-dda848ebdb19"
-version = "1.0.1"
+version = "1.0.2"
 
 [[deps.Base64]]
 uuid = "2a0f44e3-6c83-55bd-87e4-b1978d98bd5f"
@@ -268,21 +268,25 @@ version = "0.2.8"
 
 [[deps.ColorSchemes]]
 deps = ["ColorTypes", "ColorVectorSpace", "Colors", "FixedPointNumbers", "PrecompileTools", "Random"]
-git-tree-sha1 = "403f2d8e209681fcbd9468a8514efff3ea08452e"
+git-tree-sha1 = "b0fd3f56fa442f81e0a47815c92245acfaaa4e34"
 uuid = "35d6a980-a343-548e-a6ea-1d62b119f2f4"
-version = "3.29.0"
+version = "3.31.0"
 
 [[deps.ColorTypes]]
 deps = ["FixedPointNumbers", "Random"]
-git-tree-sha1 = "b10d0b65641d57b8b4d5e234446582de5047050d"
+git-tree-sha1 = "67e11ee83a43eb71ddc950302c53bf33f0690dfe"
 uuid = "3da002f7-5984-5a60-b8a6-cbb66c0b333f"
-version = "0.11.5"
+version = "0.12.1"
+weakdeps = ["StyledStrings"]
+
+    [deps.ColorTypes.extensions]
+    StyledStringsExt = "StyledStrings"
 
 [[deps.ColorVectorSpace]]
 deps = ["ColorTypes", "FixedPointNumbers", "LinearAlgebra", "Requires", "Statistics", "TensorCore"]
-git-tree-sha1 = "a1f44953f2382ebb937d60dafbe2deea4bd23249"
+git-tree-sha1 = "8b3b6f87ce8f65a2b4f857528fd8d70086cd72b1"
 uuid = "c3611d14-8923-5661-9e6a-0046d554d3a4"
-version = "0.10.0"
+version = "0.11.0"
 weakdeps = ["SpecialFunctions"]
 
     [deps.ColorVectorSpace.extensions]
@@ -290,9 +294,9 @@ weakdeps = ["SpecialFunctions"]
 
 [[deps.Colors]]
 deps = ["ColorTypes", "FixedPointNumbers", "Reexport"]
-git-tree-sha1 = "362a287c3aa50601b0bc359053d5c2468f0e7ce0"
+git-tree-sha1 = "37ea44092930b1811e666c3bc38065d7d87fcc74"
 uuid = "5ae59095-9a9b-59fe-a467-6f913c188581"
-version = "0.12.11"
+version = "0.13.1"
 
 [[deps.CommonSubexpressions]]
 deps = ["MacroTools"]
@@ -329,10 +333,9 @@ uuid = "b552c78f-8df3-52c6-915a-8e097449b14b"
 version = "1.15.1"
 
 [[deps.DocStringExtensions]]
-deps = ["LibGit2"]
-git-tree-sha1 = "2fb1e02f2b635d0845df5d7c167fec4dd739b00d"
+git-tree-sha1 = "7442a5dfe1ebb773c29cc2962a8980f47221d76c"
 uuid = "ffbed154-4ef7-542d-bbb7-c09d3a79fcae"
-version = "0.9.3"
+version = "0.9.5"
 
 [[deps.Downloads]]
 deps = ["ArgTools", "FileWatching", "LibCURL", "NetworkOptions"]
@@ -351,9 +354,9 @@ version = "0.8.5"
 
 [[deps.ForwardDiff]]
 deps = ["CommonSubexpressions", "DiffResults", "DiffRules", "LinearAlgebra", "LogExpFunctions", "NaNMath", "Preferences", "Printf", "Random", "SpecialFunctions"]
-git-tree-sha1 = "a2df1b776752e3f344e5116c06d75a10436ab853"
+git-tree-sha1 = "ba6ce081425d0afb2bedd00d9884464f764a9225"
 uuid = "f6369f11-7733-5829-9624-2563aa707210"
-version = "0.10.38"
+version = "1.2.2"
 
     [deps.ForwardDiff.extensions]
     ForwardDiffStaticArraysExt = "StaticArrays"
@@ -390,15 +393,15 @@ uuid = "b77e0a4c-d291-57a0-90e8-8db25a27a240"
 version = "1.11.0"
 
 [[deps.IrrationalConstants]]
-git-tree-sha1 = "e2222959fbc6c19554dc15174c81bf7bf3aa691c"
+git-tree-sha1 = "b2d91fe939cae05960e760110b328288867b5758"
 uuid = "92d709cd-6900-40b7-9082-c6be49f344b6"
-version = "0.2.4"
+version = "0.2.6"
 
 [[deps.JLLWrappers]]
 deps = ["Artifacts", "Preferences"]
-git-tree-sha1 = "a007feb38b422fbdab534406aeca1b86823cb4d6"
+git-tree-sha1 = "0533e564aae234aff59ab625543145446d8b6ec2"
 uuid = "692b3bcd-3c85-4b1f-b108-f13ce0eb3210"
-version = "1.7.0"
+version = "1.7.1"
 
 [[deps.JSON]]
 deps = ["Dates", "Mmap", "Parsers", "Unicode"]
@@ -466,14 +469,14 @@ uuid = "56ddb016-857b-54e1-b83d-db4d58db5568"
 version = "1.11.0"
 
 [[deps.MIMEs]]
-git-tree-sha1 = "1833212fd6f580c20d4291da9c1b4e8a655b128e"
+git-tree-sha1 = "c64d943587f7187e751162b3b84445bbbd79f691"
 uuid = "6c6e2e6c-3030-632d-7369-2d6c69616d65"
-version = "1.0.0"
+version = "1.1.0"
 
 [[deps.MacroTools]]
-git-tree-sha1 = "72aebe0b5051e5143a079a4685a46da330a40472"
+git-tree-sha1 = "1e0228a030642014fe5cfe68c2c0a818f9e3f522"
 uuid = "1914dd2f-81c6-5fcd-8719-6d5c9610ff09"
-version = "0.5.15"
+version = "0.5.16"
 
 [[deps.Markdown]]
 deps = ["Base64"]
@@ -495,9 +498,9 @@ version = "2023.12.12"
 
 [[deps.NaNMath]]
 deps = ["OpenLibm_jll"]
-git-tree-sha1 = "cc0a5deefdb12ab3a096f00a6d42133af4560d71"
+git-tree-sha1 = "9b8215b1ee9e78a293f99797cd31375471b2bcae"
 uuid = "77ba4419-2d1f-58cd-9bb1-8ffee604a2e3"
-version = "1.1.2"
+version = "1.1.3"
 
 [[deps.NetworkOptions]]
 uuid = "ca575930-c2e3-43a9-ace4-1e988b2c1908"
@@ -511,7 +514,7 @@ version = "0.3.27+1"
 [[deps.OpenLibm_jll]]
 deps = ["Artifacts", "Libdl"]
 uuid = "05823500-19ac-5b8b-9628-191a04bc5112"
-version = "0.8.1+4"
+version = "0.8.5+0"
 
 [[deps.OpenSpecFun_jll]]
 deps = ["Artifacts", "CompilerSupportLibraries_jll", "JLLWrappers", "Libdl"]
@@ -520,9 +523,9 @@ uuid = "efe28fd5-8261-553b-a9e1-b2916fc3738e"
 version = "0.5.6+0"
 
 [[deps.OrderedCollections]]
-git-tree-sha1 = "cc4054e898b852042d7b503313f7ad03de99c3dd"
+git-tree-sha1 = "05868e21324cede2207c6f0f466b4bfef6d5e7ee"
 uuid = "bac558e1-5e72-5ebc-8fee-abe8a469f55d"
-version = "1.8.0"
+version = "1.8.1"
 
 [[deps.Parameters]]
 deps = ["OrderedCollections", "UnPack"]
@@ -532,9 +535,9 @@ version = "0.12.3"
 
 [[deps.Parsers]]
 deps = ["Dates", "PrecompileTools", "UUIDs"]
-git-tree-sha1 = "8489905bcdbcfac64d1daa51ca07c0d8f0283821"
+git-tree-sha1 = "7d2f8f21da5db6a806faf7b9b292296da42b2810"
 uuid = "69de0a69-1ddd-5017-9359-2bf0b02dc9f0"
-version = "2.8.1"
+version = "2.8.3"
 
 [[deps.Pkg]]
 deps = ["Artifacts", "Dates", "Downloads", "FileWatching", "LibGit2", "Libdl", "Logging", "Markdown", "Printf", "Random", "SHA", "TOML", "Tar", "UUIDs", "p7zip_jll"]
@@ -547,9 +550,9 @@ weakdeps = ["REPL"]
 
 [[deps.PlotlyBase]]
 deps = ["ColorSchemes", "Colors", "Dates", "DelimitedFiles", "DocStringExtensions", "JSON", "LaTeXStrings", "Logging", "Parameters", "Pkg", "REPL", "Requires", "Statistics", "UUIDs"]
-git-tree-sha1 = "90af5c9238c1b3b25421f1fdfffd1e8fca7a7133"
+git-tree-sha1 = "28278bb0053da0fd73537be94afd1682cc5a0a83"
 uuid = "a03496cd-edff-5a9b-9e67-9cda94a718b5"
-version = "0.8.20"
+version = "0.8.21"
 
     [deps.PlotlyBase.extensions]
     DataFramesExt = "DataFrames"
@@ -565,9 +568,9 @@ version = "0.8.20"
 
 [[deps.PlutoPlotly]]
 deps = ["AbstractPlutoDingetjes", "Artifacts", "ColorSchemes", "Colors", "Dates", "Downloads", "HypertextLiteral", "InteractiveUtils", "LaTeXStrings", "Markdown", "Pkg", "PlotlyBase", "PrecompileTools", "Reexport", "ScopedValues", "Scratch", "TOML"]
-git-tree-sha1 = "9ebe25fc4703d4112cc418834d5e4c9a4b29087d"
+git-tree-sha1 = "8acd04abc9a636ef57004f4c2e6f3f6ed4611099"
 uuid = "8e989ff0-3d88-8e9f-f020-2b208a939ff0"
-version = "0.6.2"
+version = "0.6.5"
 
     [deps.PlutoPlotly.extensions]
     PlotlyKaleidoExt = "PlotlyKaleido"
@@ -578,10 +581,10 @@ version = "0.6.2"
     Unitful = "1986cc42-f94f-5a68-af5c-568840ba703d"
 
 [[deps.PlutoUI]]
-deps = ["AbstractPlutoDingetjes", "Base64", "ColorTypes", "Dates", "FixedPointNumbers", "Hyperscript", "HypertextLiteral", "IOCapture", "InteractiveUtils", "JSON", "Logging", "MIMEs", "Markdown", "Random", "Reexport", "URIs", "UUIDs"]
-git-tree-sha1 = "7e71a55b87222942f0f9337be62e26b1f103d3e4"
+deps = ["AbstractPlutoDingetjes", "Base64", "ColorTypes", "Dates", "Downloads", "FixedPointNumbers", "Hyperscript", "HypertextLiteral", "IOCapture", "InteractiveUtils", "JSON", "Logging", "MIMEs", "Markdown", "Random", "Reexport", "URIs", "UUIDs"]
+git-tree-sha1 = "f53232a27a8c1c836d3998ae1e17d898d4df2a46"
 uuid = "7f904dfe-b85e-4ff6-b463-dae2292396a8"
-version = "0.7.61"
+version = "0.7.72"
 
 [[deps.PrecompileTools]]
 deps = ["Preferences"]
@@ -591,9 +594,9 @@ version = "1.2.1"
 
 [[deps.Preferences]]
 deps = ["TOML"]
-git-tree-sha1 = "9306f6085165d270f7e3db02af26a400d580f5c6"
+git-tree-sha1 = "0f27480397253da18fe2c12a4ba4eb9eb208bf3d"
 uuid = "21216c6a-2e73-6563-6e65-726566657250"
-version = "1.4.3"
+version = "1.5.0"
 
 [[deps.Printf]]
 deps = ["Unicode"]
@@ -627,15 +630,15 @@ version = "0.7.0"
 
 [[deps.ScopedValues]]
 deps = ["HashArrayMappedTries", "Logging"]
-git-tree-sha1 = "1147f140b4c8ddab224c94efa9569fc23d63ab44"
+git-tree-sha1 = "c3b2323466378a2ba15bea4b2f73b081e022f473"
 uuid = "7e506255-f358-4e82-b7e4-beb19740aa63"
-version = "1.3.0"
+version = "1.5.0"
 
 [[deps.Scratch]]
 deps = ["Dates"]
-git-tree-sha1 = "3bac05bc7e74a75fd9cba4295cde4045d9fe2386"
+git-tree-sha1 = "9b81b8393e50b7d4e6d0a9f14e192294d3b7c109"
 uuid = "6c6a2e73-6563-6170-7368-637461726353"
-version = "1.2.1"
+version = "1.3.0"
 
 [[deps.Serialization]]
 uuid = "9e88b42a-f829-5b0c-bbe9-9e923198166b"
@@ -647,9 +650,9 @@ version = "1.11.0"
 
 [[deps.SpecialFunctions]]
 deps = ["IrrationalConstants", "LogExpFunctions", "OpenLibm_jll", "OpenSpecFun_jll"]
-git-tree-sha1 = "64cca0c26b4f31ba18f13f6c12af7c85f478cfde"
+git-tree-sha1 = "f2685b435df2613e25fc10ad8c26dddb8640f547"
 uuid = "276daf66-3868-5448-9aa4-cd146d93841b"
-version = "2.5.0"
+version = "2.6.1"
 
     [deps.SpecialFunctions.extensions]
     SpecialFunctionsChainRulesCoreExt = "ChainRulesCore"
@@ -658,9 +661,9 @@ version = "2.5.0"
     ChainRulesCore = "d360d2e6-b24c-11e9-a2a3-2a2ae2dbcce4"
 
 [[deps.StaticArraysCore]]
-git-tree-sha1 = "192954ef1208c7019899fbf8049e717f92959682"
+git-tree-sha1 = "6ab403037779dae8c514bad259f32a447262455a"
 uuid = "1e83bf80-4336-4d27-bf5d-d5a4f845583c"
-version = "1.4.3"
+version = "1.4.4"
 
 [[deps.Statistics]]
 deps = ["LinearAlgebra"]
@@ -700,14 +703,14 @@ uuid = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
 version = "1.11.0"
 
 [[deps.Tricks]]
-git-tree-sha1 = "6cae795a5a9313bbb4f60683f7263318fc7d1505"
+git-tree-sha1 = "372b90fe551c019541fafc6ff034199dc19c8436"
 uuid = "410a4b4d-49e4-4fbc-ab6d-cb71b17b3775"
-version = "0.1.10"
+version = "0.1.12"
 
 [[deps.URIs]]
-git-tree-sha1 = "67db6cc7b3821e19ebe75791a9dd19c9b1188f2b"
+git-tree-sha1 = "bef26fb046d031353ef97a82e3fdb6afe7f21b1a"
 uuid = "5c2747f8-b7ea-4ff2-ba2e-563bfd36b1d4"
-version = "1.5.1"
+version = "1.6.1"
 
 [[deps.UUIDs]]
 deps = ["Random", "SHA"]

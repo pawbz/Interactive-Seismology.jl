@@ -1,5 +1,5 @@
 ### A Pluto.jl notebook ###
-# v0.20.13
+# v0.20.19
 
 #> [frontmatter]
 #> title = "Global Bodywave Arrivals"
@@ -22,25 +22,6 @@ macro bind(def, element)
     end
     #! format: on
 end
-
-# ╔═╡ 47b2c09a-2ae8-49f0-ba73-ddb6868417b1
-begin
-    using PythonPlot
-    pygui(false)
-end
-
-# ╔═╡ 4b612894-7601-4828-841a-3c7789cc135e
-begin
-    using CondaPkg
-    CondaPkg.add_pip("obspy")
-    CondaPkg.add_pip("matplotlib")
-end
-
-# ╔═╡ 9caed8e3-784d-413f-99c3-c58ea1c4c511
-using PlutoUI
-
-# ╔═╡ 30b72b69-3293-4135-92e2-1705023db020
-using PythonCall
 
 # ╔═╡ 025b2827-ed43-45f5-a981-56dd599c72cb
 PlutoUI.TableOfContents(include_definitions=true)
@@ -69,26 +50,13 @@ md"""
   $(@bind source_depth Slider(0.0:10.0:700.0, show_value=true, default=20))
 """
 
-# ╔═╡ 9b0b4e7e-fd8f-4573-af80-ed76ff2848f5
-md"## Appendix"
-
-# ╔═╡ dd4cb9d8-8d6e-4ea8-b6bf-545631fecff8
-taup = pyimport("obspy.taup")
-
-# ╔═╡ 23f2f44c-144a-4fd1-a429-656bf0af4cca
-model = taup.TauPyModel(model="iasp91")
-
-# ╔═╡ 7568eb42-fe1b-44bc-86a1-dda9200bb49b
-arrivals = model.get_ray_paths(source_depth, receiver_distance)
-
-# ╔═╡ 5299340f-020c-4040-adc8-d6b308c3738e
-phases = [arrival.name for arrival in arrivals]
-
 # ╔═╡ 5a439ed2-6333-4e44-bade-67e227975b92
 @bind selected_phases MultiCheckBox(phases, default=phases[1:1])
 
-# ╔═╡ 3c203808-3886-4d94-9e05-b893d0ba6c4d
-arrivals_filtered = model.get_ray_paths(source_depth, receiver_distance, phase_list=selected_phases)
+# ╔═╡ 10cc4de1-f635-4a4c-b195-19dca1e44d4c
+md"""
+Traveltime in seconds: $(Dict(pyconvert(String, ph)=>t for (ph, t) in zip(phases_selected, traveltimes)))
+"""
 
 # ╔═╡ 460863de-314c-4196-b72b-eb6382cce6f7
 let
@@ -100,16 +68,48 @@ let
     fig
 end
 
+# ╔═╡ 7568eb42-fe1b-44bc-86a1-dda9200bb49b
+arrivals = model.get_ray_paths(source_depth, receiver_distance)
+
+# ╔═╡ 5299340f-020c-4040-adc8-d6b308c3738e
+phases = [arrival.name for arrival in arrivals]
+
 # ╔═╡ 78b1bb95-14a6-461f-a668-8fbbaa7e5ee0
 phases_selected = [arrival.name for arrival in arrivals_filtered]
 
 # ╔═╡ 6dfc1926-4da7-405b-aca4-7eac0aa814c8
 traveltimes = [pyconvert(Float64, arrival.time) for arrival in arrivals_filtered]
 
-# ╔═╡ 10cc4de1-f635-4a4c-b195-19dca1e44d4c
-md"""
-Traveltime in seconds: $(Dict(pyconvert(String, ph)=>t for (ph, t) in zip(phases_selected, traveltimes)))
-"""
+# ╔═╡ 3c203808-3886-4d94-9e05-b893d0ba6c4d
+arrivals_filtered = model.get_ray_paths(source_depth, receiver_distance, phase_list=selected_phases)
+
+# ╔═╡ 9b0b4e7e-fd8f-4573-af80-ed76ff2848f5
+md"## Appendix"
+
+# ╔═╡ 47b2c09a-2ae8-49f0-ba73-ddb6868417b1
+begin
+    using PythonPlot
+    pygui(false)
+end
+
+# ╔═╡ dd4cb9d8-8d6e-4ea8-b6bf-545631fecff8
+taup = pyimport("obspy.taup")
+
+# ╔═╡ 23f2f44c-144a-4fd1-a429-656bf0af4cca
+model = taup.TauPyModel(model="iasp91")
+
+# ╔═╡ 4b612894-7601-4828-841a-3c7789cc135e
+begin
+    using CondaPkg
+    CondaPkg.add_pip("obspy")
+    CondaPkg.add_pip("matplotlib")
+end
+
+# ╔═╡ 9caed8e3-784d-413f-99c3-c58ea1c4c511
+using PlutoUI
+
+# ╔═╡ 30b72b69-3293-4135-92e2-1705023db020
+using PythonCall
 
 # ╔═╡ 5d94e67e-5334-4e1c-9838-749b2318c66d
 md"""
@@ -127,9 +127,9 @@ PythonCall = "6099a3de-0909-46bc-b1f4-468b9a2dfc0d"
 PythonPlot = "274fc56d-3b97-40fa-a1cd-1b4a50311bf9"
 
 [compat]
-CondaPkg = "~0.2.29"
-PlutoUI = "~0.7.68"
-PythonCall = "~0.9.26"
+CondaPkg = "~0.2.33"
+PlutoUI = "~0.7.72"
+PythonCall = "~0.9.28"
 PythonPlot = "~1.0.6"
 """
 
@@ -137,9 +137,9 @@ PythonPlot = "~1.0.6"
 PLUTO_MANIFEST_TOML_CONTENTS = """
 # This file is machine-generated - editing it directly is not advised
 
-julia_version = "1.11.6"
+julia_version = "1.11.7"
 manifest_format = "2.0"
-project_hash = "69ac542aa99d496049ad79d7603fe3fef8d3bfe3"
+project_hash = "8ab2fddee6b97a9e370ebe3b0da7938b5bedf835"
 
 [[deps.AbstractPlutoDingetjes]]
 deps = ["Pkg"]
@@ -184,9 +184,9 @@ version = "1.1.1+0"
 
 [[deps.CondaPkg]]
 deps = ["JSON3", "Markdown", "MicroMamba", "Pidfile", "Pkg", "Preferences", "Scratch", "TOML", "pixi_jll"]
-git-tree-sha1 = "93e81a68a84dba7e652e61425d982cd71a1a0835"
+git-tree-sha1 = "bd491d55b97a036caae1d78729bdb70bf7dababc"
 uuid = "992eb4ea-22a4-4c89-a5bb-47a3300528ab"
-version = "0.2.29"
+version = "0.2.33"
 
 [[deps.DataAPI]]
 git-tree-sha1 = "abe83f3a2f1b857aac70ef8b269080af17764bbe"
@@ -391,9 +391,9 @@ version = "1.11.0"
 
 [[deps.PlutoUI]]
 deps = ["AbstractPlutoDingetjes", "Base64", "ColorTypes", "Dates", "Downloads", "FixedPointNumbers", "Hyperscript", "HypertextLiteral", "IOCapture", "InteractiveUtils", "JSON", "Logging", "MIMEs", "Markdown", "Random", "Reexport", "URIs", "UUIDs"]
-git-tree-sha1 = "ec9e63bd098c50e4ad28e7cb95ca7a4860603298"
+git-tree-sha1 = "f53232a27a8c1c836d3998ae1e17d898d4df2a46"
 uuid = "7f904dfe-b85e-4ff6-b463-dae2292396a8"
-version = "0.7.68"
+version = "0.7.72"
 
 [[deps.PrecompileTools]]
 deps = ["Preferences"]
@@ -403,9 +403,9 @@ version = "1.2.1"
 
 [[deps.Preferences]]
 deps = ["TOML"]
-git-tree-sha1 = "9306f6085165d270f7e3db02af26a400d580f5c6"
+git-tree-sha1 = "0f27480397253da18fe2c12a4ba4eb9eb208bf3d"
 uuid = "21216c6a-2e73-6563-6e65-726566657250"
-version = "1.4.3"
+version = "1.5.0"
 
 [[deps.Printf]]
 deps = ["Unicode"]
@@ -413,10 +413,18 @@ uuid = "de0858da-6303-5e67-8744-51eddeeeb8d7"
 version = "1.11.0"
 
 [[deps.PythonCall]]
-deps = ["CondaPkg", "Dates", "Libdl", "MacroTools", "Markdown", "Pkg", "Requires", "Serialization", "Tables", "UnsafePointers"]
-git-tree-sha1 = "f03464b21983fb5af2f8cea99106b8d8f48ac69d"
+deps = ["CondaPkg", "Dates", "Libdl", "MacroTools", "Markdown", "Pkg", "Serialization", "Tables", "UnsafePointers"]
+git-tree-sha1 = "34510e11cabd7964291f32f14d28b367e9960e6e"
 uuid = "6099a3de-0909-46bc-b1f4-468b9a2dfc0d"
-version = "0.9.26"
+version = "0.9.28"
+
+    [deps.PythonCall.extensions]
+    CategoricalArraysExt = "CategoricalArrays"
+    PyCallExt = "PyCall"
+
+    [deps.PythonCall.weakdeps]
+    CategoricalArrays = "324d7699-5711-5eae-9e2f-1d82baa6b597"
+    PyCall = "438e738f-606a-5dbb-bf0a-cddfbfd45ab0"
 
 [[deps.PythonPlot]]
 deps = ["Colors", "CondaPkg", "LaTeXStrings", "PythonCall", "Sockets", "Test", "VersionParsing"]
@@ -433,12 +441,6 @@ version = "1.11.0"
 git-tree-sha1 = "45e428421666073eab6f2da5c9d310d99bb12f9b"
 uuid = "189a3867-3050-52da-a836-e630ba90ab69"
 version = "1.2.2"
-
-[[deps.Requires]]
-deps = ["UUIDs"]
-git-tree-sha1 = "62389eeff14780bfe55195b7204c0d8738436d64"
-uuid = "ae029012-a4dd-5104-9daa-d747884805df"
-version = "1.3.1"
 
 [[deps.SHA]]
 uuid = "ea8e919c-243c-51af-8825-aaa63cd721ce"
@@ -504,9 +506,9 @@ uuid = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
 version = "1.11.0"
 
 [[deps.Tricks]]
-git-tree-sha1 = "0fc001395447da85495b7fef1dfae9789fdd6e31"
+git-tree-sha1 = "372b90fe551c019541fafc6ff034199dc19c8436"
 uuid = "410a4b4d-49e4-4fbc-ab6d-cb71b17b3775"
-version = "0.1.11"
+version = "0.1.12"
 
 [[deps.URIs]]
 git-tree-sha1 = "bef26fb046d031353ef97a82e3fdb6afe7f21b1a"

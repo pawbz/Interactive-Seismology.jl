@@ -1,5 +1,5 @@
 ### A Pluto.jl notebook ###
-# v0.20.13
+# v0.20.19
 
 #> [frontmatter]
 #> title = "Waves On A String"
@@ -22,14 +22,6 @@ macro bind(def, element)
     #! format: on
 end
 
-# ╔═╡ 9185cd5d-2557-4f2d-9eeb-3d6865ca9331
-begin
-    using FFTW, PlutoPlotly, PlutoUI, LinearAlgebra
-    using ParallelStencil
-    using ParallelStencil.FiniteDifferences1D
-    using Printf, Statistics
-end
-
 # ╔═╡ 236740c7-9c82-4d23-8133-9f7be87f6520
 TableOfContents()
 
@@ -45,6 +37,14 @@ Indian Institute of Science, Bengaluru, India
 
 """
 
+# ╔═╡ 73aa375b-4887-4608-b699-17112c238d5a
+md"""Time $(@bind T Slider(tgrid, show_value=true)) 
+
+Interface Position $(@bind X Slider(xgrid, show_value=true, default=0))"""
+
+# ╔═╡ 647f6d79-818f-468f-900c-cd00eb165664
+plot_string(vy_save, X, T)
+
 # ╔═╡ ab615f30-f095-4d4f-a92b-ecd18e69a20a
 md"## Medium"
 
@@ -53,6 +53,20 @@ begin
     nx = 1000
     xgrid = range(-100, 100, length=nx)
 end
+
+# ╔═╡ ad18ed7d-f050-455b-9a13-a2fab7de4215
+begin
+    courant_number = 0.1
+
+    # lets calculate the min distance from the center to the edge of the domain
+    r = min(xgrid[end] - xgrid[1]) * 0.5
+
+    # choose time stepping dt to satisfy Courant condition
+    dt = courant_number * step(xgrid) * inv(vs0)
+    nt = Int(floor(r / (vs0 * dt))) * 2
+    tgrid = range(0, length=nt, step=dt)
+    nothing
+end;
 
 # ╔═╡ 4c7b8ce9-1caf-4a81-a2dd-4b4138a6fef7
 ρ0 = Float32(3.22 * 10^-3 * 10^15) # density in kg/km3
@@ -71,25 +85,6 @@ medium_ref_values = (; μ0, invμ0, ρ0, invρ0)
 
 # ╔═╡ 10014376-cdf6-4ae4-95e4-32c8ea4ef803
 vs0 = sqrt.(μ0 ./ ρ0)
-
-# ╔═╡ ad18ed7d-f050-455b-9a13-a2fab7de4215
-begin
-    courant_number = 0.1
-
-    # lets calculate the min distance from the center to the edge of the domain
-    r = min(xgrid[end] - xgrid[1]) * 0.5
-
-    # choose time stepping dt to satisfy Courant condition
-    dt = courant_number * step(xgrid) * inv(vs0)
-    nt = Int(floor(r / (vs0 * dt))) * 2
-    tgrid = range(0, length=nt, step=dt)
-    nothing
-end;
-
-# ╔═╡ 73aa375b-4887-4608-b699-17112c238d5a
-md"""Time $(@bind T Slider(tgrid, show_value=true)) 
-
-Interface Position $(@bind X Slider(xgrid, show_value=true, default=0))"""
 
 # ╔═╡ 82a7a1ab-88da-4c22-a075-7640991bb6ac
 md"## Governing Equations"
@@ -172,6 +167,14 @@ vy_save = model_string(μ0, ρ0, xgrid, tgrid, X);
 # ╔═╡ e470ca4d-4e06-4808-a513-25ef47c125c8
 md"## Appendix"
 
+# ╔═╡ 9185cd5d-2557-4f2d-9eeb-3d6865ca9331
+begin
+    using FFTW, PlutoPlotly, PlutoUI, LinearAlgebra
+    using ParallelStencil
+    using ParallelStencil.FiniteDifferences1D
+    using Printf, Statistics
+end
+
 # ╔═╡ 77710384-fc16-4ece-a7d5-62cfddb5f0f9
 md"### Plot"
 
@@ -200,9 +203,6 @@ function plot_string(vy_save, X, T)
     plot(fig)
 end
 
-# ╔═╡ 647f6d79-818f-468f-900c-cd00eb165664
-plot_string(vy_save, X, T)
-
 # ╔═╡ 00000000-0000-0000-0000-000000000001
 PLUTO_PROJECT_TOML_CONTENTS = """
 [deps]
@@ -215,19 +215,19 @@ Printf = "de0858da-6303-5e67-8744-51eddeeeb8d7"
 Statistics = "10745b16-79ce-11e8-11f9-7d13ad32a3b2"
 
 [compat]
-FFTW = "~1.9.0"
-ParallelStencil = "~0.13.4"
-PlutoPlotly = "~0.6.3"
-PlutoUI = "~0.7.65"
+FFTW = "~1.10.0"
+ParallelStencil = "~0.14.3"
+PlutoPlotly = "~0.6.5"
+PlutoUI = "~0.7.72"
 """
 
 # ╔═╡ 00000000-0000-0000-0000-000000000002
 PLUTO_MANIFEST_TOML_CONTENTS = """
 # This file is machine-generated - editing it directly is not advised
 
-julia_version = "1.11.6"
+julia_version = "1.11.7"
 manifest_format = "2.0"
-project_hash = "b9d0c54cc1aed75c67eb364c4722edbde56ef19c"
+project_hash = "cc32f0fd53d060efd3bbcb276dedb50615b9e4b7"
 
 [[deps.AbstractFFTs]]
 deps = ["LinearAlgebra"]
@@ -251,9 +251,9 @@ version = "1.3.2"
 
 [[deps.Adapt]]
 deps = ["LinearAlgebra", "Requires"]
-git-tree-sha1 = "f7817e2e585aa6d924fd714df1e2a84be7896c60"
+git-tree-sha1 = "7e35fca2bdfba44d797c53dfe63a51fabf39bfc0"
 uuid = "79e6a3ab-5dfb-504d-930d-738a2a938a0e"
-version = "4.3.0"
+version = "4.4.0"
 
     [deps.Adapt.extensions]
     AdaptSparseArraysExt = "SparseArrays"
@@ -277,31 +277,36 @@ version = "1.11.0"
 
 [[deps.CellArrays]]
 deps = ["Adapt", "StaticArrays"]
-git-tree-sha1 = "d1c919d285a876522113bec13611255547b1f8fa"
+git-tree-sha1 = "db45cc84e9a2ef63e65c1ae206c9d4706197c099"
 uuid = "d35fcfd7-7af4-4c67-b1aa-d78070614af4"
-version = "0.2.1"
+version = "0.3.2"
 
     [deps.CellArrays.weakdeps]
     AMDGPU = "21141c5a-9bdb-4563-92ae-f87d6854732e"
     CUDA = "052768ef-5323-5732-b1bb-66c8b64840ba"
+    Metal = "dde4c033-4e86-420c-a63e-0dd931031962"
 
 [[deps.ColorSchemes]]
 deps = ["ColorTypes", "ColorVectorSpace", "Colors", "FixedPointNumbers", "PrecompileTools", "Random"]
-git-tree-sha1 = "a656525c8b46aa6a1c76891552ed5381bb32ae7b"
+git-tree-sha1 = "b0fd3f56fa442f81e0a47815c92245acfaaa4e34"
 uuid = "35d6a980-a343-548e-a6ea-1d62b119f2f4"
-version = "3.30.0"
+version = "3.31.0"
 
 [[deps.ColorTypes]]
 deps = ["FixedPointNumbers", "Random"]
-git-tree-sha1 = "b10d0b65641d57b8b4d5e234446582de5047050d"
+git-tree-sha1 = "67e11ee83a43eb71ddc950302c53bf33f0690dfe"
 uuid = "3da002f7-5984-5a60-b8a6-cbb66c0b333f"
-version = "0.11.5"
+version = "0.12.1"
+weakdeps = ["StyledStrings"]
+
+    [deps.ColorTypes.extensions]
+    StyledStringsExt = "StyledStrings"
 
 [[deps.ColorVectorSpace]]
 deps = ["ColorTypes", "FixedPointNumbers", "LinearAlgebra", "Requires", "Statistics", "TensorCore"]
-git-tree-sha1 = "a1f44953f2382ebb937d60dafbe2deea4bd23249"
+git-tree-sha1 = "8b3b6f87ce8f65a2b4f857528fd8d70086cd72b1"
 uuid = "c3611d14-8923-5661-9e6a-0046d554d3a4"
-version = "0.10.0"
+version = "0.11.0"
 
     [deps.ColorVectorSpace.extensions]
     SpecialFunctionsExt = "SpecialFunctions"
@@ -311,9 +316,9 @@ version = "0.10.0"
 
 [[deps.Colors]]
 deps = ["ColorTypes", "FixedPointNumbers", "Reexport"]
-git-tree-sha1 = "362a287c3aa50601b0bc359053d5c2468f0e7ce0"
+git-tree-sha1 = "37ea44092930b1811e666c3bc38065d7d87fcc74"
 uuid = "5ae59095-9a9b-59fe-a467-6f913c188581"
-version = "0.12.11"
+version = "0.13.1"
 
 [[deps.CompilerSupportLibraries_jll]]
 deps = ["Artifacts", "Libdl"]
@@ -342,10 +347,10 @@ uuid = "f43a241f-c20a-4ad4-852c-f6b1247861c6"
 version = "1.6.0"
 
 [[deps.FFTW]]
-deps = ["AbstractFFTs", "FFTW_jll", "LinearAlgebra", "MKL_jll", "Preferences", "Reexport"]
-git-tree-sha1 = "797762812ed063b9b94f6cc7742bc8883bb5e69e"
+deps = ["AbstractFFTs", "FFTW_jll", "Libdl", "LinearAlgebra", "MKL_jll", "Preferences", "Reexport"]
+git-tree-sha1 = "97f08406df914023af55ade2f843c39e99c5d969"
 uuid = "7a1cc6ca-52ef-59f5-83cd-3a7055c09341"
-version = "1.9.0"
+version = "1.10.0"
 
 [[deps.FFTW_jll]]
 deps = ["Artifacts", "JLLWrappers", "Libdl"]
@@ -388,9 +393,9 @@ version = "0.2.5"
 
 [[deps.IntelOpenMP_jll]]
 deps = ["Artifacts", "JLLWrappers", "LazyArtifacts", "Libdl"]
-git-tree-sha1 = "0f14a5456bdc6b9731a5682f439a672750a09e48"
+git-tree-sha1 = "ec1debd61c300961f98064cfb21287613ad7f303"
 uuid = "1d5cc7b8-4909-519e-a0f8-d0f5ad9712d0"
-version = "2025.0.4+0"
+version = "2025.2.0+0"
 
 [[deps.InteractiveUtils]]
 deps = ["Markdown"]
@@ -399,9 +404,9 @@ version = "1.11.0"
 
 [[deps.JLLWrappers]]
 deps = ["Artifacts", "Preferences"]
-git-tree-sha1 = "a007feb38b422fbdab534406aeca1b86823cb4d6"
+git-tree-sha1 = "0533e564aae234aff59ab625543145446d8b6ec2"
 uuid = "692b3bcd-3c85-4b1f-b108-f13ce0eb3210"
-version = "1.7.0"
+version = "1.7.1"
 
 [[deps.JSON]]
 deps = ["Dates", "Mmap", "Parsers", "Unicode"]
@@ -464,9 +469,9 @@ version = "1.1.0"
 
 [[deps.MKL_jll]]
 deps = ["Artifacts", "IntelOpenMP_jll", "JLLWrappers", "LazyArtifacts", "Libdl", "oneTBB_jll"]
-git-tree-sha1 = "5de60bc6cb3899cd318d80d627560fae2e2d99ae"
+git-tree-sha1 = "282cadc186e7b2ae0eeadbd7a4dffed4196ae2aa"
 uuid = "856f044c-d86e-5d09-b602-aeab76dc8ba7"
-version = "2025.0.1+1"
+version = "2025.2.0+0"
 
 [[deps.MacroTools]]
 git-tree-sha1 = "1e0228a030642014fe5cfe68c2c0a818f9e3f522"
@@ -507,19 +512,21 @@ version = "1.8.1"
 
 [[deps.ParallelStencil]]
 deps = ["CellArrays", "MacroTools", "Random", "StaticArrays"]
-git-tree-sha1 = "e1cfef59a26e664df8458cc80adb407a697ef2d6"
+git-tree-sha1 = "e4438da7cfc068487b430844bc7ef366c7bb97ff"
 uuid = "94395366-693c-11ea-3b26-d9b7aac5d958"
-version = "0.13.4"
+version = "0.14.3"
 
     [deps.ParallelStencil.extensions]
     ParallelStencil_AMDGPUExt = "AMDGPU"
     ParallelStencil_CUDAExt = "CUDA"
     ParallelStencil_EnzymeExt = "Enzyme"
+    ParallelStencil_MetalExt = "Metal"
 
     [deps.ParallelStencil.weakdeps]
     AMDGPU = "21141c5a-9bdb-4563-92ae-f87d6854732e"
     CUDA = "052768ef-5323-5732-b1bb-66c8b64840ba"
     Enzyme = "7da242da-08ed-463a-9acd-ee780be4f1d9"
+    Metal = "dde4c033-4e86-420c-a63e-0dd931031962"
     Polyester = "f517fe37-dbe3-4b94-8317-1923a5111588"
 
 [[deps.Parameters]]
@@ -563,9 +570,9 @@ version = "0.8.21"
 
 [[deps.PlutoPlotly]]
 deps = ["AbstractPlutoDingetjes", "Artifacts", "ColorSchemes", "Colors", "Dates", "Downloads", "HypertextLiteral", "InteractiveUtils", "LaTeXStrings", "Markdown", "Pkg", "PlotlyBase", "PrecompileTools", "Reexport", "ScopedValues", "Scratch", "TOML"]
-git-tree-sha1 = "4fb7c9595eaad32d817cac8c5fa1f90daa83aa4c"
+git-tree-sha1 = "8acd04abc9a636ef57004f4c2e6f3f6ed4611099"
 uuid = "8e989ff0-3d88-8e9f-f020-2b208a939ff0"
-version = "0.6.3"
+version = "0.6.5"
 
     [deps.PlutoPlotly.extensions]
     PlotlyKaleidoExt = "PlotlyKaleido"
@@ -577,9 +584,9 @@ version = "0.6.3"
 
 [[deps.PlutoUI]]
 deps = ["AbstractPlutoDingetjes", "Base64", "ColorTypes", "Dates", "Downloads", "FixedPointNumbers", "Hyperscript", "HypertextLiteral", "IOCapture", "InteractiveUtils", "JSON", "Logging", "MIMEs", "Markdown", "Random", "Reexport", "URIs", "UUIDs"]
-git-tree-sha1 = "3151a0c8061cc3f887019beebf359e6c4b3daa08"
+git-tree-sha1 = "f53232a27a8c1c836d3998ae1e17d898d4df2a46"
 uuid = "7f904dfe-b85e-4ff6-b463-dae2292396a8"
-version = "0.7.65"
+version = "0.7.72"
 
 [[deps.PrecompileTools]]
 deps = ["Preferences"]
@@ -589,9 +596,9 @@ version = "1.2.1"
 
 [[deps.Preferences]]
 deps = ["TOML"]
-git-tree-sha1 = "9306f6085165d270f7e3db02af26a400d580f5c6"
+git-tree-sha1 = "0f27480397253da18fe2c12a4ba4eb9eb208bf3d"
 uuid = "21216c6a-2e73-6563-6e65-726566657250"
-version = "1.4.3"
+version = "1.5.0"
 
 [[deps.Printf]]
 deps = ["Unicode"]
@@ -625,9 +632,9 @@ version = "0.7.0"
 
 [[deps.ScopedValues]]
 deps = ["HashArrayMappedTries", "Logging"]
-git-tree-sha1 = "1147f140b4c8ddab224c94efa9569fc23d63ab44"
+git-tree-sha1 = "c3b2323466378a2ba15bea4b2f73b081e022f473"
 uuid = "7e506255-f358-4e82-b7e4-beb19740aa63"
-version = "1.3.0"
+version = "1.5.0"
 
 [[deps.Scratch]]
 deps = ["Dates"]
@@ -645,9 +652,9 @@ version = "1.11.0"
 
 [[deps.StaticArrays]]
 deps = ["LinearAlgebra", "PrecompileTools", "Random", "StaticArraysCore"]
-git-tree-sha1 = "0feb6b9031bd5c51f9072393eb5ab3efd31bf9e4"
+git-tree-sha1 = "b8693004b385c842357406e3af647701fe783f98"
 uuid = "90137ffa-7385-5640-81b9-e52037218182"
-version = "1.9.13"
+version = "1.9.15"
 
     [deps.StaticArrays.extensions]
     StaticArraysChainRulesCoreExt = "ChainRulesCore"
@@ -658,9 +665,9 @@ version = "1.9.13"
     Statistics = "10745b16-79ce-11e8-11f9-7d13ad32a3b2"
 
 [[deps.StaticArraysCore]]
-git-tree-sha1 = "192954ef1208c7019899fbf8049e717f92959682"
+git-tree-sha1 = "6ab403037779dae8c514bad259f32a447262455a"
 uuid = "1e83bf80-4336-4d27-bf5d-d5a4f845583c"
-version = "1.4.3"
+version = "1.4.4"
 
 [[deps.Statistics]]
 deps = ["LinearAlgebra"]
@@ -700,9 +707,9 @@ uuid = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
 version = "1.11.0"
 
 [[deps.Tricks]]
-git-tree-sha1 = "6cae795a5a9313bbb4f60683f7263318fc7d1505"
+git-tree-sha1 = "372b90fe551c019541fafc6ff034199dc19c8436"
 uuid = "410a4b4d-49e4-4fbc-ab6d-cb71b17b3775"
-version = "0.1.10"
+version = "0.1.12"
 
 [[deps.URIs]]
 git-tree-sha1 = "bef26fb046d031353ef97a82e3fdb6afe7f21b1a"
@@ -739,10 +746,10 @@ uuid = "8e850ede-7688-5339-a07c-302acd2aaf8d"
 version = "1.59.0+0"
 
 [[deps.oneTBB_jll]]
-deps = ["Artifacts", "JLLWrappers", "Libdl"]
-git-tree-sha1 = "d5a767a3bb77135a99e433afe0eb14cd7f6914c3"
+deps = ["Artifacts", "JLLWrappers", "LazyArtifacts", "Libdl"]
+git-tree-sha1 = "1350188a69a6e46f799d3945beef36435ed7262f"
 uuid = "1317d2d5-d96f-522e-a858-c73665f53c3e"
-version = "2022.0.0+0"
+version = "2022.0.0+1"
 
 [[deps.p7zip_jll]]
 deps = ["Artifacts", "Libdl"]
