@@ -1,5 +1,5 @@
 ### A Pluto.jl notebook ###
-# v0.20.19
+# v0.2.6
 
 #> [frontmatter]
 #> title = "Reflected and Transmitted SH Waves"
@@ -22,6 +22,15 @@ macro bind(def, element)
     #! format: on
 end
 
+# ╔═╡ ab40f79c-3d8a-11ed-0697-a7b794dbba99
+begin
+    using Symbolics
+    using PlutoPlotly
+    using LinearAlgebra
+    using LaTeXStrings
+    using PlutoUI
+end
+
 # ╔═╡ 08429397-3964-4600-bc14-c45d22c915ec
 TableOfContents()
 
@@ -30,7 +39,7 @@ md"""
 # SH Reflection & Transmission Coefficients
 In this notebook, we analyze the amplitudes of reflected and transmitted 
 plane waves at the interface between two geological layers. 
-Assuming a horizontal interface at $z=0$, we use boundary conditions to derive expressions for the reflected and transmitted amplitudes. For simplicity, we focus on shear-horizontal (SH) waves.
+Assuming a horizontal interface at `z=0`, we use boundary conditions to derive expressions for the reflected and transmitted amplitudes. For simplicity, we focus on shear-horizontal (SH) waves.
 
 ##### [Interactive Seismology Notebooks](https://pawbz.github.io/Interactive-Seismology.jl/)
 
@@ -38,49 +47,6 @@ Assuming a horizontal interface at $z=0$, we use boundary conditions to derive e
 Instructor: *Pawan Bharadwaj*,
 Indian Institute of Science, Bengaluru, India
 """
-
-# ╔═╡ afdb5b7d-d670-4a98-a91d-3ff638fb0294
-md"""
-It is evident that the reflection and transmission coefficients are dependent on the 
-wave velocity and density values of the layers. In this section, we will choose these parameters to analyze waves.
-By default, we take the PREM (Preliminary Earth Reference Model) shear-wave velocity and density values at the MOHO. This example is discussed in Chapter 6 of "Introduction to Seismology" by Peter Shearer.
-
----
-β₁ (km/sec) $(@bind β₁MOHO NumberField(range(2.0, stop=6.0, step=0.1), default=3.9))
-β₂ (km/sec) $(@bind β₂MOHO NumberField(range(2.0, stop=6.0, step=0.1), default=4.49))
-ρ₁ (gm/cm³) $(@bind ρ₁MOHO NumberField(range(2.0, stop=6.0, step=0.1), default=2.9))
-ρ₂ (gm/cm³) $(@bind ρ₂MOHO NumberField(range(2.0, stop=6.0, step=0.1), default=3.38))
-$(@bind plot_waves MultiCheckBox(["Incident", "Reflected", "Transmitted"], default=["Incident", "Reflected", "Transmitted"]))
-Angle of incidence ∈ [0, π/2]: $(@bind θp Slider(θgrid, default=1.4))
-Angular frequency $(@bind ωp Slider(range(0.1, stop=2, length=10), default=0.3))
-"""
-
-# ╔═╡ 63e459a0-ec85-4337-9b93-47cfd49bbe92
-md"""
-$(@bind tplot Clock(0.1))
----
-"""
-
-# ╔═╡ 602f13f9-6d14-41fd-9183-b8255d64399b
-TwoColumn(md"""
-$(plot_planewave(u_incident_ex, u_reflected_ex, u_transmitted_ex, mod(tplot, 10)))""",
-    Markdown.MD(Markdown.Admonition("observe", "Observations",
-        [md"""
-       - The angle of incidence is greater than the critical angle.
-       - The amplitude of the inhomogeneous waves exponentially decays as they move away from the boundary.
-       - There is a phase change in the reflected waves.
-       - The exponential decay is a function of the angular frequency.
-       	"""]
-    ))
-)
-
-# ╔═╡ 6f4ddbaf-0023-499c-a31c-15693797e1fa
-TwoColumn(md"""
-$(plot_reflectivity(SHAᵣ_ex, θgrid, "Reflection Coefficient"))
-""",
-    md"""
-    $(plot_reflectivity(SHAₜ_ex, θgrid, "Transmission Coefficient"))
-    """)
 
 # ╔═╡ 4476bf78-39e3-4674-a152-db19fe80929a
 md"Spatial coordinates, time, and angular frequency."
@@ -107,10 +73,10 @@ md"In 2D, a harmonic plane wave with an frequency `ω`, amplitude `A`, horizonta
 plane(p, η, A) = A * exp(ı * ω * (t - (p * x + η * z)))
 
 # ╔═╡ c7c52926-6e2e-4c4c-a01f-09f57c2ececd
-md"The horizontal slowness i.e., the ray parameter is denoted using $p$."
+md"The horizontal slowness i.e., the ray parameter is denoted using `p`."
 
 # ╔═╡ 33c6aa70-87cb-464a-88f7-b82d17476a2f
-md"The vertical component of the slowness vector in the first and second layer are denoted using $\eta$ and $\eta_t$. These plane waves satisfy the scalar wave equation only if the dispersion relation
+md"The vertical component of the slowness vector in the first and second layer are denoted using `η` and `η_t`. These plane waves satisfy the scalar wave equation only if the dispersion relation
 ```math
 p^2 + η^2 = \frac{1}{β^2}
 ```
@@ -141,7 +107,7 @@ md"""
 ## Continuity in Displacement; Kinematic Boundary Conditions
 For two solids welded in contact, the kinematic boundary condition is that all three components of the displacement have to be continuous across the boundary.
 We begin with expressions of the incident, transmitted and reflected plane waves.
-Note that all these plane waves share the same horizontal slowness $p$.
+Note that all these plane waves share the same horizontal slowness `p`.
 """
 
 # ╔═╡ f488f9f3-e73b-42ae-b3c2-2262661fd839
@@ -154,13 +120,13 @@ u_reflected = plane(p, -η, Aᵣ)
 u_transmitted = plane(p, ηₜ, Aₜ)
 
 # ╔═╡ 9f28cf9f-6a45-4773-a371-63743c8dc4c8
-md"As the displacement is continuous across the boundary, we shall now substitute $z=0$ in the plane waves defined above, and impose a condition that the displacement due to the incident and the reflected waves in the first layer should be equal to the displacement due to the transmitted wave."
+md"As the displacement is continuous across the boundary, we shall now substitute `z=0` in the plane waves defined above, and impose a condition that the displacement due to the incident and the reflected waves in the first layer should be equal to the displacement due to the transmitted wave."
 
 # ╔═╡ 0b930000-d544-48ba-ae5e-f4737e258cf4
 u_z0 = substitute(u_incident + u_reflected - u_transmitted, z => 0) ~ 0
 
 # ╔═╡ 6e132f9a-4808-41ac-90a6-81fb4ab8b4b6
-md"Lets assume the amplitude of the incident planewave to be 1 for simplicity. In other words, $A_r$ and $A_t$ now denote the amplitude relative to the incident wave."
+md"Lets assume the amplitude of the incident planewave to be 1 for simplicity. In other words, `A_r` and `A_t` now denote the amplitude relative to the incident wave."
 
 # ╔═╡ 63dde687-8f19-466c-a3f4-a80a4991eafa
 eq_displacement = simplify(Symbolics.symbolic_linear_solve(u_z0, A)) ~ 1
@@ -172,7 +138,7 @@ u_z0
 md"""
 ## Continuity in Traction; Dynamic Boundary Conditions
 Apparently, a continuity in displacement is not sufficient for us to uniquely 
-determine both Aₜ and Aᵣ, given A. We should also employ the dynamic boundary condition, i.e., a constraint that traction on the surface $z=0$ is continuous. Specifically, here the component `σyz` of the stress tensor has to be continuous.
+determine both Aₜ and Aᵣ, given A. We should also employ the dynamic boundary condition, i.e., a constraint that traction on the surface `z=0` is continuous. Specifically, here the component `σyz` of the stress tensor has to be continuous.
 """
 
 # ╔═╡ 7cf515f8-2496-4bde-b3b3-9d39d971764a
@@ -199,13 +165,13 @@ eq_traction = (η * μ₁) * simplify(Symbolics.symbolic_linear_solve(σyz_z0, A
 # ╔═╡ de6162f2-ac93-4397-8b40-75480ff951a4
 Markdown.MD(Markdown.Admonition("danger", "Note",
     [md"""
-   The remaining element σyx doesn't have to be continuous as it doesn't determine the traction on the interface $z=0$.
+   The remaining element σyx doesn't have to be continuous as it doesn't determine the traction on the interface `z=0`.
    	"""]
 ))
 
 # ╔═╡ 080fde69-99e2-4292-8cd3-3edae2debd88
 md"""
-Finally, we can solve for the reflection and transmission amplitudes, $A_r$ and $A_t$,
+Finally, we can solve for the reflection and transmission amplitudes, `A_r` and `A_t`,
 for the 2-D SH problem.
 """
 
@@ -216,88 +182,90 @@ SHAₜ, SHAᵣ = simplify.(Symbolics.symbolic_linear_solve([eq_displacement, eq_
 plane(p, ηₜ, SHAₜ)
 
 # ╔═╡ dfc70c3b-bcb4-462f-99f6-7e79e505fca7
-plane(p, -η, SHAₜ)
+plane(p, -η, SHAᵣ)
 
 # ╔═╡ 5729b459-b283-41ce-95be-c4d33a7c28c0
 md"## MOHO Example"
 
 # ╔═╡ 281cb873-760c-411f-98b5-1c64d218e7e9
 md"""
-We shall begin defining a function that computes the ray parameter, given the 
-the angle of incidence $θ$.
+We shall begin defining a function that computes the ray parameter, given
+the angle of incidence `θ`.
 """
 
 # ╔═╡ 3d50985b-b79a-45ab-ba1f-5287936c56d9
 @syms θ::Real
 
-# ╔═╡ 284e4a79-6cfe-4c4a-939b-55fc69611ecb
-pMOHO(θ) = sin(θ) / β₁MOHO
-
 # ╔═╡ a7cb9cd5-7013-461b-960d-5da73db62aea
 md"We can then compute the vertical component of the slowness vector using the 
 dispersion relation."
 
-# ╔═╡ a06affae-47c3-4dfa-a997-ee75b35ab122
-ηMOHO(θ) = sqrt((inv(β₁MOHO)^2 - (pMOHO(θ))^2) + 0im)
-
 # ╔═╡ 602dcab9-b563-46e9-a694-4561c8acd9a7
 md"Similarly, the vertical component of the slowness vector in the second layer can be computed."
-
-# ╔═╡ 8d0636a6-3863-4934-949b-da5a65f329c8
-ηₜMOHO(θ) = sqrt((inv(β₂MOHO)^2 - (pMOHO(θ))^2) + 0im)
 
 # ╔═╡ 8c81ddb5-bf4d-4610-bfea-3d1a27ffd61f
 md"We can finally, update the expression of `SHAᵣ` and `SHAₜ` using the MOHO parameters and plot them"
 
-# ╔═╡ a089ab5b-4703-4d4d-a7ab-11197b4b907c
-SHAₜ_ex, SHAᵣ_ex = broadcast([SHAₜ, SHAᵣ]) do x
-    θ -> simplify(substitute(x, [η => ηMOHO(θ), ηₜ => ηₜMOHO(θ), μ₁ => β₁MOHO^2 * ρ₁MOHO, μ₂ => β₂MOHO^2 * ρ₂MOHO]))
-end
+# ╔═╡ eeee5555-5555-5555-5555-555555555555
+md"""
+### Verifying the coefficients
+At normal incidence (`θ=0`), the reflection and transmission coefficients reduce to the
+classic impedance-ratio result (the same formula as an acoustic wave hitting a welded
+boundary): with impedance `Z = ρβ` in each layer,
+```math
+A_r(0) = \frac{Z_1-Z_2}{Z_1+Z_2}, \qquad A_t(0) = \frac{2Z_1}{Z_1+Z_2}
+```
+"""
 
 # ╔═╡ dba7ea14-e0dd-4dc4-ad9c-4627fd16cc62
 md"## Appendix"
+
+# ╔═╡ aaaa1111-1111-1111-1111-111111111111
+begin
+    # Fixed example values for the "Reference Plots" below -- these plots exist to
+    # cross-check the new canvas widget against the notebook's original PlutoPlotly
+    # rendering, not to duplicate the widget's own interactivity (angle/frequency/
+    # display toggles all live client-side inside the widget now).
+    θp = deg2rad(70.0)
+    ωp = 0.3
+    plot_waves = ["Incident", "Reflected", "Transmitted"]
+    tplot = 3.0
+end
 
 # ╔═╡ 57176a1b-b8cd-40fa-a615-8a589fb7ea73
 md"""
 Lets print the expression of the wavefield, plotted in the previous example.
 """
 
-# ╔═╡ b790898e-11dd-440e-86ef-2403d14a1feb
-u_incident_ex = substitute(plane(pMOHO(θp), ηMOHO(θp), 1.0), [ω => ωp, ı => im]);
-
-# ╔═╡ cabe33b2-5c0a-45e4-a0fb-d057987d8c95
-u_reflected_ex = substitute(plane(pMOHO(θp), -ηMOHO(θp), SHAᵣ_ex(θp)), [ω => ωp, ı => im]);
-
-# ╔═╡ d5fda5dc-d94e-4b39-94c4-a5c4311e59bd
-u_transmitted_ex = substitute(plane(pMOHO(θp), isequal(imag(ηₜMOHO(θp)), 0.0) ? ηₜMOHO(θp) : -ηₜMOHO(θp), SHAₜ_ex(θp)), [ω => ωp, ı => im]);
-
 # ╔═╡ ea3b7089-bda8-4694-8042-98534b1739bd
-warning_box(md"""
+Markdown.MD(Markdown.Admonition("warning", "Sign convention",
+    [md"""
 The sign of the vertical slowness in the transmitted field above is chosen to prevent the exponential growth of the wavefield away from the boundary.
-""")
+"""]
+))
 
 # ╔═╡ b5b60346-45fc-49e2-9dac-905f766779bc
 default_plotly_template(:plotly_dark)
-
-# ╔═╡ ab40f79c-3d8a-11ed-0697-a7b794dbba99
-begin
-    using Symbolics
-    using PlutoPlotly
-    using SymbolicUtils
-    using LinearAlgebra
-    using Latexify
-    using LaTeXStrings
-    using PlutoUI
-    using PlutoTeachingTools
-end
 
 # ╔═╡ f6b31173-72cd-4f25-b292-5aad02ec718c
 θgrid = range(0, stop=pi / 2, length=100); # need for reflectance plots
 
 # ╔═╡ 6cbddba3-0a3c-44b7-a033-532c91e35356
-md"### Plots"
+md"""
+### Reference Plots (Validating the Widget)
+The original `PlutoPlotly` figures this notebook used before the canvas widget above --
+kept here, not deleted, as a permanent cross-check: for the same angle and layer
+parameters, these should agree with what the widget draws.
+"""
 
 # ╔═╡ 31d34c37-96d5-4257-9815-c33af141b906
+"""
+	plot_reflectivity(A, θgrid, title="")
+
+A polar plot of a reflection or transmission coefficient `A` (a function of
+angle) over `θgrid`, showing its magnitude, real, and imaginary parts, with a
+wedge marking the `θp` reference angle used by the Reference Plots below.
+"""
 function plot_reflectivity(A, θgrid, title="")
     degθ = rad2deg.(θgrid)
     fig = Plot(Layout(title=title, polar=attr(angularaxis_direction="clockwise", sector=(0, 90), radialaxis_range=(-2, 2)),))
@@ -328,6 +296,13 @@ function plot_reflectivity(A, θgrid, title="")
 end
 
 # ╔═╡ de445666-cd08-4c78-8cab-2d63fd79af43
+"""
+	plot_planewave(ui, ur, ut, t1=0)
+
+A heatmap of the summed wavefield (incident + reflected in layer 1, transmitted
+in layer 2, symbolic expressions in `x`, `z`, `t`) at time `t1`. Which legs are
+actually summed is controlled by the module-level `plot_waves` list.
+"""
 function plot_planewave(ui, ur, ut, t1=0)
     # we need to discretize space before plotting 
     xgrid = range(-200, stop=200, length=200)
@@ -353,7 +328,7 @@ function plot_planewave(ui, ur, ut, t1=0)
     ("Reflected" ∉ plot_waves) && fill!(urp, 0.0)
 
     U = cat(urp + uip, utp, dims=1)
-    cmax = max(maximum(abs, U), maximum(abs, U))
+    cmax = maximum(abs, U)
     fig = Plot(Layout(yaxis_autorange="reversed", yaxis=attr(scaleanchor="x"), width=350, height=350, uirevison=1,
             dragmode="drawopenpath",
             newshape_line_color="black",
@@ -380,7 +355,7 @@ function plot_planewave(ui, ur, ut, t1=0)
             textfont=attr(
                 color="yellow",
                 size=15,
-                family="Arail",
+                family="Arial",
             )
         ))
 
@@ -394,7 +369,7 @@ function plot_planewave(ui, ur, ut, t1=0)
             textfont=attr(
                 color="yellow",
                 size=15,
-                family="Arail",
+                family="Arial",
             )
         ))
 
@@ -402,42 +377,540 @@ function plot_planewave(ui, ur, ut, t1=0)
 
 end
 
-# ╔═╡ fdddf5c8-c487-4c0d-8f2b-89dc49b34355
-md"""
-### TODO
+# ╔═╡ cccc9999-9999-9999-9999-999999999999
+Markdown.MD(Markdown.Admonition("note", "Observations",
+    [md"""
+   - The angle of incidence (70°, in this reference example) is greater than the critical angle.
+   - The amplitude of the inhomogeneous (evanescent) transmitted wave decays exponentially away from the boundary.
+   - There is a phase change in the reflected wave.
+   - The exponential decay rate is a function of the angular frequency.
+   	"""]
+))
 
--  Phase Vs. Angle Plots
+# ╔═╡ aaaa7777-7777-7777-7777-777777777777
+md"## The Interactive Widget"
+
+# ╔═╡ dddd4444-4444-4444-4444-444444444444
+begin
+    """A draggable coefficient-vs-angle canvas: the incidence angle is set by
+    dragging directly on the reflection/transmission curves, not by a slider.
+    Only the layer properties (`beta1`,`rho1`,`beta2`,`rho2`) feed back to Julia
+    -- angle, frequency, amplitude/phase mode, and which waves are drawn are pure
+    client-side state, since a full angle sweep of the coefficients is pushed to
+    the widget once (see the cell above `## Appendix`) and everything else is
+    cheap trigonometry over that sweep."""
+    struct SHWidgetInput
+        beta1::Float64
+        beta2::Float64
+        rho1::Float64
+        rho2::Float64
+    end
+
+    SHWidgetInput(; beta1=3.9, beta2=4.49, rho1=2.9, rho2=3.38) =
+        SHWidgetInput(Float64(beta1), Float64(beta2), Float64(rho1), Float64(rho2))
+
+    Base.get(w::SHWidgetInput) = Dict{String,Any}(
+        "beta1" => w.beta1, "beta2" => w.beta2, "rho1" => w.rho1, "rho2" => w.rho2,
+    )
+
+    function Base.show(io::IO, ::MIME"text/html", w::SHWidgetInput)
+        write(io, """
+<div id="shwidget" style="display:flex;flex-direction:column;align-items:center;width:100%;color:#9ca3af">
+  <style>
+    pluto-cell:has(#shwidget) {
+      width: min(80vw, 1100px) !important;
+      margin-left: calc((100% - min(80vw, 1100px)) / 2) !important;
+    }
+    #shwidget { width: 100%; box-sizing: border-box; color: #d1d5db; font: 14px sans-serif; }
+    #shwidget .sh-title { width: 100%; box-sizing: border-box; text-align: center; margin-bottom: 10px;
+      background: #0a0f18; border: 1px solid #3b5c85; border-radius: 6px; padding: 10px 14px; }
+    #shwidget .sh-title-desc { font-size: 17px; font-weight: 700; color: #e5e7eb; }
+    #shwidget .sh-title-hint { font-size: 13px; color: #9ca3af; margin-top: 3px; }
+    #shwidget .sh-workspace { display: flex; gap: 12px; align-items: flex-start; justify-content: center;
+      width: 100%; flex-wrap: wrap; }
+    #shwidget .sh-controls { width: min(var(--totalw,900px),100%); margin-top: 10px; display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 8px; font: 14px sans-serif; }
+    #shwidget .sh-control-group { box-sizing: border-box; background: #050505; border: 1px solid #2f3744;
+      border-radius: 6px; padding: 10px 12px; }
+    #shwidget .sh-control-title { font-weight: 700; color: #e5e7eb; margin-bottom: 8px; font-size: 18px; }
+    #shwidget .sh-control-row { display: grid; grid-template-columns: minmax(60px,90px) minmax(70px,1fr) minmax(50px,70px);
+      gap: 6px; align-items: center; margin: 6px 0; }
+    #shwidget .sh-control-row input[type=range] { width: 100%; min-width: 0; }
+    #shwidget .sh-value { color: #d1d5db; text-align: right; font-variant-numeric: tabular-nums; }
+    #shwidget .sh-actions { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+    #shwidget button { border-radius: 4px; border: 1px solid #9ca3af; background: #606060; color: #f3f4f6;
+      padding: 6px 12px; font-size: 14px; cursor: pointer; }
+    #shwidget label { color: #d1d5db; }
+  </style>
+  <div class="sh-title">
+    <div class="sh-title-desc">Drag the angle axis on the coefficient plot to see how the reflected and transmitted SH waves change.</div>
+    <div class="sh-title-hint">drag left/right on the coefficient plot &middot; hover a curve to identify it &middot; press play to animate</div>
+  </div>
+  <div class="sh-workspace">
+    <canvas id="shrefl" style="background:#000;border:1px solid #374151;border-radius:6px;display:block"></canvas>
+    <canvas id="shwave" style="background:#000;border:1px solid #374151;border-radius:6px;display:block"></canvas>
+  </div>
+  <div class="sh-controls">
+    <div class="sh-control-group">
+      <div class="sh-control-title">Layer 1</div>
+      <label class="sh-control-row"><span>β₁ (km/s)</span><input type="range" id="sh-beta1" min="2" max="6" step="0.1" value="$(w.beta1)"><span id="sh-beta1-v" class="sh-value">$(w.beta1)</span></label>
+      <label class="sh-control-row"><span>ρ₁ (g/cm³)</span><input type="range" id="sh-rho1" min="2" max="6" step="0.1" value="$(w.rho1)"><span id="sh-rho1-v" class="sh-value">$(w.rho1)</span></label>
+    </div>
+    <div class="sh-control-group">
+      <div class="sh-control-title">Layer 2</div>
+      <label class="sh-control-row"><span>β₂ (km/s)</span><input type="range" id="sh-beta2" min="2" max="6" step="0.1" value="$(w.beta2)"><span id="sh-beta2-v" class="sh-value">$(w.beta2)</span></label>
+      <label class="sh-control-row"><span>ρ₂ (g/cm³)</span><input type="range" id="sh-rho2" min="2" max="6" step="0.1" value="$(w.rho2)"><span id="sh-rho2-v" class="sh-value">$(w.rho2)</span></label>
+    </div>
+    <div class="sh-control-group">
+      <div class="sh-control-title">Incidence &amp; Display</div>
+      <label class="sh-control-row"><span>ω</span><input type="range" id="sh-omega" min="0.1" max="2" step="0.1" value="0.3"><span id="sh-omega-v" class="sh-value">0.3</span></label>
+      <div class="sh-actions">
+        <label><input type="checkbox" id="sh-show-i" checked> Incident</label>
+        <label><input type="checkbox" id="sh-show-r" checked> Reflected</label>
+        <label><input type="checkbox" id="sh-show-t" checked> Transmitted</label>
+      </div>
+      <div class="sh-actions" style="margin-top:8px">
+        <label><input type="radio" name="sh-mode" id="sh-mode-amp" checked> Amplitude</label>
+        <label><input type="radio" name="sh-mode" id="sh-mode-phase"> Phase</label>
+      </div>
+      <div class="sh-actions" style="margin-top:8px">
+        <button id="sh-play" type="button">Play</button>
+        <button id="sh-reset" type="button">Reset defaults</button>
+      </div>
+    </div>
+  </div>
+</div>
+<script>
+  const par = currentScript.previousElementSibling
+  const availW = Math.min(window.innerWidth*0.8, par.clientWidth || window.innerWidth*0.8, 1100)
+  const totalW = Math.max(700, availW)
+  par.style.setProperty('--totalw', Math.round(totalW)+'px')
+  const SEC = Math.round(Math.min(totalW/2 - 10, 380))
+  const DPR = Math.min(window.devicePixelRatio || 1, 2)
+
+  let beta1 = $(w.beta1), beta2 = $(w.beta2), rho1 = $(w.rho1), rho2 = $(w.rho2)
+  let thetaDeg = 50, omega = 0.3
+  let showI = true, showR = true, showT = true, phaseMode = false
+  let hoverCurve = -1, playing = false, tPhase = 0, rafId = null
+  let sweep = null   // filled in by the 'sh-results' push from Julia, below
+
+  const reflCvs = par.querySelector('#shrefl'), rctx = reflCvs.getContext('2d')
+  const waveCvs = par.querySelector('#shwave'), wctx = waveCvs.getContext('2d')
+  function hidpi(cv, cx, w, h){
+    cv.width = Math.round(w*DPR); cv.height = Math.round(h*DPR)
+    cv.style.width = w+'px'; cv.style.height = h+'px'
+    cx.setTransform(DPR,0,0,DPR,0,0)
+  }
+  hidpi(reflCvs, rctx, SEC, SEC)
+  hidpi(waveCvs, wctx, SEC, SEC)
+
+  // ---- reflectivity canvas: Cartesian angle (0-90deg) vs coefficient value ----
+  const RPAD = 30
+  function reflX(theta){ return RPAD + (theta/90)*(SEC-RPAD-8) }
+  function reflXInv(px){ return Math.max(0, Math.min(90, ((px-RPAD)/(SEC-RPAD-8))*90)) }
+  function yRange(){ return phaseMode ? Math.PI*1.1 : 2.2 }
+  function reflY(v){ return SEC/2 - (v/yRange())*(SEC/2-14) }
+
+  function getCurves(){
+    if(phaseMode) return [
+      {key:'Ar', part:'phase', label:'Phase(Reflection)', color:'#f97316', dash:[]},
+      {key:'At', part:'phase', label:'Phase(Transmission)', color:'#38bdf8', dash:[]},
+    ]
+    return [
+      {key:'Ar', part:'abs', label:'|Reflection|', color:'#f97316', dash:[]},
+      {key:'Ar', part:'re',  label:'Re(Reflection)', color:'#f97316', dash:[6,3]},
+      {key:'Ar', part:'im',  label:'Im(Reflection)', color:'#f97316', dash:[1,3]},
+      {key:'At', part:'abs', label:'|Transmission|', color:'#38bdf8', dash:[]},
+      {key:'At', part:'re',  label:'Re(Transmission)', color:'#38bdf8', dash:[6,3]},
+      {key:'At', part:'im',  label:'Im(Transmission)', color:'#38bdf8', dash:[1,3]},
+    ]
+  }
+
+  function curveValue(c, i){
+    const re = sweep[c.key+'_re'][i], im = sweep[c.key+'_im'][i]
+    if(c.part === 'abs') return Math.hypot(re, im)
+    if(c.part === 're') return re
+    if(c.part === 'im') return im
+    return Math.atan2(im, re)
+  }
+
+  function sweepIndex(theta){ return Math.max(0, Math.min(sweep.theta_deg.length-1, Math.round(theta*2))) }
+
+  function drawReflectivity(){
+    rctx.clearRect(0,0,SEC,SEC)
+    rctx.strokeStyle = '#374151'; rctx.lineWidth = 1
+    rctx.strokeRect(RPAD, 6, SEC-8-RPAD, SEC-12)
+    rctx.beginPath(); rctx.moveTo(RPAD, reflY(0)); rctx.lineTo(SEC-8, reflY(0)); rctx.strokeStyle = '#2f3744'; rctx.stroke()
+    rctx.fillStyle = '#6b7280'; rctx.font = '11px sans-serif'; rctx.textAlign = 'right'
+    rctx.fillText('0°', reflX(0)+2, SEC-2); rctx.fillText('90°', reflX(90), SEC-2)
+    rctx.textAlign = 'left'
+
+    if(!sweep){
+      rctx.fillStyle = '#6b7280'; rctx.font = '12px sans-serif'
+      rctx.fillText('computing...', 12, 18)
+      return
+    }
+
+    const curves = getCurves()
+    curves.forEach((c, idx) => {
+      const isHover = idx === hoverCurve
+      rctx.globalAlpha = (hoverCurve === -1 || isHover) ? 1 : 0.2
+      rctx.strokeStyle = c.color; rctx.lineWidth = isHover ? 2.6 : 1.6
+      rctx.setLineDash(c.dash)
+      rctx.beginPath()
+      sweep.theta_deg.forEach((th, i) => {
+        const x = reflX(th), y = reflY(curveValue(c, i))
+        i === 0 ? rctx.moveTo(x,y) : rctx.lineTo(x,y)
+      })
+      rctx.stroke()
+      rctx.setLineDash([])
+      rctx.globalAlpha = 1
+    })
+
+    const cx = reflX(thetaDeg)
+    rctx.strokeStyle = '#e5e7eb'; rctx.lineWidth = 1.4
+    rctx.beginPath(); rctx.moveTo(cx, 6); rctx.lineTo(cx, SEC-12); rctx.stroke()
+    rctx.fillStyle = '#e5e7eb'; rctx.font = '12px sans-serif'
+    rctx.fillText(Math.round(thetaDeg)+'°', Math.min(cx+4, SEC-30), 18)
+
+    if(hoverCurve >= 0){
+      const c = curves[hoverCurve]
+      const v = curveValue(c, sweepIndex(thetaDeg))
+      const label = c.label + '  ' + v.toFixed(3)
+      rctx.font = '12px sans-serif'
+      const tw = rctx.measureText(label).width
+      const tx = Math.min(cx+8, SEC-tw-14), ty = 34
+      rctx.fillStyle = 'rgba(11,18,32,0.9)'; rctx.fillRect(tx-5, ty-13, tw+10, 18)
+      rctx.strokeStyle = '#374151'; rctx.lineWidth = 1; rctx.strokeRect(tx-5, ty-13, tw+10, 18)
+      rctx.fillStyle = '#e5e7eb'; rctx.fillText(label, tx, ty)
+    }
+  }
+
+  function distToPolyline(mx, my, c){
+    let best = 1e9
+    sweep.theta_deg.forEach((th, i) => {
+      const x = reflX(th), y = reflY(curveValue(c, i))
+      best = Math.min(best, Math.hypot(mx-x, my-y))
+    })
+    return best
+  }
+  function nearestCurve(mx, my){
+    if(!sweep) return -1
+    const curves = getCurves()
+    let best = -1, bestD = 8
+    curves.forEach((c, idx) => {
+      const d = distToPolyline(mx, my, c)
+      if(d < bestD){ bestD = d; best = idx }
+    })
+    return best
+  }
+
+  // ---- wavefield canvas: x in [-200,200], z in [-200,200], interface at z=0 ----
+  const REARTH_X = 200, REARTH_Z = 200
+  const off = document.createElement('canvas')
+  const OFFW = 110, OFFH = 110
+  off.width = OFFW; off.height = OFFH
+  const offCtx = off.getContext('2d')
+
+  function seismicColor(v, vmax){
+    const t = Math.max(-1, Math.min(1, vmax > 0 ? v/vmax : 0))
+    if(t >= 0) return [255, Math.round(255*(1-t)), Math.round(255*(1-t))]
+    const s = -t
+    return [Math.round(255*(1-s)), Math.round(255*(1-s)), 255]
+  }
+
+  function drawWavefield(){
+    wctx.clearRect(0,0,SEC,SEC)
+    if(!sweep){
+      wctx.fillStyle = '#6b7280'; wctx.font = '12px sans-serif'
+      wctx.fillText('computing...', 12, 18)
+      return
+    }
+    const i0 = sweepIndex(thetaDeg)
+    const p = sweep.p[i0]
+    const eta = sweep.eta_re[i0]   // layer-1 leg is always real for a valid 0-90deg angle
+    const etat_re = sweep.etat_re[i0], etat_im = sweep.etat_im[i0]
+    const isReal_t = Math.abs(etat_im) < 1e-6
+    const eUt_re = isReal_t ? etat_re : -etat_re
+    const eUt_im = isReal_t ? etat_im : -etat_im
+    const ar = sweep.Ar_re[i0], ai = sweep.Ar_im[i0]
+    const at = sweep.At_re[i0], bt = sweep.At_im[i0]
+    const t = tPhase
+
+    const img = offCtx.createImageData(OFFW, OFFH)
+    const vals = new Float64Array(OFFW*OFFH)
+    let vmax = 1e-6
+    for(let j=0;j<OFFH;j++){
+      const z = -REARTH_Z + (j/(OFFH-1))*2*REARTH_Z
+      for(let i=0;i<OFFW;i++){
+        const x = -REARTH_X + (i/(OFFW-1))*2*REARTH_X
+        let U = 0
+        if(z <= 0){
+          if(showI){
+            const phase = omega*(t - p*x - eta*z)
+            U += Math.cos(phase)
+          }
+          if(showR){
+            const phase = omega*(t - p*x + eta*z)
+            U += ar*Math.cos(phase) - ai*Math.sin(phase)
+          }
+        } else {
+          if(showT){
+            const mag = Math.exp(omega*eUt_im*z)
+            const phase = omega*(t - p*x) - omega*eUt_re*z
+            U += mag*(at*Math.cos(phase) - bt*Math.sin(phase))
+          }
+        }
+        vals[j*OFFW+i] = U
+        vmax = Math.max(vmax, Math.abs(U))
+      }
+    }
+    for(let k=0;k<vals.length;k++){
+      const [r,g,b] = seismicColor(vals[k], vmax)
+      img.data[k*4] = r; img.data[k*4+1] = g; img.data[k*4+2] = b; img.data[k*4+3] = 255
+    }
+    offCtx.putImageData(img, 0, 0)
+    wctx.imageSmoothingEnabled = true
+    wctx.drawImage(off, 0, 0, OFFW, OFFH, 0, 0, SEC, SEC)
+
+    const midY = SEC/2
+    wctx.strokeStyle = '#facc15'; wctx.lineWidth = 2
+    wctx.beginPath(); wctx.moveTo(0,midY); wctx.lineTo(SEC,midY); wctx.stroke()
+    wctx.fillStyle = '#facc15'; wctx.font = '12px sans-serif'
+    wctx.fillText('Interface', SEC*0.6, midY-6)
+    wctx.fillStyle = '#e5e7eb'
+    wctx.fillText('(β₁,ρ₁)', 10, 16)
+    wctx.fillText('(β₂,ρ₂)', 10, SEC-10)
+  }
+
+  function redraw(){ drawReflectivity(); drawWavefield() }
+
+  function emit(){
+    par.value = {beta1, beta2, rho1, rho2}
+    par.dispatchEvent(new CustomEvent('input'))
+  }
+
+  let draggingTheta = false
+  reflCvs.addEventListener('mousedown', e=>{ draggingTheta = true; thetaDeg = reflXInv(e.offsetX); redraw() })
+  reflCvs.addEventListener('mousemove', e=>{
+    if(draggingTheta){
+      thetaDeg = reflXInv(e.offsetX)
+      redraw()
+    } else {
+      hoverCurve = nearestCurve(e.offsetX, e.offsetY)
+      redraw()
+    }
+  })
+  window.addEventListener('mouseup', ()=>{ draggingTheta = false })
+  reflCvs.addEventListener('mouseleave', ()=>{ if(hoverCurve !== -1){ hoverCurve = -1; redraw() } })
+
+  par.querySelector('#sh-beta1').addEventListener('input', e=>{
+    beta1 = parseFloat(e.target.value); par.querySelector('#sh-beta1-v').textContent = beta1.toFixed(1); emit()
+  })
+  par.querySelector('#sh-beta2').addEventListener('input', e=>{
+    beta2 = parseFloat(e.target.value); par.querySelector('#sh-beta2-v').textContent = beta2.toFixed(1); emit()
+  })
+  par.querySelector('#sh-rho1').addEventListener('input', e=>{
+    rho1 = parseFloat(e.target.value); par.querySelector('#sh-rho1-v').textContent = rho1.toFixed(1); emit()
+  })
+  par.querySelector('#sh-rho2').addEventListener('input', e=>{
+    rho2 = parseFloat(e.target.value); par.querySelector('#sh-rho2-v').textContent = rho2.toFixed(1); emit()
+  })
+  par.querySelector('#sh-omega').addEventListener('input', e=>{
+    omega = parseFloat(e.target.value); par.querySelector('#sh-omega-v').textContent = omega.toFixed(1); drawWavefield()
+  })
+  par.querySelector('#sh-show-i').addEventListener('change', e=>{ showI = e.target.checked; drawWavefield() })
+  par.querySelector('#sh-show-r').addEventListener('change', e=>{ showR = e.target.checked; drawWavefield() })
+  par.querySelector('#sh-show-t').addEventListener('change', e=>{ showT = e.target.checked; drawWavefield() })
+  par.querySelector('#sh-mode-amp').addEventListener('change', ()=>{ phaseMode = false; hoverCurve = -1; redraw() })
+  par.querySelector('#sh-mode-phase').addEventListener('change', ()=>{ phaseMode = true; hoverCurve = -1; redraw() })
+
+  const playBtn = par.querySelector('#sh-play')
+  function stepAnim(){
+    tPhase += 0.12
+    drawWavefield()
+    rafId = requestAnimationFrame(stepAnim)
+  }
+  playBtn.addEventListener('click', ()=>{
+    playing = !playing
+    playBtn.textContent = playing ? 'Pause' : 'Play'
+    if(playing){ rafId = requestAnimationFrame(stepAnim) } else if(rafId){ cancelAnimationFrame(rafId); rafId = null }
+  })
+
+  par.querySelector('#sh-reset').addEventListener('click', ()=>{
+    beta1 = $(w.beta1); beta2 = $(w.beta2); rho1 = $(w.rho1); rho2 = $(w.rho2)
+    thetaDeg = 50; omega = 0.3; showI = true; showR = true; showT = true; phaseMode = false
+    par.querySelector('#sh-beta1').value = beta1; par.querySelector('#sh-beta1-v').textContent = beta1.toFixed(1)
+    par.querySelector('#sh-beta2').value = beta2; par.querySelector('#sh-beta2-v').textContent = beta2.toFixed(1)
+    par.querySelector('#sh-rho1').value = rho1; par.querySelector('#sh-rho1-v').textContent = rho1.toFixed(1)
+    par.querySelector('#sh-rho2').value = rho2; par.querySelector('#sh-rho2-v').textContent = rho2.toFixed(1)
+    par.querySelector('#sh-omega').value = omega; par.querySelector('#sh-omega-v').textContent = omega.toFixed(1)
+    par.querySelector('#sh-show-i').checked = true
+    par.querySelector('#sh-show-r').checked = true
+    par.querySelector('#sh-show-t').checked = true
+    par.querySelector('#sh-mode-amp').checked = true
+    redraw(); emit()
+  })
+
+  window.addEventListener('sh-results', e=>{
+    const d = e.detail ? JSON.parse(e.detail) : null
+    if(!d) return
+    sweep = d
+    redraw()
+  })
+
+  redraw(); emit()
+</script>
+""")
+    end
+
+    const _sh_ready = true
+end
+
+
+# ╔═╡ bbbb2222-2222-2222-2222-222222222222
+begin
+    # `SHWidgetInput` is defined in the Appendix, displayed below this cell -- a
+    # bare reference forces Pluto to run that cell first on a cold restart. See
+    # "the one thing that will silently break on a fresh restart" in
+    # pluto-widget-SKILL.md.
+    _sh_ready
+    @bind _sh SHWidgetInput()
+end
+
+# ╔═╡ afdb5b7d-d670-4a98-a91d-3ff638fb0294
+begin
+    # Only the layer parameters need a Julia recompute (they feed the
+    # Symbolics-derived coefficients below) -- angle, frequency, and display
+    # toggles live entirely client-side inside the widget: everything downstream
+    # of theta is pre-swept once and pushed to the widget, so dragging theta never
+    # touches Julia at all.
+    β₁MOHO = Float64(_sh["beta1"])
+    β₂MOHO = Float64(_sh["beta2"])
+    ρ₁MOHO = Float64(_sh["rho1"])
+    ρ₂MOHO = Float64(_sh["rho2"])
+end
+
+# ╔═╡ 284e4a79-6cfe-4c4a-939b-55fc69611ecb
 """
+	pMOHO(θ)
+
+The ray parameter (horizontal slowness) of an SH wave incident from layer 1 at
+angle `θ` (radians).
+"""
+pMOHO(θ) = sin(θ) / β₁MOHO
+
+# ╔═╡ a06affae-47c3-4dfa-a997-ee75b35ab122
+"""
+	ηMOHO(θ)
+
+Vertical slowness in layer 1 (incident/reflected legs). Always real for
+`θ ∈ [0, π/2]`, since a wave cannot be incident past its own critical angle.
+"""
+ηMOHO(θ) = sqrt((inv(β₁MOHO)^2 - (pMOHO(θ))^2) + 0im)
+
+# ╔═╡ b790898e-11dd-440e-86ef-2403d14a1feb
+u_incident_ex = substitute(plane(pMOHO(θp), ηMOHO(θp), 1.0), [ω => ωp, ı => im]);
+
+# ╔═╡ 8d0636a6-3863-4934-949b-da5a65f329c8
+"""
+	ηₜMOHO(θ)
+
+Vertical slowness in layer 2 (transmitted leg). Complex once `θ` exceeds the
+critical angle `asin(β₁MOHO/β₂MOHO)` -- see the sign convention noted where
+it's used to build the wavefield, below.
+"""
+ηₜMOHO(θ) = sqrt((inv(β₂MOHO)^2 - (pMOHO(θ))^2) + 0im)
+
+# ╔═╡ a089ab5b-4703-4d4d-a7ab-11197b4b907c
+SHAₜ_ex, SHAᵣ_ex = broadcast([SHAₜ, SHAᵣ]) do x
+    θ -> simplify(substitute(x, [η => ηMOHO(θ), ηₜ => ηₜMOHO(θ), μ₁ => β₁MOHO^2 * ρ₁MOHO, μ₂ => β₂MOHO^2 * ρ₂MOHO]))
+end
+
+# ╔═╡ cccc3333-3333-3333-3333-333333333333
+# Push angle-swept slowness/coefficient curves to the widget above -- it stays
+# mounted across reruns of this cell (its `@bind` cell doesn't depend on layer
+# parameters), same CustomEvent pattern geoid-kernel uses to push computed maps
+# back to an already-rendered widget. This is the ONLY place the widget's Julia
+# side runs after a layer-parameter change: everything angle/frequency/display
+# related happens client-side from these arrays.
+let
+    thetas_deg = 0:0.5:90
+    thetas_rad = deg2rad.(thetas_deg)
+    p_sweep = pMOHO.(thetas_rad)
+    eta_sweep = ηMOHO.(thetas_rad)
+    etat_sweep = ηₜMOHO.(thetas_rad)
+    Ar_sweep = SHAᵣ_ex.(thetas_rad)
+    At_sweep = SHAₜ_ex.(thetas_rad)
+
+    num(x) = isfinite(x) ? string(round(Float64(x), digits=6)) : "0"
+    jsonarr(v) = "[" * join(num.(v), ",") * "]"
+
+    payload = string(
+        "{\"theta_deg\":", jsonarr(thetas_deg),
+        ",\"p\":", jsonarr(real.(p_sweep)),
+        ",\"eta_re\":", jsonarr(real.(eta_sweep)), ",\"eta_im\":", jsonarr(imag.(eta_sweep)),
+        ",\"etat_re\":", jsonarr(real.(etat_sweep)), ",\"etat_im\":", jsonarr(imag.(etat_sweep)),
+        ",\"Ar_re\":", jsonarr(real.(Ar_sweep)), ",\"Ar_im\":", jsonarr(imag.(Ar_sweep)),
+        ",\"At_re\":", jsonarr(real.(At_sweep)), ",\"At_im\":", jsonarr(imag.(At_sweep)),
+        "}",
+    )
+    HTML("""<script>
+      window.dispatchEvent(new CustomEvent('sh-results', {detail: $(repr(payload))}));
+    </script>""")
+end
+
+# ╔═╡ cabe33b2-5c0a-45e4-a0fb-d057987d8c95
+u_reflected_ex = substitute(plane(pMOHO(θp), -ηMOHO(θp), SHAᵣ_ex(θp)), [ω => ωp, ı => im]);
+
+# ╔═╡ d5fda5dc-d94e-4b39-94c4-a5c4311e59bd
+u_transmitted_ex = substitute(plane(pMOHO(θp), isequal(imag(ηₜMOHO(θp)), 0.0) ? ηₜMOHO(θp) : -ηₜMOHO(θp), SHAₜ_ex(θp)), [ω => ωp, ı => im]);
+
+# ╔═╡ 602f13f9-6d14-41fd-9183-b8255d64399b
+plot_planewave(u_incident_ex, u_reflected_ex, u_transmitted_ex, mod(tplot, 10))
+
+# ╔═╡ 6f4ddbaf-0023-499c-a31c-15693797e1fa
+plot_reflectivity(SHAᵣ_ex, θgrid, "Reflection Coefficient")
+
+# ╔═╡ bbbb8888-8888-8888-8888-888888888888
+plot_reflectivity(SHAₜ_ex, θgrid, "Transmission Coefficient")
+
+# ╔═╡ ffff6666-6666-6666-6666-666666666666
+let
+    Z1 = ρ₁MOHO * β₁MOHO
+    Z2 = ρ₂MOHO * β₂MOHO
+    Ar_expected = (Z1 - Z2) / (Z1 + Z2)
+    At_expected = 2Z1 / (Z1 + Z2)
+    Ar_computed = real(SHAᵣ_ex(0.0))
+    At_computed = real(SHAₜ_ex(0.0))
+    @assert isapprox(Ar_computed, Ar_expected; atol=1e-8) "reflection coefficient at normal incidence should be $(Ar_expected), got $(Ar_computed)"
+    @assert isapprox(At_computed, At_expected; atol=1e-8) "transmission coefficient at normal incidence should be $(At_expected), got $(At_computed)"
+    (reflection_at_normal_incidence=Ar_computed, transmission_at_normal_incidence=At_computed)
+end
 
 # ╔═╡ 00000000-0000-0000-0000-000000000001
 PLUTO_PROJECT_TOML_CONTENTS = """
 [deps]
 LaTeXStrings = "b964fa9f-0449-5b57-a5c2-d3ea65f4040f"
-Latexify = "23fbe1c1-3f47-55db-b15f-69d7ec21a316"
 LinearAlgebra = "37e2e46d-f89d-539d-b4ee-838fcccc9c8e"
 PlutoPlotly = "8e989ff0-3d88-8e9f-f020-2b208a939ff0"
-PlutoTeachingTools = "661c6b06-c737-4d37-b85c-46df65de6f69"
 PlutoUI = "7f904dfe-b85e-4ff6-b463-dae2292396a8"
-SymbolicUtils = "d1185830-fcd6-423d-90d6-eec64667417b"
 Symbolics = "0c5d862f-8b57-4792-8d23-62f2024744c7"
 
 [compat]
 LaTeXStrings = "~1.4.0"
-Latexify = "~0.16.5"
-PlutoPlotly = "~0.6.5"
-PlutoTeachingTools = "~0.3.0"
-PlutoUI = "~0.7.60"
-SymbolicUtils = "~3.7.0"
-Symbolics = "~6.22.1"
+PlutoPlotly = "~0.6.6"
+PlutoUI = "~0.7.83"
+Symbolics = "~7.0.1"
 """
 
 # ╔═╡ 00000000-0000-0000-0000-000000000002
 PLUTO_MANIFEST_TOML_CONTENTS = """
 # This file is machine-generated - editing it directly is not advised
 
-julia_version = "1.11.7"
+julia_version = "1.12.4"
 manifest_format = "2.0"
-project_hash = "f817382e1ebe74e55c2c42c203c43151e55dd20b"
+project_hash = "6f5bdbb67e568b7988fc33c1939a36b2ca39e6ac"
 
 [[deps.ADTypes]]
 git-tree-sha1 = "27cecae79e5cc9935255f90c53bb831cc3c870d7"
@@ -567,12 +1040,6 @@ weakdeps = ["SparseArrays"]
     [deps.ChainRulesCore.extensions]
     ChainRulesCoreSparseArraysExt = "SparseArrays"
 
-[[deps.CodeTracking]]
-deps = ["InteractiveUtils", "UUIDs"]
-git-tree-sha1 = "980f01d6d3283b3dbdfd7ed89405f96b7256ad57"
-uuid = "da1fd8a2-8d9e-5ec2-8556-3022fb5608a2"
-version = "2.0.1"
-
 [[deps.ColorSchemes]]
 deps = ["ColorTypes", "ColorVectorSpace", "Colors", "FixedPointNumbers", "PrecompileTools", "Random"]
 git-tree-sha1 = "b0fd3f56fa442f81e0a47815c92245acfaaa4e34"
@@ -630,15 +1097,10 @@ weakdeps = ["Dates", "LinearAlgebra"]
     [deps.Compat.extensions]
     CompatLinearAlgebraExt = "LinearAlgebra"
 
-[[deps.Compiler]]
-git-tree-sha1 = "382d79bfe72a406294faca39ef0c3cef6e6ce1f1"
-uuid = "807dbc54-b67e-4c79-8afb-eafe4df6f2e1"
-version = "0.1.1"
-
 [[deps.CompilerSupportLibraries_jll]]
 deps = ["Artifacts", "Libdl"]
 uuid = "e66e0078-7015-5450-92f7-15fbd957f2ae"
-version = "1.1.1+0"
+version = "1.3.0+1"
 
 [[deps.CompositeTypes]]
 git-tree-sha1 = "bce26c3dab336582805503bed209faab1c279768"
@@ -736,7 +1198,7 @@ version = "0.7.16"
 [[deps.Downloads]]
 deps = ["ArgTools", "FileWatching", "LibCURL", "NetworkOptions"]
 uuid = "f43a241f-c20a-4ad4-852c-f6b1247861c6"
-version = "1.6.0"
+version = "1.7.0"
 
 [[deps.DynamicPolynomials]]
 deps = ["Future", "LinearAlgebra", "MultivariatePolynomials", "MutableArithmetics", "Reexport", "Test"]
@@ -913,11 +1375,10 @@ git-tree-sha1 = "4255f0032eafd6451d707a51d5f0248b8a165e4d"
 uuid = "aacddb02-875f-59d6-b918-886e6ef4fbf8"
 version = "3.1.3+0"
 
-[[deps.JuliaInterpreter]]
-deps = ["CodeTracking", "InteractiveUtils", "Random", "UUIDs"]
-git-tree-sha1 = "277779adfedf4a30d66b64edc75dc6bb6d52a16e"
-uuid = "aa1ae85d-cabe-5617-a682-6adf51b2e16a"
-version = "0.10.6"
+[[deps.JuliaSyntaxHighlighting]]
+deps = ["StyledStrings"]
+uuid = "ac6e5ff7-fb65-4e79-a425-ec3bc9c03011"
+version = "1.12.0"
 
 [[deps.LaTeXStrings]]
 git-tree-sha1 = "dda21b8cbd6a6c40d9d02a73230f9d70fed6918c"
@@ -948,24 +1409,24 @@ uuid = "b27032c2-a3e7-50c8-80cd-2d36dbcbfd21"
 version = "0.6.4"
 
 [[deps.LibCURL_jll]]
-deps = ["Artifacts", "LibSSH2_jll", "Libdl", "MbedTLS_jll", "Zlib_jll", "nghttp2_jll"]
+deps = ["Artifacts", "LibSSH2_jll", "Libdl", "OpenSSL_jll", "Zlib_jll", "nghttp2_jll"]
 uuid = "deac9b47-8bc7-5906-a0fe-35ac56dc84c0"
-version = "8.6.0+0"
+version = "8.15.0+0"
 
 [[deps.LibGit2]]
-deps = ["Base64", "LibGit2_jll", "NetworkOptions", "Printf", "SHA"]
+deps = ["LibGit2_jll", "NetworkOptions", "Printf", "SHA"]
 uuid = "76f85450-5226-5b5a-8eaa-529ad045b433"
 version = "1.11.0"
 
 [[deps.LibGit2_jll]]
-deps = ["Artifacts", "LibSSH2_jll", "Libdl", "MbedTLS_jll"]
+deps = ["Artifacts", "LibSSH2_jll", "Libdl", "OpenSSL_jll"]
 uuid = "e37daf67-58a4-590a-8e99-b0245dd2ffc5"
-version = "1.7.2+0"
+version = "1.9.0+0"
 
 [[deps.LibSSH2_jll]]
-deps = ["Artifacts", "Libdl", "MbedTLS_jll"]
+deps = ["Artifacts", "Libdl", "OpenSSL_jll"]
 uuid = "29816b5a-b9ab-546f-933c-edad1886dfa8"
-version = "1.11.0+1"
+version = "1.11.3+1"
 
 [[deps.Libdl]]
 uuid = "8f399da3-3557-5675-b5ff-fb832c97cbdb"
@@ -974,7 +1435,7 @@ version = "1.11.0"
 [[deps.LinearAlgebra]]
 deps = ["Libdl", "OpenBLAS_jll", "libblastrampoline_jll"]
 uuid = "37e2e46d-f89d-539d-b4ee-838fcccc9c8e"
-version = "1.11.0"
+version = "1.12.0"
 
 [[deps.LogExpFunctions]]
 deps = ["DocStringExtensions", "IrrationalConstants", "LinearAlgebra"]
@@ -996,12 +1457,6 @@ version = "0.3.29"
 uuid = "56ddb016-857b-54e1-b83d-db4d58db5568"
 version = "1.11.0"
 
-[[deps.LoweredCodeUtils]]
-deps = ["CodeTracking", "Compiler", "JuliaInterpreter"]
-git-tree-sha1 = "e24491cb83551e44a69b9106c50666dea9d953ab"
-uuid = "6f1432cf-f94c-5a45-995e-cdbf5db27b0b"
-version = "3.4.4"
-
 [[deps.MIMEs]]
 git-tree-sha1 = "c64d943587f7187e751162b3b84445bbbd79f691"
 uuid = "6c6e2e6c-3030-632d-7369-2d6c69616d65"
@@ -1013,14 +1468,9 @@ uuid = "1914dd2f-81c6-5fcd-8719-6d5c9610ff09"
 version = "0.5.16"
 
 [[deps.Markdown]]
-deps = ["Base64"]
+deps = ["Base64", "JuliaSyntaxHighlighting", "StyledStrings"]
 uuid = "d6f4376e-aef5-505a-96c1-9c027394607a"
 version = "1.11.0"
-
-[[deps.MbedTLS_jll]]
-deps = ["Artifacts", "Libdl"]
-uuid = "c8ffd9c3-330d-5841-b78e-0817d7145fa1"
-version = "2.28.6+0"
 
 [[deps.Missings]]
 deps = ["DataAPI"]
@@ -1040,7 +1490,7 @@ version = "0.3.7"
 
 [[deps.MozillaCACerts_jll]]
 uuid = "14a3606d-f60d-562e-9121-12d972cd8159"
-version = "2023.12.12"
+version = "2025.11.4"
 
 [[deps.MultivariatePolynomials]]
 deps = ["ChainRulesCore", "DataStructures", "LinearAlgebra", "MutableArithmetics"]
@@ -1062,17 +1512,22 @@ version = "1.1.3"
 
 [[deps.NetworkOptions]]
 uuid = "ca575930-c2e3-43a9-ace4-1e988b2c1908"
-version = "1.2.0"
+version = "1.3.0"
 
 [[deps.OpenBLAS_jll]]
 deps = ["Artifacts", "CompilerSupportLibraries_jll", "Libdl"]
 uuid = "4536629a-c528-5b80-bd46-f80d51c5b363"
-version = "0.3.27+1"
+version = "0.3.29+0"
 
 [[deps.OpenLibm_jll]]
 deps = ["Artifacts", "Libdl"]
 uuid = "05823500-19ac-5b8b-9628-191a04bc5112"
-version = "0.8.5+0"
+version = "0.8.7+0"
+
+[[deps.OpenSSL_jll]]
+deps = ["Artifacts", "Libdl"]
+uuid = "458c3c95-2e84-50aa-8efc-19380b2a3a95"
+version = "3.5.4+0"
 
 [[deps.OpenSpecFun_jll]]
 deps = ["Artifacts", "CompilerSupportLibraries_jll", "JLLWrappers", "Libdl"]
@@ -1106,7 +1561,7 @@ version = "2.8.3"
 [[deps.Pkg]]
 deps = ["Artifacts", "Dates", "Downloads", "FileWatching", "LibGit2", "Libdl", "Logging", "Markdown", "Printf", "Random", "SHA", "TOML", "Tar", "UUIDs", "p7zip_jll"]
 uuid = "44cfe95a-1eb2-52ea-b672-e2afdf69b78f"
-version = "1.11.0"
+version = "1.12.1"
 weakdeps = ["REPL"]
 
     [deps.Pkg.extensions]
@@ -1130,18 +1585,6 @@ version = "0.8.21"
     IJulia = "7073ff75-c697-5162-941a-fcdaad2a7d2a"
     JSON3 = "0f8b85d8-7281-11e9-16c2-39a750bddbf1"
 
-[[deps.PlutoHooks]]
-deps = ["InteractiveUtils", "Markdown", "UUIDs"]
-git-tree-sha1 = "072cdf20c9b0507fdd977d7d246d90030609674b"
-uuid = "0ff47ea0-7a50-410d-8455-4348d5de0774"
-version = "0.0.5"
-
-[[deps.PlutoLinks]]
-deps = ["FileWatching", "InteractiveUtils", "Markdown", "PlutoHooks", "Revise", "UUIDs"]
-git-tree-sha1 = "8f5fa7056e6dcfb23ac5211de38e6c03f6367794"
-uuid = "0ff47ea0-7a50-410d-8455-4348d5de0420"
-version = "0.1.6"
-
 [[deps.PlutoPlotly]]
 deps = ["AbstractPlutoDingetjes", "Artifacts", "ColorSchemes", "Colors", "Dates", "Downloads", "HypertextLiteral", "InteractiveUtils", "LaTeXStrings", "Markdown", "Pkg", "PlotlyBase", "PrecompileTools", "Reexport", "ScopedValues", "Scratch", "TOML"]
 git-tree-sha1 = "8acd04abc9a636ef57004f4c2e6f3f6ed4611099"
@@ -1155,12 +1598,6 @@ version = "0.6.5"
     [deps.PlutoPlotly.weakdeps]
     PlotlyKaleido = "f2990250-8cf9-495f-b13a-cce12b45703c"
     Unitful = "1986cc42-f94f-5a68-af5c-568840ba703d"
-
-[[deps.PlutoTeachingTools]]
-deps = ["Downloads", "HypertextLiteral", "Latexify", "Markdown", "PlutoLinks", "PlutoUI"]
-git-tree-sha1 = "8252b5de1f81dc103eb0293523ddf917695adea1"
-uuid = "661c6b06-c737-4d37-b85c-46df65de6f69"
-version = "0.3.1"
 
 [[deps.PlutoUI]]
 deps = ["AbstractPlutoDingetjes", "Base64", "ColorTypes", "Dates", "Downloads", "FixedPointNumbers", "Hyperscript", "HypertextLiteral", "IOCapture", "InteractiveUtils", "JSON", "Logging", "MIMEs", "Markdown", "Random", "Reexport", "URIs", "UUIDs"]
@@ -1225,7 +1662,7 @@ version = "2.11.2"
     Enzyme = "7da242da-08ed-463a-9acd-ee780be4f1d9"
 
 [[deps.REPL]]
-deps = ["InteractiveUtils", "Markdown", "Sockets", "StyledStrings", "Unicode"]
+deps = ["InteractiveUtils", "JuliaSyntaxHighlighting", "Markdown", "Sockets", "StyledStrings", "Unicode"]
 uuid = "3fa0cd96-eef1-5676-8a61-b3b8758bbffb"
 version = "1.11.0"
 
@@ -1282,16 +1719,6 @@ deps = ["UUIDs"]
 git-tree-sha1 = "62389eeff14780bfe55195b7204c0d8738436d64"
 uuid = "ae029012-a4dd-5104-9daa-d747884805df"
 version = "1.3.1"
-
-[[deps.Revise]]
-deps = ["CodeTracking", "FileWatching", "JuliaInterpreter", "LibGit2", "LoweredCodeUtils", "OrderedCollections", "REPL", "Requires", "UUIDs", "Unicode"]
-git-tree-sha1 = "276237d98b5bfc2541d92e952bfa99d362011ac7"
-uuid = "295af30f-e4ad-537b-8983-00126c2a3abe"
-version = "3.11.0"
-weakdeps = ["Distributed"]
-
-    [deps.Revise.extensions]
-    DistributedExt = "Distributed"
 
 [[deps.Rmath]]
 deps = ["Random", "Rmath_jll"]
@@ -1415,7 +1842,7 @@ version = "1.2.2"
 [[deps.SparseArrays]]
 deps = ["Libdl", "LinearAlgebra", "Random", "Serialization", "SuiteSparse_jll"]
 uuid = "2f01184e-e22b-5df5-ae63-d93ebab69eaf"
-version = "1.11.0"
+version = "1.12.0"
 
 [[deps.SpecialFunctions]]
 deps = ["IrrationalConstants", "LogExpFunctions", "OpenLibm_jll", "OpenSpecFun_jll"]
@@ -1487,7 +1914,7 @@ uuid = "4607b0f0-06f3-5cda-b6b1-a6196a1729e9"
 [[deps.SuiteSparse_jll]]
 deps = ["Artifacts", "Libdl", "libblastrampoline_jll"]
 uuid = "bea87d4a-7f5b-5778-9afe-8cc45184846c"
-version = "7.7.0+0"
+version = "7.8.3+2"
 
 [[deps.SymbolicIndexingInterface]]
 deps = ["Accessors", "ArrayInterface", "RuntimeGeneratedFunctions", "StaticArraysCore"]
@@ -1614,31 +2041,29 @@ version = "0.1.6"
 [[deps.Zlib_jll]]
 deps = ["Libdl"]
 uuid = "83775a58-1f1d-513f-b197-d71354ab007a"
-version = "1.2.13+1"
+version = "1.3.1+2"
 
 [[deps.libblastrampoline_jll]]
 deps = ["Artifacts", "Libdl"]
 uuid = "8e850b90-86db-534c-a0d3-1478176c7d93"
-version = "5.11.0+0"
+version = "5.15.0+0"
 
 [[deps.nghttp2_jll]]
 deps = ["Artifacts", "Libdl"]
 uuid = "8e850ede-7688-5339-a07c-302acd2aaf8d"
-version = "1.59.0+0"
+version = "1.64.0+1"
 
 [[deps.p7zip_jll]]
-deps = ["Artifacts", "Libdl"]
+deps = ["Artifacts", "CompilerSupportLibraries_jll", "Libdl"]
 uuid = "3f19e933-33d8-53b3-aaab-bd5110c3b7a0"
-version = "17.4.0+2"
+version = "17.7.0+0"
 """
 
 # ╔═╡ Cell order:
 # ╠═08429397-3964-4600-bc14-c45d22c915ec
 # ╟─32a757ff-aa7a-41d5-b8b3-6ac9e0125875
+# ╠═bbbb2222-2222-2222-2222-222222222222
 # ╟─afdb5b7d-d670-4a98-a91d-3ff638fb0294
-# ╟─63e459a0-ec85-4337-9b93-47cfd49bbe92
-# ╟─602f13f9-6d14-41fd-9183-b8255d64399b
-# ╟─6f4ddbaf-0023-499c-a31c-15693797e1fa
 # ╟─4476bf78-39e3-4674-a152-db19fe80929a
 # ╠═927dcc43-202c-4ad2-a76c-837d41f1ed6c
 # ╠═c2eacb91-38e8-428e-9247-691950668bc3
@@ -1684,7 +2109,11 @@ version = "17.4.0+2"
 # ╠═8d0636a6-3863-4934-949b-da5a65f329c8
 # ╟─8c81ddb5-bf4d-4610-bfea-3d1a27ffd61f
 # ╠═a089ab5b-4703-4d4d-a7ab-11197b4b907c
+# ╟─eeee5555-5555-5555-5555-555555555555
+# ╠═ffff6666-6666-6666-6666-666666666666
+# ╠═cccc3333-3333-3333-3333-333333333333
 # ╟─dba7ea14-e0dd-4dc4-ad9c-4627fd16cc62
+# ╠═aaaa1111-1111-1111-1111-111111111111
 # ╟─57176a1b-b8cd-40fa-a615-8a589fb7ea73
 # ╠═b790898e-11dd-440e-86ef-2403d14a1feb
 # ╠═cabe33b2-5c0a-45e4-a0fb-d057987d8c95
@@ -1696,6 +2125,11 @@ version = "17.4.0+2"
 # ╟─6cbddba3-0a3c-44b7-a033-532c91e35356
 # ╠═31d34c37-96d5-4257-9815-c33af141b906
 # ╠═de445666-cd08-4c78-8cab-2d63fd79af43
-# ╟─fdddf5c8-c487-4c0d-8f2b-89dc49b34355
+# ╠═6f4ddbaf-0023-499c-a31c-15693797e1fa
+# ╠═bbbb8888-8888-8888-8888-888888888888
+# ╠═602f13f9-6d14-41fd-9183-b8255d64399b
+# ╟─cccc9999-9999-9999-9999-999999999999
+# ╟─aaaa7777-7777-7777-7777-777777777777
+# ╠═dddd4444-4444-4444-4444-444444444444
 # ╟─00000000-0000-0000-0000-000000000001
 # ╟─00000000-0000-0000-0000-000000000002

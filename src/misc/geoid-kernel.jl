@@ -110,14 +110,14 @@ md"""
 Everything below is driven by the globe you are about to see. **Paint a density anomaly**
 into the mantle and watch the geoid respond on the surface above it.
 
-- **The globe** — a cut-away Earth. The **outer surface is coloured by the geoid**: blue
-  where sea level bulges up, red where it sags down. A wedge is removed so you can see
-  inside, and the two flat **cut faces** show the mantle with your painted anomalies in it
-  (blue dense, red light). Dashed lines on those faces trace the **deflected surface and
-  CMB**, exaggerated so they are visible at all.
+- **The globe** — a cut-away Earth. The **outer surface is coloured by the geoid**, warm
+  (yellow→red) where sea level bulges up and cool (blue→indigo) where it sags down. A wedge is
+  removed so you can see inside, and the two flat **cut faces** show the mantle with your
+  painted anomalies in it (blue dense, red light). Thick **orange curves** on those faces
+  trace the **deflected surface and CMB**, exaggerated so they are visible at all.
 - **Right panel** — the *kernel* ``K_\ell(r)``: the geoid produced by a unit anomaly placed
-  at each depth. **Where it crosses zero is where the sign flips.** A faint marker shows the
-  depth your brush is currently set to.
+  at each depth. **Where it crosses zero is where the sign flips.** Markers show the depth of
+  each anomaly you have painted.
 
 **How to paint.** Drag anywhere to rotate, then **click on an exposed cut face** — the click
 lands the anomaly at exactly that depth and latitude. There is no depth setting to fiddle
@@ -160,16 +160,23 @@ Three things to try, in order — each is one of the three "aha" moments:
 You can paint **both signs**. Pick **dense** (``\delta\rho > 0``, blue — cold slab material) or
 **light** (``\delta\rho < 0``, red — a hot plume) with the brush selector, and mix them freely.
 
-!!! note "One colour convention throughout"
-	Blue and red carry the same *sign* everywhere: **blue = positive, red = negative**. What
-	differs is the quantity. Inside, on the cut faces, it is **density** — blue is dense,
-	red is light, matching the usual tomography convention where blue is cold and fast.
-	Outside, on the surface, it is the **geoid** — blue is high, red is low.
+!!! note "Two colour scales — deliberately different palettes"
+	The globe shows two different quantities, and each follows its own community's convention:
 
-	That shared convention makes the central lesson visible at a glance: a **blue** blob in
-	the mantle producing a **red** patch on the surface above it is the sign flip. Dense
-	material, geoid low. If the two always matched in colour there would be nothing here
-	worth teaching.
+	- **surface — the geoid**: warm ↔ cool. Yellow deepening to red for highs, light blue
+	  deepening to indigo for lows. This is the usual **geodesy** convention.
+	- **interior — density**: blue ↔ red against dark mantle. Blue for dense, red for light,
+	  matching the **seismic tomography** convention where blue is cold and fast.
+
+	Note that the two conventions **disagree about sign**: warm means *positive* for the geoid,
+	but red means *negative* for density. That is a historical accident of two fields, not
+	physics. Because of it the ramps use visibly different palettes rather than the same pair
+	of endpoint colours — otherwise one red would mean "geoid high" outside and "light
+	material" inside, which is worse than either convention alone.
+
+	Neither colouring carries physical meaning of its own. If the hues ever confuse you,
+	ignore them and read the peak values printed in the legend.
+
 Because the Stokes problem is *linear*, the geoid of a combined field is exactly the sum of the
 geoids of its parts — so a light anomaly at a given depth produces precisely the mirror image
 of a dense one, and two equal-and-opposite anomalies in the same place cancel to nothing.
@@ -178,7 +185,7 @@ Worth testing: paint a dense blob, then a light one on top of it, and watch the 
 !!! note "About the exaggeration"
 	The real boundary deflections are a few kilometres on a 6371 km globe — invisible at this
 	scale — so they are drawn exaggerated. But the surface and the CMB share **one** scale
-	factor, so the ratio between the two dashed curves is honest: when the surface deflection
+	factor, so the ratio between the two orange curves is honest: when the surface deflection
 	looks much bigger than the CMB's, it really is. Both peak values are printed in the
 	legend in metres. (The geoid colouring is separately normalised to its own peak, also
 	printed, since it is a different quantity in different units.)
@@ -516,21 +523,39 @@ begin
         write(io, """
 <div id="gkwidget" style="display:flex;flex-direction:column;align-items:center;width:100%;color:#9ca3af">
   <style>
+    /* PlutoUI's wide-cell wrapper hard-caps itself around 1000px regardless of
+       viewport size. Override it for this specific cell so the widget can actually
+       reach ~80% of a wide (16:9 laptop/projector) screen instead of stalling there. */
+    /* Pluto centers a wide cell with an inline margin-left computed for its OWN
+       ~1000px cap; overriding width alone leaves that stale margin in place and the
+       cell drifts right. Recompute margin-left from the same override width so it
+       stays centered under its (unwidened) parent at any viewport size. */
+    pluto-cell:has(#gkwidget){width:min(80vw,1500px)!important;margin-left:calc((100% - min(80vw,1500px))/2)!important}
+    #gkwidget .gk-title{width:100%;box-sizing:border-box;text-align:center;margin-bottom:10px;background:#0a0f18;border:1px solid #3b5c85;border-radius:6px;padding:10px 14px}
+    #gkwidget .gk-title-desc{font-size:17px;font-weight:700;color:#e5e7eb}
+    #gkwidget .gk-title-hint{font-size:13px;color:#9ca3af;margin-top:3px}
     #gkwidget .gk-workspace{display:flex;gap:12px;align-items:flex-start;justify-content:center;width:100%}
-    #gkwidget .gk-controls{width:min(920px,100%);margin-top:8px;display:grid;grid-template-columns:repeat(2,minmax(300px,1fr));gap:8px;font:12px sans-serif}
-    #gkwidget .gk-control-group{box-sizing:border-box;background:#050505;border:1px solid #2f3744;border-radius:6px;padding:9px 10px}
-    #gkwidget .gk-control-title{font-weight:700;color:#e5e7eb;margin-bottom:7px;font-size:18px}
-    #gkwidget .gk-control-row{display:grid;grid-template-columns:150px minmax(110px,1fr) 96px;gap:8px;align-items:center;margin:6px 0}
-    #gkwidget .gk-control-row input[type=range]{width:100%;vertical-align:middle}
+    #gkwidget .gk-controls{width:min(var(--totalw,960px),100%);margin-top:8px;display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:8px;font:14px sans-serif}
+    #gkwidget .gk-control-group{box-sizing:border-box;background:#050505;border:1px solid #2f3744;border-radius:6px;padding:10px 12px}
+    #gkwidget .gk-control-title{font-weight:700;color:#e5e7eb;margin-bottom:8px;font-size:20px}
+    /* Fixed-px columns don't shrink -- if a group ever ends up narrower than the
+       label+slider+value minimums add up to, the slider bleeds past the group's
+       border instead of compressing. minmax() lets every column shrink instead. */
+    #gkwidget .gk-control-row{display:grid;grid-template-columns:minmax(90px,160px) minmax(90px,1fr) minmax(70px,108px);gap:6px;align-items:center;margin:7px 0}
+    #gkwidget .gk-control-row input[type=range]{width:100%;min-width:0;vertical-align:middle}
     #gkwidget .gk-value{color:#d1d5db;text-align:left;font-variant-numeric:tabular-nums}
     #gkwidget .gk-actions{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
-    #gkwidget button{border-radius:4px;border:1px solid #6b7280;background:#606060;color:#f3f4f6;padding:4px 9px}
+    #gkwidget button{border-radius:4px;border:1px solid #9ca3af;background:#606060;color:#f3f4f6;padding:6px 12px;font-size:14px}
     #gkwidget label{color:#d1d5db}
     @media (max-width: 980px){
       #gkwidget .gk-workspace{flex-direction:column;align-items:center}
       #gkwidget .gk-controls{grid-template-columns:1fr;width:660px;max-width:100%}
     }
   </style>
+  <div class="gk-title">
+    <div class="gk-title-desc">A density anomaly deforms the surface and core&ndash;mantle boundary as the mantle flows around it &mdash; the geoid is the sum of all three effects.</div>
+    <div class="gk-title-hint">drag to rotate the globe &middot; click a cut face to place a density anomaly</div>
+  </div>
   <div class="gk-workspace">
     <canvas id="globecvs" width="660" height="660"
       style="cursor:crosshair;background:#000;border:1px solid #374151;border-radius:6px;display:block"></canvas>
@@ -568,7 +593,7 @@ begin
         <button id="iogbtn">IOGL-like</button>
         <span id="cnt" class="gk-value">blobs: $(length(w.default_blobs))</span>
       </div>
-      <div style="margin-top:8px;color:#6b7280;font-size:11px">
+      <div style="margin-top:8px;color:#9ca3af;font-size:13px">
         drag to rotate · click a <b>cut face</b> to place an anomaly at that depth ·
         uncheck <b>cut away</b> for a clean view of the geoid alone
       </div>
@@ -576,20 +601,35 @@ begin
   </div>
 </div>
 <script>
-  const SEC = 660, KW = 248, KH = 660
+  const par = currentScript.previousElementSibling
+  // Target ~80% of viewport width (never more than the wide-cell wrapper actually
+  // gives us), and cap the globe canvas's height so the globe + kernel strip +
+  // controls plausibly fit one screen without scrolling in a lecture/projector setting.
+  // The globe/kernel canvases hand *physical* (θ, φ, r_fraction, ...) values back to
+  // Julia (see gk_blobs below), never raw pixels, so it's safe to just resize these
+  // constants directly -- unlike the interferometry widget's pixel-coupled canvas.
+  const availW = Math.min(window.innerWidth*0.8, par.clientWidth || window.innerWidth*0.8)
+  const totalW = Math.max(700, availW)
+  const heightBudget = Math.max(420, window.innerHeight - 425)
+  const SEC = Math.round(Math.min(totalW*(660/920), heightBudget, 900))
+  const KW = Math.round(SEC*248/660)
+  const KH = SEC
   const A = $(A_EARTH), B = $(B_CMB)
-  const R_OUT = 232, R_IN = R_OUT*B/A
+  const R_OUT = Math.round(SEC*232/660), R_IN = R_OUT*B/A
   // The removed wedge. cutStart is steerable so you can slice straight through
   // whatever you have painted -- a blob at some longitude is otherwise only
   // clipped by the face, and you would see its tail rather than its body.
   let cutStart = 0.9, cutSpan = Math.PI/2
   const DPR = Math.min(window.devicePixelRatio || 1, 2)
   const WMIN = $(BLOB_WIDTH_MIN)
-  const par = currentScript.previousElementSibling
   const cvs = par.querySelector('#globecvs'), ctx = cvs.getContext('2d')
   const ker = par.querySelector('#kernelcvs'), kctx = ker.getContext('2d')
   const lbl = par.querySelector('#cnt')
   const CX = SEC/2, CY = SEC/2
+  // The controls grid isn't tied to the canvas row's width -- on a short screen the
+  // globe shrinks a lot (height-limited) but there's still plenty of horizontal room,
+  // so let the controls use it instead of matching the (possibly much narrower) canvas row.
+  par.style.setProperty('--totalw', Math.round(totalW) + 'px')
 
   function hidpi(cv, cx, w, h){
     cv.width=Math.round(w*DPR); cv.height=Math.round(h*DPR)
@@ -856,7 +896,10 @@ begin
       for(const pc of cutFaces()){
         const nr_ = rot([-Math.sin(pc), Math.cos(pc), 0])
         if(nr_[1] < 0) continue
-        for(const [M, baseR, color] of [[topoData.surf, R_OUT, '#22d3ee'],
+        // Both boundaries in the SAME orange: they are the same physical quantity
+        // (a deflected density interface), and orange is distinct from both the
+        // geoid ramp on the surface and the density ramp on the cut faces.
+        for(const [M, baseR, color] of [[topoData.surf, R_OUT, '#f59e0b'],
                                         [topoData.cmb,  R_IN,  '#f59e0b']]){
           ctx.beginPath()
           for(let k=0;k<=80;k++){
@@ -865,8 +908,7 @@ begin
             const s = proj(rot(sph(th, pc, rr)))
             k===0?ctx.moveTo(s[0],s[1]):ctx.lineTo(s[0],s[1])
           }
-          ctx.strokeStyle=color; ctx.lineWidth=1.5; ctx.setLineDash([5,4]); ctx.stroke()
-          ctx.setLineDash([])
+          ctx.strokeStyle=color; ctx.lineWidth=2.6; ctx.stroke()
         }
       }
     }
@@ -876,35 +918,42 @@ begin
     ctx.strokeStyle='#4b5563'; ctx.lineWidth=1; ctx.stroke()
 
     // --- labels
-    ctx.fillStyle='#9ca3af'; ctx.font='13px sans-serif'
+    ctx.fillStyle='#9ca3af'; ctx.font='14px sans-serif'
     ctx.fillText('geoid on the surface · mantle exposed in the cut', 12, 20)
-    ctx.font='11px sans-serif'
-    ctx.fillStyle='#6b7280'
+    ctx.font='13px sans-serif'
+    ctx.fillStyle='#9ca3af'
     ctx.fillText('drag to rotate', 12, 38)
-    // blue = positive, red = negative -- same sign convention inside and out
+    // Two DIFFERENT palettes, each following its own community convention:
+    // geoid warm=high (geodesy), density blue=dense (tomography).
     ctx.fillStyle='#9ca3af'; ctx.fillText('surface \\u2014 geoid:', 12, SEC-46)
-    ctx.fillStyle='#3b82f6'; ctx.fillText('high', 108, SEC-46)
+    ctx.fillStyle='#dc2626'; ctx.fillText('high', 108, SEC-46)
     ctx.fillStyle='#9ca3af'; ctx.fillText('/', 136, SEC-46)
-    ctx.fillStyle='#ef4444'; ctx.fillText('low', 144, SEC-46)
+    ctx.fillStyle='#38bdf8'; ctx.fillText('low', 144, SEC-46)
     ctx.fillStyle='#9ca3af'; ctx.fillText('interior \\u2014 density:', 12, SEC-32)
     ctx.fillStyle='#3b82f6'; ctx.fillText('dense', 108, SEC-32)
     ctx.fillStyle='#9ca3af'; ctx.fillText('/', 146, SEC-32)
     ctx.fillStyle='#ef4444'; ctx.fillText('light', 154, SEC-32)
     // Both boundaries share one exaggeration scale, so quote both peaks: the ratio
     // between these two numbers is real, and visible in the drawing.
-    ctx.fillStyle='#22d3ee'
-    ctx.fillText('- - deflected surface' +
-      (topoData ? '  ('+mapRange(topoData.surf).toPrecision(2)+' m)' : ''), 210, SEC-46)
+    // One solid orange swatch for both deflected boundaries — same quantity, same
+    // colour; the peak values distinguish them.
+    ctx.strokeStyle='#f59e0b'; ctx.lineWidth=2.6
+    ctx.beginPath(); ctx.moveTo(210, SEC-50); ctx.lineTo(228, SEC-50); ctx.stroke()
     ctx.fillStyle='#f59e0b'
-    ctx.fillText('- - deflected CMB' +
-      (topoData ? '  ('+mapRange(topoData.cmb).toPrecision(2)+' m)' : ''), 210, SEC-32)
+    ctx.fillText('deflected boundaries', 234, SEC-46)
+    if(topoData){
+      ctx.font='13px sans-serif'
+      ctx.fillText('surface ' + mapRange(topoData.surf).toPrecision(2) +
+                   ' m  ·  CMB ' + mapRange(topoData.cmb).toPrecision(2) + ' m', 234, SEC-32)
+      ctx.font='14px sans-serif'
+    }
     if(showFlow){
       ctx.fillStyle = flowData ? '#e2e8f0' : '#6b7280'
       ctx.fillText(flowData ? '\\u2192 instantaneous velocity (arbitrary scale, NOT motion in time)'
                             : '\\u2192 solving for the flow...', 12, SEC-18)
     }
     if(geoidMap){
-      ctx.fillStyle='#e5e7eb'; ctx.font='12px sans-serif'
+      ctx.fillStyle='#e5e7eb'; ctx.font='14px sans-serif'
       ctx.fillText('peak |N| = '+gmax.toPrecision(3)+' m', 12, SEC-14)
     }
     lbl.textContent = 'blobs: '+blobs.length
@@ -912,7 +961,7 @@ begin
 
   function drawKernel(){
     kctx.clearRect(0,0,KW,KH)
-    kctx.fillStyle='#9ca3af'; kctx.font='12px sans-serif'
+    kctx.fillStyle='#9ca3af'; kctx.font='14px sans-serif'
     kctx.fillText('kernel K'+'\\u2113'+'(r), \\u2113='+ell, 10, 18)
     if(!kernelData){ kctx.fillText('computing...', 10, 40); return }
     // Leave 64 px below the plot for three stacked label rows: the depth tick, the
@@ -935,10 +984,10 @@ begin
       kctx.strokeStyle='#22c55e'; kctx.lineWidth=1.5; kctx.setLineDash([3,3])
       kctx.beginPath(); kctx.moveTo(pad,y); kctx.lineTo(KW-14,y); kctx.stroke()
       kctx.setLineDash([])
-      kctx.fillStyle='#22c55e'; kctx.font='11px sans-serif'
+      kctx.fillStyle='#22c55e'; kctx.font='13px sans-serif'
       kctx.fillText('sign flip '+Math.round(kernelData.crossing)+' km', pad+4, y-5)
     } else {
-      kctx.fillStyle='#22c55e'; kctx.font='11px sans-serif'
+      kctx.fillStyle='#22c55e'; kctx.font='13px sans-serif'
       kctx.fillText('no sign flip', pad+4, pad+14)
     }
     // Mark the depth of every anomaly actually painted, so you can read off whether
@@ -955,17 +1004,17 @@ begin
     kctx.strokeStyle='#374151'; kctx.lineWidth=1
     kctx.beginPath(); kctx.moveTo(pad,pad+H); kctx.lineTo(KW-14,pad+H); kctx.stroke()
     kctx.beginPath(); kctx.moveTo(pad,pad); kctx.lineTo(pad,pad+H); kctx.stroke()
-    kctx.fillStyle='#9ca3af'; kctx.font='11px sans-serif'
+    kctx.fillStyle='#9ca3af'; kctx.font='13px sans-serif'
     kctx.save(); kctx.translate(12,pad+H/2); kctx.rotate(-Math.PI/2)
     kctx.fillText('depth (km)',-30,0); kctx.restore()
     kctx.fillText('0',pad-4,pad-6); kctx.fillText('2891',pad-16,pad+H+14)
     // Three separate rows below the axis so nothing collides: the sign labels on one
     // line, the anomaly-marker legend on the next.
-    kctx.font='11px sans-serif'
+    kctx.font='13px sans-serif'
     kctx.fillStyle='#ef4444'; kctx.fillText('negative', pad+4, KH-30)
     kctx.fillStyle='#3b82f6'; kctx.fillText('positive \\u2192', KW-80, KH-30)
     if(blobs.length){
-      kctx.fillStyle='#9ca3af'; kctx.font='10px sans-serif'
+      kctx.fillStyle='#9ca3af'; kctx.font='13px sans-serif'
       kctx.fillText('\\u25cf your anomalies', pad+4, KH-14)
     }
   }
@@ -3095,7 +3144,7 @@ version = "17.7.0+0"
 # ╔═╡ Cell order:
 # ╠═5c3f2e62-3c4d-4e7f-a01b-2c3d4e5f6071
 # ╟─6d403f73-4d5e-4f80-b12c-3d4e5f607182
-# ╠═e5c8b756-c5b6-4708-3964-374859607182
+# ╟─e5c8b756-c5b6-4708-3964-374859607182
 # ╟─7e514084-5e6f-4091-c23d-4e5f60718293
 # ╟─8f625195-6f70-41a2-d34e-5f6071829304
 # ╟─c3a69596-a374-45e6-17f2-152637485960

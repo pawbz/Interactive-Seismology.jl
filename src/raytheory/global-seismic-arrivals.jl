@@ -1,5 +1,5 @@
 ### A Pluto.jl notebook ###
-# v0.20.20
+# v0.2.6
 
 #> [frontmatter]
 #> title = "Global Bodywave Arrivals"
@@ -25,22 +25,14 @@ end
 
 # ╔═╡ 47b2c09a-2ae8-49f0-ba73-ddb6868417b1
 begin
-    using PythonPlot
-    pygui(false)
-end
-
-# ╔═╡ 4b612894-7601-4828-841a-3c7789cc135e
-begin
+    # TauP is installed in PythonCall's managed CPython environment.
     using CondaPkg
+    CondaPkg.add("python"; version=">=3.11,<3.14")
     CondaPkg.add_pip("obspy")
-    CondaPkg.add_pip("matplotlib")
+    CondaPkg.resolve()
+    using PythonCall
+    using PlutoUI
 end
-
-# ╔═╡ 9caed8e3-784d-413f-99c3-c58ea1c4c511
-using PlutoUI
-
-# ╔═╡ 30b72b69-3293-4135-92e2-1705023db020
-using PythonCall
 
 # ╔═╡ 025b2827-ed43-45f5-a981-56dd599c72cb
 PlutoUI.TableOfContents(include_definitions=true)
@@ -58,16 +50,426 @@ Instructor: *Pawan Bharadwaj*,
 Indian Institute of Science, Bengaluru, India
 """
 
-# ╔═╡ 66e7dd53-6423-4c4f-ba45-49d0439d51cf
-md"""
-## Select Source Depth and Receiver Distance
+# ╔═╡ 8967b290-ec9f-4f8d-bca7-91d2c8c8ff18
+begin
+    """A draggable Earth cross-section: the source (depth) and receiver (angular
+    distance) are set by dragging directly on the circle, not by sliders. The bound
+    value only updates on release -- dragging alone never triggers a TauP recompute."""
+    struct RayGeometryInput
+        distance_deg::Float64
+        depth_km::Float64
+    end
 
-- Receiver Distance (°)
-  $(@bind receiver_distance Slider(0.0:1.0:180.0, show_value=true, default=120))
+    RayGeometryInput(; receiver_distance=120.0, source_depth=20.0) =
+        RayGeometryInput(Float64(receiver_distance), Float64(source_depth))
 
-- Source Depth (km) 
-  $(@bind source_depth Slider(0.0:10.0:700.0, show_value=true, default=20))
-"""
+    Base.get(w::RayGeometryInput) = Dict{String,Any}(
+        "receiver_distance" => w.distance_deg,
+        "source_depth" => w.depth_km,
+    )
+
+    function Base.show(io::IO, ::MIME"text/html", w::RayGeometryInput)
+        write(io, """
+<div id="rgwidget" style="display:flex;flex-direction:column;align-items:center;width:100%;color:#9ca3af">
+  <style>
+    pluto-cell:has(#rgwidget) {
+      width: min(80vw, 900px) !important;
+      margin-left: calc((100% - min(80vw, 900px)) / 2) !important;
+    }
+    #rgwidget { width: 100%; box-sizing: border-box; color: #d1d5db; font: 14px sans-serif; }
+    #rgwidget .rg-title { width: 100%; box-sizing: border-box; text-align: center; margin-bottom: 10px;
+      background: #0a0f18; border: 1px solid #3b5c85; border-radius: 6px; padding: 10px 14px; }
+    #rgwidget .rg-title-desc { font-size: 17px; font-weight: 700; color: #e5e7eb; }
+    #rgwidget .rg-title-hint { font-size: 13px; color: #9ca3af; margin-top: 3px; }
+    #rgwidget .rg-actions { margin-top: 10px; display: flex; justify-content: center;
+      align-items: center; gap: 12px; flex-wrap: wrap; }
+    #rgwidget button { border-radius: 4px; border: 1px solid #9ca3af; background: #606060; color: #f3f4f6;
+      padding: 6px 12px; font-size: 14px; cursor: pointer; }
+  </style>
+  <div class="rg-title">
+    <div class="rg-title-desc">Where the earthquake and receiver sit determines which seismic phases connect them, and how fast each one travels.</div>
+    <div class="rg-title-hint">drag the red source or the blue receiver &middot; release to compute the rays &middot; hover a ray to identify it</div>
+  </div>
+  <canvas id="rgcvs" style="background:#000;border:1px solid #374151;border-radius:6px;display:block"></canvas>
+  <div class="rg-actions">
+    <button id="rgreset" type="button">Reset defaults</button>
+    <span style="font-size:13px;color:#9ca3af">dashed rings are real PREM discontinuity depths</span>
+  </div>
+</div>
+<script>
+  const par = currentScript.previousElementSibling
+  const availW = Math.min(window.innerWidth*0.8, par.clientWidth || window.innerWidth*0.8, 900)
+  const heightBudget = Math.max(360, window.innerHeight - 300)
+  const SEC = Math.round(Math.min(availW, heightBudget, 640))
+  const DPR = Math.min(window.devicePixelRatio || 1, 2)
+  const REARTH = 6371
+  // Real PREM discontinuity depths (km), from src/specnm_models/prem_ani.
+  const DISCS = [[24.4,'Moho'],[400,'400'],[670,'670'],[2891,'CMB'],[5149.5,'ICB']]
+  let distanceDeg = $(w.distance_deg), depthKm = $(w.depth_km)
+  let rayPaths = []      // filled in by the 'raypath-results' push from Julia, below
+  let hoverIdx = -1, hoverPos = null   // which rayPaths[] entry the cursor is over
+
+  const cvs = par.querySelector('#rgcvs'), ctx = cvs.getContext('2d')
+  function hidpi(cv, cx, w, h){
+    cv.width = Math.round(w*DPR); cv.height = Math.round(h*DPR)
+    cv.style.width = w+'px'; cv.style.height = h+'px'
+    cx.setTransform(DPR,0,0,DPR,0,0)
+  }
+  hidpi(cvs, ctx, SEC, SEC)
+  const CX = SEC/2, CY = SEC/2
+  // Smaller than the canvas half-width so the epicentral-distance arc and the
+  // source/receiver/distance labels all have room to sit outside the Earth circle
+  // without being clipped by the canvas edge.
+  const R = SEC*0.5*0.68
+
+  function polarXY(thetaDeg, canvasR){
+    const th = thetaDeg*Math.PI/180
+    return [CX + canvasR*Math.sin(th), CY - canvasR*Math.cos(th)]
+  }
+  function toXY(thetaDeg, rKm){
+    return polarXY(thetaDeg, (rKm/REARTH)*R)
+  }
+  function sourcePt(){ return toXY(0, REARTH-depthKm) }
+  function receiverPt(){ return toXY(distanceDeg, REARTH) }
+
+  // Source/receiver markers matching plot_rays' own convention: a yellow star at the
+  // source, a rust-colored marker at the receiver pointing inward along the local
+  // radial direction (obspy draws an arrow into the surface; a triangle is the
+  // canvas-friendly equivalent, oriented per receiver angle rather than fixed "down"
+  // since the receiver can sit anywhere around the circle).
+  function drawStar(cx, cy, r){
+    ctx.beginPath()
+    for(let i=0;i<10;i++){
+      const ang = -Math.PI/2 + i*Math.PI/5
+      const rr = i%2===0 ? r : r*0.42
+      const x = cx+rr*Math.cos(ang), y = cy+rr*Math.sin(ang)
+      i===0 ? ctx.moveTo(x,y) : ctx.lineTo(x,y)
+    }
+    ctx.closePath()
+    ctx.fillStyle = '#FEF215'; ctx.fill()
+    ctx.strokeStyle = '#4b5563'; ctx.lineWidth = 1.4; ctx.stroke()
+  }
+  function drawReceiverMarker(px, py, angDeg, r){
+    const th = angDeg*Math.PI/180
+    const outX = Math.sin(th), outY = -Math.cos(th)
+    const tanX = Math.cos(th), tanY = Math.sin(th)
+    const baseX = px + outX*r*1.6, baseY = py + outY*r*1.6
+    ctx.beginPath()
+    ctx.moveTo(px, py)
+    ctx.lineTo(baseX + tanX*r*0.9, baseY + tanY*r*0.9)
+    ctx.lineTo(baseX - tanX*r*0.9, baseY - tanY*r*0.9)
+    ctx.closePath()
+    ctx.fillStyle = '#C95241'; ctx.fill()
+    ctx.strokeStyle = '#4b5563'; ctx.lineWidth = 1.4; ctx.stroke()
+  }
+
+  function drawArrowHead(px, py, dirX, dirY, size){
+    const ang = Math.atan2(dirY, dirX)
+    ctx.beginPath()
+    ctx.moveTo(px, py)
+    ctx.lineTo(px - size*Math.cos(ang-0.4), py - size*Math.sin(ang-0.4))
+    ctx.lineTo(px - size*Math.cos(ang+0.4), py - size*Math.sin(ang+0.4))
+    ctx.closePath()
+    ctx.fillStyle = '#9ca3af'; ctx.fill()
+  }
+
+  // Epicentral distance measured the way it's actually defined: along the surface,
+  // from the source's surface projection (theta=0) to the receiver -- not the
+  // straight chord between them. Drawn just outside the Earth circle as a
+  // double-headed dimension arc, like a technical drawing's angle callout.
+  function drawEpicentralArc(){
+    const arcR = R + 16
+    const steps = Math.max(8, Math.round(Math.abs(distanceDeg)/3))
+    ctx.beginPath()
+    for(let i=0;i<=steps;i++){
+      const th = distanceDeg*i/steps
+      const p = polarXY(th, arcR)
+      i===0 ? ctx.moveTo(p[0],p[1]) : ctx.lineTo(p[0],p[1])
+    }
+    ctx.strokeStyle = '#9ca3af'; ctx.lineWidth = 1.4; ctx.stroke()
+
+    const p0 = polarXY(0, arcR), p1 = polarXY(distanceDeg, arcR)
+    const th1 = distanceDeg*Math.PI/180
+    drawArrowHead(p0[0], p0[1], -1, 0, 7)
+    drawArrowHead(p1[0], p1[1], Math.cos(th1), Math.sin(th1), 7)
+  }
+
+  // A single legend box (bottom-left) explains all three markers and carries their
+  // current values -- keeps the circle itself free of scattered text labels that
+  // would otherwise compete with the ray paths for space.
+  function drawLegend(){
+    const rows = [
+      {icon:'source', text: 'Source · depth ' + Math.round(depthKm) + ' km'},
+      {icon:'receiver', text: 'Receiver'},
+      {icon:'arc', text: 'Epicentral distance ' + Math.round(distanceDeg) + '°'},
+      {icon:'p', text: 'P-type leg (solid)'},
+      {icon:'s', text: 'S-type leg (wiggly)'},
+    ]
+    ctx.font = '12px sans-serif'
+    const pad = 10, rowH = 20, iconW = 24
+    let textW = 0
+    for(const r of rows) textW = Math.max(textW, ctx.measureText(r.text).width)
+    const boxW = pad*2 + iconW + textW, boxH = pad*2 + rows.length*rowH - (rowH-14)
+    const bx = 10, by = SEC - boxH - 10
+    ctx.fillStyle = 'rgba(11,18,32,0.9)'; ctx.fillRect(bx, by, boxW, boxH)
+    ctx.strokeStyle = '#374151'; ctx.lineWidth = 1; ctx.strokeRect(bx, by, boxW, boxH)
+
+    rows.forEach((r, i) => {
+      const cy = by + pad + i*rowH + 7
+      const cx = bx + pad + iconW/2
+      if(r.icon === 'source'){
+        drawStar(cx, cy, 6)
+      } else if(r.icon === 'receiver'){
+        ctx.beginPath()
+        ctx.moveTo(cx, cy+6); ctx.lineTo(cx-6, cy-5); ctx.lineTo(cx+6, cy-5); ctx.closePath()
+        ctx.fillStyle = '#C95241'; ctx.fill(); ctx.strokeStyle = '#4b5563'; ctx.lineWidth = 1; ctx.stroke()
+      } else if(r.icon === 'arc'){
+        ctx.beginPath(); ctx.arc(cx, cy+11, 12, Math.PI*1.15, Math.PI*1.85)
+        ctx.strokeStyle = '#9ca3af'; ctx.lineWidth = 1.4; ctx.stroke()
+      } else if(r.icon === 'p'){
+        ctx.beginPath(); ctx.moveTo(cx-8, cy+3); ctx.lineTo(cx+8, cy+3)
+        ctx.strokeStyle = colorFor('p'); ctx.lineWidth = 2; ctx.stroke()
+      } else if(r.icon === 's'){
+        ctx.beginPath()
+        for(let k=-8;k<=8;k++) k===-8 ? ctx.moveTo(cx+k, cy+3+2.5*Math.sin(k*1.1)) : ctx.lineTo(cx+k, cy+3+2.5*Math.sin(k*1.1))
+        ctx.strokeStyle = colorFor('s'); ctx.lineWidth = 1.5; ctx.stroke()
+      }
+      ctx.fillStyle = '#e5e7eb'
+      ctx.fillText(r.text, bx + pad + iconW, cy+4)
+    })
+  }
+
+  // Wave-family colors: warm for P-type legs, cool for S-type -- matches the
+  // wiggly/solid line-style distinction below so the two encode the same thing twice.
+  function colorFor(wave){
+    if(wave === 's') return '#38bdf8'
+    if(wave === 'diff') return '#fbbf24'
+    return '#f97316'
+  }
+
+  function projectSegment(seg){
+    const pts = []
+    for(let i=0;i<seg.dist.length;i++) pts.push(toXY(seg.dist[i]*180/Math.PI, REARTH-seg.depth[i]))
+    return pts
+  }
+
+  // Upsample a polyline by linear interpolation so the wiggle (below) has enough
+  // points to look smooth even on a short segment -- same reason obspy's own
+  // plot_rays interpolates before applying its sketch effect on s-wave legs.
+  function densify(pts, minPoints){
+    if(pts.length >= minPoints || pts.length < 2) return pts
+    const steps = Math.ceil((minPoints-1)/(pts.length-1))
+    const out = []
+    for(let i=0;i<pts.length-1;i++){
+      for(let k=0;k<steps;k++){
+        const t = k/steps
+        out.push([pts[i][0]+(pts[i+1][0]-pts[i][0])*t, pts[i][1]+(pts[i+1][1]-pts[i][1])*t])
+      }
+    }
+    out.push(pts[pts.length-1])
+    return out
+  }
+
+  // A clean sinusoidal perpendicular-offset wiggle -- the canvas analogue of
+  // matplotlib's path.sketch effect obspy uses to mark s-wave legs.
+  function drawWiggly(pts, amp, wavelength){
+    if(pts.length < 2) return
+    let acc = 0
+    ctx.beginPath()
+    for(let i=0;i<pts.length;i++){
+      if(i>0) acc += Math.hypot(pts[i][0]-pts[i-1][0], pts[i][1]-pts[i-1][1])
+      const p0 = pts[Math.max(0,i-1)], p1 = pts[Math.min(pts.length-1,i+1)]
+      let tx = p1[0]-p0[0], ty = p1[1]-p0[1]
+      const tl = Math.hypot(tx,ty) || 1
+      tx /= tl; ty /= tl
+      const nx = -ty, ny = tx
+      const s = amp*Math.sin(2*Math.PI*acc/wavelength)
+      const x = pts[i][0]+nx*s, y = pts[i][1]+ny*s
+      i===0 ? ctx.moveTo(x,y) : ctx.lineTo(x,y)
+    }
+    ctx.stroke()
+  }
+
+  function drawSegment(seg, alpha, isHover){
+    ctx.globalAlpha = alpha
+    ctx.strokeStyle = colorFor(seg.wave)
+    if(seg.wave === 's'){
+      ctx.lineWidth = isHover ? 2.4 : 1.5
+      drawWiggly(densify(projectSegment(seg), 60), 3, 14)
+    } else {
+      ctx.lineWidth = isHover ? 3 : 2
+      const pts = projectSegment(seg)
+      ctx.beginPath()
+      pts.forEach((xy,i)=> i===0?ctx.moveTo(xy[0],xy[1]):ctx.lineTo(xy[0],xy[1]))
+      ctx.stroke()
+    }
+    ctx.globalAlpha = 1
+  }
+
+  function distToSegment(px,py, x1,y1, x2,y2){
+    const dx=x2-x1, dy=y2-y1
+    const len2 = dx*dx+dy*dy
+    let t = len2 ? ((px-x1)*dx+(py-y1)*dy)/len2 : 0
+    t = Math.max(0, Math.min(1, t))
+    return Math.hypot(px-(x1+t*dx), py-(y1+t*dy))
+  }
+
+  function nearestPathIndex(mx,my){
+    let best = -1, bestD = 8
+    rayPaths.forEach((p, idx) => {
+      for(const seg of p.segments){
+        const pts = projectSegment(seg)
+        for(let i=0;i<pts.length-1;i++){
+          const d = distToSegment(mx,my, pts[i][0],pts[i][1], pts[i+1][0],pts[i+1][1])
+          if(d < bestD){ bestD = d; best = idx }
+        }
+      }
+    })
+    return best
+  }
+
+  function redraw(){
+    ctx.clearRect(0,0,SEC,SEC)
+    ctx.beginPath(); ctx.arc(CX,CY,R,0,2*Math.PI)
+    ctx.fillStyle = '#0b1220'; ctx.fill()
+    ctx.strokeStyle = '#374151'; ctx.lineWidth = 1.4; ctx.stroke()
+
+    // Angled off to the left of straight-up so labels don't sit inside the dense
+    // near-vertical bundle of rays leaving the source.
+    ctx.font = '12px sans-serif'
+    ctx.textAlign = 'right'
+    for(const [d,label] of DISCS){
+      const rf = ((REARTH-d)/REARTH)*R
+      ctx.beginPath(); ctx.setLineDash([3,4])
+      ctx.arc(CX,CY,rf,0,2*Math.PI); ctx.strokeStyle = '#2f3744'; ctx.lineWidth = 1; ctx.stroke()
+      ctx.setLineDash([])
+      const lp = toXY(-24, REARTH-d)
+      ctx.fillStyle = '#6b7280'; ctx.fillText(label, lp[0]-4, lp[1]+3)
+    }
+    ctx.textAlign = 'left'
+
+    // Every ray drawn faded at once (so the whole family of arrivals is visible),
+    // then the hovered one redrawn last, full-strength, on top of the others.
+    // Fade the rest out further while something is hovered, for more contrast.
+    const fadeAlpha = hoverIdx >= 0 ? 0.12 : 0.28
+    rayPaths.forEach((p, idx) => {
+      if(idx === hoverIdx) return
+      for(const seg of p.segments) drawSegment(seg, fadeAlpha, false)
+    })
+    if(hoverIdx >= 0 && rayPaths[hoverIdx]){
+      for(const seg of rayPaths[hoverIdx].segments) drawSegment(seg, 1.0, true)
+    }
+
+    drawEpicentralArc()
+
+    const sp = sourcePt(), rp = receiverPt()
+    drawStar(sp[0], sp[1], 9)
+    drawReceiverMarker(rp[0], rp[1], distanceDeg, 8)
+
+    drawLegend()
+
+    // A stable top-right readout mirrors the floating cursor tooltip below, so the
+    // hovered phase's name/time can be read without following the cursor.
+    ctx.font = '12px sans-serif'
+    ctx.textAlign = 'right'
+    if(hoverIdx >= 0 && rayPaths[hoverIdx]){
+      ctx.fillStyle = '#e5e7eb'
+      ctx.fillText(rayPaths[hoverIdx].name + '   ' + rayPaths[hoverIdx].time.toFixed(1) + ' s', SEC-10, 16)
+    } else if(rayPaths.length){
+      ctx.fillStyle = '#6b7280'
+      ctx.fillText(rayPaths.length + ' phases — hover a ray to identify it', SEC-10, 16)
+    }
+    ctx.textAlign = 'left'
+
+    if(hoverIdx >= 0 && rayPaths[hoverIdx] && hoverPos){
+      const p = rayPaths[hoverIdx]
+      const label = p.name + '   ' + p.time.toFixed(1) + ' s'
+      ctx.font = '13px sans-serif'
+      const tw = ctx.measureText(label).width
+      const tx = Math.min(hoverPos[0]+12, SEC-tw-16), ty = Math.max(hoverPos[1]-12, 16)
+      ctx.fillStyle = 'rgba(11,18,32,0.9)'; ctx.fillRect(tx-6, ty-14, tw+12, 20)
+      ctx.strokeStyle = '#374151'; ctx.lineWidth = 1; ctx.strokeRect(tx-6, ty-14, tw+12, 20)
+      ctx.fillStyle = '#e5e7eb'; ctx.fillText(label, tx, ty)
+    }
+  }
+
+  function emit(){
+    par.value = {receiver_distance: distanceDeg, source_depth: depthKm}
+    par.dispatchEvent(new CustomEvent('input'))
+  }
+
+  function hitTest(mx, my){
+    const sp = sourcePt(), rp = receiverPt()
+    const ds = Math.hypot(mx-sp[0], my-sp[1])
+    const dr = Math.hypot(mx-rp[0], my-rp[1])
+    if(ds < 12 && ds <= dr) return 'source'
+    if(dr < 12) return 'receiver'
+    return null
+  }
+
+  let dragging = null
+  cvs.addEventListener('mousedown', e=>{ dragging = hitTest(e.offsetX, e.offsetY) })
+  cvs.addEventListener('mousemove', e=>{
+    if(dragging === 'source'){
+      let rf = CY - e.offsetY
+      rf = Math.max(((REARTH-700)/REARTH)*R, Math.min(R, rf))
+      depthKm = REARTH - (rf/R)*REARTH
+      redraw()
+    } else if(dragging === 'receiver'){
+      let ang = Math.atan2(e.offsetX-CX, -(e.offsetY-CY)) * 180/Math.PI
+      distanceDeg = Math.max(0, Math.min(180, ang))
+      redraw()
+    } else {
+      const h = hitTest(e.offsetX, e.offsetY)
+      cvs.style.cursor = h ? 'grab' : 'default'
+      hoverPos = [e.offsetX, e.offsetY]
+      hoverIdx = h ? -1 : nearestPathIndex(e.offsetX, e.offsetY)
+      redraw()
+    }
+  })
+  cvs.addEventListener('mouseleave', ()=>{
+    if(hoverIdx !== -1){ hoverIdx = -1; redraw() }
+  })
+  // Only publish the bound value on release -- dragging is purely local/visual, so
+  // TauP (a Python round-trip) recomputes once per gesture, not once per pixel.
+  window.addEventListener('mouseup', ()=>{
+    if(dragging) emit()
+    dragging = null
+  })
+
+  par.querySelector('#rgreset').addEventListener('click', ()=>{
+    distanceDeg = 120; depthKm = 20; redraw(); emit()
+  })
+
+  window.addEventListener('raypath-results', e=>{
+    const d = e.detail ? JSON.parse(e.detail) : null
+    if(!d) return
+    rayPaths = d.paths || []
+    hoverIdx = -1
+    redraw()
+  })
+
+  redraw(); emit()
+</script>
+""")
+    end
+
+    const _rg_ready = true
+end
+
+# ╔═╡ 0426c6fd-4bb8-413f-b552-0112434d907c
+begin
+    _rg_ready
+    @bind arrival_controls RayGeometryInput()
+end
+
+# ╔═╡ e0c1ab0d-32c5-47b4-9d89-e2e51c2fe0dd
+begin
+    geometry = (
+        receiver_distance=Float64(arrival_controls["receiver_distance"]),
+        source_depth=Float64(arrival_controls["source_depth"]),
+    )
+end
 
 # ╔═╡ 9b0b4e7e-fd8f-4573-af80-ed76ff2848f5
 md"## Appendix"
@@ -75,41 +477,52 @@ md"## Appendix"
 # ╔═╡ dd4cb9d8-8d6e-4ea8-b6bf-545631fecff8
 taup = pyimport("obspy.taup")
 
+# ╔═╡ 1e7a3c9a-6c2f-4b3a-9c5f-2a6f7e8b9d10
+# `split_ray_path` classifies each leg of a ray as p/s/diff, exactly what
+# plot_rays(indicate_wave_type=true) uses to decide which legs to draw wiggly.
+taup_utils = pyimport("obspy.taup.utils")
+
 # ╔═╡ 23f2f44c-144a-4fd1-a429-656bf0af4cca
 model = taup.TauPyModel(model="iasp91")
 
 # ╔═╡ 7568eb42-fe1b-44bc-86a1-dda9200bb49b
-arrivals = model.get_ray_paths(source_depth, receiver_distance)
-
-# ╔═╡ 5299340f-020c-4040-adc8-d6b308c3738e
-phases = [arrival.name for arrival in arrivals]
-
-# ╔═╡ 5a439ed2-6333-4e44-bade-67e227975b92
-@bind selected_phases MultiCheckBox(phases, default=phases[1:1])
-
-# ╔═╡ 3c203808-3886-4d94-9e05-b893d0ba6c4d
-arrivals_filtered = model.get_ray_paths(source_depth, receiver_distance, phase_list=selected_phases)
+arrivals = model.get_ray_paths(geometry.source_depth, geometry.receiver_distance)
 
 # ╔═╡ 460863de-314c-4196-b72b-eb6382cce6f7
+# Push every computed ray path (not just a filtered subset) straight into the
+# RayGeometryInput widget above -- it stays mounted across reruns of this cell, same
+# CustomEvent pattern geoid-kernel uses to push its geoid/topography maps back to the
+# already-rendered globe. The widget draws them all faded and highlights on hover, so
+# there is no separate phase-selection step: showing the whole family of arrivals is
+# the point.
 let
-    fig = figure(figsize=(10, 10))
-    arrivals_filtered.plot_rays(plot_type="spherical", fig=fig,
-        legend=true, label_arrivals=false,
-        plot_all=true, indicate_wave_type=true)
-    fig.tight_layout(pad=15)
-    fig
+    num(x) = isfinite(x) ? string(round(x, sigdigits=6)) : "0"
+    jsonarr(v) = "[" * join(num.(v), ",") * "]"
+    entries = String[]
+    for arrival in arrivals
+        name = pyconvert(String, arrival.name)
+        t = pyconvert(Float64, arrival.time)
+        paths_py, waves_py = taup_utils.split_ray_path(arrival.path, model.model)
+        n_seg = pyconvert(Int, paths_py.__len__())
+        seg_entries = String[]
+        for si in 0:(n_seg-1)
+            seg = paths_py[si]
+            wave = pyconvert(String, waves_py[si])
+            dist = pyconvert(Vector{Float64}, seg["dist"])
+            depth = pyconvert(Vector{Float64}, seg["depth"])
+            push!(seg_entries, string(
+                "{\"wave\":\"", wave, "\",\"dist\":", jsonarr(dist), ",\"depth\":", jsonarr(depth), "}",
+            ))
+        end
+        push!(entries, string(
+            "{\"name\":\"", name, "\",\"time\":", num(t), ",\"segments\":[", join(seg_entries, ","), "]}",
+        ))
+    end
+    payload = "{\"paths\":[" * join(entries, ",") * "]}"
+    HTML("""<script>
+      window.dispatchEvent(new CustomEvent('raypath-results', {detail: $(repr(payload))}));
+    </script>""")
 end
-
-# ╔═╡ 78b1bb95-14a6-461f-a668-8fbbaa7e5ee0
-phases_selected = [arrival.name for arrival in arrivals_filtered]
-
-# ╔═╡ 6dfc1926-4da7-405b-aca4-7eac0aa814c8
-traveltimes = [pyconvert(Float64, arrival.time) for arrival in arrivals_filtered]
-
-# ╔═╡ 10cc4de1-f635-4a4c-b195-19dca1e44d4c
-md"""
-Traveltime in seconds: $(Dict(pyconvert(String, ph)=>t for (ph, t) in zip(phases_selected, traveltimes)))
-"""
 
 # ╔═╡ 5d94e67e-5334-4e1c-9838-749b2318c66d
 md"""
@@ -118,34 +531,34 @@ md"""
 - [https://docs.obspy.org/packages/obspy.taup.html](https://docs.obspy.org/packages/obspy.taup.html)
 """
 
+
+
+
 # ╔═╡ 00000000-0000-0000-0000-000000000001
 PLUTO_PROJECT_TOML_CONTENTS = """
 [deps]
 CondaPkg = "992eb4ea-22a4-4c89-a5bb-47a3300528ab"
 PlutoUI = "7f904dfe-b85e-4ff6-b463-dae2292396a8"
 PythonCall = "6099a3de-0909-46bc-b1f4-468b9a2dfc0d"
-PythonPlot = "274fc56d-3b97-40fa-a1cd-1b4a50311bf9"
 
 [compat]
-CondaPkg = "~0.2.33"
-PlutoUI = "~0.7.72"
-PythonCall = "~0.9.28"
-PythonPlot = "~1.0.6"
+CondaPkg = "~0.2.36"
+PlutoUI = "~0.7.83"
+PythonCall = "~0.9.35"
 """
 
 # ╔═╡ 00000000-0000-0000-0000-000000000002
 PLUTO_MANIFEST_TOML_CONTENTS = """
 # This file is machine-generated - editing it directly is not advised
 
-julia_version = "1.12.1"
+julia_version = "1.12.4"
 manifest_format = "2.0"
-project_hash = "ff85a2d8e1215e33d24932b5500fd038bfb3d385"
+project_hash = "7131236ddec56d88ba0b0a5a94dd48f90fe89dfc"
 
 [[deps.AbstractPlutoDingetjes]]
-deps = ["Pkg"]
-git-tree-sha1 = "6e1d2a35f2f90a4bc7c2ed98079b2ba09c35b83a"
+git-tree-sha1 = "6c3913f4e9bdf6ba3c08041a446fb1332716cbc2"
 uuid = "6e696c72-6542-2067-7265-42206c756150"
-version = "1.3.2"
+version = "1.4.0"
 
 [[deps.ArgTools]]
 uuid = "0dad84c5-d112-42e6-8d28-ef12dabb789f"
@@ -169,22 +582,16 @@ weakdeps = ["StyledStrings"]
     [deps.ColorTypes.extensions]
     StyledStringsExt = "StyledStrings"
 
-[[deps.Colors]]
-deps = ["ColorTypes", "FixedPointNumbers", "Reexport"]
-git-tree-sha1 = "37ea44092930b1811e666c3bc38065d7d87fcc74"
-uuid = "5ae59095-9a9b-59fe-a467-6f913c188581"
-version = "0.13.1"
-
 [[deps.CompilerSupportLibraries_jll]]
 deps = ["Artifacts", "Libdl"]
 uuid = "e66e0078-7015-5450-92f7-15fbd957f2ae"
 version = "1.3.0+1"
 
 [[deps.CondaPkg]]
-deps = ["JSON3", "Markdown", "MicroMamba", "Pidfile", "Pkg", "Preferences", "Scratch", "TOML", "pixi_jll"]
-git-tree-sha1 = "bd491d55b97a036caae1d78729bdb70bf7dababc"
+deps = ["JSON", "Markdown", "MicroMamba", "Pidfile", "Pkg", "Preferences", "Scratch", "TOML", "pixi_jll"]
+git-tree-sha1 = "2b1afb8ae65a0758795b00adafb37f97e67ef0e9"
 uuid = "992eb4ea-22a4-4c89-a5bb-47a3300528ab"
-version = "0.2.33"
+version = "0.2.36"
 
 [[deps.DataAPI]]
 git-tree-sha1 = "abe83f3a2f1b857aac70ef8b269080af17764bbe"
@@ -204,17 +611,17 @@ version = "1.11.0"
 [[deps.Downloads]]
 deps = ["ArgTools", "FileWatching", "LibCURL", "NetworkOptions"]
 uuid = "f43a241f-c20a-4ad4-852c-f6b1247861c6"
-version = "1.6.0"
+version = "1.7.0"
 
 [[deps.FileWatching]]
 uuid = "7b1f6079-737a-58dc-b8bc-7a2ca5c1b5ee"
 version = "1.11.0"
 
 [[deps.FixedPointNumbers]]
-deps = ["Statistics"]
-git-tree-sha1 = "05882d6995ae5c12bb5f36dd2ed3f61c98cbb172"
+deps = ["Random", "Statistics"]
+git-tree-sha1 = "59af96b98217c6ef4ae0dfe065ac7c20831d1a84"
 uuid = "53c48c17-4a7d-5ca2-90c5-79b7896eea93"
-version = "0.8.5"
+version = "0.8.6"
 
 [[deps.Hyperscript]]
 deps = ["Test"]
@@ -224,15 +631,15 @@ version = "0.0.5"
 
 [[deps.HypertextLiteral]]
 deps = ["Tricks"]
-git-tree-sha1 = "7134810b1afce04bbc1045ca1985fbe81ce17653"
+git-tree-sha1 = "d1a86724f81bcd184a38fd284ce183ec067d71a0"
 uuid = "ac1192a8-f4b3-4bfe-ba22-af5b92cd3ab2"
-version = "0.9.5"
+version = "1.0.0"
 
 [[deps.IOCapture]]
 deps = ["Logging", "Random"]
-git-tree-sha1 = "b6d6bfdd7ce25b0f9b2f6b3dd56b2673a66c8770"
+git-tree-sha1 = "0ee181ec08df7d7c911901ea38baf16f755114dc"
 uuid = "b5f81e59-6552-4d32-b1f0-c071b021bf89"
-version = "0.2.5"
+version = "1.0.0"
 
 [[deps.InteractiveUtils]]
 deps = ["Markdown"]
@@ -246,37 +653,26 @@ version = "1.0.0"
 
 [[deps.JLLWrappers]]
 deps = ["Artifacts", "Preferences"]
-git-tree-sha1 = "0533e564aae234aff59ab625543145446d8b6ec2"
+git-tree-sha1 = "7204148362dafe5fe6a273f855b8ccbe4df8173e"
 uuid = "692b3bcd-3c85-4b1f-b108-f13ce0eb3210"
-version = "1.7.1"
+version = "1.8.0"
 
 [[deps.JSON]]
-deps = ["Dates", "Mmap", "Parsers", "Unicode"]
-git-tree-sha1 = "31e996f0a15c7b280ba9f76636b3ff9e2ae58c9a"
+deps = ["Dates", "Logging", "Parsers", "PrecompileTools", "StructUtils", "UUIDs", "Unicode"]
+git-tree-sha1 = "c89d196f5ffb64bfbf80985b699ea913b0d2c211"
 uuid = "682c06a0-de6a-54ab-a142-c8b1cf79cde6"
-version = "0.21.4"
+version = "1.6.1"
 
-[[deps.JSON3]]
-deps = ["Dates", "Mmap", "Parsers", "PrecompileTools", "StructTypes", "UUIDs"]
-git-tree-sha1 = "411eccfe8aba0814ffa0fdf4860913ed09c34975"
-uuid = "0f8b85d8-7281-11e9-16c2-39a750bddbf1"
-version = "1.14.3"
+    [deps.JSON.extensions]
+    JSONArrowExt = ["ArrowTypes"]
 
-    [deps.JSON3.extensions]
-    JSON3ArrowExt = ["ArrowTypes"]
-
-    [deps.JSON3.weakdeps]
+    [deps.JSON.weakdeps]
     ArrowTypes = "31f734f8-188a-4ce0-8406-c8a06bd891cd"
 
 [[deps.JuliaSyntaxHighlighting]]
 deps = ["StyledStrings"]
 uuid = "ac6e5ff7-fb65-4e79-a425-ec3bc9c03011"
 version = "1.12.0"
-
-[[deps.LaTeXStrings]]
-git-tree-sha1 = "dda21b8cbd6a6c40d9d02a73230f9d70fed6918c"
-uuid = "b964fa9f-0449-5b57-a5c2-d3ea65f4040f"
-version = "1.4.0"
 
 [[deps.LazyArtifacts]]
 deps = ["Artifacts", "Pkg"]
@@ -291,7 +687,7 @@ version = "0.6.4"
 [[deps.LibCURL_jll]]
 deps = ["Artifacts", "LibSSH2_jll", "Libdl", "OpenSSL_jll", "Zlib_jll", "nghttp2_jll"]
 uuid = "deac9b47-8bc7-5906-a0fe-35ac56dc84c0"
-version = "8.11.1+1"
+version = "8.15.0+0"
 
 [[deps.LibGit2]]
 deps = ["LibGit2_jll", "NetworkOptions", "Printf", "SHA"]
@@ -338,17 +734,13 @@ version = "1.11.0"
 
 [[deps.MicroMamba]]
 deps = ["Pkg", "Scratch", "micromamba_jll"]
-git-tree-sha1 = "011cab361eae7bcd7d278f0a7a00ff9c69000c51"
+git-tree-sha1 = "535656ce55266bfed0575cd051acc4f36dc869a0"
 uuid = "0b3b1443-0f03-428d-bdfb-f27f9c1191ea"
-version = "0.1.14"
-
-[[deps.Mmap]]
-uuid = "a63ad114-7e13-5084-954f-fe012c677804"
-version = "1.11.0"
+version = "0.1.15"
 
 [[deps.MozillaCACerts_jll]]
 uuid = "14a3606d-f60d-562e-9121-12d972cd8159"
-version = "2025.5.20"
+version = "2025.11.4"
 
 [[deps.NetworkOptions]]
 uuid = "ca575930-c2e3-43a9-ace4-1e988b2c1908"
@@ -362,18 +754,18 @@ version = "0.3.29+0"
 [[deps.OpenSSL_jll]]
 deps = ["Artifacts", "Libdl"]
 uuid = "458c3c95-2e84-50aa-8efc-19380b2a3a95"
-version = "3.5.1+0"
+version = "3.5.4+0"
 
 [[deps.OrderedCollections]]
-git-tree-sha1 = "05868e21324cede2207c6f0f466b4bfef6d5e7ee"
+git-tree-sha1 = "05f45c2e0de6259db764adbfd2f1dc6d3f8de13c"
 uuid = "bac558e1-5e72-5ebc-8fee-abe8a469f55d"
-version = "1.8.1"
+version = "2.0.1"
 
 [[deps.Parsers]]
 deps = ["Dates", "PrecompileTools", "UUIDs"]
-git-tree-sha1 = "7d2f8f21da5db6a806faf7b9b292296da42b2810"
+git-tree-sha1 = "32a4e09c5f29402573d673901778a0e03b0807b9"
 uuid = "69de0a69-1ddd-5017-9359-2bf0b02dc9f0"
-version = "2.8.3"
+version = "2.8.6"
 
 [[deps.Pidfile]]
 deps = ["FileWatching", "Test"]
@@ -384,7 +776,7 @@ version = "1.3.0"
 [[deps.Pkg]]
 deps = ["Artifacts", "Dates", "Downloads", "FileWatching", "LibGit2", "Libdl", "Logging", "Markdown", "Printf", "Random", "SHA", "TOML", "Tar", "UUIDs", "p7zip_jll"]
 uuid = "44cfe95a-1eb2-52ea-b672-e2afdf69b78f"
-version = "1.12.0"
+version = "1.12.1"
 
     [deps.Pkg.extensions]
     REPLExt = "REPL"
@@ -393,22 +785,22 @@ version = "1.12.0"
     REPL = "3fa0cd96-eef1-5676-8a61-b3b8758bbffb"
 
 [[deps.PlutoUI]]
-deps = ["AbstractPlutoDingetjes", "Base64", "ColorTypes", "Dates", "Downloads", "FixedPointNumbers", "Hyperscript", "HypertextLiteral", "IOCapture", "InteractiveUtils", "JSON", "Logging", "MIMEs", "Markdown", "Random", "Reexport", "URIs", "UUIDs"]
-git-tree-sha1 = "f53232a27a8c1c836d3998ae1e17d898d4df2a46"
+deps = ["AbstractPlutoDingetjes", "Base64", "ColorTypes", "Dates", "Downloads", "FixedPointNumbers", "Hyperscript", "HypertextLiteral", "IOCapture", "InteractiveUtils", "Logging", "MIMEs", "Markdown", "Random", "Reexport", "URIs", "UUIDs"]
+git-tree-sha1 = "e189d0623e7ce9c37389bac17e80aac3b0302e75"
 uuid = "7f904dfe-b85e-4ff6-b463-dae2292396a8"
-version = "0.7.72"
+version = "0.7.83"
 
 [[deps.PrecompileTools]]
 deps = ["Preferences"]
-git-tree-sha1 = "5aa36f7049a63a1528fe8f7c3f2113413ffd4e1f"
+git-tree-sha1 = "edbeefc7a4889f528644251bdb5fc9ab5348bc2c"
 uuid = "aea7be01-6a6a-4083-8856-8a6e6704d82a"
-version = "1.2.1"
+version = "1.3.4"
 
 [[deps.Preferences]]
 deps = ["TOML"]
-git-tree-sha1 = "0f27480397253da18fe2c12a4ba4eb9eb208bf3d"
+git-tree-sha1 = "8b770b60760d4451834fe79dd483e318eee709c4"
 uuid = "21216c6a-2e73-6563-6e65-726566657250"
-version = "1.5.0"
+version = "1.5.2"
 
 [[deps.Printf]]
 deps = ["Unicode"]
@@ -416,10 +808,10 @@ uuid = "de0858da-6303-5e67-8744-51eddeeeb8d7"
 version = "1.11.0"
 
 [[deps.PythonCall]]
-deps = ["CondaPkg", "Dates", "Libdl", "MacroTools", "Markdown", "Pkg", "Serialization", "Tables", "UnsafePointers"]
-git-tree-sha1 = "34510e11cabd7964291f32f14d28b367e9960e6e"
+deps = ["CondaPkg", "Dates", "Libdl", "MacroTools", "Markdown", "Preferences", "Serialization", "Tables", "UnsafePointers"]
+git-tree-sha1 = "2b67e030054dd9438a00e3d7f59927e839b00569"
 uuid = "6099a3de-0909-46bc-b1f4-468b9a2dfc0d"
-version = "0.9.28"
+version = "0.9.35"
 
     [deps.PythonCall.extensions]
     CategoricalArraysExt = "CategoricalArrays"
@@ -428,12 +820,6 @@ version = "0.9.28"
     [deps.PythonCall.weakdeps]
     CategoricalArrays = "324d7699-5711-5eae-9e2f-1d82baa6b597"
     PyCall = "438e738f-606a-5dbb-bf0a-cddfbfd45ab0"
-
-[[deps.PythonPlot]]
-deps = ["Colors", "CondaPkg", "LaTeXStrings", "PythonCall", "Sockets", "Test", "VersionParsing"]
-git-tree-sha1 = "409884283434a04092ddf1d9594c22bc097d5d9a"
-uuid = "274fc56d-3b97-40fa-a1cd-1b4a50311bf9"
-version = "1.0.6"
 
 [[deps.Random]]
 deps = ["SHA"]
@@ -459,10 +845,6 @@ version = "1.3.0"
 uuid = "9e88b42a-f829-5b0c-bbe9-9e923198166b"
 version = "1.11.0"
 
-[[deps.Sockets]]
-uuid = "6462fe0b-24de-5631-8697-dd941f90decc"
-version = "1.11.0"
-
 [[deps.Statistics]]
 deps = ["LinearAlgebra"]
 git-tree-sha1 = "ae3bb1eb3bba077cd276bc5cfc337cc65c3075c0"
@@ -475,11 +857,21 @@ version = "1.11.1"
     [deps.Statistics.weakdeps]
     SparseArrays = "2f01184e-e22b-5df5-ae63-d93ebab69eaf"
 
-[[deps.StructTypes]]
+[[deps.StructUtils]]
 deps = ["Dates", "UUIDs"]
-git-tree-sha1 = "159331b30e94d7b11379037feeb9b690950cace8"
-uuid = "856f2bd8-1eba-4b0a-8007-ebc267875bd4"
-version = "1.11.0"
+git-tree-sha1 = "82bee338d650aa515f31866c460cb7e3bcef90b8"
+uuid = "ec057cc2-7a8d-4b58-b3b3-92acb9f63b42"
+version = "2.8.2"
+
+    [deps.StructUtils.extensions]
+    StructUtilsMeasurementsExt = ["Measurements"]
+    StructUtilsStaticArraysCoreExt = ["StaticArraysCore"]
+    StructUtilsTablesExt = ["Tables"]
+
+    [deps.StructUtils.weakdeps]
+    Measurements = "eff96d63-e80a-5855-80a2-b1b0885c5ab7"
+    StaticArraysCore = "1e83bf80-4336-4d27-bf5d-d5a4f845583c"
+    Tables = "bd369af6-aec1-5ad0-b16a-f7cc5008161c"
 
 [[deps.StyledStrings]]
 uuid = "f489334b-da3d-4c2e-b8f0-e476e12c162b"
@@ -498,9 +890,9 @@ version = "1.0.1"
 
 [[deps.Tables]]
 deps = ["DataAPI", "DataValueInterfaces", "IteratorInterfaceExtensions", "OrderedCollections", "TableTraits"]
-git-tree-sha1 = "f2c1efbc8f3a609aadf318094f8fc5204bdaf344"
+git-tree-sha1 = "0f38a06c83f0007bbab3cf911262841c9a0f07e0"
 uuid = "bd369af6-aec1-5ad0-b16a-f7cc5008161c"
-version = "1.12.1"
+version = "1.13.0"
 
 [[deps.Tar]]
 deps = ["ArgTools", "SHA"]
@@ -513,14 +905,14 @@ uuid = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
 version = "1.11.0"
 
 [[deps.Tricks]]
-git-tree-sha1 = "372b90fe551c019541fafc6ff034199dc19c8436"
+git-tree-sha1 = "311349fd1c93a31f783f977a71e8b062a57d4101"
 uuid = "410a4b4d-49e4-4fbc-ab6d-cb71b17b3775"
-version = "0.1.12"
+version = "0.1.13"
 
 [[deps.URIs]]
-git-tree-sha1 = "bef26fb046d031353ef97a82e3fdb6afe7f21b1a"
+git-tree-sha1 = "3b0738bd7c5645641845da25cbd99800b8718689"
 uuid = "5c2747f8-b7ea-4ff2-ba2e-563bfd36b1d4"
-version = "1.6.1"
+version = "1.6.2"
 
 [[deps.UUIDs]]
 deps = ["Random", "SHA"]
@@ -536,11 +928,6 @@ git-tree-sha1 = "c81331b3b2e60a982be57c046ec91f599ede674a"
 uuid = "e17b2a0c-0bdf-430a-bd0c-3a23cae4ff39"
 version = "1.0.0"
 
-[[deps.VersionParsing]]
-git-tree-sha1 = "58d6e80b4ee071f5efd07fda82cb9fbe17200868"
-uuid = "81def892-9a0e-5fdd-b105-ffc91e053289"
-version = "1.3.0"
-
 [[deps.Zlib_jll]]
 deps = ["Libdl"]
 uuid = "83775a58-1f1d-513f-b197-d71354ab007a"
@@ -553,9 +940,9 @@ version = "5.15.0+0"
 
 [[deps.micromamba_jll]]
 deps = ["Artifacts", "JLLWrappers", "LazyArtifacts", "Libdl"]
-git-tree-sha1 = "2ca2ac0b23a8e6b76752453e08428b3b4de28095"
+git-tree-sha1 = "717df6f6892af4ee13279a73aa58474e58a88667"
 uuid = "f8abcde7-e9b7-5caa-b8af-a437887ae8e4"
-version = "1.5.12+0"
+version = "2.3.1+0"
 
 [[deps.nghttp2_jll]]
 deps = ["Artifacts", "Libdl"]
@@ -563,36 +950,30 @@ uuid = "8e850ede-7688-5339-a07c-302acd2aaf8d"
 version = "1.64.0+1"
 
 [[deps.p7zip_jll]]
-deps = ["Artifacts", "Libdl"]
+deps = ["Artifacts", "CompilerSupportLibraries_jll", "Libdl"]
 uuid = "3f19e933-33d8-53b3-aaab-bd5110c3b7a0"
-version = "17.5.0+2"
+version = "17.7.0+0"
 
 [[deps.pixi_jll]]
 deps = ["Artifacts", "JLLWrappers", "LazyArtifacts", "Libdl"]
-git-tree-sha1 = "f349584316617063160a947a82638f7611a8ef0f"
+git-tree-sha1 = "3667b0931a7fe50f0a5554c61af00e5640019e21"
 uuid = "4d7b5844-a134-5dcd-ac86-c8f19cd51bed"
-version = "0.41.3+0"
+version = "0.63.2+0"
 """
 
 # ╔═╡ Cell order:
 # ╠═025b2827-ed43-45f5-a981-56dd599c72cb
 # ╟─6b3bba88-b693-4e39-8866-8166dfc55c30
-# ╟─66e7dd53-6423-4c4f-ba45-49d0439d51cf
-# ╟─5a439ed2-6333-4e44-bade-67e227975b92
-# ╟─10cc4de1-f635-4a4c-b195-19dca1e44d4c
-# ╟─460863de-314c-4196-b72b-eb6382cce6f7
-# ╠═7568eb42-fe1b-44bc-86a1-dda9200bb49b
-# ╠═5299340f-020c-4040-adc8-d6b308c3738e
-# ╠═78b1bb95-14a6-461f-a668-8fbbaa7e5ee0
-# ╠═6dfc1926-4da7-405b-aca4-7eac0aa814c8
-# ╠═3c203808-3886-4d94-9e05-b893d0ba6c4d
+# ╟─0426c6fd-4bb8-413f-b552-0112434d907c
+# ╠═e0c1ab0d-32c5-47b4-9d89-e2e51c2fe0dd
+# ╠═8967b290-ec9f-4f8d-bca7-91d2c8c8ff18
 # ╟─9b0b4e7e-fd8f-4573-af80-ed76ff2848f5
 # ╠═47b2c09a-2ae8-49f0-ba73-ddb6868417b1
 # ╠═dd4cb9d8-8d6e-4ea8-b6bf-545631fecff8
+# ╠═1e7a3c9a-6c2f-4b3a-9c5f-2a6f7e8b9d10
 # ╠═23f2f44c-144a-4fd1-a429-656bf0af4cca
-# ╠═4b612894-7601-4828-841a-3c7789cc135e
-# ╠═9caed8e3-784d-413f-99c3-c58ea1c4c511
-# ╠═30b72b69-3293-4135-92e2-1705023db020
+# ╠═7568eb42-fe1b-44bc-86a1-dda9200bb49b
+# ╠═460863de-314c-4196-b72b-eb6382cce6f7
 # ╟─5d94e67e-5334-4e1c-9838-749b2318c66d
 # ╟─00000000-0000-0000-0000-000000000001
 # ╟─00000000-0000-0000-0000-000000000002

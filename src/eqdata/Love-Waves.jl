@@ -1,5 +1,5 @@
 ### A Pluto.jl notebook ###
-# v0.20.19
+# v0.2.6
 
 #> [frontmatter]
 #> title = "Love Wave Dispersion in Real Seismogram Data"
@@ -22,6 +22,17 @@ macro bind(def, element)
     #! format: on
 end
 
+# ╔═╡ bd18b862-a581-11f0-9c3a-d75bd0f4186b
+begin
+	using CondaPkg
+	CondaPkg.add_pip("obspy")
+	CondaPkg.add_pip("matplotlib")
+	
+	using PlutoUI, PlutoPlotly
+	using PythonCall
+	using Dates, LinearAlgebra
+end
+
 # ╔═╡ bd18bcc4-a581-11f0-a887-f7159f142a24
 TableOfContents(include_definitions=true)
 
@@ -42,13 +53,6 @@ Instructor: *Pawan Bharadwaj*,
 Indian Institute of Science, Bengaluru, India
 """
 
-# ╔═╡ 78677a5a-a586-11f0-b3b3-7fe00db28da7
-md"""
-**Select Earthquake by Index:** $(@bind selected_earthquake_index Slider(1:length(earthquake_catalog), default=1, show_value=true))
-
-**Selected:** $(earthquake_catalog[selected_earthquake_index].name)
-"""
-
 # ╔═╡ 8553843a-89df-4800-b967-02caabb12512
 md"""
 ##### Frequency Band Controls
@@ -64,101 +68,8 @@ Adjust the frequency band to observe dispersion effects:
 **Normalize Amplitudes:** $(@bind normalize_amplitudes CheckBox(default=true))
 """
 
-# ╔═╡ 40c1ebd2-a584-11f0-a0ec-5d4ca09a95cf
-begin
-    if @isdefined(seismic_data) && !isempty(seismic_data) && !isnothing(earthquake_info)
-        
-        # Create the main dispersion plot
-        fig = plot(Layout(
-            title="Love Wave Dispersion: $(earthquake_info.name) (M $(earthquake_info.mag))<br>Frequency Band: $(freq_low)-$(freq_high) Hz",
-            xaxis_title="Time after Origin (seconds)",
-            yaxis_title="Distance (km) + Normalized Amplitude",
-            height=700,
-            showlegend=false,
-            font=attr(size=10)
-        ))
-        
-        # Plot each station's Love wave data
-        for (i, station_data) in enumerate(seismic_data)
-            time = station_data["time"]
-            distance = station_data["distance_km"]
-            
-            # Select data to display
-            amplitude = show_raw ? station_data["transverse_raw"] : station_data["transverse"]
-            
-            # Additional normalization for raw data
-            if show_raw && normalize_amplitudes && maximum(abs.(amplitude)) > 0
-                amplitude ./= maximum(abs.(amplitude))
-            end
-            
-            # Scale amplitude for plotting clarity
-            scale_factor = 40  # Adjust trace separation
-            y_plot = distance .+ amplitude .* scale_factor
-            
-            # Color coding based on distance
-            color_intensity = i / length(seismic_data)
-            color = "rgb($(Int(floor(255*color_intensity))), $(Int(floor(255*(1-color_intensity)))), 100)"
-            
-            add_trace!(fig, scatter(
-                x=time,
-                y=pyconvert(Array{Float64}, y_plot),
-                mode="lines",
-                name="$(station_data["station"])_$(round(pyconvert(Float64, distance), digits=0))km",
-                line=attr(color=color, width=1.2),
-                hovertemplate="Station: $(station_data["station"])<br>" *
-                            "Network: $(station_data["network"])<br>" *
-                            "Distance: $(round(pyconvert(Float64, distance), digits=1)) km<br>" *
-                            "Azimuth: $(round(pyconvert(Float64, station_data["azimuth"]), digits=1))°<br>" *
-                            "Time: %{x:.1f} s<br>" *
-                            "<extra></extra>"
-            ))
-        end
-        
-        # Add theoretical Love wave velocity curves
-        if length(seismic_data) >= 2
-            min_dist = pyconvert(Float64, minimum([s["distance_km"] for s in seismic_data]))
-            max_dist = pyconvert(Float64, maximum([s["distance_km"] for s in seismic_data]))
-            min_time = 0  # Start from origin time
-            
-            # Theoretical Love wave velocities (km/s)
-            velocities = [3.0, 3.5, 4.0, 4.5, 5.0]
-            velocity_colors = ["red", "blue", "green", "orange", "purple"]
-            
-            for (v, color) in zip(velocities, velocity_colors)
-                t_min = min_dist / v
-                t_max = max_dist / v
-                
-                if pyconvert(Float64, t_min) >= min_time  # Only show if visible in time window
-                    add_trace!(fig, scatter(
-                        x=[t_min, t_max],
-                        y=[min_dist, max_dist],
-                        mode="lines",
-                        name="$(v) km/s",
-                        line=attr(color=color, width=2, dash="dash"),
-                        opacity=0.7,
-                        showlegend=true
-                    ))
-                end
-            end
-        end
-	end
-        
-        fig
-end
-
 # ╔═╡ 7031673d-23af-41d9-a254-fc57b27dd417
 md"# Appendix"
-
-# ╔═╡ bd18b862-a581-11f0-9c3a-d75bd0f4186b
-begin
-	using CondaPkg
-	CondaPkg.add_pip("obspy")
-	CondaPkg.add_pip("matplotlib")
-	
-	using PlutoUI, PlutoPlotly
-	using PythonCall
-	using Dates, LinearAlgebra
-end
 
 # ╔═╡ bd18d1a6-a581-11f0-a393-05b8ff32c765
 """
@@ -311,6 +222,13 @@ begin
 		)
 	)
 end
+
+# ╔═╡ 78677a5a-a586-11f0-b3b3-7fe00db28da7
+md"""
+**Select Earthquake by Index:** $(@bind selected_earthquake_index Slider(1:length(earthquake_catalog), default=1, show_value=true))
+
+**Selected:** $(earthquake_catalog[selected_earthquake_index].name)
+"""
 
 # ╔═╡ bfd8a3ee-a583-11f0-9977-c9f4d0d5cfa5
 begin
@@ -554,9 +472,6 @@ function rotate_to_rt(north_data, east_data, back_azimuth)
     end
 end
 
-# ╔═╡ a50fcf5d-ef3f-4d75-a20e-6d36ccaa08af
-seismic_data = process_love_wave_signals(waveforms_data, freq_low, freq_high, normalize_amplitudes)
-
 # ╔═╡ 6aaafe83-5ddf-42b0-a401-59cd93ba56fa
 """
 Process seismic data for Love wave analysis with enhanced error handling
@@ -666,8 +581,93 @@ end
 # ╔═╡ cfe0821b-c768-4824-b8b6-f1b9808641af
 waveforms_data =waveforms_result[1]
 
+# ╔═╡ a50fcf5d-ef3f-4d75-a20e-6d36ccaa08af
+seismic_data = process_love_wave_signals(waveforms_data, freq_low, freq_high, normalize_amplitudes)
+
 # ╔═╡ a5620ac8-5a4b-4c55-9f5e-980c0a6d0995
 earthquake_info = earthquake_catalog[selected_earthquake_index]
+
+# ╔═╡ 40c1ebd2-a584-11f0-a0ec-5d4ca09a95cf
+begin
+    if @isdefined(seismic_data) && !isempty(seismic_data) && !isnothing(earthquake_info)
+        
+        # Create the main dispersion plot
+        fig = plot(Layout(
+            title="Love Wave Dispersion: $(earthquake_info.name) (M $(earthquake_info.mag))<br>Frequency Band: $(freq_low)-$(freq_high) Hz",
+            xaxis_title="Time after Origin (seconds)",
+            yaxis_title="Distance (km) + Normalized Amplitude",
+            height=700,
+            showlegend=false,
+            font=attr(size=10)
+        ))
+        
+        # Plot each station's Love wave data
+        for (i, station_data) in enumerate(seismic_data)
+            time = station_data["time"]
+            distance = station_data["distance_km"]
+            
+            # Select data to display
+            amplitude = show_raw ? station_data["transverse_raw"] : station_data["transverse"]
+            
+            # Additional normalization for raw data
+            if show_raw && normalize_amplitudes && maximum(abs.(amplitude)) > 0
+                amplitude ./= maximum(abs.(amplitude))
+            end
+            
+            # Scale amplitude for plotting clarity
+            scale_factor = 40  # Adjust trace separation
+            y_plot = distance .+ amplitude .* scale_factor
+            
+            # Color coding based on distance
+            color_intensity = i / length(seismic_data)
+            color = "rgb($(Int(floor(255*color_intensity))), $(Int(floor(255*(1-color_intensity)))), 100)"
+            
+            add_trace!(fig, scatter(
+                x=time,
+                y=pyconvert(Array{Float64}, y_plot),
+                mode="lines",
+                name="$(station_data["station"])_$(round(pyconvert(Float64, distance), digits=0))km",
+                line=attr(color=color, width=1.2),
+                hovertemplate="Station: $(station_data["station"])<br>" *
+                            "Network: $(station_data["network"])<br>" *
+                            "Distance: $(round(pyconvert(Float64, distance), digits=1)) km<br>" *
+                            "Azimuth: $(round(pyconvert(Float64, station_data["azimuth"]), digits=1))°<br>" *
+                            "Time: %{x:.1f} s<br>" *
+                            "<extra></extra>"
+            ))
+        end
+        
+        # Add theoretical Love wave velocity curves
+        if length(seismic_data) >= 2
+            min_dist = pyconvert(Float64, minimum([s["distance_km"] for s in seismic_data]))
+            max_dist = pyconvert(Float64, maximum([s["distance_km"] for s in seismic_data]))
+            min_time = 0  # Start from origin time
+            
+            # Theoretical Love wave velocities (km/s)
+            velocities = [3.0, 3.5, 4.0, 4.5, 5.0]
+            velocity_colors = ["red", "blue", "green", "orange", "purple"]
+            
+            for (v, color) in zip(velocities, velocity_colors)
+                t_min = min_dist / v
+                t_max = max_dist / v
+                
+                if pyconvert(Float64, t_min) >= min_time  # Only show if visible in time window
+                    add_trace!(fig, scatter(
+                        x=[t_min, t_max],
+                        y=[min_dist, max_dist],
+                        mode="lines",
+                        name="$(v) km/s",
+                        line=attr(color=color, width=2, dash="dash"),
+                        opacity=0.7,
+                        showlegend=true
+                    ))
+                end
+            end
+        end
+	end
+        
+        fig
+end
 
 # ╔═╡ 00000000-0000-0000-0000-000000000001
 PLUTO_PROJECT_TOML_CONTENTS = """

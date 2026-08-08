@@ -386,31 +386,50 @@ begin
         write(io, """
 <div id="siwidget" style="display:flex;flex-direction:column;align-items:center;width:100%;color:#9ca3af">
   <style>
+    /* PlutoUI's wide-cell wrapper hard-caps itself around 1000px regardless of
+       viewport size. Override it for this specific cell so the widget can actually
+       reach ~80% of a wide (16:9 laptop/projector) screen instead of stalling there. */
+    /* Pluto centers a wide cell with an inline margin-left computed for its OWN
+       ~1000px cap; overriding width alone leaves that stale margin in place and the
+       cell drifts right. Recompute margin-left from the same override width so it
+       stays centered under its (unwidened) parent at any viewport size. */
+    pluto-cell:has(#siwidget){width:min(80vw,1500px)!important;margin-left:calc((100% - min(80vw,1500px))/2)!important}
+    #siwidget .si-title{width:100%;box-sizing:border-box;text-align:center;margin-bottom:10px;background:#0a0f18;border:1px solid #3b5c85;border-radius:6px;padding:10px 14px}
+    #siwidget .si-title-desc{font-size:17px;font-weight:700;color:#e5e7eb}
+    #siwidget .si-title-hint{font-size:13px;color:#9ca3af;margin-top:3px}
     #siwidget .si-workspace{display:flex;gap:12px;align-items:flex-start;justify-content:center;width:100%}
-    #siwidget .si-metrics{width:260px;min-height:640px;box-sizing:border-box;background:#050505;border:1px solid #374151;border-radius:6px;padding:12px;font:12px/1.35 sans-serif;color:#d1d5db}
+    #siwidget .si-metrics{width:280px;min-height:640px;box-sizing:border-box;background:#050505;border:1px solid #374151;border-radius:6px;padding:14px;font:14px/1.5 sans-serif;color:#d1d5db}
     #siwidget .si-metrics h3{margin:0 0 10px 0;font-size:20px;color:#e5e7eb}
     #siwidget .si-metric-card{border:1px solid #1f2937;border-radius:6px;background:#0b0b0b;padding:10px;margin-bottom:10px}
     #siwidget .si-metric-title{font-weight:700;color:#f3f4f6;margin-bottom:7px}
-    #siwidget .si-metric-row{display:grid;grid-template-columns:42px 1fr;gap:8px;margin:4px 0}
+    #siwidget .si-metric-row{display:grid;grid-template-columns:56px 1fr;gap:8px;margin:5px 0}
     #siwidget .si-metric-label{color:#9ca3af}
     #siwidget .si-metric-value{color:#e5e7eb}
     #siwidget .si-percent{color:#93c5fd}
-    #siwidget .si-controls{width:min(914px,100%);margin-top:8px;display:grid;grid-template-columns:repeat(2,minmax(300px,1fr));gap:8px;font:12px sans-serif}
-    #siwidget .si-control-group{box-sizing:border-box;background:#050505;border:1px solid #2f3744;border-radius:6px;padding:9px 10px}
-    #siwidget .si-control-title{font-weight:700;color:#e5e7eb;margin-bottom:7px;font-size:20px}
-    #siwidget .si-control-row{display:grid;grid-template-columns:120px minmax(120px,1fr) 56px;gap:8px;align-items:center;margin:6px 0}
-    #siwidget .si-control-row.wide{grid-template-columns:190px minmax(120px,1fr) 56px}
-    #siwidget .si-control-row input[type=range]{width:100%;vertical-align:middle}
+    #siwidget .si-controls{width:min(var(--totalw,960px),100%);margin-top:8px;display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:8px;font:14px sans-serif}
+    #siwidget .si-control-group{box-sizing:border-box;background:#050505;border:1px solid #2f3744;border-radius:6px;padding:10px 12px}
+    #siwidget .si-control-title{font-weight:700;color:#e5e7eb;margin-bottom:8px;font-size:20px}
+    /* Fixed-px columns don't shrink -- with 4 groups auto-fitting into one row (see
+       .si-controls below) a group can end up as narrow as ~260px, and a 130-200px
+       label column alone would then force the row wider than the group, bleeding
+       the slider past the group's border. minmax() lets every column compress. */
+    #siwidget .si-control-row{display:grid;grid-template-columns:minmax(70px,130px) minmax(70px,1fr) minmax(36px,64px);gap:6px;align-items:center;margin:7px 0}
+    #siwidget .si-control-row.wide{grid-template-columns:minmax(70px,200px) minmax(70px,1fr) minmax(36px,64px)}
+    #siwidget .si-control-row input[type=range]{width:100%;min-width:0;vertical-align:middle}
     #siwidget .si-value{color:#d1d5db;text-align:left;font-variant-numeric:tabular-nums}
     #siwidget .si-actions{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
     #siwidget .si-presets{display:flex;gap:5px;align-items:center;flex-wrap:wrap}
-    #siwidget button{border-radius:4px;border:1px solid #6b7280;background:#606060;color:#f3f4f6;padding:4px 9px}
+    #siwidget button{border-radius:4px;border:1px solid #9ca3af;background:#606060;color:#f3f4f6;padding:6px 12px;font-size:14px}
     @media (max-width: 980px){
       #siwidget .si-workspace{flex-direction:column;align-items:center}
       #siwidget .si-metrics{width:640px;max-width:100%;min-height:0}
       #siwidget .si-controls{grid-template-columns:1fr;width:640px;max-width:100%}
     }
   </style>
+  <div class="si-title">
+    <div class="si-title-desc">Cross-correlating ambient noise from many sources recovers the causal and acausal Green's function between two receivers.</div>
+    <div class="si-title-hint">drag a receiver or a source to move it &middot; click empty space to paint a source &middot; try a preset below</div>
+  </div>
   <canvas id="cmpcvs" width="914" height="140"
     style="cursor:default;background:#000;border:1px solid #374151;border-radius:4px;display:block;margin-bottom:4px"></canvas>
   <div class="si-workspace">
@@ -461,13 +480,26 @@ begin
   </div>
 </div>
 <script>
+  // Logical/design coordinate space for this widget -- fixed forever. All hit-testing,
+  // drag math, and the pixel-to-km conversion in the Julia cell below (srcloc_pixels:
+  // (I .- 320)/1.5) assume exactly these numbers. Only the on-screen CSS size grows
+  // or shrinks with the viewport, via `zoom` -- never these constants.
   const PIX=640, CMP_W=914, CMP_H=140, MID=320, SCALE=1.5, DEFAULT_SPREAD=15, PER_PT=15, RAD=200, RING=170, N=1000
   const DPR=Math.min(window.devicePixelRatio || 1, 2)
+  const par = currentScript.previousElementSibling
+  // Target ~80% of viewport width (never more than the wide-cell wrapper actually
+  // gives us), and cap the square source canvas's height so the canvas + comparison
+  // strip + controls plausibly fit one screen without scrolling in a lecture/projector setting.
+  const availW = Math.min(window.innerWidth*0.8, par.clientWidth || window.innerWidth*0.8)
+  const heightBudget = Math.max(320, window.innerHeight - 565)
+  // No extra floor here: heightBudget is already floored at 320 above, so this can
+  // never collapse to 0 -- but it MUST be free to shrink below any fixed floor on a
+  // short window, or the widget would overflow vertically instead of fitting it.
+  const zoom = Math.min(availW/(PIX+12+260), heightBudget/PIX, 2.2)
   const VEL=$(w.vel), DT=$(dt)
   const T_MIN=1.0, T_MAX=25.0
   const COLOR_STOPS=$(colorscheme_stops_js(ColorSchemes.viridis))
   const STATE_KEY='seismic_interferometry_canvas_v6'
-  const par = currentScript.previousElementSibling
   const cvs = par.querySelector('#srccvs')
   const ctx = cvs.getContext('2d')
   const cmpcvs = par.querySelector('#cmpcvs')
@@ -476,14 +508,27 @@ begin
   const lbl = par.querySelector('#cnt')
 
   function setupHiDPICanvas(canvas, context, width, height) {
-    canvas.width = Math.round(width * DPR)
-    canvas.height = Math.round(height * DPR)
-    canvas.style.width = width + 'px'
-    canvas.style.height = height + 'px'
-    context.setTransform(DPR, 0, 0, DPR, 0, 0)
+    canvas.width = Math.round(width * zoom * DPR)
+    canvas.height = Math.round(height * zoom * DPR)
+    canvas.style.width = Math.round(width * zoom) + 'px'
+    canvas.style.height = Math.round(height * zoom) + 'px'
+    context.setTransform(zoom * DPR, 0, 0, zoom * DPR, 0, 0)
   }
   setupHiDPICanvas(cvs, ctx, PIX, PIX)
   setupHiDPICanvas(cmpcvs, cmpctx, CMP_W, CMP_H)
+  // The metrics panel is plain HTML text at a fixed 14px font (never scaled by
+  // zoom, unlike the canvases) -- shrinking its width proportionally with zoom
+  // would wrap that fixed-size text onto many lines and balloon its height instead
+  // of shrinking, defeating the whole point. Keep it no narrower than it needs to
+  // read cleanly; only let it grow past that floor when there's room to spare.
+  const metricsW = Math.max(260, Math.round(260*zoom))
+  metricsPanel.style.width = metricsW + 'px'
+  metricsPanel.style.minHeight = Math.round(PIX*zoom) + 'px'
+  // The controls grid isn't tied to the canvas row's width -- on a short screen the
+  // canvas shrinks a lot (height-limited) but there's still plenty of horizontal room,
+  // so let the controls use it: more columns of controls means fewer rows means less
+  // height, which is exactly what a short screen needs.
+  par.style.setProperty('--totalw', Math.round(availW) + 'px')
 
   const toP = (d, flip) => MID + (flip ? -1 : 1) * d * SCALE
 
@@ -605,18 +650,18 @@ begin
     ctx.strokeStyle='#4b5563'; ctx.lineWidth=0.8
     ctx.beginPath(); ctx.moveTo(MID,8); ctx.lineTo(MID,PIX-8); ctx.stroke()
     ctx.beginPath(); ctx.moveTo(8,MID); ctx.lineTo(PIX-8,MID); ctx.stroke()
-    ctx.fillStyle='#6b7280'; ctx.font='12px sans-serif'; ctx.textAlign='center'
+    ctx.fillStyle='#9ca3af'; ctx.font='14px sans-serif'; ctx.textAlign='center'
     for(let v=-200;v<=200;v+=100){
       if(v===0) continue
       const px=toP(v,false), py=toP(v,true)
       ctx.strokeStyle='#4b5563'; ctx.lineWidth=0.5
       ctx.beginPath(); ctx.moveTo(px,MID-4); ctx.lineTo(px,MID+4); ctx.stroke()
       ctx.beginPath(); ctx.moveTo(MID-4,py); ctx.lineTo(MID+4,py); ctx.stroke()
-      ctx.fillStyle='#6b7280'
+      ctx.fillStyle='#9ca3af'
       ctx.fillText(v,px,MID+20)
       ctx.textAlign='right'; ctx.fillText(v,MID-8,py+4); ctx.textAlign='center'
     }
-    ctx.fillStyle='#9ca3af'; ctx.font='11px sans-serif'
+    ctx.fillStyle='#9ca3af'; ctx.font='13px sans-serif'
     ctx.fillText('x',PIX-10,MID-6)
     ctx.textAlign='left'; ctx.fillText('y',MID+6,16); ctx.textAlign='center'
   }
@@ -640,7 +685,7 @@ begin
     const dol = d / lam
     ctx.fillStyle='rgba(0,0,0,0.82)'
     ctx.fillRect(6,PIX-38,400,30)
-    ctx.fillStyle='#e5e7eb'; ctx.font='13px monospace'; ctx.textAlign='left'
+    ctx.fillStyle='#e5e7eb'; ctx.font='14px monospace'; ctx.textAlign='left'
     ctx.fillText('T='+formatPeriod(period)+' s  λ='+lam.toFixed(1)+' km  d='+d.toFixed(1)+' km  d/λ='+dol.toFixed(2)+'  src×='+sourceScale.toFixed(0),12,PIX-18)
     ctx.textAlign='center'
   }
@@ -706,11 +751,11 @@ begin
     comparisonLegendHits = []
     cmpctx.fillStyle='#000'
     cmpctx.fillRect(0,0,cw,ch)
-    cmpctx.fillStyle='#e5e7eb'; cmpctx.font='bold 18px sans-serif'; cmpctx.textAlign='left'
+    cmpctx.fillStyle='#e5e7eb'; cmpctx.font='bold 20px sans-serif'; cmpctx.textAlign='left'
     cmpctx.fillText('Interstation response comparison',10,23)
 
     if(!currentComparison || !currentComparison.avg || !currentComparison.ref || currentComparison.avg.length < 2){
-      cmpctx.fillStyle='#9ca3af'; cmpctx.font='11px sans-serif'
+      cmpctx.fillStyle='#9ca3af'; cmpctx.font='13px sans-serif'
       cmpctx.fillText('Waiting for comparison data…',padL,ch/2+4)
       return
     }
@@ -720,7 +765,7 @@ begin
     const velocity=currentComparison.velocity || {}
     const n=Math.min(avg.length, ref.length, t.length)
     if(velocity.phase_corrected){
-      cmpctx.font='10px sans-serif'
+      cmpctx.font='13px sans-serif'
       cmpctx.fillStyle='#a7f3d0'
       cmpctx.fillText('phase corrected', 10, 28)
     }
@@ -788,7 +833,7 @@ begin
     legendItem('ref', 'true', cw-78, 'rgba(56,189,248,0.75)', showReferenceTrace)
 
     // Axis labels: left edge, right edge, centre
-    cmpctx.fillStyle='#9ca3af'; cmpctx.font='10px sans-serif'
+    cmpctx.fillStyle='#9ca3af'; cmpctx.font='13px sans-serif'
     cmpctx.textAlign='left';   cmpctx.fillText((-xlim).toFixed(1)+' s', padL, ch-7)
     cmpctx.textAlign='right';  cmpctx.fillText((+xlim).toFixed(1)+' s', cw-padR, ch-7)
     cmpctx.textAlign='center'; cmpctx.fillText('zero lag', padL+(cw-padL-padR)/2, ch-7)
@@ -796,7 +841,7 @@ begin
     // t0 tick labels
     if(t0 > 0){
       const xp=ptx(t0), xn=ptx(-t0)
-      cmpctx.fillStyle='#6b7280'; cmpctx.textAlign='center'
+      cmpctx.fillStyle='#9ca3af'; cmpctx.textAlign='center'
       if(xp < cw-padR-2) cmpctx.fillText('+'+t0.toFixed(1), xp, ch-7)
       if(xn > padL+2)    cmpctx.fillText('-'+t0.toFixed(1), xn, ch-7)
     }
@@ -1032,51 +1077,51 @@ begin
   })
 
   cvs.addEventListener('mousedown',e=>{
-    if(hitReceiver(e.offsetX,e.offsetY)){
+    if(hitReceiver((e.offsetX/zoom),(e.offsetY/zoom))){
       draggingReceiver=true
       cvs.style.cursor='grabbing'
-      setDistanceFromPointer(e.offsetX)
+      setDistanceFromPointer((e.offsetX/zoom))
     } else if(dragSourcesMode) {
-      const selectedHit = selectedSourceHit(e.offsetX, e.offsetY)
-      const hit = selectedHit >= 0 ? selectedHit : nearestSourceIndex(e.offsetX, e.offsetY)
+      const selectedHit = selectedSourceHit((e.offsetX/zoom), (e.offsetY/zoom))
+      const hit = selectedHit >= 0 ? selectedHit : nearestSourceIndex((e.offsetX/zoom), (e.offsetY/zoom))
       if(hit >= 0){
         if(!selectedSourceIndices.has(hit)){
           selectedSourceIndices.clear()
           selectedSourceIndices.add(hit)
         }
-        startGroupDrag(e.offsetX, e.offsetY)
+        startGroupDrag((e.offsetX/zoom), (e.offsetY/zoom))
       } else {
         draggingSource=false
         selectedSourceIndices.clear()
         boxSelecting=true
-        selectionStart=[e.offsetX, e.offsetY]
-        selectionRect={x0:e.offsetX, y0:e.offsetY, x1:e.offsetX, y1:e.offsetY}
+        selectionStart=[(e.offsetX/zoom), (e.offsetY/zoom)]
+        selectionRect={x0:(e.offsetX/zoom), y0:(e.offsetY/zoom), x1:(e.offsetX/zoom), y1:(e.offsetY/zoom)}
         cvs.style.cursor='crosshair'
         redraw()
       }
     } else {
       if(sprayWidth === 0){
-        if(addPts(e.offsetX,e.offsetY)) emit()
+        if(addPts((e.offsetX/zoom),(e.offsetY/zoom))) emit()
       } else {
         drawing=true
-        addPts(e.offsetX,e.offsetY)
+        addPts((e.offsetX/zoom),(e.offsetY/zoom))
       }
     }
   })
   cvs.addEventListener('mousemove',e=>{
     if(draggingReceiver){
-      setDistanceFromPointer(e.offsetX)
+      setDistanceFromPointer((e.offsetX/zoom))
     } else if(draggingSource) {
-      moveSelectedSources(e.offsetX, e.offsetY)
+      moveSelectedSources((e.offsetX/zoom), (e.offsetY/zoom))
     } else if(boxSelecting) {
-      selectionRect={x0:selectionStart[0], y0:selectionStart[1], x1:e.offsetX, y1:e.offsetY}
+      selectionRect={x0:selectionStart[0], y0:selectionStart[1], x1:(e.offsetX/zoom), y1:(e.offsetY/zoom)}
       redraw()
     } else if(drawing && sprayWidth > 0) {
-      addPts(e.offsetX,e.offsetY)
+      addPts((e.offsetX/zoom),(e.offsetY/zoom))
     } else {
-      if(hitReceiver(e.offsetX,e.offsetY)){
+      if(hitReceiver((e.offsetX/zoom),(e.offsetY/zoom))){
         cvs.style.cursor = 'ew-resize'
-      } else if(dragSourcesMode && nearestSourceIndex(e.offsetX, e.offsetY) >= 0){
+      } else if(dragSourcesMode && nearestSourceIndex((e.offsetX/zoom), (e.offsetY/zoom)) >= 0){
         cvs.style.cursor = 'grab'
       } else {
         cvs.style.cursor = dragSourcesMode ? 'default' : 'crosshair'
@@ -1125,7 +1170,7 @@ begin
   })
 
   cmpcvs.addEventListener('click', e => {
-    const hit = comparisonLegendHit(e.offsetX, e.offsetY)
+    const hit = comparisonLegendHit((e.offsetX/zoom), (e.offsetY/zoom))
     if(!hit) return
     if(hit.key === 'avg') {
       showAverageTrace = !showAverageTrace
@@ -1137,7 +1182,7 @@ begin
     drawComparisonPanel()
   })
   cmpcvs.addEventListener('mousemove', e => {
-    cmpcvs.style.cursor = comparisonLegendHit(e.offsetX, e.offsetY) ? 'pointer' : 'default'
+    cmpcvs.style.cursor = comparisonLegendHit((e.offsetX/zoom), (e.offsetY/zoom)) ? 'pointer' : 'default'
   })
 
   par.querySelector('#clrbtn').addEventListener('click',()=>{

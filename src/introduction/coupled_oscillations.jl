@@ -1,5 +1,5 @@
 ### A Pluto.jl notebook ###
-# v0.20.21
+# v0.2.6
 
 #> [frontmatter]
 #> title = "Oscillations"
@@ -52,14 +52,46 @@ Instructor: *Pawan Bharadwaj*,
 Indian Institute of Science, Bengaluru, India
 """
 
-# ╔═╡ b6180692-c401-4bcc-8f4f-60fb8c344ded
-md"Number of particles: $(@bind N Slider(2:10, show_value=true))"
-
 # ╔═╡ 133a1cfa-83be-475f-9a2c-bdbbd1563945
-@bind tplot Clock(0.1)
+md"The animation runs in the browser, so it stays smooth while you adjust the physical parameters."
+
+# ╔═╡ a6c6275f-eb39-475f-b931-c5c7b23f081c
+md"""
+## Make a normal mode visible
+
+Choose the number of masses, select a mode, and press **Play**. Every mass moves at the
+same angular frequency in a normal mode; the sign and size of each displacement are set by
+the eigenvector. Change one mass and compare the shifted eigenfrequencies below.
+"""
+
+# ╔═╡ ea21e0b2-e7eb-4c08-a44f-b7dfccc1dafe
+md"""
+!!! note "Fixed ends"
+	The end points are fixed. Each interior mass is connected to two springs, which is why the
+	diagonal stiffness is `2k` and the neighboring entries are `-k`.
+"""
 
 # ╔═╡ 2239ca8d-1c1a-4c96-ab96-afb3cc860775
-md"----"
+md"""
+## From springs to seismic normal modes
+
+The motion is a matrix version of the single oscillator. For displacement vector ``\mathbf{u}``,
+the system satisfies
+
+```math
+\mathbf{M}\,\ddot{\mathbf{u}} + \mathbf{K}\,\mathbf{u} = 0,
+\qquad
+\mathbf{K}\,\mathbf{U}_j = \omega_j^2\mathbf{M}\,\mathbf{U}_j .
+```
+
+Each eigenvector ``\mathbf{U}_j`` is a normal-mode shape and each ``\omega_j`` is its angular
+frequency. A non-uniform mass matrix changes both. This is the small-system analogue of how
+Earth structure changes the frequencies and shapes of seismic normal modes.
+
+!!! tip "A useful experiment"
+	Keep all masses at `1.00`, play mode 1, then increase one middle mass. The animation shows
+	the distorted mode shape; the bar chart reports the associated frequency changes.
+"""
 
 # ╔═╡ 7764caff-beb0-48f4-8978-204c74605ce8
 # Numeric eigen-solver approach
@@ -69,78 +101,20 @@ k_val = 1.0   # spring constant (can be exposed as a slider)
 # ╔═╡ d9b7fc36-8adb-4248-9f8c-0c60915d1c04
 m_val = 1.0   # mass of each particle
 
-# ╔═╡ a60dc0a5-c005-4d42-a60c-586cc3bbf3dd
-begin
-	K = zeros(Float64, N, N)
-	for i in 1:N
-	    K[i,i] = 2.0 * k_val
-	end
-	for i in 1:N-1
-	    K[i,i+1] = -k_val
-	    K[i+1,i] = -k_val
-	end
-end
-
 # ╔═╡ 5500fa59-1969-4a05-a2bf-5fc093a0fa57
-# Masses input UI: table-style using PlutoUI.combine
-function masses_input(N)
-    return PlutoUI.combine() do Child
-        rows = [ md"Mass $i: $(Child(string(:m, i), Slider(range(0.9, step=0.01, stop=1.1), default=m_val, show_value=true)))" for i in 1:N ]
-        md"""
-        Adjust masses for each block:
-        $(rows...)
-        """
-    end
+"""
+	sanitized_masses(raw, N; default=1.0)
+
+Turn the widget's untyped mass list into `N` physically valid masses. Values outside the
+demonstration range are clipped so the generalized eigenproblem remains well conditioned.
+"""
+function sanitized_masses(raw, N; default=1.0)
+	values = raw isa AbstractVector ? raw : Any[]
+	[
+		clamp(i <= length(values) ? try Float64(values[i]) catch; default end : default, 0.4, 2.0)
+		for i in 1:N
+	]
 end
-
-# ╔═╡ ea21e0b2-e7eb-4c08-a44f-b7dfccc1dafe
-@bind mass_pa confirm(masses_input(N))
-
-# ╔═╡ ce3e2a8e-b099-43ef-afc3-44a3907de1f8
-
-
-begin
-# Reference eigenfrequencies for uniform mass
-M_ref = m_val * I(N)
-eigsol_ref = eigen(Symmetric(K), Hermitian(M_ref))
-λ_ref = real(eigsol_ref.values)
-perm_ref = sortperm(λ_ref)
-λs_ref = λ_ref[perm_ref]
-vecs_ref = eigsol_ref.vectors[:, perm_ref]
-ωs_ref = sqrt.(λs_ref)
-
-# Build perturbed mass matrix from UI values
-mvec = [ get(mass_pa, Symbol("m" * string(i)), m_val) for i in 1:N ]
-@show mvec
-M = Diagonal(mvec)
-
-# Solve generalized eigenproblem with perturbed masses
-eigsol = eigen(Symmetric(K), Hermitian(M))
-λ = real(eigsol.values)
-perm = sortperm(λ)
-λs = λ[perm]
-vecs = eigsol.vectors[:, perm]
-ωs = sqrt.(λs)
-
-# Frequency perturbation
-Δω = ωs .- ωs_ref
-end
-
-# ╔═╡ a6c6275f-eb39-475f-b931-c5c7b23f081c
-md"Select the mode to visualize: $(@bind imode Slider(1:length(ωs), show_value=true))"
-
-# ╔═╡ 155f0b41-f9b3-43b2-95bf-30391e910e93
-bar(1:N, (Δω)./ωs_ref, xlabel="Mode index", ylabel="Relative frequency change", title="Relative eigenfrequency perturbation", legend=false, size=(600, 400))
-
-# ╔═╡ 4c901dfe-067c-4001-9268-ab58168f5552
-begin
-	# mass-normalize selected eigenvector
-	U = vecs[:, imode]
-	U = U / sqrt(dot(U, M * U))
-end
-
-# ╔═╡ bc314c08-b37a-47e4-a22e-0bb6b1e7ee5b
-points = [[0.2 * U[i] * cos(ωs[imode] * tplot) + x, 0] for (i, x) in zip(1:N, range(-1, stop = 1, length = N))];
 
 # ╔═╡ 0177d358-14fd-4554-bc94-fa88973c49e6
 md"## Appendix"
@@ -150,10 +124,19 @@ theme(:dark)
 
 # ╔═╡ 350e4fac-d61a-4650-9cee-f749abb99ae3
 md"""
-### Plotting
+### The numerical model
+
+The stiffness matrix represents identical springs and fixed ends. The widget provides the mass
+matrix, then Julia solves the generalized symmetric eigenproblem and returns the selected
+eigenvector to the browser canvas.
 """
 
 # ╔═╡ 88739b58-07f6-49bf-8644-35392f870358
+"""
+	spring_between(x1, x2; ncoils=8, amp=0.08, points_per_coil=20)
+
+Sample a decorative spring between two horizontal positions for static plotting.
+"""
 function spring_between(x1, x2; ncoils=8, amp=0.08, points_per_coil=20)
     # parametric zig-zag / sinusoidal spring between x1 and x2 at y=0
     L = x2 - x1
@@ -172,29 +155,179 @@ function spring_between(x1, x2; ncoils=8, amp=0.08, points_per_coil=20)
 end
 
 # ╔═╡ 3a85ed3b-6bcd-4073-b8ca-f518798e29c2
-function plotmasses(a, t=""; wide=false)
-    xs = first.(a)
-    ys = last.(a)
+begin
+    """
+	CoupledOscillatorInput(N=4, mode=1, masses=ones(N))
 
-   
-
-    # base scatter for masses (square markers)
-    p = scatter(xs, ys, marker = (:rect, 10), color = :yellow, markerstrokecolor = :white,
-                markerstrokewidth = 1.5, xlim = (-2,2), ylim = (-2,2), yaxis = nothing,
-                axis=nothing, label = nothing, size = (900, 300), title = t,
-               )
-
-    # draw springs between consecutive masses
-    for i in 1:length(xs)-1
-        xs_s, ys_s = spring_between(xs[i], xs[i+1]; ncoils=6, amp=0.12)
-        plot!(p, xs_s, ys_s, color = :white, lw = 1.6, label = nothing)
+    Store the physical controls for the coupled-oscillator demonstration. The browser owns
+    the smooth animation; Julia receives this state to solve the generalized eigenproblem.
+    """
+    struct CoupledOscillatorInput
+        N::Int
+        mode::Int
+        masses::Vector{Float64}
     end
 
-    return p
+    CoupledOscillatorInput() = CoupledOscillatorInput(4, 1, ones(4))
+
+    Base.get(w::CoupledOscillatorInput) = Dict{String,Any}(
+        "N" => w.N,
+        "mode" => w.mode,
+        "masses" => w.masses,
+    )
+
+    """
+	Base.show(io, ::MIME"text/html", w::CoupledOscillatorInput)
+
+    Render the control panel and high-density canvas for the normal-mode animation. The
+    selected eigenvector is supplied later by Julia through `coupled-oscillator-results`.
+    """
+    function Base.show(io::IO, ::MIME"text/html", w::CoupledOscillatorInput)
+        initial_masses = join(string.(w.masses), ",")
+        write(io, """
+<div id="cowidget">
+  <style>
+    #cowidget{width:100%;box-sizing:border-box;font:14px sans-serif;color:#d1d5db;background:#000;padding:12px;border-radius:7px}
+    #cowidget .co-title{width:100%;box-sizing:border-box;text-align:center;margin-bottom:10px;background:#0a0f18;border:1px solid #3b5c85;border-radius:6px;padding:10px 14px}
+    #cowidget .co-title-desc{font-size:17px;font-weight:700;color:#e5e7eb}
+    #cowidget .co-title-hint{font-size:13px;color:#9ca3af;margin-top:3px}
+    #cowidget canvas{display:block;width:100%;height:300px;background:#000;border:1px solid #374151;border-radius:5px;box-sizing:border-box}
+    #cowidget .co-controls{display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:8px;margin-top:9px}
+    #cowidget .co-group{min-width:0;background:#050505;border:1px solid #2f3744;border-radius:6px;padding:10px}
+    #cowidget .co-group-wide{grid-column:1 / -1}
+    #cowidget .co-control-title{font-size:20px;font-weight:700;color:#e5e7eb;margin-bottom:8px}
+    #cowidget .co-row{display:grid;grid-template-columns:minmax(75px,130px) minmax(70px,1fr) minmax(42px,62px);align-items:center;gap:7px;color:#9ca3af;margin:7px 0}
+    #cowidget input[type=range]{width:100%;min-width:0;accent-color:#38bdf8}
+    #cowidget .co-value{text-align:right;color:#f3f4f6;font-variant-numeric:tabular-nums}
+    #cowidget .co-masses{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:6px}
+    #cowidget button{border-radius:4px;border:1px solid #9ca3af;background:#075985;color:#f3f4f6;padding:6px 12px;font-size:14px;cursor:pointer}
+    #cowidget button:hover{background:#0c4a6e}
+    #cowidget .co-hint{color:#9ca3af;font-size:13px;margin:3px 0 0}
+    @media(max-width:560px){#cowidget canvas{height:240px}#cowidget .co-row{grid-template-columns:86px minmax(60px,1fr) 46px}}
+  </style>
+  <div class="co-title">
+    <div class="co-title-desc">A normal mode is a collective motion with one frequency and one fixed shape.</div>
+    <div class="co-title-hint">Adjust masses or mode &middot; press Play &middot; compare the frequency shift below</div>
+  </div>
+  <canvas id="co-canvas" aria-label="Animated coupled masses and springs"></canvas>
+  <div class="co-controls">
+    <section class="co-group">
+      <div class="co-control-title">System</div>
+      <div class="co-row"><label for="co-n">Masses</label><input id="co-n" type="range" min="2" max="10" step="1"><span id="co-nv" class="co-value"></span></div>
+      <div class="co-row"><label for="co-mode">Mode</label><input id="co-mode" type="range" min="1" step="1"><span id="co-modev" class="co-value"></span></div>
+      <button id="co-play" type="button">Play</button>
+      <span id="co-readout" class="co-hint"></span>
+    </section>
+    <section class="co-group co-group-wide">
+      <div class="co-control-title">Mass perturbation</div>
+      <div id="co-masses" class="co-masses"></div>
+      <div class="co-hint">Equal masses give the textbook sinusoidal modes. Alter one slider to break that symmetry.</div>
+    </section>
+  </div>
+  <script>
+  const script=document.currentScript, par=script.parentElement
+  const canvas=par.querySelector('#co-canvas'), ctx=canvas.getContext('2d')
+  const nInput=par.querySelector('#co-n'), modeInput=par.querySelector('#co-mode')
+  const nValue=par.querySelector('#co-nv'), modeValue=par.querySelector('#co-modev')
+  const massesBox=par.querySelector('#co-masses'), playButton=par.querySelector('#co-play'), readout=par.querySelector('#co-readout')
+  let state={n:$(w.N),mode:$(w.mode),masses:[$initial_masses],shape:[],frequency:0,playing:false,start:0}
+  function fallbackShape(){return Array.from({length:state.n},(_,i)=>Math.sin(Math.PI*state.mode*(i+1)/(state.n+1)))}
+  function syncMasses(){while(state.masses.length<state.n)state.masses.push(1);state.masses=state.masses.slice(0,state.n)}
+  function emit(){par.value={N:state.n,mode:state.mode,masses:state.masses};par.dispatchEvent(new CustomEvent('input'))}
+  function rebuildMasses(){massesBox.replaceChildren();syncMasses();state.masses.forEach((mass,i)=>{const row=document.createElement('div');row.className='co-row';const label=document.createElement('label');label.textContent='Mass '+(i+1);const input=document.createElement('input');input.type='range';input.min='0.4';input.max='2.0';input.step='0.01';input.value=mass;const value=document.createElement('span');value.className='co-value';value.textContent=Number(mass).toFixed(2);input.addEventListener('input',()=>{state.masses[i]=Number(input.value);value.textContent=state.masses[i].toFixed(2);emit()});row.append(label,input,value);massesBox.append(row)})}
+  function syncControls(){syncMasses();nInput.value=state.n;nValue.textContent=state.n;modeInput.max=state.n;state.mode=Math.min(state.mode,state.n);modeInput.value=state.mode;modeValue.textContent=state.mode;rebuildMasses()}
+  function resize(){const r=canvas.getBoundingClientRect(),dpr=Math.min(window.devicePixelRatio||1,2);canvas.width=Math.max(1,Math.round(r.width*dpr));canvas.height=Math.max(1,Math.round(r.height*dpr));ctx.setTransform(canvas.width/960,0,0,canvas.height/300,0,0);draw(performance.now())}
+  function spring(x1,x2,y){ctx.beginPath();const steps=90;for(let j=0;j<=steps;j++){const f=j/steps,x=x1+(x2-x1)*f,yy=y+Math.sin(f*Math.PI*12)*9;if(j===0)ctx.moveTo(x,yy);else ctx.lineTo(x,yy)}ctx.stroke()}
+  function draw(now){ctx.clearRect(0,0,960,300);ctx.fillStyle='#000';ctx.fillRect(0,0,960,300);const shape=state.shape.length===state.n?state.shape:fallbackShape(),phase=state.playing?Math.cos((now-state.start)*0.001*state.frequency):1;const left=78,right=882,base=150,spacing=(right-left)/(state.n+1);const xs=shape.map((v,i)=>left+(i+1)*spacing+v*42*phase);ctx.strokeStyle='#6b7280';ctx.lineWidth=2;ctx.beginPath();ctx.moveTo(left,base);ctx.lineTo(xs[0],base);ctx.moveTo(xs[xs.length-1],base);ctx.lineTo(right,base);ctx.stroke();ctx.strokeStyle='#e5e7eb';ctx.lineWidth=1.5;spring(left,xs[0],base);for(let i=0;i<xs.length-1;i++)spring(xs[i],xs[i+1],base);spring(xs[xs.length-1],right,base);ctx.fillStyle='#38bdf8';xs.forEach((x,i)=>{ctx.fillRect(x-13,base-13,26,26);ctx.fillStyle='#e5e7eb';ctx.font='14px sans-serif';ctx.textAlign='center';ctx.fillText('m'+(i+1),x,base+39);ctx.fillStyle='#38bdf8'});ctx.fillStyle='#9ca3af';ctx.textAlign='left';ctx.font='14px sans-serif';ctx.fillText('fixed end',left-28,205);ctx.textAlign='right';ctx.fillText('fixed end',right+28,205);ctx.textAlign='center';ctx.fillStyle='#f3f4f6';ctx.font='18px sans-serif';ctx.fillText('Mode '+state.mode+'  •  ω = '+(state.frequency||0).toFixed(3),480,40);readout.textContent=state.playing?'playing':'paused'}
+  function tick(now){draw(now);if(state.playing)requestAnimationFrame(tick)}
+  nInput.addEventListener('input',()=>{state.n=Number(nInput.value);state.mode=Math.min(state.mode,state.n);state.shape=[];syncControls();emit();draw(performance.now())})
+  modeInput.addEventListener('input',()=>{state.mode=Number(modeInput.value);state.shape=[];modeValue.textContent=state.mode;emit();draw(performance.now())})
+  playButton.addEventListener('click',()=>{state.playing=!state.playing;if(state.playing){state.start=performance.now();playButton.textContent='Pause';requestAnimationFrame(tick)}else{playButton.textContent='Play';draw(performance.now())}})
+  window.addEventListener('coupled-oscillator-results',event=>{try{const data=JSON.parse(event.detail);state.shape=data.shape||fallbackShape();state.frequency=Number(data.frequency)||0;state.mode=Number(data.mode)||state.mode;state.n=Number(data.n)||state.n;syncControls();draw(performance.now())}catch(err){console.error(err)}})
+  new ResizeObserver(resize).observe(canvas);syncControls();resize();emit()
+  </script>
+</div>
+        """)
+    end
+
+    const _co_ready = true
+end
+
+# ╔═╡ b6180692-c401-4bcc-8f4f-60fb8c344ded
+begin
+	_co_ready
+	WideCell(@bind co_state CoupledOscillatorInput())
+end
+
+# ╔═╡ a60dc0a5-c005-4d42-a60c-586cc3bbf3dd
+begin
+	N = clamp(Int(round(Float64(get(co_state, "N", 4)))), 2, 10)
+	imode = clamp(Int(round(Float64(get(co_state, "mode", 1)))), 1, N)
+	mvec = sanitized_masses(get(co_state, "masses", Float64[]), N; default=m_val)
+	K = zeros(Float64, N, N)
+	for i in 1:N
+	    K[i,i] = 2.0 * k_val
+	end
+	for i in 1:N-1
+	    K[i,i+1] = -k_val
+	    K[i+1,i] = -k_val
+	end
+end
+
+# ╔═╡ ce3e2a8e-b099-43ef-afc3-44a3907de1f8
+
+
+begin
+# Reference eigenfrequencies for uniform mass
+M_ref = m_val * I(N)
+eigsol_ref = eigen(Symmetric(K), Hermitian(M_ref))
+λ_ref = real(eigsol_ref.values)
+perm_ref = sortperm(λ_ref)
+λs_ref = λ_ref[perm_ref]
+vecs_ref = eigsol_ref.vectors[:, perm_ref]
+ωs_ref = sqrt.(λs_ref)
+
+# Build perturbed mass matrix from the widget values.
+M = Diagonal(mvec)
+
+# Solve generalized eigenproblem with perturbed masses
+eigsol = eigen(Symmetric(K), Hermitian(M))
+λ = real(eigsol.values)
+perm = sortperm(λ)
+λs = λ[perm]
+vecs = eigsol.vectors[:, perm]
+ωs = sqrt.(λs)
+
+# Frequency perturbation
+Δω = ωs .- ωs_ref
+end
+
+# ╔═╡ 155f0b41-f9b3-43b2-95bf-30391e910e93
+bar(1:N, (Δω)./ωs_ref, xlabel="Mode index", ylabel="Relative frequency change", title="Relative eigenfrequency perturbation", legend=false, size=(600, 400))
+
+# ╔═╡ 4c901dfe-067c-4001-9268-ab58168f5552
+begin
+	# mass-normalize selected eigenvector
+	U = vecs[:, imode]
+	U = U / sqrt(dot(U, M * U))
+end
+
+# ╔═╡ bc314c08-b37a-47e4-a22e-0bb6b1e7ee5b
+begin
+	mode_shape = copy(U)
+	mode_shape ./= max(maximum(abs.(mode_shape)), eps())
+	mode_frequency = ωs[imode]
 end
 
 # ╔═╡ 0133e2a2-525a-4ef2-a852-487c9191eba9
-WideCell(plotmasses(points, "N=$N particles; Mode=$imode; t=$tplot"))
+begin
+	shape_json = "[" * join(string.(mode_shape), ",") * "]"
+	payload = "{\"shape\":" * shape_json * ",\"frequency\":" * string(mode_frequency) *
+		",\"mode\":" * string(imode) * ",\"n\":" * string(N) * "}"
+	HTML("""<script>
+		window.dispatchEvent(new CustomEvent('coupled-oscillator-results', {detail: $(repr(payload))}));
+	</script>""")
+end
 
 # ╔═╡ 00000000-0000-0000-0000-000000000001
 PLUTO_PROJECT_TOML_CONTENTS = """

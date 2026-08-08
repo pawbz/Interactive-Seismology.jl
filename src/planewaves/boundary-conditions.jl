@@ -1,5 +1,5 @@
 ### A Pluto.jl notebook ###
-# v0.20.19
+# v0.2.6
 
 #> [frontmatter]
 #> layout = "layout.jlhtml"
@@ -20,6 +20,15 @@ macro bind(def, element)
         el
     end
     #! format: on
+end
+
+# ╔═╡ a08acdbe-9e7f-4404-8a29-aab612984839
+begin
+	using PlutoUI
+	using PlutoTeachingTools
+	using Symbolics
+	using SymbolicUtils
+	using LinearAlgebra
 end
 
 # ╔═╡ 5a5bbfc8-6ff7-11ef-39cb-b12385eb48ed
@@ -125,15 +134,6 @@ md"""
 
 # ╔═╡ f7503915-84e9-422d-865b-ca329c1a83ca
 collect(σ² * n) ~ 0
-
-# ╔═╡ a08acdbe-9e7f-4404-8a29-aab612984839
-begin
-	using PlutoUI
-	using PlutoTeachingTools
-	using Symbolics
-	using SymbolicUtils
-	using LinearAlgebra
-end
 
 # ╔═╡ 00000000-0000-0000-0000-000000000001
 PLUTO_PROJECT_TOML_CONTENTS = """

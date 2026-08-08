@@ -1,5 +1,5 @@
 ### A Pluto.jl notebook ###
-# v0.20.21
+# v0.2.6
 
 #> [frontmatter]
 #> title = "PREM Earth Free Oscillations"
@@ -24,24 +24,18 @@ end
 
 # ╔═╡ a751c6dc-414b-4ce8-b1b1-5aef8e23ab63
 begin
+	# `specnm`'s native deps (scipy/petsc4py/mpi4py/Cython) don't resolve cleanly
+	# through CondaPkg's managed micromamba env, so this notebook deliberately points
+	# PythonCall at a system Python with `specnm` installed manually instead.
 	ENV["JULIA_CONDAPKG_BACKEND"] = "Null"
-	ENV["JULIA_PYTHONCALL_EXE"] = "/opt/miniconda3/bin/python3"
+	local python_exe = "/opt/miniconda3/bin/python3"
+	isfile(python_exe) || error("specnm.jl expects a system Python at $python_exe with the `specnm` package installed manually (see the Environment & Package Setup section for why CondaPkg is disabled here) -- edit `python_exe` above if this machine's Python lives elsewhere.")
+	ENV["JULIA_PYTHONCALL_EXE"] = python_exe
 	using PythonCall
 end
 
 # ╔═╡ a9019660-1f03-4132-bccf-09bdb1421ad9
-begin
-	using CondaPkg
-	# CondaPkg.add("pytest")
-	# CondaPkg.add("sympy")
-	# CondaPkg.add("flake8")
-	# CondaPkg.add("Cython")
-	# CondaPkg.add("mpi4py")
-	# CondaPkg.add("petsc")
-	# CondaPkg.add("petsc4py")
-	# CondaPkg.add("slepc4py")
-	# CondaPkg.add_pip("specnm", version="@https://gitlab.com/JohKem1/specnm/-/archive/main/specnm-main.zip")
-end
+using CondaPkg
 
 # ╔═╡ 447b4e82-fe73-11ef-30b1-69824c8e3d24
 using PlutoPlotly
@@ -70,6 +64,30 @@ Instructor: *Pawan Bharadwaj*,
 Indian Institute of Science, Bengaluru, India
 """
 
+# ╔═╡ f2a1c3d4-7e6b-4a5c-9d8e-1b2c3d4e5f6a
+md"""
+##### What are spheroidal and toroidal modes?
+
+A planet's free oscillations split into two independent families, both indexed by
+angular degree `l` (spherical-harmonic degree, more nodal lines as `l` grows) and
+overtone number `n` (radial order -- `n=0` is the fundamental, higher `n` adds radial
+nodes):
+
+- **Spheroidal (`ₙSₗ`)**: motion has both radial and horizontal components, coupled
+  to gravity and compression -- shown as **U** (radial displacement), **V**
+  (horizontal displacement), and, for a self-gravitating solve, **P** (perturbation
+  to the gravitational potential).
+- **Toroidal (`ₙTₗ`)**: purely horizontal, rotational shearing motion with no radial
+  component and no coupling to gravity -- shown as **W** (horizontal displacement).
+  Toroidal modes don't exist in a fluid (they need shear rigidity), so they vanish
+  wherever `vs = 0` in the Earth model.
+
+The eigenfunction panel plots each component versus depth for whichever mode you
+click in the spectrum -- their zero-crossings are exactly the mode's radial nodes,
+and the amplitude near the surface versus near the core tells you how deeply that
+mode samples the planet.
+"""
+
 # ╔═╡ 82cc9219-7633-41c6-91e1-17968904b2b6
 md"## Real Data"
 
@@ -83,24 +101,20 @@ md"""
 End time after earthquake (min) $(@bind endtime_cut Slider(range(starttime_cut, 10 * 24 * 60, length=1000), show_value=true, default=5*24*60))
 """
 
-# ╔═╡ 5ec5e8d2-681b-4ce4-a581-478f00b91dc9
-md"## Specnm"
+# ╔═╡ 89c81d3c-67c1-4cc7-b892-d64208d845f2
+md"### Plots"
 
 # ╔═╡ 9b0a9a80-e65f-4385-a377-372e408b19ad
 md"## Appendix"
 
-# ╔═╡ 53495d28-cf5e-4108-9921-0ca016f1b24d
-# CondaPkg.add_pip("obspy")
+# ╔═╡ 2afaeeec-6fe2-48db-81de-1fa4ccb0fc1b
+md"### Get Stations"
 
 # ╔═╡ 79406ee0-6026-4da8-a29d-245048c27e47
 obspy = pyimport("obspy")
 
 # ╔═╡ acd7956a-855c-43f0-a353-7d5533f6aaf1
-begin
-	# Import ObsPy modules correctly
-	# obspy = pyimport("obspy.core")
-	fdsn = pyimport("obspy.clients.fdsn")
-end
+fdsn = pyimport("obspy.clients.fdsn")
 
 # ╔═╡ 335162fc-52c3-4c3d-bb88-d2e2f4fde37f
 client = fdsn.Client("IRIS")
@@ -108,106 +122,34 @@ client = fdsn.Client("IRIS")
 # ╔═╡ 58baaf3c-a5b3-4995-9f4e-c54946f7e798
 specnm = pyimport("specnm")
 
-# ╔═╡ 2ed394a0-c8df-4a73-9922-15163f70384f
-specnm.SurfaceWaveDispersion
-
 # ╔═╡ 5852bfac-a8ff-405e-8ed1-6438c6827091
-md"### Select Earth Model"
+md"### Select Earth Model & Solve"
 
 # ╔═╡ d99b1935-4f90-4b82-809c-b6a801c37e0d
-model_fname = "../specnm_models/prem_ani"
+"""
+All 13 model files under `src/specnm_models/`, spanning specnm's three
+auto-detected formats (deck, layered, poly).
+"""
+const SPECNM_MODEL_NAMES = ["europa", "homo-full-sphere", "homo-full-sphere-att",
+    "homo-full-sphere-dbl", "homo-full-sphere2", "mars", "mars_lvl", "prem_ani",
+    "prem_iso_one_crust", "prem_noat", "prem_noocean", "prem_noocean_noat", "vpremoon"]
 
 # ╔═╡ 1b22f312-9197-4044-ba9b-1f12789b88ff
-ray = specnm.rayleigh(model_fname, fmax=0.01)
+"""
+    specnm_overtones(angular_orders, l1_start)
 
-# ╔═╡ d9c71796-e79f-404d-89ef-54adfbd3335c
-ray_out = ray.rayleigh_problem(attenuation_mode="elastic", fmax=0.005)
-
-# ╔═╡ beddae25-17bc-48e9-8eef-41f21a08fb10
-begin
-	ray_angular_orders = pyconvert(Array, ray_out["angular orders"])
-	ray_frequencies = pyconvert(Array, ray_out["frequencies"] * 1000.0) # in mHz
-end;
-
-# ╔═╡ 69699338-d461-4e05-bbb4-a874ad4ad970
-ray_overtones = let 
-	angular_orders = pyconvert(Vector{Int}, ray_out["angular orders"])
-
-# Get unique values and their counts
-l_countmap = countmap(angular_orders)  # Dictionary of {l => count}
-l_uniq = collect(keys(l_countmap))  # Unique angular orders
-l_count = collect(values(l_countmap))  # Their counts
-
-# Compute overtones
-# Compute overtones
-overtones = vcat([lu != 1 ? collect(0:lc-1) : collect(2:lc+1) for (lu, lc) in zip(l_uniq, l_count)])
-
-# Convert to a single vector
-ray_overtones = collect(reduce(vcat, overtones))
-end;
-
-# ╔═╡ 55b7b9a8-caea-4ec6-b47d-937231eaaee8
-lov = specnm.love(model_fname, fmax=0.01)
-
-# ╔═╡ 3751319d-d1b8-484a-8a70-ad46a6a65634
-lov_out = lov.love_problem(attenuation_mode="full", fmax=0.005)
-
-# ╔═╡ c692b5d4-e136-47f4-9cc6-432d4e5ef3fe
-begin
-	lov_angular_orders = pyconvert(Array, lov_out["angular orders"])
-	lov_frequencies = pyconvert(Array, lov_out["frequencies"] * 1000.0) # in mHz
-end;
-
-# ╔═╡ c1238b16-770c-4a31-9e04-c8c9fb45e1f5
-lov_overtones = let 
-	angular_orders = pyconvert(Vector{Int}, lov_out["angular orders"])
-
-# Get unique values and their counts
-l_countmap = countmap(angular_orders)  # Dictionary of {l => count}
-l_uniq = collect(keys(l_countmap))  # Unique angular orders
-l_count = collect(values(l_countmap))  # Their counts
-
-# Compute overtones
-overtones = vcat([lu != 1 ? collect(0:lc-1) : collect(1:lc) for (lu, lc) in zip(l_uniq, l_count)])
-
-# Convert to a single vector
-lov_overtones = collect(reduce(vcat, overtones))
-end;
-
-# ╔═╡ 21d48160-8f70-4b15-9534-a7b0f5131335
-@bind cls_selected Select([(; cls=ray, cls_out=ray_out, angular_orders=ray_angular_orders, frequencies=ray_frequencies, overtones=ray_overtones) => "Spheroidal", (; cls=lov, cls_out=lov_out, angular_orders=lov_angular_orders, frequencies=lov_frequencies, overtones=lov_overtones) => "Toroidal"])
-
-# ╔═╡ 07f59b1f-faf3-46a2-80ff-82ea90ed4344
-cls_selected.angular_orders[31]
-
-# ╔═╡ 526c0fd9-4935-409e-82e0-059f5c084b57
-function read_model(filename::String)
-    # Read all lines from the file
-    lines = readlines(filename)
-
-    # Extract numeric data, skipping header and comment lines
-    data = []
-    for line in lines
-        # Skip lines that contain non-numeric text
-        words = split(line)
-        if length(words) > 0 && all(w -> tryparse(Float64, w) !== nothing, words)
-            push!(data, parse.(Float64, words))
-        end
-    end
-
-    # Convert list to matrix
-    data_matrix = hcat(data...)
-
-    # Extract relevant columns
-    radius = data_matrix[1, :]  # Column 1: Radius (m)
-    rho = data_matrix[2, :]     # Column 2: Density (kg/m³)
-    vp = data_matrix[3, :]      # Column 3: P-wave velocity (m/s)
-    vs = data_matrix[4, :]      # Column 4: S-wave velocity (m/s)
-
-    # Convert radius to depth (Earth's radius is ~6371 km)
-    depth = (6371000 .- radius) ./ 1000  # Convert meters to kilometers
-
-    return depth, rho, vp, vs
+Overtone number `n` for each mode in `angular_orders` (sorted by degree `l` as
+`specnm` returns them): within each `l`, overtones run `0, 1, 2, ...`, except at
+`l == 1` where the lowest `l1_start` overtones don't exist (translation/rotation
+modes for spheroidal, `l1_start = 2`; the missing `0T1` for toroidal, `l1_start = 1`)
+and numbering starts from `l1_start` instead.
+"""
+function specnm_overtones(angular_orders::AbstractVector{<:Integer}, l1_start::Integer)
+    l_countmap = countmap(angular_orders)
+    l_uniq = collect(keys(l_countmap))
+    l_count = collect(values(l_countmap))
+    overtones = vcat([lu != 1 ? collect(0:lc-1) : collect(l1_start:lc+l1_start-1) for (lu, lc) in zip(l_uniq, l_count)])
+    return collect(reduce(vcat, overtones))
 end
 
 # ╔═╡ b5bfa4ac-f20a-4d1a-b870-fe4a3fa52da3
@@ -244,22 +186,28 @@ earthquakes = [
 ]
 
 # ╔═╡ 849d1a59-2c2f-4e44-b45b-266382255b1a
-@bind clicked_eq let
-	p = PlutoPlot(Plot(scattergeo(
+# Same @bind-nested-argument ordering bug as cls_selected/clicked_mode above --
+# `earthquakes` is referenced only inside a nested list comprehension, so Pluto's
+# static dependency analysis can miss the edge on a fresh restart.
+begin
+	earthquakes
+	@bind clicked_eq let
+		p = PlutoPlot(Plot(scattergeo(
     lon=pyconvert.(Float64, [e[3] for e in earthquakes]), lat=pyconvert.(Float64, [e[2] for e in earthquakes]),
     text=pyconvert.(String, [string("M", e[4], " at ", e[1]) for e in earthquakes]),
     mode="markers", marker=attr(size=6, color="red")
 ), Layout(title="Earthquakes (click to select)")))
-	add_plotly_listener!(p,"plotly_click", "
-	(e) => {
+		add_plotly_listener!(p,"plotly_click", "
+		(e) => {
 
-	console.log(e)
+		console.log(e)
     let dt = e.points[0]
-	PLOT.value = [dt.lat, dt.lon]
-	PLOT.dispatchEvent(new CustomEvent('input'))
+		PLOT.value = [dt.lat, dt.lon]
+		PLOT.dispatchEvent(new CustomEvent('input'))
 }
-	")
-	p
+		")
+		p
+	end
 end
 
 # ╔═╡ 902f56d9-041d-4b4a-af72-1adcf20a4db1
@@ -275,9 +223,6 @@ begin
 	eq_lat = selected_details[3]
 	eq_lon = selected_details[4]
 end
-
-# ╔═╡ 2afaeeec-6fe2-48db-81de-1fa4ccb0fc1b
-md"### Get Stations"
 
 # ╔═╡ 73042ddf-790f-4a11-98b2-f9b6b9d29fe0
 begin
@@ -300,22 +245,25 @@ stations = [
 station_names = length(stations) > 0 ? [s[1] for s in stations] : ["No stations found"]
 
 # ╔═╡ 2d7e4963-1cee-413c-8541-e8e77962c1fe
-@bind clicked_station let
-	p = PlutoPlot(Plot(scattergeo(
+begin
+	stations; station_names
+	@bind clicked_station let
+		p = PlutoPlot(Plot(scattergeo(
     lon=pyconvert.(Float32, [e[3] for e in stations]), lat=pyconvert.(Float32, [e[2] for e in stations]),
     text=pyconvert.(String, [string(e) for e in station_names]),
     mode="markers", marker=attr(size=6, symbol="triangle-down", color="blue")
 ), Layout(title="GSN Stations (click to select)")))
-	add_plotly_listener!(p,"plotly_click", "
-	(e) => {
+		add_plotly_listener!(p,"plotly_click", "
+		(e) => {
 
-	console.log(e)
+		console.log(e)
     let dt = e.points[0]
-	PLOT.value = [dt.lat, dt.lon]
-	PLOT.dispatchEvent(new CustomEvent('input'))
+		PLOT.value = [dt.lat, dt.lon]
+		PLOT.dispatchEvent(new CustomEvent('input'))
 }
-	")
-	p
+		")
+		p
+	end
 end
 
 # ╔═╡ 5360665a-81ba-4cdb-8fdc-55829c6f4255
@@ -391,6 +339,225 @@ end;
 # ╔═╡ b57d88b9-bdd5-447b-ba24-30a7b1ea1e0b
 plot(data_cut)
 
+# ╔═╡ 39710dda-1054-491e-b9d5-7d8c4cb8e3a6
+"""
+    specnm_type_payload(cls, cls_out, angular_orders, frequencies, overtones)
+
+Serialize one solved class's (spheroidal or toroidal) full mode catalogue and
+eigenfunctions to a JSON object string for [`SpecnmBrowseView`](@ref): `l`/`f`/`n`
+per mode, component `labels` (`["U","V"]`, `["U","V","P"]`, or `["W"]`), the shared
+`depth` grid, and `ef` -- one flat **mode-major** array per component
+(`ef[c][mode*nradial + i]`, so the widget can slice out one mode's curve by index
+without any further Julia round-trip).
+"""
+function specnm_type_payload(cls, cls_out, angular_orders, frequencies, overtones)
+	num(x) = isfinite(x) ? string(round(Float64(x), digits=5)) : "0"
+	jsonarr(v) = "[" * join(num.(v), ",") * "]"
+	jsonintarr(v) = "[" * join(round.(Int, v), ",") * "]"
+
+	mode = pyconvert(String, cls.mode)
+	eigenfunctions = pyconvert(Matrix, cls_out["eigenfunctions"])
+	rad_grid = pyconvert(Array, cls.r ./ 1000.0)
+	radius_planet = pyconvert(Float64, cls.radius / 1000.0)
+	depth_grid = radius_planet .- rad_grid
+
+	if mode == "spheroidal"
+		sph_type = pyconvert(Int, cls.sph_type)
+		if sph_type == 3
+			labels = ["U", "V", "P"]
+			efs = [eigenfunctions[:, 1:3:end], eigenfunctions[:, 2:3:end], eigenfunctions[:, 3:3:end]]
+		else
+			labels = ["U", "V"]
+			efs = [eigenfunctions[:, 1:2:end], eigenfunctions[:, 2:2:end]]
+		end
+	else
+		labels = ["W"]
+		efs = [eigenfunctions]
+	end
+
+	ef_flat = [jsonarr(vec(permutedims(ef))) for ef in efs]
+	string(
+		"{\"l\":", jsonintarr(angular_orders),
+		",\"f\":", jsonarr(frequencies),
+		",\"n\":", jsonintarr(overtones),
+		",\"labels\":[", join(["\"$l\"" for l in labels], ","), "]",
+		",\"depth\":", jsonarr(depth_grid),
+		",\"nradial\":", length(depth_grid),
+		",\"ef\":[", join(ef_flat, ","), "]",
+		"}",
+	)
+end
+
+# ╔═╡ ecee2903-a103-498a-9aaf-b5d920f531f4
+md"### The Interactive Widgets"
+
+# ╔═╡ 71af98fe-12cb-42bf-b447-5afde0482e47
+begin
+    """
+        SpecnmSolveInput(; model="prem_ani", fmax=0.01)
+
+    Tier A -- the expensive, gated widget. Picks an Earth model + max frequency; the
+    actual `specnm.rayleigh`/`specnm.love` solve only fires on the **Compute** button
+    click (never on dropdown/slider drag), since mesh construction alone takes 40+
+    seconds and the full solve several minutes. Bound value is a `Dict{String,Any}`
+    with keys `"model"`, `"fmax"` (Pluto's default JS-object bond transport).
+    """
+    struct SpecnmSolveInput
+        model::String
+        fmax::Float64
+    end
+
+    SpecnmSolveInput(; model="prem_ani", fmax=0.01) = SpecnmSolveInput(model, Float64(fmax))
+
+    Base.get(w::SpecnmSolveInput) = Dict{String,Any}("model" => w.model, "fmax" => w.fmax)
+
+    function Base.show(io::IO, ::MIME"text/html", w::SpecnmSolveInput)
+        model_options = join(["<option value=\"$m\"" * (m == w.model ? " selected" : "") * ">$m</option>" for m in SPECNM_MODEL_NAMES], "\n          ")
+        write(io, """
+<div id="ssiwidget" style="display:flex;flex-direction:column;align-items:center;width:100%;color:#9ca3af">
+  <style>
+    pluto-cell:has(#ssiwidget){width:min(80vw,1000px)!important;margin-left:calc((100% - min(80vw,1000px))/2)!important}
+    #ssiwidget{width:100%;box-sizing:border-box;color:#d1d5db;font:14px sans-serif}
+    #ssiwidget .ssi-title{width:100%;box-sizing:border-box;text-align:center;margin-bottom:10px;background:#0a0f18;border:1px solid #3b5c85;border-radius:6px;padding:10px 14px}
+    #ssiwidget .ssi-title-desc{font-size:17px;font-weight:700;color:#e5e7eb}
+    #ssiwidget .ssi-title-hint{font-size:13px;color:#9ca3af;margin-top:3px}
+    #ssiwidget .ssi-controls{width:100%;display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:8px;font:14px sans-serif}
+    #ssiwidget .ssi-control-group{box-sizing:border-box;background:#050505;border:1px solid #2f3744;border-radius:6px;padding:10px 12px}
+    #ssiwidget .ssi-control-title{font-weight:700;color:#e5e7eb;margin-bottom:8px;font-size:18px}
+    #ssiwidget .ssi-control-row{display:grid;grid-template-columns:minmax(70px,90px) minmax(70px,1fr) minmax(50px,70px);gap:6px;align-items:center;margin:6px 0}
+    #ssiwidget .ssi-control-row input[type=range]{width:100%;min-width:0}
+    #ssiwidget .ssi-value{color:#d1d5db;text-align:right;font-variant-numeric:tabular-nums}
+    #ssiwidget select{width:100%;background:#111827;color:#e5e7eb;border:1px solid #374151;border-radius:4px;padding:5px 6px}
+    #ssiwidget .ssi-actions{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+    #ssiwidget button{border-radius:4px;border:1px solid #9ca3af;background:#606060;color:#f3f4f6;padding:6px 14px;font-size:14px;cursor:pointer}
+    #ssiwidget button:disabled{opacity:0.5;cursor:default}
+  </style>
+  <div class="ssi-title">
+    <div class="ssi-title-desc">Pick an Earth model and frequency cutoff, then solve for its normal modes.</div>
+    <div class="ssi-title-hint">the spectral-element solve takes anywhere from tens of seconds to several minutes -- it only runs on Compute, never while you're still adjusting the controls</div>
+  </div>
+  <div class="ssi-controls">
+    <div class="ssi-control-group">
+      <div class="ssi-control-title">Earth Model</div>
+      <select id="ssi-model">
+          $(model_options)
+      </select>
+    </div>
+    <div class="ssi-control-group">
+      <div class="ssi-control-title">Max Frequency</div>
+      <label class="ssi-control-row"><span>fmax (Hz)</span><input type="range" id="ssi-fmax" min="0.004" max="0.02" step="0.001" value="$(w.fmax)"><span id="ssi-fmax-v" class="ssi-value">$(w.fmax)</span></label>
+    </div>
+    <div class="ssi-control-group">
+      <div class="ssi-control-title">Compute</div>
+      <div class="ssi-actions">
+        <button id="ssi-compute" type="button">Compute</button>
+        <span id="ssi-status" style="font-size:13px">idle</span>
+      </div>
+    </div>
+  </div>
+</div>
+<script>
+  const par = currentScript.previousElementSibling
+  let model = "$(w.model)", fmax = $(w.fmax)
+
+  par.querySelector('#ssi-fmax').addEventListener('input', e=>{
+    fmax = parseFloat(e.target.value)
+    par.querySelector('#ssi-fmax-v').textContent = fmax.toFixed(3)
+  })
+  par.querySelector('#ssi-model').addEventListener('change', e=>{ model = e.target.value })
+
+  const computeBtn = par.querySelector('#ssi-compute')
+  const statusEl = par.querySelector('#ssi-status')
+  computeBtn.addEventListener('click', ()=>{
+    computeBtn.disabled = true
+    statusEl.style.color = '#9ca3af'
+    statusEl.textContent = 'computing... (can take a few minutes)'
+    par.value = {model, fmax}
+    par.dispatchEvent(new CustomEvent('input'))
+  })
+
+  window.addEventListener('specnm-solve-done', e=>{
+    const d = e.detail ? JSON.parse(e.detail) : null
+    computeBtn.disabled = false
+    if(!d){ return }
+    if(d.ok){ statusEl.style.color = '#4ade80'; statusEl.textContent = 'done' }
+    else { statusEl.style.color = '#f87171'; statusEl.textContent = 'error: ' + (d.error || 'solve failed') }
+  })
+</script>
+""")
+    end
+
+    # Forces the correct execution order on a fresh restart (Pluto's static
+    # dependency analysis doesn't reliably detect that the bind cell below depends
+    # on this cell defining SpecnmSolveInput) -- same pattern as `_epi_ready` in
+    # earth-internal-structure.jl.
+    const _ssi_ready = true
+end
+
+# ╔═╡ d9c71796-e79f-404d-89ef-54adfbd3335c
+begin
+	_ssi_ready
+	@bind specnm_solve SpecnmSolveInput()
+end
+
+# ╔═╡ beddae25-17bc-48e9-8eef-41f21a08fb10
+begin
+	model_fname = specnm_solve isa AbstractDict ? "../specnm_models/" * specnm_solve["model"] : "../specnm_models/prem_ani"
+	fmax_value = specnm_solve isa AbstractDict ? specnm_solve["fmax"] : 0.01
+end;
+
+# ╔═╡ 69699338-d461-4e05-bbb4-a874ad4ad970
+"""
+The actual (expensive) solve, gated behind `SpecnmSolveInput`'s Compute button --
+`model_fname`/`fmax_value` only change on a button click, never on drag/hover, so
+this cell (and the several-minutes-long spectral-element solve inside it) only
+reruns when the user explicitly asks for it. Wrapped in try/catch so a bad
+model/config (several of `SPECNM_MODEL_NAMES` are synthetic test fixtures with
+unverified solver behavior) surfaces a friendly in-widget error instead of an
+unreadable Python stacktrace cascading through a dozen downstream cells.
+"""
+specnm_result = let
+	try
+		ray = specnm.rayleigh(model_fname, fmax=fmax_value)
+		ray_out = ray.rayleigh_problem(attenuation_mode="elastic", fmax=fmax_value / 2)
+		ray_angular_orders = pyconvert(Array, ray_out["angular orders"])
+		ray_frequencies = pyconvert(Array, ray_out["frequencies"] * 1000.0) # in mHz
+		ray_overtones = specnm_overtones(pyconvert(Vector{Int}, ray_out["angular orders"]), 2)
+
+		lov = specnm.love(model_fname, fmax=fmax_value)
+		# NOTE: attenuation_mode differs from Rayleigh's ("elastic" vs "full") in the
+		# original notebook -- kept as-is (not silently "fixed") since it may be an
+		# intentional choice by the notebook's author; worth confirming with them.
+		lov_out = lov.love_problem(attenuation_mode="full", fmax=fmax_value / 2)
+		lov_angular_orders = pyconvert(Array, lov_out["angular orders"])
+		lov_frequencies = pyconvert(Array, lov_out["frequencies"] * 1000.0) # in mHz
+		lov_overtones = specnm_overtones(pyconvert(Vector{Int}, lov_out["angular orders"]), 1)
+
+		(; ok=true, error=nothing, ray, ray_out, ray_angular_orders, ray_frequencies, ray_overtones,
+			lov, lov_out, lov_angular_orders, lov_frequencies, lov_overtones)
+	catch e
+		(; ok=false, error=sprint(showerror, e), ray=nothing, ray_out=nothing,
+			ray_angular_orders=Int[], ray_frequencies=Float64[], ray_overtones=Int[],
+			lov=nothing, lov_out=nothing, lov_angular_orders=Int[], lov_frequencies=Float64[], lov_overtones=Int[])
+	end
+end;
+
+# ╔═╡ 55b7b9a8-caea-4ec6-b47d-937231eaaee8
+# Aliases restoring the plain top-level names (`ray`, `ray_out`, ...) the rest of the
+# notebook already uses -- keeps `cls_selected` and friends unchanged below.
+begin
+	ray = specnm_result.ray
+	ray_out = specnm_result.ray_out
+	ray_angular_orders = specnm_result.ray_angular_orders
+	ray_frequencies = specnm_result.ray_frequencies
+	ray_overtones = specnm_result.ray_overtones
+	lov = specnm_result.lov
+	lov_out = specnm_result.lov_out
+	lov_angular_orders = specnm_result.lov_angular_orders
+	lov_frequencies = specnm_result.lov_frequencies
+	lov_overtones = specnm_result.lov_overtones
+end;
+
 # ╔═╡ 1a67d073-bf07-4b01-beea-6c11013965be
 let
 	# Create spectrum plot
@@ -400,8 +567,10 @@ let
 		name="",
 	)]
 
-	# Add vertical lines at each mode frequency
-for (f, l, n) in zip(cls_selected[:frequencies], cls_selected[:angular_orders], cls_selected[:overtones])
+	# Add vertical lines at each mode frequency (spheroidal, matching the dropdown's
+	# former default selection -- the Spheroidal/Toroidal picker moved into
+	# SpecnmBrowseView above and no longer produces a `cls_selected` variable here)
+for (f, l, n) in zip(ray_frequencies, ray_angular_orders, ray_overtones)
     push!(spectrum_plot, scatter(
         x=[f, f],  # Vertical line at frequency f
         y=[0, maximum(spectrum)],  # Span full range of l
@@ -421,131 +590,280 @@ end
 	))
 end
 
-# ╔═╡ 89c81d3c-67c1-4cc7-b892-d64208d845f2
-md"### Plots"
+# ╔═╡ 3751319d-d1b8-484a-8a70-ad46a6a65634
+specnm_result.error === nothing ? nothing :
+	Markdown.MD(Markdown.Admonition("danger", "Solve failed", [Markdown.Paragraph(specnm_result.error)]))
 
-# ╔═╡ ef32df8e-5053-4c00-8ab8-2087f7771051
-pyconvert(Array, ray_out["frequencies"] * 1000.0)
-
-# ╔═╡ 39710dda-1054-491e-b9d5-7d8c4cb8e3a6
-function spectrum_plot(cls, cls_out;
-                      plot_title=true, plot_efs=true, exclude_slichter=false,
-                      plot_wavenumber=false, plot_phasevelocity=false,
-                      init_mode=nothing)
-        oplotcolors = ["#e31a1c", "#33a02c", "#ff7f00", "#1f78b4"]
-
-        # addt = 1 + Int(exclude_slichter) * Int(cls.sph_type > 1)
-
-        ls = cls_out["angular orders"]
-        if plot_wavenumber
-            xlabel = "wave number k in km"
-            xs = pyconvert(Array, cls_out["wave numbers"] .* cls_out["radius"][end] / 1000.0)
-        else
-            xlabel = "angular degree l"
-            xs = pyconvert(Array, cls_out["angular orders"])
-        end
-
-        if plot_phasevelocity
-            ylabel = "phase velocity in km/s"
-            fcp = pyconvert(Array, cls_out["phase velocities"] / 1000.0)
-        else
-            ylabel = "frequency in mHz"
-            fcp = pyconvert(Array, cls_out["frequencies"] * 1000.0)
-        end
-
-        return Plot(scatter(x=xs, y=fcp, mode="markers", marker_size=4, marker_color="black"), Layout(xaxis=attr(title=xlabel), yaxis=attr(title=ylabel), title="Type: $(cls.mode), Modelname: $(cls.modelname)"))
-
-    end
+# ╔═╡ c692b5d4-e136-47f4-9cc6-432d4e5ef3fe
+# Push solve status back to the SpecnmSolveInput widget so its "computing..." label
+# resolves to "done"/"error: ..." once this cell (re)runs.
+let
+	payload = string("{\"ok\":", specnm_result.ok, ",\"error\":",
+		specnm_result.error === nothing ? "null" : repr(replace(specnm_result.error, "\"" => "'")),
+		"}")
+	HTML("""<script>window.dispatchEvent(new CustomEvent('specnm-solve-done', {detail: $(repr(payload))}));</script>""")
+end
 
 # ╔═╡ 58041dd4-fd1c-4223-a00d-d4e98a7ef412
-@bind clicked_mode let
-	p = PlutoPlot(spectrum_plot(cls_selected[:cls], cls_selected[:cls_out]))
-	add_plotly_listener!(p,"plotly_click", "
-	(e) => {
-
-	console.log(e)
-    let dt = e.points[0]
-	PLOT.value = [dt.x, dt.y]
-	PLOT.dispatchEvent(new CustomEvent('input'))
-}
-	")
-	p
-end
-
-# ╔═╡ bf3349da-ad56-4c4b-9b5c-c2e138abd1c0
-clicked_mode
-
-# ╔═╡ ecee2903-a103-498a-9aaf-b5d920f531f4
-"""
-Plot eigenfunctions
-"""
-function eigenfunction_plot(cls_selected, clicked_mode)
-	cls = cls_selected[:cls]
-	cls_out = cls_selected[:cls_out]
-	eigenfunctions = pyconvert(Matrix, cls_out["eigenfunctions"])
-	xs = pyconvert(Array, cls_out["angular orders"])
-	fcp = pyconvert(Array, cls_out["frequencies"] * 1000.0) # in mHz
-	 if pyconvert(String, cls.mode) == "spheroidal"
-				
-                if pyconvert(Int, cls.sph_type) == 3
-                    plabels = ["U", "V", "P"]
-                    efs = [eigenfunctions[:, 1:3:end],
-                           eigenfunctions[:, 2:3:end],
-                           eigenfunctions[:, 3:3:end]]
-                else
-                    plabels = ["U", "V"]
-                    efs = [eigenfunctions[:, 1:2:end],
-                           eigenfunctions[:, 2:2:end]]
-                end
-            elseif pyconvert(String, cls.mode) == "radial"
-                plabels = ["U"]
-                efs = [eigenfunctions]
-            elseif pyconvert(String, cls.mode) == "toroidal"
-                plabels = ["W"]
-                efs = [eigenfunctions]
-            else
-                error("Not implemented for type $(cls.mode)")
-            end
-	rad_grid = pyconvert(Array, cls.r / 1000.00)
-	# depth_grid = pyconvert(Float64, cls.radius / 1000.00) .- 
-	depth_grid = -1.0 .* (rad_grid  .- pyconvert(Float64, cls.radius / 1000.00))
-	dataid = findfirst(x -> isapprox([x...], clicked_mode, atol=1e-3), collect(zip(pyconvert(Array, cls_out["angular orders"]), pyconvert(Array, cls_out["frequencies"] .* 1000.0))))
-	traces = map(efs, plabels) do e, label
-		scatter(x=e[dataid, :], y=depth_grid, name=label)
+# Push the full mode catalogue (both families) + eigenfunctions + Earth-model profile
+# to SpecnmBrowseView in one shot after a (re)solve -- ~85k floats for prem_ani,
+# small enough that all of the widget's browsing below (family toggle, click-select,
+# hover) is pure client-side array indexing, zero further Julia round-trips.
+let
+	num(x) = isfinite(x) ? string(round(Float64(x), digits=5)) : "0"
+	jsonarr(v) = "[" * join(num.(v), ",") * "]"
+	if specnm_result.ok
+		em_radius = pyconvert(Float64, specnm_result.ray.radius / 1000.0)
+		em_depth = em_radius .- pyconvert(Array, specnm_result.ray.r ./ 1000.0)
+		em_rho = pyconvert(Array, specnm_result.ray.rho)
+		em_vp = pyconvert(Array, specnm_result.ray.vp)
+		em_vs = pyconvert(Array, specnm_result.ray.vs)
+		payload = string(
+			"{\"spheroidal\":", specnm_type_payload(specnm_result.ray, specnm_result.ray_out, specnm_result.ray_angular_orders, specnm_result.ray_frequencies, specnm_result.ray_overtones),
+			",\"toroidal\":", specnm_type_payload(specnm_result.lov, specnm_result.lov_out, specnm_result.lov_angular_orders, specnm_result.lov_frequencies, specnm_result.lov_overtones),
+			",\"earth_model\":{\"depth\":", jsonarr(em_depth), ",\"rho\":", jsonarr(em_rho), ",\"vp\":", jsonarr(em_vp), ",\"vs\":", jsonarr(em_vs), "}",
+			",\"model_name\":\"", basename(model_fname), "\"",
+			"}",
+		)
+		HTML("""<script>window.dispatchEvent(new CustomEvent('specnm-browse-data', {detail: $(repr(payload))}));</script>""")
 	end
-	l = xs[dataid]
-	n = cls_selected[:overtones][dataid]
-	plot(traces, Layout(title="Eigen function; f (mHz): $(round(fcp[dataid], digits=3))<br> 
-	period (min): $(round(inv(fcp[dataid])*1000.0/60.0, digits=3))<br><sub>$(n)</sub>S<sub>$(l)</sub>", width=300, height=550, yaxis=attr(range=[7000, -100], title="depth in km")))
-	
-	# plot(scatter(x=f[dataid, :], y=cls.r / 1000.0, mode="lines", line_color=oplotcolors[e], name=plabels[e]), )
-end
-
-# ╔═╡ 71af98fe-12cb-42bf-b447-5afde0482e47
-"""
-Plot vp, vs and rho as a function of depth
-"""
-function plot_Earth_model(model_fname)
-	depth, rho, vp, vs = read_model(model_fname)
-    # Create traces for each variable
-    trace_rho = scatter(x=rho, y=depth, mode="lines", name="Density (kg/m³)", line=attr(color="red"))
-    trace_vp = scatter(x=vp, y=depth, mode="lines", name="P-Wave Velocity (m/s)", line=attr(color="blue"))
-    trace_vs = scatter(x=vs, y=depth, mode="lines", name="S-Wave Velocity (m/s)", line=attr(color="green"))
-
-    # Create figure with reversed depth axis
-    fig = plot([trace_rho, trace_vp, trace_vs],
-        Layout(title="Earth Model",
-               xaxis_title="Property Value",
-               yaxis_title="depth in km",
-               yaxis=attr(range=[7000, -100]),  # Depth increases downward
-               legend=attr(x=0.9, y=1), width=400, height=550,
-        )
-    )
-    return fig
 end
 
 # ╔═╡ a9bbb105-3138-481d-9a73-0ec2b8303c36
-WideCell(PlutoUI.ExperimentalLayout.hbox([plot_Earth_model(model_fname), eigenfunction_plot(cls_selected, clicked_mode)]))
+begin
+    """
+        SpecnmBrowseView()
+
+    Tier B -- the cheap, live-browsing widget. Entirely fed by a `CustomEvent` pushed
+    once after [`SpecnmSolveInput`](@ref)'s solve completes (see the push cell above);
+    every interaction below (spheroidal/toroidal toggle, hover, click-to-select a
+    mode) is then pure client-side array indexing with zero further Julia calls.
+    Three canvases: the mode spectrum (angular order `l` vs frequency, colored by
+    overtone `n`), the selected mode's eigenfunction(s) vs depth, and the solved
+    Earth model's density/velocity profile vs depth.
+    """
+    struct SpecnmBrowseView end
+
+    function Base.show(io::IO, ::MIME"text/html", w::SpecnmBrowseView)
+        write(io, """
+<div id="sbvwidget" style="display:flex;flex-direction:column;align-items:center;width:100%;color:#9ca3af">
+  <style>
+    pluto-cell:has(#sbvwidget){width:min(90vw,1400px)!important;margin-left:calc((100% - min(90vw,1400px))/2)!important}
+    #sbvwidget{width:100%;box-sizing:border-box;color:#d1d5db;font:14px sans-serif}
+    #sbvwidget .sbv-title{width:100%;box-sizing:border-box;text-align:center;margin-bottom:10px;background:#0a0f18;border:1px solid #3b5c85;border-radius:6px;padding:10px 14px}
+    #sbvwidget .sbv-title-desc{font-size:17px;font-weight:700;color:#e5e7eb}
+    #sbvwidget .sbv-title-hint{font-size:13px;color:#9ca3af;margin-top:3px}
+    #sbvwidget .sbv-workspace{display:flex;gap:12px;align-items:flex-start;justify-content:center;width:100%;flex-wrap:wrap}
+    #sbvwidget canvas{background:#000;border:1px solid #374151;border-radius:6px;display:block;cursor:crosshair}
+    #sbvwidget .sbv-controls{width:100%;margin-top:8px;display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:8px;font:14px sans-serif}
+    #sbvwidget .sbv-control-group{box-sizing:border-box;background:#050505;border:1px solid #2f3744;border-radius:6px;padding:10px 12px}
+    #sbvwidget .sbv-control-title{font-weight:700;color:#e5e7eb;margin-bottom:8px;font-size:18px}
+    #sbvwidget .sbv-actions{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+    #sbvwidget label{color:#d1d5db}
+  </style>
+  <div class="sbv-title">
+    <div class="sbv-title-desc">Every mode from the last Compute, browsed for free -- no re-solve needed.</div>
+    <div class="sbv-title-hint">click a point in the spectrum to see its eigenfunction &middot; hover to identify a mode &middot; toggle spheroidal/toroidal</div>
+  </div>
+  <div class="sbv-workspace">
+    <canvas id="sbvspectrum" width="440" height="440"></canvas>
+    <canvas id="sbveigen" width="260" height="440"></canvas>
+    <canvas id="sbvmodel" width="260" height="440"></canvas>
+  </div>
+  <div class="sbv-controls">
+    <div class="sbv-control-group">
+      <div class="sbv-control-title">Mode Family</div>
+      <div class="sbv-actions">
+        <label><input type="radio" name="sbv-type" id="sbv-type-s" checked> Spheroidal</label>
+        <label><input type="radio" name="sbv-type" id="sbv-type-t"> Toroidal</label>
+      </div>
+    </div>
+    <div class="sbv-control-group">
+      <div class="sbv-control-title">Status</div>
+      <div id="sbv-status" style="font-size:13px;color:#9ca3af">waiting for a Compute run</div>
+    </div>
+  </div>
+</div>
+<script>
+  const par = currentScript.previousElementSibling
+  const availW = Math.min(window.innerWidth*0.9, par.clientWidth || window.innerWidth*0.9, 1400)
+  const totalW = Math.max(760, availW)
+  const SPW = Math.round(Math.min(totalW*0.45, 480)), SIDEW = Math.round(Math.min(totalW*0.25, 280))
+  const H = Math.round(Math.min(window.innerHeight - 380, 480, 440))
+  const DPR = Math.min(window.devicePixelRatio || 1, 2)
+
+  let data = null       // {spheroidal:{...}, toroidal:{...}, earth_model:{...}, model_name}
+  let curType = 'spheroidal'
+  let selIdx = -1, hoverIdx = -1
+
+  const spCvs = par.querySelector('#sbvspectrum'), sctx = spCvs.getContext('2d')
+  const eiCvs = par.querySelector('#sbveigen'), ectx = eiCvs.getContext('2d')
+  const moCvs = par.querySelector('#sbvmodel'), mctx = moCvs.getContext('2d')
+  function hidpi(cv, cx, w, h){ cv.width=Math.round(w*DPR); cv.height=Math.round(h*DPR); cv.style.width=w+'px'; cv.style.height=h+'px'; cx.setTransform(DPR,0,0,DPR,0,0) }
+  hidpi(spCvs, sctx, SPW, H); hidpi(eiCvs, ectx, SIDEW, H); hidpi(moCvs, mctx, SIDEW, H)
+
+  const PAD_L = 42, PAD_R = 12, PAD_T = 10, PAD_B = 26
+
+  // Categorical palette cycling by overtone number, readable on black.
+  const PALETTE = ['#38bdf8','#f97316','#4ade80','#facc15','#f472b6','#a78bfa','#fb7185','#2dd4bf','#fbbf24','#818cf8']
+  function branchColor(n){ return PALETTE[((n%PALETTE.length)+PALETTE.length)%PALETTE.length] }
+
+  function cur(){ return data ? data[curType] : null }
+
+  function drawSpectrum(){
+    sctx.clearRect(0,0,SPW,H)
+    const d = cur()
+    if(!d){
+      sctx.fillStyle = '#6b7280'; sctx.font = '13px sans-serif'
+      sctx.fillText('press Compute above to solve a model', 12, 20)
+      return
+    }
+    const x0=PAD_L, x1=SPW-PAD_R, y0=PAD_T, y1=H-PAD_B
+    const lmax = Math.max(...d.l), fmax = Math.max(...d.f)*1.05
+    const X = l => x0 + (l/lmax)*(x1-x0)
+    const Y = f => y1 - (f/fmax)*(y1-y0)
+
+    sctx.strokeStyle = '#1f2937'; sctx.fillStyle = '#9ca3af'; sctx.font = '10px sans-serif'; sctx.textAlign = 'right'
+    for(let i=0;i<=5;i++){ const f = fmax*i/5, y = Y(f); sctx.beginPath(); sctx.moveTo(x0,y); sctx.lineTo(x1,y); sctx.stroke(); sctx.fillText(f.toFixed(1), x0-6, y+3) }
+    sctx.textAlign = 'center'
+    for(let i=0;i<=5;i++){ const l = lmax*i/5, x = X(l); sctx.fillText(Math.round(l)+'', x, y1+14) }
+    sctx.fillStyle = '#e5e7eb'; sctx.font = '12px sans-serif'
+    sctx.fillText((curType==='spheroidal'?'Spheroidal':'Toroidal') + ' spectrum -- ' + (data.model_name||''), (x0+x1)/2, 16)
+    sctx.font = '11px sans-serif'; sctx.fillStyle = '#9ca3af'
+    sctx.fillText('angular degree l', (x0+x1)/2, H-4)
+    sctx.save(); sctx.translate(12, (y0+y1)/2); sctx.rotate(-Math.PI/2); sctx.fillText('frequency (mHz)', 0, 0); sctx.restore()
+
+    for(let i=0;i<d.l.length;i++){
+      const isSel = i===selIdx, isHov = i===hoverIdx
+      sctx.beginPath()
+      sctx.arc(X(d.l[i]), Y(d.f[i]), isSel?5:(isHov?4:2.5), 0, 2*Math.PI)
+      sctx.fillStyle = branchColor(d.n[i])
+      sctx.globalAlpha = (selIdx===-1 || isSel || isHov) ? 0.9 : 0.35
+      sctx.fill()
+      sctx.globalAlpha = 1
+      if(isSel){ sctx.strokeStyle = '#f5f3ef'; sctx.lineWidth = 1.4; sctx.stroke() }
+    }
+
+    if(hoverIdx>=0){
+      const label = (curType==='spheroidal'?'S':'T') + ': l='+d.l[hoverIdx]+' n='+d.n[hoverIdx]+' f='+d.f[hoverIdx].toFixed(3)+'mHz'
+      sctx.font='12px sans-serif'
+      const tw = sctx.measureText(label).width
+      const tx = Math.min(X(d.l[hoverIdx])+8, SPW-tw-14), ty = 34
+      sctx.fillStyle = 'rgba(11,18,32,0.9)'; sctx.fillRect(tx-5, ty-13, tw+10, 18)
+      sctx.strokeStyle = '#374151'; sctx.strokeRect(tx-5, ty-13, tw+10, 18)
+      sctx.fillStyle = '#e5e7eb'; sctx.textAlign='left'; sctx.fillText(label, tx, ty)
+    }
+  }
+
+  function nearestIndex(mx, my){
+    const d = cur(); if(!d) return -1
+    const x0=PAD_L, x1=SPW-PAD_R, y0=PAD_T, y1=H-PAD_B
+    const lmax = Math.max(...d.l), fmax = Math.max(...d.f)*1.05
+    const X = l => x0 + (l/lmax)*(x1-x0), Y = f => y1 - (f/fmax)*(y1-y0)
+    let best=-1, bestD=10
+    for(let i=0;i<d.l.length;i++){
+      const dd = Math.hypot(mx-X(d.l[i]), my-Y(d.f[i]))
+      if(dd<bestD){ bestD=dd; best=i }
+    }
+    return best
+  }
+
+  function drawEigen(){
+    ectx.clearRect(0,0,SIDEW,H)
+    const d = cur()
+    const x0=PAD_L, x1=SIDEW-PAD_R, y0=PAD_T+14, y1=H-PAD_B
+    if(!d || selIdx<0){
+      ectx.fillStyle = '#6b7280'; ectx.font = '12px sans-serif'
+      ectx.fillText('click a mode', 10, 18)
+      return
+    }
+    const nr = d.nradial, depth = d.depth
+    const depthMax = depth[depth.length-1]
+    const Y = dep => y0 + (dep/depthMax)*(y1-y0)
+    let vmax = 1e-9
+    for(const comp of d.ef){ for(let i=0;i<nr;i++) vmax = Math.max(vmax, Math.abs(comp[selIdx*nr+i])) }
+    const X = v => (x0+x1)/2 + (v/vmax)*(x1-x0)*0.48
+
+    ectx.strokeStyle = '#1f2937'; ectx.fillStyle = '#9ca3af'; ectx.font='10px sans-serif'; ectx.textAlign='right'
+    for(let i=0;i<=5;i++){ const dep=depthMax*i/5, y=Y(dep); ectx.beginPath(); ectx.moveTo(x0,y); ectx.lineTo(x1,y); ectx.stroke(); ectx.fillText(Math.round(dep)+'', x0-6, y+3) }
+    ectx.strokeStyle = '#374151'; ectx.beginPath(); ectx.moveTo(X(0),y0); ectx.lineTo(X(0),y1); ectx.stroke()
+
+    const colors = ['#38bdf8','#f97316','#4ade80']
+    d.ef.forEach((comp, c) => {
+      ectx.strokeStyle = colors[c%colors.length]; ectx.lineWidth = 1.8
+      ectx.beginPath()
+      for(let i=0;i<nr;i++){ const px=X(comp[selIdx*nr+i]), py=Y(depth[i]); i===0?ectx.moveTo(px,py):ectx.lineTo(px,py) }
+      ectx.stroke()
+    })
+    ectx.textAlign='center'; ectx.fillStyle='#e5e7eb'; ectx.font='12px sans-serif'
+    const nS = (curType==='spheroidal') ? 'S' : 'T'
+    ectx.fillText(d.n[selIdx]+nS+d.l[selIdx]+'  f='+d.f[selIdx].toFixed(3)+'mHz', (x0+x1)/2, 16)
+    ectx.font='11px sans-serif'
+    d.labels.forEach((lab,c)=>{ ectx.fillStyle = colors[c%colors.length]; ectx.fillText(lab, x0+16+c*24, H-6) })
+    ectx.save(); ectx.translate(12, (y0+y1)/2); ectx.rotate(-Math.PI/2); ectx.fillStyle='#9ca3af'; ectx.fillText('depth (km)', 0, 0); ectx.restore()
+  }
+
+  function drawModel(){
+    mctx.clearRect(0,0,SIDEW,H)
+    const em = data ? data.earth_model : null
+    const x0=PAD_L, x1=SIDEW-PAD_R, y0=PAD_T+14, y1=H-PAD_B
+    if(!em){
+      mctx.fillStyle = '#6b7280'; mctx.font = '12px sans-serif'
+      mctx.fillText('no model solved yet', 10, 18)
+      return
+    }
+    const depthMax = em.depth[em.depth.length-1]
+    const Y = dep => y0 + (dep/depthMax)*(y1-y0)
+    const series = [['rho','#f97316','density (kg/m3)'], ['vp','#38bdf8','vp (m/s)'], ['vs','#4ade80','vs (m/s)']]
+
+    mctx.strokeStyle = '#1f2937'; mctx.fillStyle = '#9ca3af'; mctx.font='10px sans-serif'; mctx.textAlign='right'
+    for(let i=0;i<=5;i++){ const dep=depthMax*i/5, y=Y(dep); mctx.beginPath(); mctx.moveTo(x0,y); mctx.lineTo(x1,y); mctx.stroke(); mctx.fillText(Math.round(dep)+'', x0-6, y+3) }
+
+    series.forEach(([key,color,label], si)=>{
+      const vals = em[key]
+      const vmax = Math.max(...vals)*1.05
+      const X = v => x0 + (v/vmax)*(x1-x0)
+      mctx.strokeStyle = color; mctx.lineWidth = 1.8
+      mctx.beginPath()
+      for(let i=0;i<vals.length;i++){ const px=X(vals[i]), py=Y(em.depth[i]); i===0?mctx.moveTo(px,py):mctx.lineTo(px,py) }
+      mctx.stroke()
+      mctx.fillStyle = color; mctx.font='11px sans-serif'; mctx.textAlign='left'
+      mctx.fillText(label, x0+4, 16+si*12)
+    })
+    mctx.textAlign='center'; mctx.fillStyle='#e5e7eb'; mctx.font='12px sans-serif'
+    mctx.fillText('Earth model', (x0+x1)/2, y0-2)
+    mctx.save(); mctx.translate(12, (y0+y1)/2); mctx.rotate(-Math.PI/2); mctx.fillStyle='#9ca3af'; mctx.font='11px sans-serif'; mctx.fillText('depth (km)', 0, 0); mctx.restore()
+  }
+
+  function redraw(){ drawSpectrum(); drawEigen(); drawModel() }
+  redraw()
+
+  spCvs.addEventListener('mousemove', e=>{
+    const i = nearestIndex(e.offsetX, e.offsetY)
+    if(i !== hoverIdx){ hoverIdx = i; drawSpectrum() }
+  })
+  spCvs.addEventListener('mouseleave', ()=>{ if(hoverIdx!==-1){ hoverIdx=-1; drawSpectrum() } })
+  spCvs.addEventListener('click', e=>{
+    const i = nearestIndex(e.offsetX, e.offsetY)
+    if(i>=0){ selIdx = i; drawSpectrum(); drawEigen() }
+  })
+
+  par.querySelector('#sbv-type-s').addEventListener('change', ()=>{ curType='spheroidal'; selIdx=-1; hoverIdx=-1; redraw() })
+  par.querySelector('#sbv-type-t').addEventListener('change', ()=>{ curType='toroidal'; selIdx=-1; hoverIdx=-1; redraw() })
+
+  window.addEventListener('specnm-browse-data', e=>{
+    data = JSON.parse(e.detail)
+    par.querySelector('#sbv-status').textContent = 'model: ' + (data.model_name||'') + '  (' + data.spheroidal.l.length + ' spheroidal, ' + data.toroidal.l.length + ' toroidal modes)'
+    selIdx = -1; hoverIdx = -1
+    redraw()
+  })
+</script>
+""")
+    end
+end
+
+# ╔═╡ bf3349da-ad56-4c4b-9b5c-c2e138abd1c0
+SpecnmBrowseView()
 
 # ╔═╡ 00000000-0000-0000-0000-000000000001
 PLUTO_PROJECT_TOML_CONTENTS = """
@@ -560,8 +878,8 @@ StatsBase = "2913bbd2-ae8a-5f71-8c99-4fb6c76f3a91"
 [compat]
 CondaPkg = "~0.2.33"
 FFTW = "~1.10.0"
-PlutoPlotly = "~0.6.5"
-PlutoUI = "~0.7.78"
+PlutoPlotly = "~0.6.6"
+PlutoUI = "~0.7.83"
 PythonCall = "~0.9.31"
 StatsBase = "~0.34.10"
 """
@@ -1231,11 +1549,9 @@ version = "0.41.3+0"
 # ╔═╡ Cell order:
 # ╠═cd3c5ff7-7992-41f7-9a5e-29934a1355ca
 # ╟─bdae265d-3a96-4ecc-a6dd-c166357e801c
-# ╟─21d48160-8f70-4b15-9534-a7b0f5131335
-# ╟─58041dd4-fd1c-4223-a00d-d4e98a7ef412
-# ╟─a9bbb105-3138-481d-9a73-0ec2b8303c36
+# ╟─d9c71796-e79f-404d-89ef-54adfbd3335c
 # ╠═bf3349da-ad56-4c4b-9b5c-c2e138abd1c0
-# ╠═07f59b1f-faf3-46a2-80ff-82ea90ed4344
+# ╠═f2a1c3d4-7e6b-4a5c-9d8e-1b2c3d4e5f6a
 # ╟─82cc9219-7633-41c6-91e1-17968904b2b6
 # ╟─849d1a59-2c2f-4e44-b45b-266382255b1a
 # ╟─2d7e4963-1cee-413c-8541-e8e77962c1fe
@@ -1243,29 +1559,25 @@ version = "0.41.3+0"
 # ╟─921c2136-563a-4219-98f5-21cafa67e516
 # ╟─fe54d35f-8017-4bc0-ac6c-7dee815d1477
 # ╠═1a67d073-bf07-4b01-beea-6c11013965be
-# ╟─5ec5e8d2-681b-4ce4-a581-478f00b91dc9
-# ╠═1b22f312-9197-4044-ba9b-1f12789b88ff
-# ╠═55b7b9a8-caea-4ec6-b47d-937231eaaee8
-# ╠═3751319d-d1b8-484a-8a70-ad46a6a65634
-# ╠═d9c71796-e79f-404d-89ef-54adfbd3335c
-# ╠═beddae25-17bc-48e9-8eef-41f21a08fb10
-# ╠═c692b5d4-e136-47f4-9cc6-432d4e5ef3fe
-# ╠═69699338-d461-4e05-bbb4-a874ad4ad970
-# ╠═c1238b16-770c-4a31-9e04-c8c9fb45e1f5
+# ╟─89c81d3c-67c1-4cc7-b892-d64208d845f2
 # ╟─9b0a9a80-e65f-4385-a377-372e408b19ad
+# ╟─2afaeeec-6fe2-48db-81de-1fa4ccb0fc1b
 # ╠═a751c6dc-414b-4ce8-b1b1-5aef8e23ab63
 # ╠═a9019660-1f03-4132-bccf-09bdb1421ad9
-# ╠═53495d28-cf5e-4108-9921-0ca016f1b24d
+# ╠═447b4e82-fe73-11ef-30b1-69824c8e3d24
+# ╠═9f419394-528a-4bde-98a5-d62787c17fa8
 # ╠═79406ee0-6026-4da8-a29d-245048c27e47
 # ╠═acd7956a-855c-43f0-a353-7d5533f6aaf1
 # ╠═335162fc-52c3-4c3d-bb88-d2e2f4fde37f
-# ╠═447b4e82-fe73-11ef-30b1-69824c8e3d24
-# ╠═9f419394-528a-4bde-98a5-d62787c17fa8
 # ╠═58baaf3c-a5b3-4995-9f4e-c54946f7e798
-# ╠═2ed394a0-c8df-4a73-9922-15163f70384f
 # ╟─5852bfac-a8ff-405e-8ed1-6438c6827091
 # ╠═d99b1935-4f90-4b82-809c-b6a801c37e0d
-# ╠═526c0fd9-4935-409e-82e0-059f5c084b57
+# ╠═1b22f312-9197-4044-ba9b-1f12789b88ff
+# ╠═beddae25-17bc-48e9-8eef-41f21a08fb10
+# ╠═69699338-d461-4e05-bbb4-a874ad4ad970
+# ╠═55b7b9a8-caea-4ec6-b47d-937231eaaee8
+# ╠═3751319d-d1b8-484a-8a70-ad46a6a65634
+# ╟─c692b5d4-e136-47f4-9cc6-432d4e5ef3fe
 # ╟─b5bfa4ac-f20a-4d1a-b870-fe4a3fa52da3
 # ╠═a5491b1e-ce27-4fb5-82de-853899f75006
 # ╠═0ecb0dea-e87e-4602-956c-9fc4a9375cb8
@@ -1273,7 +1585,6 @@ version = "0.41.3+0"
 # ╠═5a632ee0-e405-432f-a35e-e37defe34552
 # ╠═902f56d9-041d-4b4a-af72-1adcf20a4db1
 # ╠═ea6fe2a5-42f3-4c6f-b9e9-f4e4172463da
-# ╟─2afaeeec-6fe2-48db-81de-1fa4ccb0fc1b
 # ╠═73042ddf-790f-4a11-98b2-f9b6b9d29fe0
 # ╠═521d6111-e4fb-4532-9acb-561a35aa5607
 # ╠═74e0c240-dda8-44bd-bf0b-fb862a6ea52d
@@ -1281,15 +1592,15 @@ version = "0.41.3+0"
 # ╠═aa28ca2f-662b-4789-a6fe-579f85d27ada
 # ╠═ba1041f2-8173-4436-9413-ba8c8c85af20
 # ╠═55968681-0b8c-4bb0-8ee9-1a9d81ee34e6
+# ╠═580d562e-4c3f-4adb-94cf-65048ee7ff35
 # ╠═7493f1d5-2017-416b-bc0c-183767bad68a
 # ╠═3a325fab-9cf2-4cb8-a645-f0731e40b1f5
 # ╠═a7d64a11-17c4-4aa0-a10f-e47d39b1eebb
-# ╠═580d562e-4c3f-4adb-94cf-65048ee7ff35
 # ╠═c168a471-f21f-4175-b7a0-5ae44d5d30ee
-# ╟─89c81d3c-67c1-4cc7-b892-d64208d845f2
-# ╠═ef32df8e-5053-4c00-8ab8-2087f7771051
 # ╠═39710dda-1054-491e-b9d5-7d8c4cb8e3a6
-# ╠═ecee2903-a103-498a-9aaf-b5d920f531f4
+# ╟─58041dd4-fd1c-4223-a00d-d4e98a7ef412
+# ╟─ecee2903-a103-498a-9aaf-b5d920f531f4
 # ╠═71af98fe-12cb-42bf-b447-5afde0482e47
+# ╟─a9bbb105-3138-481d-9a73-0ec2b8303c36
 # ╟─00000000-0000-0000-0000-000000000001
 # ╟─00000000-0000-0000-0000-000000000002

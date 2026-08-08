@@ -1,5 +1,5 @@
 ### A Pluto.jl notebook ###
-# v0.20.19
+# v0.2.6
 
 #> [frontmatter]
 #> layout = "layout.jlhtml"
@@ -19,6 +19,20 @@ macro bind(def, element)
         el
     end
     #! format: on
+end
+
+# ╔═╡ 1d229d0c-2ffd-11ed-0cb3-1964ddd3b5af
+begin
+	using Pkg
+	Pkg.add(url="https://github.com/anowacki/Geodesics.jl")
+	Pkg.add(url="https://github.com/anowacki/Seis.jl")
+	Pkg.add(url="https://github.com/anowacki/SeisRequests.jl")
+	Pkg.add("GeoMakie")
+	Pkg.add("CairoMakie")
+	Pkg.add("PlutoUI")
+	using Dates, Geodesics, Seis, SeisRequests
+	using GeoMakie, CairoMakie
+	using PlutoUI
 end
 
 # ╔═╡ f1035bd5-77b8-4a79-8445-4b11d01583e5
@@ -84,20 +98,6 @@ end
 md"""
 ## Packages
 """
-
-# ╔═╡ 1d229d0c-2ffd-11ed-0cb3-1964ddd3b5af
-begin
-	using Pkg
-	Pkg.add(url="https://github.com/anowacki/Geodesics.jl")
-	Pkg.add(url="https://github.com/anowacki/Seis.jl")
-	Pkg.add(url="https://github.com/anowacki/SeisRequests.jl")
-	Pkg.add("GeoMakie")
-	Pkg.add("CairoMakie")
-	Pkg.add("PlutoUI")
-	using Dates, Geodesics, Seis, SeisRequests
-	using GeoMakie, CairoMakie
-	using PlutoUI
-end
 
 # ╔═╡ Cell order:
 # ╟─f1035bd5-77b8-4a79-8445-4b11d01583e5

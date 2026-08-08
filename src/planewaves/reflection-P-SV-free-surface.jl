@@ -1,5 +1,5 @@
 ### A Pluto.jl notebook ###
-# v0.20.19
+# v0.2.6
 
 #> [frontmatter]
 #> title = "P-SV Free-surface Reflection"
@@ -22,8 +22,14 @@ macro bind(def, element)
     #! format: on
 end
 
-# ╔═╡ e6b12602-f3c7-4f5d-9787-9d0cf0e3887b
-ChooseDisplayMode()
+# ╔═╡ ab40f79c-3d8a-11ed-0697-a7b794dbba99
+begin
+    using Symbolics
+    using PlutoPlotly
+    using LinearAlgebra
+    using LaTeXStrings
+    using PlutoUI
+end
 
 # ╔═╡ 08429397-3964-4600-bc14-c45d22c915ec
 TableOfContents()
@@ -31,7 +37,7 @@ TableOfContents()
 # ╔═╡ 32a757ff-aa7a-41d5-b8b3-6ac9e0125875
 md"""
 # P-SV Free-surface Reflection
-In this notebook, we will delve into the analysis of the reflection coefficients of P and S waves at a free surface, which is a solid-vacuum boundary. By assuming a free surface at \( z=0 \), we will apply stress-free boundary conditions to derive the expressions for the reflection coefficients of both P and S waves. This analysis is crucial for understanding the behavior of seismic waves as they interact with the Earth's surface.
+In this notebook, we will delve into the analysis of the reflection coefficients of P and S waves at a free surface, which is a solid-vacuum boundary. By assuming a free surface at `z=0`, we will apply stress-free boundary conditions to derive the expressions for the reflection coefficients of both P and S waves. This analysis is crucial for understanding the behavior of seismic waves as they interact with the Earth's surface.
 
 
 ##### [Interactive Seismology Notebooks](https://pawbz.github.io/Interactive-Seismology.jl/)
@@ -40,53 +46,6 @@ In this notebook, we will delve into the analysis of the reflection coefficients
 Instructor: *Pawan Bharadwaj*,
 Indian Institute of Science, Bengaluru, India
 """
-
-# ╔═╡ afdb5b7d-d670-4a98-a91d-3ff638fb0294
-md"""
-It is evident that the reflection coefficients depend on the velocities of the P and S waves. By selecting whether the incident wave is a P or S wave, the reflection coefficients will vary accordingly.
-
----
-α (km/sec) $(@bind αin NumberField(range(2.0, stop=6.0, step=0.1), default=3.9))
-β (km/sec) $(@bind βin NumberField(range(2.0, stop=6.0, step=0.1), default=2.0))
-ρ (gm/cm³) $(@bind ρin NumberField(range(2.0, stop=6.0, step=0.1), default=2.9))
-
-Incident Wavefield: $(@bind incident_waves Select(["P", "S"], default="P")) with
-Angle of incidence ∈ [0, π/2]: $(@bind θp Slider(θgrid, default=1.4)) and
-Angular frequency $(@bind ωp Slider(range(0.1, stop=2, length=10), show_value=true, default=0.3))
-"""
-
-# ╔═╡ bcb8064e-8379-4b5e-b218-334302df594f
-md"""
-$(@bind plot_waves MultiCheckBox(["i" => "Incident $(incident_waves)", "r1" => "Reflected $(reflected_waves1)", "r2" => "Reflected $(reflected_waves2)"], default=["i", "r1", "r2"]))
-"""
-
-# ╔═╡ 63e459a0-ec85-4337-9b93-47cfd49bbe92
-md"""
-$(@bind tplot Clock(0.1))
----
-"""
-
-# ╔═╡ 7b346215-4f51-4298-a023-07a99e3c7208
-plot_planewave(u_incident_ex, u_reflected1_ex, u_reflected2_ex, mod(tplot, 10))
-
-# ╔═╡ 602f13f9-6d14-41fd-9183-b8255d64399b
-Markdown.MD(Markdown.Admonition("observe", "Observations",
-    [md"""
-- The angle of reflection of the S-wave is always less than that of the P-reflected wave. This is because the vertical slowness of the S-reflected wave ($η_β$) is always greater than that of the P-reflected wave.
-- The wavenumber of the S-reflected wave is higher than that of the P-wave. The wavenumber of the S-reflected wave increases as $β$ becomes smaller compared to $α$.
-- When $β$ is very small, the amplitude of the S-reflected wave is negligible.
-- A negative reflection coefficient indicates a phase change of the reflected wave by π.
-- The P-reflection coefficient and S-reflection coefficient follow the conservation of energy. The P-reflection coefficient is maximum when the S-reflection coefficient is minimum.
-"""]
-))
-
-# ╔═╡ 6f4ddbaf-0023-499c-a31c-15693797e1fa
-TwoColumn(md"""
-$(plot_reflectivity(Avec[1], θgrid, "P-Reflection Coefficient"))
-""",
-    md"""
-    $(plot_reflectivity(Avec[2], θgrid, "S-Reflection Coefficient"))
-    """)
 
 # ╔═╡ 4476bf78-39e3-4674-a152-db19fe80929a
 md"Spatial coordinates, time, and angular frequency."
@@ -110,13 +69,20 @@ end
 md"In 2D, a harmonic plane wave with an frequency `ω`, amplitude `A`, horizontal slowness `p` and vertical slowness `η` is defined below."
 
 # ╔═╡ 6043b904-6991-4776-bc1b-13eda3fcc936
+"""
+	plane(p, η, A)
+
+A harmonic plane-wave potential with horizontal slowness `p`, vertical slowness `η`, and
+amplitude `A`, sharing the notebook-wide symbolic angular frequency `ω` and coordinates
+`x`, `z`, `t`.
+"""
 plane(p, η, A) = A * exp(ı * ω * (t - (p * x + η * z)))
 
 # ╔═╡ c7c52926-6e2e-4c4c-a01f-09f57c2ececd
-md"The horizontal slowness i.e., the ray parameter is denoted using $p$."
+md"The horizontal slowness i.e., the ray parameter is denoted using `p`."
 
 # ╔═╡ 33c6aa70-87cb-464a-88f7-b82d17476a2f
-md"The vertical component of the slowness vector in the first and second layer are denoted using $\eta$ and $\eta_t$. These plane waves satisfy the scalar wave equation only if the dispersion relation
+md"The vertical component of the slowness vector in the first and second layer are denoted using `η` and `η_t`. These plane waves satisfy the scalar wave equation only if the dispersion relation
 ```math
 p^2 + η^2 = \frac{1}{β^2}
 ```
@@ -134,7 +100,7 @@ is satisfied."
 # ╔═╡ aae7b893-4b33-44ae-b01c-6345a1180d0d
 md"""
 ## Potentials : Incident P-wave, Reflected P-wave and Reflected SV-wave 
-For the P-SV system on a free surface, all the waves are traveling in the same medium. The velocity of the P-wave is denoted by $α$ and the velocity of the S-wave is denoted by $β$. The plane waves representing potentials share the same horizontal slowness $p$.
+For the P-SV system on a free surface, all the waves are traveling in the same medium. The velocity of the P-wave is denoted by `α` and the velocity of the S-wave is denoted by `β`. The plane waves representing potentials share the same horizontal slowness `p`.
 
 - Now, we create an incident wave using the `plane` function with parameters `p`, `η₁`, and `A`, representing the horizontal slowness, verticle slowness, and amplitude, respectively. 
 - Then, two reflected waves, `reflect1` and `reflect2`, are also defined using the `plane` function. The first reflected wave, `reflect1`, uses the parameters `p`, `-η₁`, and `A₁`, indicating a reflection with opposite vertical slowness and a different amplitude. 
@@ -157,179 +123,95 @@ We now write expressions for particle displacements given plane wave potentials.
 Depending on whether the incident wave is P or S, these expressions change.
 """
 
-# ╔═╡ b4a603fb-5ee7-4c97-8e1d-fd0a89692503
-begin
-    if (incident_waves == "P")
-        UxInc = expand_derivatives.(Dx.(incident))
-        UzInc = expand_derivatives.(Dz.(incident))
-    else
-        UxInc = expand_derivatives.(-Dz.(incident))
-        UzInc = expand_derivatives.(Dz.(incident))
-    end
-end
-
-# ╔═╡ 74484bb8-a9dc-4b54-894e-3bf86c18278e
-begin
-    if (incident_waves == "P")
-        UxRef1 = expand_derivatives.(Dx.(reflect1))
-        UzRef1 = expand_derivatives.(Dz.(reflect1))
-    else
-        UxRef1 = expand_derivatives.(-Dz.(reflect1))
-        UzRef1 = expand_derivatives.(Dx.(reflect1))
-    end
-end
-
-# ╔═╡ fdba06fe-e596-4122-b2d5-81b67dd78a97
-begin
-    if (incident_waves == "P")
-        UxRef2 = expand_derivatives.(-Dz.(reflect2))
-        UzRef2 = expand_derivatives.(Dx.(reflect2))
-    else
-        UxRef2 = expand_derivatives.(Dx.(reflect2))
-        UzRef2 = expand_derivatives.(Dz.(reflect2))
-    end
-
-end
-
 # ╔═╡ 52d2ba9b-826a-4805-9583-f1a80b10a926
 md"""
 ## Free-surface Condition
 At the free-surface i.e. z=0 , kinematic boundary condition does not exist.
-We have two dynamic boundary conditions $σ_{zz}=0$ and $σ_{xz}=0$  and two unknowns ($A_{1}$,$A_{2}$) to estimate (when assuming $A=1$).
+We have two dynamic boundary conditions `σ_{zz}=0` and `σ_{xz}=0` and two unknowns (`A_{1}`,`A_{2}`) to estimate (when assuming `A=1`).
 """
 
 # ╔═╡ 7cf515f8-2496-4bde-b3b3-9d39d971764a
 @syms λ::Real μ::Real
 
-# ╔═╡ 040f1440-14c4-491b-b792-570aa3c2080b
-σzz_incident = expand_derivatives.(λ .* Dx.(UxInc) .+ λ .* Dz.(UzInc)) + expand_derivatives.(2 .* μ .* Dz.(UzInc))
-
-# ╔═╡ 3525bf50-b0e5-4c3b-ba75-77689a5799f4
-σzz_reflect1 = expand_derivatives.(λ .* Dx.(UxRef1) .+ λ .* Dz.(UzRef1)) + expand_derivatives.(2 .* μ .* Dz.(UzRef1))
-
-# ╔═╡ 0dfd91aa-f9e1-4d93-a471-0bf99e476af5
-σzz_reflect2 = expand_derivatives.(λ .* Dx.(UxRef2) .+ λ .* Dz.(UzRef2)) + expand_derivatives.(2 .* μ .* Dz.(UzRef2))
-
-# ╔═╡ f51dfb73-b5ef-4de8-b4c3-fc8814a31485
-σxz_incident = expand_derivatives.(μ .* Dx.(UzInc) .+ μ .* Dz.(UxInc))
-
-# ╔═╡ 860ac07f-391b-4d62-bf9d-a32abea7cd60
-σxz_reflect1 = expand_derivatives.(μ .* Dx.(UzRef1) .+ μ .* Dz.(UxRef1))
-
-# ╔═╡ 47f2439f-28a1-4ad9-8d8d-67a4a30af5ea
-σxz_reflect2 = expand_derivatives.(μ .* Dx.(UzRef2) .+ μ .* Dz.(UxRef2))
-
-# ╔═╡ 06a568fa-ba94-4c5f-815d-f30c6c8a4260
-σzz_z0 = substitute.(σzz_incident .+ σzz_reflect1 .+ σzz_reflect2, z => 0) .~ 0
-
-# ╔═╡ b4030cef-75ef-40d1-b75d-0e5f233a3023
-σxz_z0 = substitute.(σxz_incident .+ σxz_reflect1 .+ σxz_reflect2, z => 0) .~ 0
-
-# ╔═╡ 64164ec7-a3cf-41d0-bcef-e55475eabeea
-σzz = simplify(substitute(σzz_z0, Dict([A => 1, t => 0, x => 0])))
-
-# ╔═╡ 605195de-f4a1-4331-9b82-78e4a061f0a4
-σxz = simplify(substitute(σxz_z0, Dict([A => 1, t => 0, x => 0])))
-
-# ╔═╡ a95e361b-d195-4ec0-b2fd-cd9adb79efc5
-sol = simplify.(Symbolics.symbolic_linear_solve([σzz, σxz], [A₁, A₂]))
-
 # ╔═╡ 5729b459-b283-41ce-95be-c4d33a7c28c0
 md"## Example"
 
-# ╔═╡ cd125f77-6203-4a0c-a68b-43300e873ca7
-begin
-    reflected_waves1 = incident_waves
-    reflected_waves2 = filter(x -> x ≠ incident_waves, ["P", "S"])[1]
-end
-
 # ╔═╡ 281cb873-760c-411f-98b5-1c64d218e7e9
 md"""
-We shall begin defining a function that computes the ray parameter, given the 
-angle of incidence $θ$.
+We shall begin defining a function that computes the ray parameter, given the
+angle of incidence `θ`.
 """
 
 # ╔═╡ 3d50985b-b79a-45ab-ba1f-5287936c56d9
 @syms θ::Real
 
-# ╔═╡ 284e4a79-6cfe-4c4a-939b-55fc69611ecb
-rp(θ) = (incident_waves == "P") ? sin(θ) / αin : sin(θ) / βin
-
 # ╔═╡ a7cb9cd5-7013-461b-960d-5da73db62aea
 md"We now compute the vertical component of the slowness vector for both the reflected waves using the 
 dispersion relation."
-
-# ╔═╡ a06affae-47c3-4dfa-a997-ee75b35ab122
-ηz1(θ) = (incident_waves == "P") ? sqrt((inv(αin)^2 - (rp(θ))^2) + 0im) : sqrt((inv(βin)^2 - (rp(θ))^2) + 0im)
-
-# ╔═╡ 23d62611-aeb5-4ed3-897d-822c0d17781c
-ηz2(θ) = (incident_waves == "S") ? sqrt((inv(αin)^2 - (rp(θ))^2) + 0im) : sqrt((inv(βin)^2 - (rp(θ))^2) + 0im)
-
-# ╔═╡ edb72f1f-6c99-48fb-b32d-fc4fe7d3328e
-ηz1(45)
-
-# ╔═╡ 4c871d5c-1b62-4b1c-9c1e-37cae19cbe0e
-ηz2(45)
 
 # ╔═╡ 8c81ddb5-bf4d-4610-bfea-3d1a27ffd61f
 md"""
 We can finally update the expressions of reflection coefficients using input parameters and plot them.
 """
 
-# ╔═╡ a089ab5b-4703-4d4d-a7ab-11197b4b907c
-begin
-    Avec = broadcast([sol[1], sol[2]]) do x
-        θ -> simplify(substitute(x, [η₁ => ηz1(θ), η₂ => ηz2(θ), p => rp(θ), λ => ρin * (αin^2 - 2 * βin^2), μ => βin^2 * ρin]))
-    end
-    if ((incident_waves == "S"))
-        Avec = reverse(Avec)
-    end
-end
+# ╔═╡ eeee5555-5555-5555-5555-555555555555
+md"""
+### Verifying the coefficients
+At normal incidence (`θ=0`), there is no mode conversion: a P wave striking the surface
+head-on reflects only as P (and likewise for S), so the mode-converted amplitude should
+vanish, and since a free surface reflects all incident energy, the direct reflection
+coefficient's magnitude should be exactly 1.
+"""
 
 # ╔═╡ dba7ea14-e0dd-4dc4-ad9c-4627fd16cc62
 md"## Appendix"
+
+# ╔═╡ aaaa1111-1111-1111-1111-111111111111
+begin
+    # Fixed example values for the "Reference Plots" below -- these plots exist to
+    # cross-check the new canvas widget against the notebook's original PlutoPlotly
+    # rendering, not to duplicate the widget's own interactivity (angle/frequency/
+    # display toggles all live client-side inside the widget now).
+    θp = deg2rad(45.0)
+    ωp = 0.3
+    plot_waves = ["i", "r1", "r2"]
+    tplot = 3.0
+end
 
 # ╔═╡ 57176a1b-b8cd-40fa-a615-8a589fb7ea73
 md"""
 Lets print the expression of the wavefield, plotted in the previous example.
 """
 
-# ╔═╡ b790898e-11dd-440e-86ef-2403d14a1feb
-u_incident_ex = substitute(plane(rp(θp), ηz1(θp), 1.0), [ω => ωp, ı => im]);
-
-# ╔═╡ cabe33b2-5c0a-45e4-a0fb-d057987d8c95
-u_reflected1_ex = substitute(plane(rp(θp), -ηz1(θp), Avec[1](θp)), [ω => ωp, ı => im]);
-
-# ╔═╡ d5fda5dc-d94e-4b39-94c4-a5c4311e59bd
-u_reflected2_ex = substitute(plane(rp(θp), isequal(imag(ηz2(θp)), 0.0) ? -ηz2(θp) : ηz2(θp), Avec[2](θp)), [ω => ωp, ı => im]);
-
 # ╔═╡ ea3b7089-bda8-4694-8042-98534b1739bd
-warning_box(md"""
+Markdown.MD(Markdown.Admonition("warning", "Sign convention",
+    [md"""
 The sign of the vertical slowness in the transmitted field above is chosen to prevent the exponential growth of the wavefield away from the boundary.
-""")
+"""]
+))
 
 # ╔═╡ eb78c5bd-33ea-4f97-9b1d-b881e72279d8
 default_plotly_template(:plotly_dark)
-
-# ╔═╡ ab40f79c-3d8a-11ed-0697-a7b794dbba99
-begin
-    using Symbolics
-    using PlutoPlotly
-    using SymbolicUtils
-    using LinearAlgebra
-    using Latexify
-    using LaTeXStrings
-    using PlutoUI
-    using PlutoTeachingTools
-end
 
 # ╔═╡ f6b31173-72cd-4f25-b292-5aad02ec718c
 θgrid = range(0, stop=pi / 2, length=100); # need for reflectance plots
 
 # ╔═╡ 6cbddba3-0a3c-44b7-a033-532c91e35356
-md"### Plots"
+md"""
+### Reference Plots (Validating the Widget)
+The original `PlutoPlotly` figures this notebook used before the canvas widget above --
+kept here, not deleted, as a permanent cross-check: for the same angle and medium
+parameters, these should agree with what the widget draws.
+"""
 
 # ╔═╡ 31d34c37-96d5-4257-9815-c33af141b906
+"""
+	plot_reflectivity(A, θgrid, title="")
+
+A polar plot of a reflection coefficient `A` (a function of angle) over `θgrid`,
+showing its magnitude, real, and imaginary parts, with a wedge marking the
+`θp` reference angle used by the Reference Plots below.
+"""
 function plot_reflectivity(A, θgrid, title="")
     degθ = rad2deg.(θgrid)
     fig = Plot(Layout(title=title, polar=attr(angularaxis_direction="clockwise", sector=(0, 90), radialaxis_range=(-2, 2)),))
@@ -360,11 +242,20 @@ function plot_reflectivity(A, θgrid, title="")
 end
 
 # ╔═╡ de445666-cd08-4c78-8cab-2d63fd79af43
+"""
+	plot_planewave(ui, ur1, ur2, t1=0)
+
+A heatmap of the summed wavefield (incident + both reflected legs, symbolic
+expressions in `x`, `z`, `t`) at time `t1`, restricted to the solid half-space
+below the free surface. Which legs are actually summed is controlled by the
+module-level `plot_waves` list.
+"""
 function plot_planewave(ui, ur1, ur2, t1=0)
-    # we need to discretize space before plotting 
+    # we need to discretize space before plotting -- the medium is the half-space
+    # z<0 (below the free surface); z>0 is vacuum, so the wavefield is only ever
+    # evaluated over zgrid, not over the full [-200,200] range.
     xgrid = range(-200, stop=200, length=200)
-    zgrid_bottom = range(0, stop=200, length=100)
-    zgrid_top = range(-200, stop=0, length=100)
+    zgrid = range(-200, stop=0, length=100)
 
     # substitute imaginary unit
     ui, ur1, ur2 = map([ui, ur1, ur2]) do ⋅
@@ -373,19 +264,15 @@ function plot_planewave(ui, ur1, ur2, t1=0)
     # build functions (reflected and incident)
     uip, ur1p, ur2p = map([ui, ur1, ur2]) do ⋅
         fn = build_function(⋅, x, z, t, expression=Val{false})
-        [real(fn(x, z, t1)) for z in zgrid_top, x in xgrid]
+        [real(fn(x, z, t1)) for z in zgrid, x in xgrid]
     end
-    # utp = let
-    #     fn = build_function(ut, x, z, t, expression=Val{false})
-    #     [real(fn(x, z, t1)) for z in zgrid_top, x in xgrid]
-    # end
 
     ("r2" ∉ plot_waves) && fill!(ur2p, 0.0)
     ("i" ∉ plot_waves) && fill!(uip, 0.0)
     ("r1" ∉ plot_waves) && fill!(ur1p, 0.0)
 
-    U = cat(ur1p + uip + ur2p, dims=1)
-    cmax = max(maximum(abs, U), maximum(abs, U))
+    U = ur1p + uip + ur2p
+    cmax = maximum(abs, U)
     fig = Plot(Layout(yaxis=attr(scaleanchor="x"), width=350, height=350, uirevison=1,
             dragmode="drawopenpath",
             newshape_line_color="black",
@@ -400,7 +287,7 @@ function plot_planewave(ui, ur1, ur2, t1=0)
                 ),]
         ), config=PlotConfig(displayModeBar=false))
 
-    add_trace!(fig, PlutoPlotly.heatmap(z=U, x=xgrid, y=vcat(zgrid_top, zgrid_bottom), colorscale="seismic",
+    add_trace!(fig, PlutoPlotly.heatmap(z=U, x=xgrid, y=zgrid, colorscale="seismic",
         zmin=-cmax, zmax=cmax,))
     add_trace!(fig,
         scatter(
@@ -412,21 +299,21 @@ function plot_planewave(ui, ur1, ur2, t1=0)
             textfont=attr(
                 color="yellow",
                 size=15,
-                family="Arail",
+                family="Arial",
             )
         ))
 
     add_trace!(fig,
         scatter(
-            x=[-150, -150],
-            y=[-150, 150],
-            text=["(β₁,ρ₁)", "(β₂,ρ₂)"],
+            x=[-150],
+            y=[-100],
+            text=["(α,β,ρ)"],
             mode="text",
             showlegend=false,
             textfont=attr(
                 color="yellow",
                 size=15,
-                family="Arail",
+                family="Arial",
             )
         ))
 
@@ -434,35 +321,606 @@ function plot_planewave(ui, ur1, ur2, t1=0)
 
 end
 
+# ╔═╡ 602f13f9-6d14-41fd-9183-b8255d64399b
+Markdown.MD(Markdown.Admonition("note", "Observations",
+    [md"""
+- The angle of reflection of the S-wave is always less than that of the P-reflected wave. This is because the vertical slowness of the S-reflected wave (`η_β`) is always greater than that of the P-reflected wave.
+- The wavenumber of the S-reflected wave is higher than that of the P-wave. The wavenumber of the S-reflected wave increases as `β` becomes smaller compared to `α`.
+- When `β` is very small, the amplitude of the S-reflected wave is negligible.
+- A negative reflection coefficient indicates a phase change of the reflected wave by π.
+- The P-reflection coefficient and S-reflection coefficient follow the conservation of energy. The P-reflection coefficient is maximum when the S-reflection coefficient is minimum.
+"""]
+))
+
+# ╔═╡ aaaa7777-7777-7777-7777-777777777777
+md"## The Interactive Widget"
+
+# ╔═╡ dddd4444-4444-4444-4444-444444444444
+begin
+    """A draggable coefficient-vs-angle canvas: the incidence angle is set by
+    dragging directly on the reflectivity curves, not by a slider. Only the
+    medium properties (`alpha`, `beta`, `rho`) and the incident-wave type feed
+    back to Julia -- angle, frequency, and which waves are drawn are pure
+    client-side state, since a full angle sweep of the coefficients is pushed to
+    the widget once (see the cell above `## Appendix`) and everything else is
+    cheap trigonometry over that sweep."""
+    struct PSVWidgetInput
+        alpha::Float64
+        beta::Float64
+        rho::Float64
+        incident_type::String
+    end
+
+    PSVWidgetInput(; alpha=3.9, beta=2.0, rho=2.9, incident_type="P") =
+        PSVWidgetInput(Float64(alpha), Float64(beta), Float64(rho), incident_type)
+
+    Base.get(w::PSVWidgetInput) = Dict{String,Any}(
+        "alpha" => w.alpha, "beta" => w.beta, "rho" => w.rho, "incident_type" => w.incident_type,
+    )
+
+    function Base.show(io::IO, ::MIME"text/html", w::PSVWidgetInput)
+        write(io, """
+<div id="psvwidget" style="display:flex;flex-direction:column;align-items:center;width:100%;color:#9ca3af">
+  <style>
+    pluto-cell:has(#psvwidget) {
+      width: min(80vw, 1100px) !important;
+      margin-left: calc((100% - min(80vw, 1100px)) / 2) !important;
+    }
+    #psvwidget { width: 100%; box-sizing: border-box; color: #d1d5db; font: 14px sans-serif; }
+    #psvwidget .psv-title { width: 100%; box-sizing: border-box; text-align: center; margin-bottom: 10px;
+      background: #0a0f18; border: 1px solid #3b5c85; border-radius: 6px; padding: 10px 14px; }
+    #psvwidget .psv-title-desc { font-size: 17px; font-weight: 700; color: #e5e7eb; }
+    #psvwidget .psv-title-hint { font-size: 13px; color: #9ca3af; margin-top: 3px; }
+    #psvwidget .psv-workspace { display: flex; gap: 12px; align-items: flex-start; justify-content: center;
+      width: 100%; flex-wrap: wrap; }
+    #psvwidget .psv-controls { width: min(var(--totalw,900px),100%); margin-top: 10px; display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 8px; font: 14px sans-serif; }
+    #psvwidget .psv-control-group { box-sizing: border-box; background: #050505; border: 1px solid #2f3744;
+      border-radius: 6px; padding: 10px 12px; }
+    #psvwidget .psv-control-title { font-weight: 700; color: #e5e7eb; margin-bottom: 8px; font-size: 18px; }
+    #psvwidget .psv-control-row { display: grid; grid-template-columns: minmax(60px,90px) minmax(70px,1fr) minmax(50px,70px);
+      gap: 6px; align-items: center; margin: 6px 0; }
+    #psvwidget .psv-control-row input[type=range] { width: 100%; min-width: 0; }
+    #psvwidget .psv-value { color: #d1d5db; text-align: right; font-variant-numeric: tabular-nums; }
+    #psvwidget .psv-actions { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+    #psvwidget button { border-radius: 4px; border: 1px solid #9ca3af; background: #606060; color: #f3f4f6;
+      padding: 6px 12px; font-size: 14px; cursor: pointer; }
+    #psvwidget label { color: #d1d5db; }
+  </style>
+  <div class="psv-title">
+    <div class="psv-title-desc">Drag the angle axis on the coefficient plot to see how the reflected P and S waves change.</div>
+    <div class="psv-title-hint">drag left/right on the coefficient plot &middot; hover a curve to identify it &middot; press play to animate</div>
+  </div>
+  <div class="psv-workspace">
+    <canvas id="psvrefl" style="background:#000;border:1px solid #374151;border-radius:6px;display:block"></canvas>
+    <canvas id="psvwave" style="background:#000;border:1px solid #374151;border-radius:6px;display:block"></canvas>
+  </div>
+  <div class="psv-controls">
+    <div class="psv-control-group">
+      <div class="psv-control-title">Medium</div>
+      <label class="psv-control-row"><span>α (km/s)</span><input type="range" id="psv-alpha" min="2" max="6" step="0.1" value="$(w.alpha)"><span id="psv-alpha-v" class="psv-value">$(w.alpha)</span></label>
+      <label class="psv-control-row"><span>β (km/s)</span><input type="range" id="psv-beta" min="2" max="6" step="0.1" value="$(w.beta)"><span id="psv-beta-v" class="psv-value">$(w.beta)</span></label>
+      <label class="psv-control-row"><span>ρ (g/cm³)</span><input type="range" id="psv-rho" min="2" max="6" step="0.1" value="$(w.rho)"><span id="psv-rho-v" class="psv-value">$(w.rho)</span></label>
+    </div>
+    <div class="psv-control-group">
+      <div class="psv-control-title">Incidence</div>
+      <div class="psv-actions">
+        <label><input type="radio" name="psv-itype" id="psv-itype-p" $(w.incident_type == "P" ? "checked" : "")> incident <b style="color:#f97316">P</b></label>
+        <label><input type="radio" name="psv-itype" id="psv-itype-s" $(w.incident_type == "S" ? "checked" : "")> incident <b style="color:#38bdf8">S</b></label>
+      </div>
+      <label class="psv-control-row"><span>ω</span><input type="range" id="psv-omega" min="0.1" max="2" step="0.1" value="0.3"><span id="psv-omega-v" class="psv-value">0.3</span></label>
+      <div class="psv-actions"><button id="psv-play" type="button">Play</button></div>
+    </div>
+    <div class="psv-control-group">
+      <div class="psv-control-title">Display</div>
+      <div class="psv-actions">
+        <label><input type="checkbox" id="psv-show-i" checked> Incident</label>
+        <label><input type="checkbox" id="psv-show-r1" checked> Reflected 1</label>
+        <label><input type="checkbox" id="psv-show-r2" checked> Reflected 2</label>
+      </div>
+      <div class="psv-actions" style="margin-top:8px"><button id="psv-reset" type="button">Reset defaults</button></div>
+    </div>
+  </div>
+</div>
+<script>
+  const par = currentScript.previousElementSibling
+  const availW = Math.min(window.innerWidth*0.8, par.clientWidth || window.innerWidth*0.8, 1100)
+  const totalW = Math.max(700, availW)
+  par.style.setProperty('--totalw', Math.round(totalW)+'px')
+  const SEC = Math.round(Math.min(totalW/2 - 10, 380))
+  const DPR = Math.min(window.devicePixelRatio || 1, 2)
+
+  let alpha = $(w.alpha), beta = $(w.beta), rho = $(w.rho), incidentType = "$(w.incident_type)"
+  let thetaDeg = 40, omega = 0.3
+  let showI = true, showR1 = true, showR2 = true
+  let hoverCurve = -1, playing = false, tPhase = 0, rafId = null
+  let sweep = null   // filled in by the 'psv-results' push from Julia, below
+
+  const reflCvs = par.querySelector('#psvrefl'), rctx = reflCvs.getContext('2d')
+  const waveCvs = par.querySelector('#psvwave'), wctx = waveCvs.getContext('2d')
+  function hidpi(cv, cx, w, h){
+    cv.width = Math.round(w*DPR); cv.height = Math.round(h*DPR)
+    cv.style.width = w+'px'; cv.style.height = h+'px'
+    cx.setTransform(DPR,0,0,DPR,0,0)
+  }
+  hidpi(reflCvs, rctx, SEC, SEC)
+  hidpi(waveCvs, wctx, SEC, SEC)
+
+  // ---- reflectivity canvas: Cartesian angle (0-90deg) vs coefficient value ----
+  const RPAD = 30
+  function reflX(theta){ return RPAD + (theta/90)*(SEC-RPAD-8) }
+  function reflXInv(px){ return Math.max(0, Math.min(90, ((px-RPAD)/(SEC-RPAD-8))*90)) }
+  function reflY(v){ return SEC/2 - (v/2.2)*(SEC/2-14) }
+
+  const CURVES = [
+    {key:'A1', part:'abs', label:'|P-reflection|', color:'#f97316', dash:[]},
+    {key:'A1', part:'re',  label:'Re(P-reflection)', color:'#f97316', dash:[6,3]},
+    {key:'A1', part:'im',  label:'Im(P-reflection)', color:'#f97316', dash:[1,3]},
+    {key:'A2', part:'abs', label:'|S-reflection|', color:'#38bdf8', dash:[]},
+    {key:'A2', part:'re',  label:'Re(S-reflection)', color:'#38bdf8', dash:[6,3]},
+    {key:'A2', part:'im',  label:'Im(S-reflection)', color:'#38bdf8', dash:[1,3]},
+  ]
+
+  function curveValue(c, i){
+    const re = sweep[c.key+'_re'][i], im = sweep[c.key+'_im'][i]
+    if(c.part === 'abs') return Math.hypot(re, im)
+    if(c.part === 're') return re
+    return im
+  }
+
+  function sweepIndex(theta){ return Math.max(0, Math.min(sweep.theta_deg.length-1, Math.round(theta*2))) }
+
+  function drawReflectivity(){
+    rctx.clearRect(0,0,SEC,SEC)
+    rctx.strokeStyle = '#374151'; rctx.lineWidth = 1
+    rctx.strokeRect(RPAD, 6, SEC-RPAD-8-RPAD+RPAD, SEC-12) // outer box (kept simple)
+    // zero line + axis
+    rctx.beginPath(); rctx.moveTo(RPAD, reflY(0)); rctx.lineTo(SEC-8, reflY(0)); rctx.strokeStyle = '#2f3744'; rctx.stroke()
+    rctx.fillStyle = '#6b7280'; rctx.font = '11px sans-serif'; rctx.textAlign = 'right'
+    rctx.fillText('0°', reflX(0)+2, SEC-2); rctx.fillText('90°', reflX(90), SEC-2)
+    rctx.textAlign = 'left'
+
+    if(!sweep){
+      rctx.fillStyle = '#6b7280'; rctx.font = '12px sans-serif'
+      rctx.fillText('computing...', 12, 18)
+      return
+    }
+
+    CURVES.forEach((c, idx) => {
+      const isHover = idx === hoverCurve
+      rctx.globalAlpha = (hoverCurve === -1 || isHover) ? 1 : 0.2
+      rctx.strokeStyle = c.color; rctx.lineWidth = isHover ? 2.6 : 1.6
+      rctx.setLineDash(c.dash)
+      rctx.beginPath()
+      sweep.theta_deg.forEach((th, i) => {
+        const x = reflX(th), y = reflY(curveValue(c, i))
+        i === 0 ? rctx.moveTo(x,y) : rctx.lineTo(x,y)
+      })
+      rctx.stroke()
+      rctx.setLineDash([])
+      rctx.globalAlpha = 1
+    })
+
+    // draggable angle cursor
+    const cx = reflX(thetaDeg)
+    rctx.strokeStyle = '#e5e7eb'; rctx.lineWidth = 1.4
+    rctx.beginPath(); rctx.moveTo(cx, 6); rctx.lineTo(cx, SEC-12); rctx.stroke()
+    rctx.fillStyle = '#e5e7eb'; rctx.font = '12px sans-serif'
+    rctx.fillText(Math.round(thetaDeg)+'°', Math.min(cx+4, SEC-30), 18)
+
+    if(hoverCurve >= 0){
+      const c = CURVES[hoverCurve]
+      const v = curveValue(c, sweepIndex(thetaDeg))
+      const label = c.label + '  ' + v.toFixed(3)
+      rctx.font = '12px sans-serif'
+      const tw = rctx.measureText(label).width
+      const tx = Math.min(cx+8, SEC-tw-14), ty = 34
+      rctx.fillStyle = 'rgba(11,18,32,0.9)'; rctx.fillRect(tx-5, ty-13, tw+10, 18)
+      rctx.strokeStyle = '#374151'; rctx.lineWidth = 1; rctx.strokeRect(tx-5, ty-13, tw+10, 18)
+      rctx.fillStyle = '#e5e7eb'; rctx.fillText(label, tx, ty)
+    }
+  }
+
+  function distToPolyline(mx, my, c){
+    let best = 1e9
+    sweep.theta_deg.forEach((th, i) => {
+      const x = reflX(th), y = reflY(curveValue(c, i))
+      best = Math.min(best, Math.hypot(mx-x, my-y))
+    })
+    return best
+  }
+  function nearestCurve(mx, my){
+    if(!sweep) return -1
+    let best = -1, bestD = 8
+    CURVES.forEach((c, idx) => {
+      const d = distToPolyline(mx, my, c)
+      if(d < bestD){ bestD = d; best = idx }
+    })
+    return best
+  }
+
+  // ---- wavefield canvas: x in [-200,200], z in [-200,0] (free surface at top) ----
+  const REARTH_X = 200, REARTH_Z = 200
+  const off = document.createElement('canvas')
+  const OFFW = 110, OFFH = 90
+  off.width = OFFW; off.height = OFFH
+  const offCtx = off.getContext('2d')
+
+  // Diverging "seismic" colormap: blue (negative) - white (zero) - red (positive).
+  function seismicColor(v, vmax){
+    const t = Math.max(-1, Math.min(1, vmax > 0 ? v/vmax : 0))
+    if(t >= 0){
+      return [255, Math.round(255*(1-t)), Math.round(255*(1-t))]
+    } else {
+      const s = -t
+      return [Math.round(255*(1-s)), Math.round(255*(1-s)), 255]
+    }
+  }
+
+  function drawWavefield(){
+    wctx.clearRect(0,0,SEC,SEC)
+    if(!sweep){
+      wctx.fillStyle = '#6b7280'; wctx.font = '12px sans-serif'
+      wctx.fillText('computing...', 12, 18)
+      return
+    }
+    const i0 = sweepIndex(thetaDeg)
+    const p = sweep.p[i0]
+    const eta1 = sweep.eta1_re[i0]   // incident/reflected-1 leg is always real for a valid 0-90deg angle
+    const eta2_re = sweep.eta2_re[i0], eta2_im = sweep.eta2_im[i0]
+    const isReal2 = Math.abs(eta2_im) < 1e-6
+    const eU2re = isReal2 ? -eta2_re : eta2_re
+    const eU2im = isReal2 ? -eta2_im : eta2_im
+    const a1 = sweep.A1_re[i0], b1 = sweep.A1_im[i0]
+    const a2 = sweep.A2_re[i0], b2 = sweep.A2_im[i0]
+    const t = tPhase
+
+    const img = offCtx.createImageData(OFFW, OFFH)
+    // first pass: compute raw values to find a robust color scale
+    const vals = new Float64Array(OFFW*OFFH)
+    let vmax = 1e-6
+    for(let j=0;j<OFFH;j++){
+      const z = -(j/(OFFH-1))*REARTH_Z
+      for(let i=0;i<OFFW;i++){
+        const x = -REARTH_X + (i/(OFFW-1))*2*REARTH_X
+        let U = 0
+        if(showI){
+          const phase = omega*(t - p*x - eta1*z)
+          U += Math.cos(phase)
+        }
+        if(showR1){
+          const phase = omega*(t - p*x + eta1*z)
+          U += a1*Math.cos(phase) - b1*Math.sin(phase)
+        }
+        if(showR2){
+          const mag = Math.exp(omega*eU2im*z)
+          const phase = omega*(t - p*x) - omega*eU2re*z
+          U += mag*(a2*Math.cos(phase) - b2*Math.sin(phase))
+        }
+        vals[j*OFFW+i] = U
+        vmax = Math.max(vmax, Math.abs(U))
+      }
+    }
+    for(let k=0;k<vals.length;k++){
+      const [r,g,b] = seismicColor(vals[k], vmax)
+      img.data[k*4] = r; img.data[k*4+1] = g; img.data[k*4+2] = b; img.data[k*4+3] = 255
+    }
+    offCtx.putImageData(img, 0, 0)
+    wctx.imageSmoothingEnabled = true
+    wctx.drawImage(off, 0, 0, OFFW, OFFH, 0, 0, SEC, SEC)
+
+    // free-surface line + labels
+    wctx.strokeStyle = '#facc15'; wctx.lineWidth = 2
+    wctx.beginPath(); wctx.moveTo(0,1); wctx.lineTo(SEC,1); wctx.stroke()
+    wctx.fillStyle = '#facc15'; wctx.font = '12px sans-serif'
+    wctx.fillText('Free surface', SEC*0.55, 16)
+    wctx.fillStyle = '#e5e7eb'
+    wctx.fillText('(α,β,ρ)', 10, SEC-10)
+  }
+
+  function redraw(){ drawReflectivity(); drawWavefield() }
+
+  function emit(){
+    par.value = {alpha, beta, rho, incident_type: incidentType}
+    par.dispatchEvent(new CustomEvent('input'))
+  }
+
+  // ---- interaction: dragging the angle cursor on the reflectivity canvas ----
+  let draggingTheta = false
+  reflCvs.addEventListener('mousedown', e=>{ draggingTheta = true; thetaDeg = reflXInv(e.offsetX); redraw() })
+  reflCvs.addEventListener('mousemove', e=>{
+    if(draggingTheta){
+      thetaDeg = reflXInv(e.offsetX)
+      redraw()
+    } else {
+      hoverCurve = nearestCurve(e.offsetX, e.offsetY)
+      redraw()
+    }
+  })
+  window.addEventListener('mouseup', ()=>{ draggingTheta = false })
+  reflCvs.addEventListener('mouseleave', ()=>{ if(hoverCurve !== -1){ hoverCurve = -1; redraw() } })
+
+  // ---- controls ----
+  par.querySelector('#psv-alpha').addEventListener('input', e=>{
+    alpha = parseFloat(e.target.value); par.querySelector('#psv-alpha-v').textContent = alpha.toFixed(1); emit()
+  })
+  par.querySelector('#psv-beta').addEventListener('input', e=>{
+    beta = parseFloat(e.target.value); par.querySelector('#psv-beta-v').textContent = beta.toFixed(1); emit()
+  })
+  par.querySelector('#psv-rho').addEventListener('input', e=>{
+    rho = parseFloat(e.target.value); par.querySelector('#psv-rho-v').textContent = rho.toFixed(1); emit()
+  })
+  par.querySelector('#psv-itype-p').addEventListener('change', ()=>{ incidentType = 'P'; emit() })
+  par.querySelector('#psv-itype-s').addEventListener('change', ()=>{ incidentType = 'S'; emit() })
+  par.querySelector('#psv-omega').addEventListener('input', e=>{
+    omega = parseFloat(e.target.value); par.querySelector('#psv-omega-v').textContent = omega.toFixed(1); drawWavefield()
+  })
+  par.querySelector('#psv-show-i').addEventListener('change', e=>{ showI = e.target.checked; drawWavefield() })
+  par.querySelector('#psv-show-r1').addEventListener('change', e=>{ showR1 = e.target.checked; drawWavefield() })
+  par.querySelector('#psv-show-r2').addEventListener('change', e=>{ showR2 = e.target.checked; drawWavefield() })
+
+  const playBtn = par.querySelector('#psv-play')
+  function stepAnim(){
+    tPhase += 0.12
+    drawWavefield()
+    rafId = requestAnimationFrame(stepAnim)
+  }
+  playBtn.addEventListener('click', ()=>{
+    playing = !playing
+    playBtn.textContent = playing ? 'Pause' : 'Play'
+    if(playing){ rafId = requestAnimationFrame(stepAnim) } else if(rafId){ cancelAnimationFrame(rafId); rafId = null }
+  })
+
+  par.querySelector('#psv-reset').addEventListener('click', ()=>{
+    alpha = $(w.alpha); beta = $(w.beta); rho = $(w.rho); incidentType = "$(w.incident_type)"
+    thetaDeg = 40; omega = 0.3; showI = true; showR1 = true; showR2 = true
+    par.querySelector('#psv-alpha').value = alpha; par.querySelector('#psv-alpha-v').textContent = alpha.toFixed(1)
+    par.querySelector('#psv-beta').value = beta; par.querySelector('#psv-beta-v').textContent = beta.toFixed(1)
+    par.querySelector('#psv-rho').value = rho; par.querySelector('#psv-rho-v').textContent = rho.toFixed(1)
+    par.querySelector('#psv-omega').value = omega; par.querySelector('#psv-omega-v').textContent = omega.toFixed(1)
+    par.querySelector('#psv-itype-p').checked = (incidentType === 'P')
+    par.querySelector('#psv-itype-s').checked = (incidentType === 'S')
+    par.querySelector('#psv-show-i').checked = true
+    par.querySelector('#psv-show-r1').checked = true
+    par.querySelector('#psv-show-r2').checked = true
+    redraw(); emit()
+  })
+
+  window.addEventListener('psv-results', e=>{
+    const d = e.detail ? JSON.parse(e.detail) : null
+    if(!d) return
+    sweep = d
+    redraw()
+  })
+
+  redraw(); emit()
+</script>
+""")
+    end
+
+    const _psv_ready = true
+end
+
+# ╔═╡ bbbb2222-2222-2222-2222-222222222222
+begin
+    # `PSVWidgetInput` is defined in the Appendix, displayed below this cell -- a
+    # bare reference forces Pluto to run that cell first on a cold restart. See
+    # "the one thing that will silently break on a fresh restart" in
+    # pluto-widget-SKILL.md.
+    _psv_ready
+    @bind _psv PSVWidgetInput()
+end
+
+# ╔═╡ afdb5b7d-d670-4a98-a91d-3ff638fb0294
+begin
+    # Only the medium parameters and the incident-wave type need a Julia recompute
+    # (they feed the Symbolics-derived coefficients below) -- angle, frequency, and
+    # display toggles live entirely client-side inside the widget (see its
+    # docstring for why: everything downstream of theta is pre-swept once and
+    # pushed to the widget, so dragging theta never touches Julia at all).
+    αin = Float64(_psv["alpha"])
+    βin = Float64(_psv["beta"])
+    ρin = Float64(_psv["rho"])
+    incident_waves = String(_psv["incident_type"])
+end
+
+
+# ╔═╡ b4a603fb-5ee7-4c97-8e1d-fd0a89692503
+begin
+    if (incident_waves == "P")
+        UxInc = expand_derivatives.(Dx.(incident))
+        UzInc = expand_derivatives.(Dz.(incident))
+    else
+        UxInc = expand_derivatives.(-Dz.(incident))
+        UzInc = expand_derivatives.(Dz.(incident))
+    end
+end
+
+# ╔═╡ 040f1440-14c4-491b-b792-570aa3c2080b
+σzz_incident = expand_derivatives.(λ .* Dx.(UxInc) .+ λ .* Dz.(UzInc)) + expand_derivatives.(2 .* μ .* Dz.(UzInc))
+
+# ╔═╡ f51dfb73-b5ef-4de8-b4c3-fc8814a31485
+σxz_incident = expand_derivatives.(μ .* Dx.(UzInc) .+ μ .* Dz.(UxInc))
+
+# ╔═╡ 74484bb8-a9dc-4b54-894e-3bf86c18278e
+begin
+    if (incident_waves == "P")
+        UxRef1 = expand_derivatives.(Dx.(reflect1))
+        UzRef1 = expand_derivatives.(Dz.(reflect1))
+    else
+        UxRef1 = expand_derivatives.(-Dz.(reflect1))
+        UzRef1 = expand_derivatives.(Dx.(reflect1))
+    end
+end
+
+# ╔═╡ 3525bf50-b0e5-4c3b-ba75-77689a5799f4
+σzz_reflect1 = expand_derivatives.(λ .* Dx.(UxRef1) .+ λ .* Dz.(UzRef1)) + expand_derivatives.(2 .* μ .* Dz.(UzRef1))
+
+# ╔═╡ 860ac07f-391b-4d62-bf9d-a32abea7cd60
+σxz_reflect1 = expand_derivatives.(μ .* Dx.(UzRef1) .+ μ .* Dz.(UxRef1))
+
+# ╔═╡ fdba06fe-e596-4122-b2d5-81b67dd78a97
+begin
+    if (incident_waves == "P")
+        UxRef2 = expand_derivatives.(-Dz.(reflect2))
+        UzRef2 = expand_derivatives.(Dx.(reflect2))
+    else
+        UxRef2 = expand_derivatives.(Dx.(reflect2))
+        UzRef2 = expand_derivatives.(Dz.(reflect2))
+    end
+
+end
+
+# ╔═╡ 0dfd91aa-f9e1-4d93-a471-0bf99e476af5
+σzz_reflect2 = expand_derivatives.(λ .* Dx.(UxRef2) .+ λ .* Dz.(UzRef2)) + expand_derivatives.(2 .* μ .* Dz.(UzRef2))
+
+# ╔═╡ 06a568fa-ba94-4c5f-815d-f30c6c8a4260
+σzz_z0 = substitute.(σzz_incident .+ σzz_reflect1 .+ σzz_reflect2, z => 0) .~ 0
+
+# ╔═╡ 64164ec7-a3cf-41d0-bcef-e55475eabeea
+σzz = simplify(substitute(σzz_z0, Dict([A => 1, t => 0, x => 0])))
+
+# ╔═╡ 47f2439f-28a1-4ad9-8d8d-67a4a30af5ea
+σxz_reflect2 = expand_derivatives.(μ .* Dx.(UzRef2) .+ μ .* Dz.(UxRef2))
+
+# ╔═╡ b4030cef-75ef-40d1-b75d-0e5f233a3023
+σxz_z0 = substitute.(σxz_incident .+ σxz_reflect1 .+ σxz_reflect2, z => 0) .~ 0
+
+# ╔═╡ 605195de-f4a1-4331-9b82-78e4a061f0a4
+σxz = simplify(substitute(σxz_z0, Dict([A => 1, t => 0, x => 0])))
+
+# ╔═╡ a95e361b-d195-4ec0-b2fd-cd9adb79efc5
+sol = simplify.(Symbolics.symbolic_linear_solve([σzz, σxz], [A₁, A₂]))
+
+# ╔═╡ 284e4a79-6cfe-4c4a-939b-55fc69611ecb
+"""
+	rp(θ)
+
+The ray parameter (horizontal slowness) of a wave incident at angle `θ` (radians),
+using whichever of `αin`/`βin` matches the current `incident_waves` type.
+"""
+rp(θ) = (incident_waves == "P") ? sin(θ) / αin : sin(θ) / βin
+
+# ╔═╡ a06affae-47c3-4dfa-a997-ee75b35ab122
+"""
+	ηz1(θ)
+
+Vertical slowness of the leg sharing the incident wave's type (the direct
+reflection: P→P or S→S). Always real for `θ ∈ [0, π/2]`, since a wave cannot be
+incident past its own critical angle.
+"""
+ηz1(θ) = (incident_waves == "P") ? sqrt((inv(αin)^2 - (rp(θ))^2) + 0im) : sqrt((inv(βin)^2 - (rp(θ))^2) + 0im)
+
+# ╔═╡ edb72f1f-6c99-48fb-b32d-fc4fe7d3328e
+ηz1(45)
+
+# ╔═╡ b790898e-11dd-440e-86ef-2403d14a1feb
+u_incident_ex = substitute(plane(rp(θp), ηz1(θp), 1.0), [ω => ωp, ı => im]);
+
+# ╔═╡ 23d62611-aeb5-4ed3-897d-822c0d17781c
+"""
+	ηz2(θ)
+
+Vertical slowness of the mode-converted leg (P→S or S→P). Complex once `θ`
+exceeds this leg's critical angle -- see the sign convention noted where it's
+used to build the wavefield, below.
+"""
+ηz2(θ) = (incident_waves == "S") ? sqrt((inv(αin)^2 - (rp(θ))^2) + 0im) : sqrt((inv(βin)^2 - (rp(θ))^2) + 0im)
+
+# ╔═╡ 4c871d5c-1b62-4b1c-9c1e-37cae19cbe0e
+ηz2(45)
+
+# ╔═╡ a089ab5b-4703-4d4d-a7ab-11197b4b907c
+begin
+    Avec = broadcast([sol[1], sol[2]]) do x
+        θ -> simplify(substitute(x, [η₁ => ηz1(θ), η₂ => ηz2(θ), p => rp(θ), λ => ρin * (αin^2 - 2 * βin^2), μ => βin^2 * ρin]))
+    end
+    if ((incident_waves == "S"))
+        Avec = reverse(Avec)
+    end
+end
+
+# ╔═╡ ffff6666-6666-6666-6666-666666666666
+let
+    A1_normal = abs(Avec[1](0.0))
+    A2_normal = abs(Avec[2](0.0))
+    @assert A2_normal<1e-8 "expected no mode conversion at normal incidence, got |A2|=$(A2_normal)"
+    @assert abs(A1_normal-1)<1e-8 "expected total reflection at normal incidence, got |A1|=$(A1_normal)"
+    (direct_reflection_magnitude=A1_normal, mode_converted_magnitude=A2_normal)
+end
+
+# ╔═╡ cabe33b2-5c0a-45e4-a0fb-d057987d8c95
+u_reflected1_ex = substitute(plane(rp(θp), -ηz1(θp), Avec[1](θp)), [ω => ωp, ı => im]);
+
+# ╔═╡ d5fda5dc-d94e-4b39-94c4-a5c4311e59bd
+u_reflected2_ex = substitute(plane(rp(θp), isequal(imag(ηz2(θp)), 0.0) ? -ηz2(θp) : ηz2(θp), Avec[2](θp)), [ω => ωp, ı => im]);
+
+# ╔═╡ 7b346215-4f51-4298-a023-07a99e3c7208
+plot_planewave(u_incident_ex, u_reflected1_ex, u_reflected2_ex, mod(tplot, 10))
+
+# ╔═╡ 6f4ddbaf-0023-499c-a31c-15693797e1fa
+plot_reflectivity(Avec[1], θgrid, "P-Reflection Coefficient")
+
+# ╔═╡ cccc3333-3333-3333-3333-333333333333
+# Push angle-swept slowness/coefficient curves to the widget above -- it stays
+# mounted across reruns of this cell (its `@bind` cell doesn't depend on medium
+# parameters), same CustomEvent pattern geoid-kernel uses to push computed maps
+# back to an already-rendered widget. This is the ONLY place the widget's Julia
+# side runs after a medium-parameter change: everything angle/frequency/display
+# related happens client-side from these arrays.
+let
+    thetas_deg = 0:0.5:90
+    thetas_rad = deg2rad.(thetas_deg)
+    p_sweep = rp.(thetas_rad)
+    eta1_sweep = ηz1.(thetas_rad)
+    eta2_sweep = ηz2.(thetas_rad)
+    A1_sweep = Avec[1].(thetas_rad)
+    A2_sweep = Avec[2].(thetas_rad)
+
+    num(x) = isfinite(x) ? string(round(Float64(x), digits=6)) : "0"
+    jsonarr(v) = "[" * join(num.(v), ",") * "]"
+
+    payload = string(
+        "{\"theta_deg\":", jsonarr(thetas_deg),
+        ",\"p\":", jsonarr(real.(p_sweep)),
+        ",\"eta1_re\":", jsonarr(real.(eta1_sweep)), ",\"eta1_im\":", jsonarr(imag.(eta1_sweep)),
+        ",\"eta2_re\":", jsonarr(real.(eta2_sweep)), ",\"eta2_im\":", jsonarr(imag.(eta2_sweep)),
+        ",\"A1_re\":", jsonarr(real.(A1_sweep)), ",\"A1_im\":", jsonarr(imag.(A1_sweep)),
+        ",\"A2_re\":", jsonarr(real.(A2_sweep)), ",\"A2_im\":", jsonarr(imag.(A2_sweep)),
+        ",\"incident_type\":\"", incident_waves, "\"",
+        "}",
+    )
+    HTML("""<script>
+      window.dispatchEvent(new CustomEvent('psv-results', {detail: $(repr(payload))}));
+    </script>""")
+end
+
+# ╔═╡ bbbb8888-8888-8888-8888-888888888888
+plot_reflectivity(Avec[2], θgrid, "S-Reflection Coefficient")
+
 # ╔═╡ 00000000-0000-0000-0000-000000000001
 PLUTO_PROJECT_TOML_CONTENTS = """
 [deps]
 LaTeXStrings = "b964fa9f-0449-5b57-a5c2-d3ea65f4040f"
-Latexify = "23fbe1c1-3f47-55db-b15f-69d7ec21a316"
 LinearAlgebra = "37e2e46d-f89d-539d-b4ee-838fcccc9c8e"
 PlutoPlotly = "8e989ff0-3d88-8e9f-f020-2b208a939ff0"
-PlutoTeachingTools = "661c6b06-c737-4d37-b85c-46df65de6f69"
 PlutoUI = "7f904dfe-b85e-4ff6-b463-dae2292396a8"
-SymbolicUtils = "d1185830-fcd6-423d-90d6-eec64667417b"
 Symbolics = "0c5d862f-8b57-4792-8d23-62f2024744c7"
 
 [compat]
 LaTeXStrings = "~1.4.0"
-Latexify = "~0.16.5"
-PlutoPlotly = "~0.6.5"
-PlutoTeachingTools = "~0.3.0"
-PlutoUI = "~0.7.60"
-SymbolicUtils = "~3.7.1"
-Symbolics = "~6.22.1"
+PlutoPlotly = "~0.6.6"
+PlutoUI = "~0.7.83"
+Symbolics = "~7.0.1"
 """
 
 # ╔═╡ 00000000-0000-0000-0000-000000000002
 PLUTO_MANIFEST_TOML_CONTENTS = """
 # This file is machine-generated - editing it directly is not advised
 
-julia_version = "1.11.7"
+julia_version = "1.12.4"
 manifest_format = "2.0"
-project_hash = "7c808f7f48701a0df2472bbd68e98d3af054f2e2"
+project_hash = "6f5bdbb67e568b7988fc33c1939a36b2ca39e6ac"
 
 [[deps.ADTypes]]
 git-tree-sha1 = "27cecae79e5cc9935255f90c53bb831cc3c870d7"
@@ -592,12 +1050,6 @@ weakdeps = ["SparseArrays"]
     [deps.ChainRulesCore.extensions]
     ChainRulesCoreSparseArraysExt = "SparseArrays"
 
-[[deps.CodeTracking]]
-deps = ["InteractiveUtils", "UUIDs"]
-git-tree-sha1 = "980f01d6d3283b3dbdfd7ed89405f96b7256ad57"
-uuid = "da1fd8a2-8d9e-5ec2-8556-3022fb5608a2"
-version = "2.0.1"
-
 [[deps.ColorSchemes]]
 deps = ["ColorTypes", "ColorVectorSpace", "Colors", "FixedPointNumbers", "PrecompileTools", "Random"]
 git-tree-sha1 = "b0fd3f56fa442f81e0a47815c92245acfaaa4e34"
@@ -655,15 +1107,10 @@ weakdeps = ["Dates", "LinearAlgebra"]
     [deps.Compat.extensions]
     CompatLinearAlgebraExt = "LinearAlgebra"
 
-[[deps.Compiler]]
-git-tree-sha1 = "382d79bfe72a406294faca39ef0c3cef6e6ce1f1"
-uuid = "807dbc54-b67e-4c79-8afb-eafe4df6f2e1"
-version = "0.1.1"
-
 [[deps.CompilerSupportLibraries_jll]]
 deps = ["Artifacts", "Libdl"]
 uuid = "e66e0078-7015-5450-92f7-15fbd957f2ae"
-version = "1.1.1+0"
+version = "1.3.0+1"
 
 [[deps.CompositeTypes]]
 git-tree-sha1 = "bce26c3dab336582805503bed209faab1c279768"
@@ -761,7 +1208,7 @@ version = "0.7.16"
 [[deps.Downloads]]
 deps = ["ArgTools", "FileWatching", "LibCURL", "NetworkOptions"]
 uuid = "f43a241f-c20a-4ad4-852c-f6b1247861c6"
-version = "1.6.0"
+version = "1.7.0"
 
 [[deps.DynamicPolynomials]]
 deps = ["Future", "LinearAlgebra", "MultivariatePolynomials", "MutableArithmetics", "Reexport", "Test"]
@@ -938,11 +1385,10 @@ git-tree-sha1 = "4255f0032eafd6451d707a51d5f0248b8a165e4d"
 uuid = "aacddb02-875f-59d6-b918-886e6ef4fbf8"
 version = "3.1.3+0"
 
-[[deps.JuliaInterpreter]]
-deps = ["CodeTracking", "InteractiveUtils", "Random", "UUIDs"]
-git-tree-sha1 = "277779adfedf4a30d66b64edc75dc6bb6d52a16e"
-uuid = "aa1ae85d-cabe-5617-a682-6adf51b2e16a"
-version = "0.10.6"
+[[deps.JuliaSyntaxHighlighting]]
+deps = ["StyledStrings"]
+uuid = "ac6e5ff7-fb65-4e79-a425-ec3bc9c03011"
+version = "1.12.0"
 
 [[deps.LaTeXStrings]]
 git-tree-sha1 = "dda21b8cbd6a6c40d9d02a73230f9d70fed6918c"
@@ -973,24 +1419,24 @@ uuid = "b27032c2-a3e7-50c8-80cd-2d36dbcbfd21"
 version = "0.6.4"
 
 [[deps.LibCURL_jll]]
-deps = ["Artifacts", "LibSSH2_jll", "Libdl", "MbedTLS_jll", "Zlib_jll", "nghttp2_jll"]
+deps = ["Artifacts", "LibSSH2_jll", "Libdl", "OpenSSL_jll", "Zlib_jll", "nghttp2_jll"]
 uuid = "deac9b47-8bc7-5906-a0fe-35ac56dc84c0"
-version = "8.6.0+0"
+version = "8.15.0+0"
 
 [[deps.LibGit2]]
-deps = ["Base64", "LibGit2_jll", "NetworkOptions", "Printf", "SHA"]
+deps = ["LibGit2_jll", "NetworkOptions", "Printf", "SHA"]
 uuid = "76f85450-5226-5b5a-8eaa-529ad045b433"
 version = "1.11.0"
 
 [[deps.LibGit2_jll]]
-deps = ["Artifacts", "LibSSH2_jll", "Libdl", "MbedTLS_jll"]
+deps = ["Artifacts", "LibSSH2_jll", "Libdl", "OpenSSL_jll"]
 uuid = "e37daf67-58a4-590a-8e99-b0245dd2ffc5"
-version = "1.7.2+0"
+version = "1.9.0+0"
 
 [[deps.LibSSH2_jll]]
-deps = ["Artifacts", "Libdl", "MbedTLS_jll"]
+deps = ["Artifacts", "Libdl", "OpenSSL_jll"]
 uuid = "29816b5a-b9ab-546f-933c-edad1886dfa8"
-version = "1.11.0+1"
+version = "1.11.3+1"
 
 [[deps.Libdl]]
 uuid = "8f399da3-3557-5675-b5ff-fb832c97cbdb"
@@ -999,7 +1445,7 @@ version = "1.11.0"
 [[deps.LinearAlgebra]]
 deps = ["Libdl", "OpenBLAS_jll", "libblastrampoline_jll"]
 uuid = "37e2e46d-f89d-539d-b4ee-838fcccc9c8e"
-version = "1.11.0"
+version = "1.12.0"
 
 [[deps.LogExpFunctions]]
 deps = ["DocStringExtensions", "IrrationalConstants", "LinearAlgebra"]
@@ -1021,12 +1467,6 @@ version = "0.3.29"
 uuid = "56ddb016-857b-54e1-b83d-db4d58db5568"
 version = "1.11.0"
 
-[[deps.LoweredCodeUtils]]
-deps = ["CodeTracking", "Compiler", "JuliaInterpreter"]
-git-tree-sha1 = "e24491cb83551e44a69b9106c50666dea9d953ab"
-uuid = "6f1432cf-f94c-5a45-995e-cdbf5db27b0b"
-version = "3.4.4"
-
 [[deps.MIMEs]]
 git-tree-sha1 = "c64d943587f7187e751162b3b84445bbbd79f691"
 uuid = "6c6e2e6c-3030-632d-7369-2d6c69616d65"
@@ -1038,14 +1478,9 @@ uuid = "1914dd2f-81c6-5fcd-8719-6d5c9610ff09"
 version = "0.5.16"
 
 [[deps.Markdown]]
-deps = ["Base64"]
+deps = ["Base64", "JuliaSyntaxHighlighting", "StyledStrings"]
 uuid = "d6f4376e-aef5-505a-96c1-9c027394607a"
 version = "1.11.0"
-
-[[deps.MbedTLS_jll]]
-deps = ["Artifacts", "Libdl"]
-uuid = "c8ffd9c3-330d-5841-b78e-0817d7145fa1"
-version = "2.28.6+0"
 
 [[deps.Missings]]
 deps = ["DataAPI"]
@@ -1065,7 +1500,7 @@ version = "0.3.7"
 
 [[deps.MozillaCACerts_jll]]
 uuid = "14a3606d-f60d-562e-9121-12d972cd8159"
-version = "2023.12.12"
+version = "2025.11.4"
 
 [[deps.MultivariatePolynomials]]
 deps = ["ChainRulesCore", "DataStructures", "LinearAlgebra", "MutableArithmetics"]
@@ -1087,17 +1522,22 @@ version = "1.1.3"
 
 [[deps.NetworkOptions]]
 uuid = "ca575930-c2e3-43a9-ace4-1e988b2c1908"
-version = "1.2.0"
+version = "1.3.0"
 
 [[deps.OpenBLAS_jll]]
 deps = ["Artifacts", "CompilerSupportLibraries_jll", "Libdl"]
 uuid = "4536629a-c528-5b80-bd46-f80d51c5b363"
-version = "0.3.27+1"
+version = "0.3.29+0"
 
 [[deps.OpenLibm_jll]]
 deps = ["Artifacts", "Libdl"]
 uuid = "05823500-19ac-5b8b-9628-191a04bc5112"
-version = "0.8.5+0"
+version = "0.8.7+0"
+
+[[deps.OpenSSL_jll]]
+deps = ["Artifacts", "Libdl"]
+uuid = "458c3c95-2e84-50aa-8efc-19380b2a3a95"
+version = "3.5.4+0"
 
 [[deps.OpenSpecFun_jll]]
 deps = ["Artifacts", "CompilerSupportLibraries_jll", "JLLWrappers", "Libdl"]
@@ -1131,7 +1571,7 @@ version = "2.8.3"
 [[deps.Pkg]]
 deps = ["Artifacts", "Dates", "Downloads", "FileWatching", "LibGit2", "Libdl", "Logging", "Markdown", "Printf", "Random", "SHA", "TOML", "Tar", "UUIDs", "p7zip_jll"]
 uuid = "44cfe95a-1eb2-52ea-b672-e2afdf69b78f"
-version = "1.11.0"
+version = "1.12.1"
 weakdeps = ["REPL"]
 
     [deps.Pkg.extensions]
@@ -1155,18 +1595,6 @@ version = "0.8.21"
     IJulia = "7073ff75-c697-5162-941a-fcdaad2a7d2a"
     JSON3 = "0f8b85d8-7281-11e9-16c2-39a750bddbf1"
 
-[[deps.PlutoHooks]]
-deps = ["InteractiveUtils", "Markdown", "UUIDs"]
-git-tree-sha1 = "072cdf20c9b0507fdd977d7d246d90030609674b"
-uuid = "0ff47ea0-7a50-410d-8455-4348d5de0774"
-version = "0.0.5"
-
-[[deps.PlutoLinks]]
-deps = ["FileWatching", "InteractiveUtils", "Markdown", "PlutoHooks", "Revise", "UUIDs"]
-git-tree-sha1 = "8f5fa7056e6dcfb23ac5211de38e6c03f6367794"
-uuid = "0ff47ea0-7a50-410d-8455-4348d5de0420"
-version = "0.1.6"
-
 [[deps.PlutoPlotly]]
 deps = ["AbstractPlutoDingetjes", "Artifacts", "ColorSchemes", "Colors", "Dates", "Downloads", "HypertextLiteral", "InteractiveUtils", "LaTeXStrings", "Markdown", "Pkg", "PlotlyBase", "PrecompileTools", "Reexport", "ScopedValues", "Scratch", "TOML"]
 git-tree-sha1 = "8acd04abc9a636ef57004f4c2e6f3f6ed4611099"
@@ -1180,12 +1608,6 @@ version = "0.6.5"
     [deps.PlutoPlotly.weakdeps]
     PlotlyKaleido = "f2990250-8cf9-495f-b13a-cce12b45703c"
     Unitful = "1986cc42-f94f-5a68-af5c-568840ba703d"
-
-[[deps.PlutoTeachingTools]]
-deps = ["Downloads", "HypertextLiteral", "Latexify", "Markdown", "PlutoLinks", "PlutoUI"]
-git-tree-sha1 = "8252b5de1f81dc103eb0293523ddf917695adea1"
-uuid = "661c6b06-c737-4d37-b85c-46df65de6f69"
-version = "0.3.1"
 
 [[deps.PlutoUI]]
 deps = ["AbstractPlutoDingetjes", "Base64", "ColorTypes", "Dates", "Downloads", "FixedPointNumbers", "Hyperscript", "HypertextLiteral", "IOCapture", "InteractiveUtils", "JSON", "Logging", "MIMEs", "Markdown", "Random", "Reexport", "URIs", "UUIDs"]
@@ -1250,7 +1672,7 @@ version = "2.11.2"
     Enzyme = "7da242da-08ed-463a-9acd-ee780be4f1d9"
 
 [[deps.REPL]]
-deps = ["InteractiveUtils", "Markdown", "Sockets", "StyledStrings", "Unicode"]
+deps = ["InteractiveUtils", "JuliaSyntaxHighlighting", "Markdown", "Sockets", "StyledStrings", "Unicode"]
 uuid = "3fa0cd96-eef1-5676-8a61-b3b8758bbffb"
 version = "1.11.0"
 
@@ -1307,16 +1729,6 @@ deps = ["UUIDs"]
 git-tree-sha1 = "62389eeff14780bfe55195b7204c0d8738436d64"
 uuid = "ae029012-a4dd-5104-9daa-d747884805df"
 version = "1.3.1"
-
-[[deps.Revise]]
-deps = ["CodeTracking", "FileWatching", "JuliaInterpreter", "LibGit2", "LoweredCodeUtils", "OrderedCollections", "REPL", "Requires", "UUIDs", "Unicode"]
-git-tree-sha1 = "276237d98b5bfc2541d92e952bfa99d362011ac7"
-uuid = "295af30f-e4ad-537b-8983-00126c2a3abe"
-version = "3.11.0"
-weakdeps = ["Distributed"]
-
-    [deps.Revise.extensions]
-    DistributedExt = "Distributed"
 
 [[deps.Rmath]]
 deps = ["Random", "Rmath_jll"]
@@ -1440,7 +1852,7 @@ version = "1.2.2"
 [[deps.SparseArrays]]
 deps = ["Libdl", "LinearAlgebra", "Random", "Serialization", "SuiteSparse_jll"]
 uuid = "2f01184e-e22b-5df5-ae63-d93ebab69eaf"
-version = "1.11.0"
+version = "1.12.0"
 
 [[deps.SpecialFunctions]]
 deps = ["IrrationalConstants", "LogExpFunctions", "OpenLibm_jll", "OpenSpecFun_jll"]
@@ -1512,7 +1924,7 @@ uuid = "4607b0f0-06f3-5cda-b6b1-a6196a1729e9"
 [[deps.SuiteSparse_jll]]
 deps = ["Artifacts", "Libdl", "libblastrampoline_jll"]
 uuid = "bea87d4a-7f5b-5778-9afe-8cc45184846c"
-version = "7.7.0+0"
+version = "7.8.3+2"
 
 [[deps.SymbolicIndexingInterface]]
 deps = ["Accessors", "ArrayInterface", "RuntimeGeneratedFunctions", "StaticArraysCore"]
@@ -1639,34 +2051,29 @@ version = "0.1.6"
 [[deps.Zlib_jll]]
 deps = ["Libdl"]
 uuid = "83775a58-1f1d-513f-b197-d71354ab007a"
-version = "1.2.13+1"
+version = "1.3.1+2"
 
 [[deps.libblastrampoline_jll]]
 deps = ["Artifacts", "Libdl"]
 uuid = "8e850b90-86db-534c-a0d3-1478176c7d93"
-version = "5.11.0+0"
+version = "5.15.0+0"
 
 [[deps.nghttp2_jll]]
 deps = ["Artifacts", "Libdl"]
 uuid = "8e850ede-7688-5339-a07c-302acd2aaf8d"
-version = "1.59.0+0"
+version = "1.64.0+1"
 
 [[deps.p7zip_jll]]
-deps = ["Artifacts", "Libdl"]
+deps = ["Artifacts", "CompilerSupportLibraries_jll", "Libdl"]
 uuid = "3f19e933-33d8-53b3-aaab-bd5110c3b7a0"
-version = "17.4.0+2"
+version = "17.7.0+0"
 """
 
 # ╔═╡ Cell order:
-# ╠═e6b12602-f3c7-4f5d-9787-9d0cf0e3887b
 # ╠═08429397-3964-4600-bc14-c45d22c915ec
 # ╟─32a757ff-aa7a-41d5-b8b3-6ac9e0125875
+# ╠═bbbb2222-2222-2222-2222-222222222222
 # ╟─afdb5b7d-d670-4a98-a91d-3ff638fb0294
-# ╟─bcb8064e-8379-4b5e-b218-334302df594f
-# ╟─63e459a0-ec85-4337-9b93-47cfd49bbe92
-# ╟─7b346215-4f51-4298-a023-07a99e3c7208
-# ╟─602f13f9-6d14-41fd-9183-b8255d64399b
-# ╟─6f4ddbaf-0023-499c-a31c-15693797e1fa
 # ╟─4476bf78-39e3-4674-a152-db19fe80929a
 # ╠═927dcc43-202c-4ad2-a76c-837d41f1ed6c
 # ╠═c2eacb91-38e8-428e-9247-691950668bc3
@@ -1701,7 +2108,6 @@ version = "17.4.0+2"
 # ╠═605195de-f4a1-4331-9b82-78e4a061f0a4
 # ╠═a95e361b-d195-4ec0-b2fd-cd9adb79efc5
 # ╟─5729b459-b283-41ce-95be-c4d33a7c28c0
-# ╠═cd125f77-6203-4a0c-a68b-43300e873ca7
 # ╟─281cb873-760c-411f-98b5-1c64d218e7e9
 # ╠═3d50985b-b79a-45ab-ba1f-5287936c56d9
 # ╠═284e4a79-6cfe-4c4a-939b-55fc69611ecb
@@ -1712,7 +2118,11 @@ version = "17.4.0+2"
 # ╠═4c871d5c-1b62-4b1c-9c1e-37cae19cbe0e
 # ╟─8c81ddb5-bf4d-4610-bfea-3d1a27ffd61f
 # ╠═a089ab5b-4703-4d4d-a7ab-11197b4b907c
+# ╠═eeee5555-5555-5555-5555-555555555555
+# ╠═ffff6666-6666-6666-6666-666666666666
+# ╠═cccc3333-3333-3333-3333-333333333333
 # ╟─dba7ea14-e0dd-4dc4-ad9c-4627fd16cc62
+# ╠═aaaa1111-1111-1111-1111-111111111111
 # ╟─57176a1b-b8cd-40fa-a615-8a589fb7ea73
 # ╠═b790898e-11dd-440e-86ef-2403d14a1feb
 # ╠═cabe33b2-5c0a-45e4-a0fb-d057987d8c95
@@ -1724,5 +2134,11 @@ version = "17.4.0+2"
 # ╟─6cbddba3-0a3c-44b7-a033-532c91e35356
 # ╠═31d34c37-96d5-4257-9815-c33af141b906
 # ╠═de445666-cd08-4c78-8cab-2d63fd79af43
+# ╠═602f13f9-6d14-41fd-9183-b8255d64399b
+# ╠═6f4ddbaf-0023-499c-a31c-15693797e1fa
+# ╠═7b346215-4f51-4298-a023-07a99e3c7208
+# ╟─aaaa7777-7777-7777-7777-777777777777
+# ╠═dddd4444-4444-4444-4444-444444444444
+# ╠═bbbb8888-8888-8888-8888-888888888888
 # ╟─00000000-0000-0000-0000-000000000001
 # ╟─00000000-0000-0000-0000-000000000002

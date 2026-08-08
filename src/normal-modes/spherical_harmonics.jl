@@ -1,5 +1,5 @@
 ### A Pluto.jl notebook ###
-# v0.20.21
+# v0.2.6
 
 #> [frontmatter]
 #> title = "Spherical Harmonics"
@@ -23,7 +23,7 @@ end
 
 # ╔═╡ 348240ee-f35f-11ef-01ab-d11599b51ca1
 begin
-    using PlutoUI, PlutoPlotly, SpecialFunctions, LinearAlgebra, Printf, AssociatedLegendrePolynomials, LaTeXStrings, Bessels
+    using PlutoUI, PlutoPlotly, AssociatedLegendrePolynomials, Bessels
 
 
 
@@ -49,28 +49,31 @@ Instructor: *Pawan Bharadwaj*,
 Indian Institute of Science, Bengaluru, India
     """
 
-# ╔═╡ 0e90753b-b2e6-4b41-a5bb-b2dcdab68bd1
-md"""
-##### **Adjust Spherical Harmonic & Radial Function Parameters**
-Use the sliders below to change the properties of the spherical harmonics and radial function.
-- **Degree $l$**: Controls the complexity of the spherical harmonic function.
-- **Order $m$**: Determines the azimuthal variation (allowed range: $-l \leq m \leq l$).
-- **Radial Frequency $ω$**: Affects the oscillations of the radial function.
-
-
-$( @bind l_value Slider(0:1:20, default=3, show_value=true) ) **Degree**  
-
-$( @bind m_value Slider(-l_value:1:l_value, default=0, show_value=true) ) **Order**  
-
-$( @bind ω_value Slider(range(0, 0.1, length=1000), default=0.05, show_value=true) ) **Radial Frequency**
-
-"""
-
 # ╔═╡ 866c00fd-bf69-460b-90b2-79ecf1f72d66
-md"## Vector spherical harmonics"
+md"""
+##### What are `l`, `m`, and the R/S/T motion field?
 
-# ╔═╡ 54b2c235-e693-4f1f-bd1f-1c651e4dbffc
-@bind mode Select(["R"=>"Radial", "S"=>"Poloidal", "T"=>"Toroidal"])
+The **degree `l`** counts how many nodal lines (zero-crossings) the pattern has on the
+sphere &mdash; higher `l` means a more finely-lobed pattern. The **order `m`** (with
+`-l ≤ m ≤ l`) splits those lobes between latitude and longitude: `m = 0` gives purely
+latitudinal bands, `|m| = l` gives purely longitudinal (orange-slice) lobes.
+
+For Earth's free oscillations, a mode's spatial pattern on the sphere is exactly a
+spherical harmonic `Y_l^m`, and its particle motion decomposes into three vector fields:
+- **Radial (`R`)**: purely outward/inward motion, like a breathing sphere &mdash;
+  associated with the "spheroidal" family (also involves horizontal motion in general;
+  here isolated to show the radial part alone).
+- **Poloidal (`S`)**: horizontal motion aligned with the surface gradient of `Y_l^m`
+  &mdash; the tangential part of spheroidal modes.
+- **Toroidal (`T`)**: horizontal motion perpendicular to the gradient of `Y_l^m`
+  &mdash; a purely rotational shearing motion with no radial component at all, the
+  signature of toroidal modes.
+
+The radial panel shows a spherical Bessel function `j_l(ωr/c)` for a **uniform,
+non-dispersive sphere** (`c = 5 km/s` throughout, not a real depth-dependent Earth
+model) &mdash; a simplification that keeps the radial shape simple enough to read at a
+glance, in exchange for not being quantitatively Earth-like.
+"""
 
 # ╔═╡ 4d6aed73-9b2f-47c6-a161-38e2633cb8db
 md"---"
@@ -85,44 +88,82 @@ c = 5.0 # in km/s
 md"### Surface Spherical Harmonics "
 
 # ╔═╡ 186c6279-4573-4fda-8589-5fabcbc1cc0e
+"""
+    Y_lm(l, m, θ, φ)
+
+The complex surface spherical harmonic `Y_l^m(θ,φ)`, fully normalized so that
+`∫|Y_l^m|² dΩ = 1` over the unit sphere. `θ` is colatitude (0 at the north pole),
+`φ` is longitude. Built from `AssociatedLegendrePolynomials.λlm` (which already
+carries the normalization and Condon-Shortley phase) times the azimuthal factor
+`exp(im*m*φ)`.
+"""
 function Y_lm(l, m, θ, φ)
 	P_lm = λlm(l, abs(m), cos(θ))
     return P_lm * exp(im * m * φ)
 end
 
 # ╔═╡ b5be41c0-ff78-4f5d-a795-4c5a79135fb6
+"""
+    Y_lm(l, m, thetaphi)
+
+Vector-argument form of [`Y_lm`](@ref) -- `thetaphi = [θ, φ]`. Exists so
+`ForwardDiff.gradient` can differentiate `Y_lm` with respect to both angles at once
+(see [`spherical_harmonic_gradient`](@ref)).
+"""
 function Y_lm(l, m, thetaphi)
 	return Y_lm(l, m, thetaphi[1], thetaphi[2])
 end
 
 # ╔═╡ 7eb05e0a-12e1-4033-b081-1fc79b38218a
+"""
+    spherical_harmonics(l, m, θ, φ)
+
+`Y_l^m(θ,φ)`, or `zero(θ)` when `|m| > l` (an invalid but commonly-swept-over
+combination when `m` is driven by a slider that hasn't yet clamped to the new `l`).
+Returns the full complex value -- callers take `real(...)` where a scalar is needed.
+"""
 function spherical_harmonics(l, m, θ, φ)
         if abs(m) > l
             return zero(θ)
         end
         Y = Y_lm(l, m, θ, φ)
-        return Y  # Return the real part for visualization
+        return Y  # complex value; callers take real(...) where a scalar is needed
 end
 
 # ╔═╡ 79fa4c7b-5f93-44f9-bf33-311f5efecf32
 md"### Vector Spherical Harmonics"
 
 # ╔═╡ ea0d2403-03ea-4c42-a452-59f830c22a16
+"""
+    spherical_harmonic_gradient(l::Int, m::Int, θ, φ)
+
+The surface gradient `∇Y_l^m = (∂Y/∂θ, ∂Y/∂φ)`, computed with `ForwardDiff` by
+differentiating the real and imaginary parts of [`Y_lm`](@ref) separately and
+recombining as a complex vector. Feeds the poloidal (`S`) and toroidal (`T`)
+components in [`vector_spherical_harmonics`](@ref).
+"""
 function spherical_harmonic_gradient(l::Int, m::Int, θ, φ)
     if abs(m) > l
         return (zero(θ), zero(θ))  # Edge case where |m| > l
     end
 	Y = Y_lm(l, m, θ, φ)
-	
+
 	dY = ForwardDiff.gradient(x->real(Y_lm(l, m, x)), [θ,φ]) + im * ForwardDiff.gradient(x->imag(Y_lm(l, m, x)), [θ,φ])
 
     return dY
 end
 
-# ╔═╡ ca84a03e-053e-47c3-aefc-e81202f0f9f3
-spherical_harmonic_gradient(l_value, m_value, 1.2, -0.1)
-
 # ╔═╡ 38e90f9a-5cba-451f-bae3-341f03988e3c
+"""
+    vector_spherical_harmonics(l, m, θ, φ, mode_type)
+
+One of the three vector spherical harmonics at `(θ,φ)`, returned as spherical
+components `[r, θ, φ]`:
+- `"R"` (radial): purely outward/inward motion, magnitude `Y_l^m` itself.
+- `"S"` (poloidal): tangential motion along `∇Y_l^m`, normalized by `1/√(l(l+1))`.
+- `"T"` (toroidal): tangential motion perpendicular to `∇Y_l^m` (a 90° rotation of
+  the poloidal field), same normalization.
+"""
 function vector_spherical_harmonics(l, m, θ, φ, mode_type)
         if abs(m) > l
             return zero(θ)
@@ -130,13 +171,13 @@ function vector_spherical_harmonics(l, m, θ, φ, mode_type)
 		Y = Y_lm(l, m, θ, φ)
 		dY = spherical_harmonic_gradient(l, m, θ, φ)
 		s = inv(sqrt(l*(l+1)))
-	
+
  	if mode_type == "R"
         return [Y, 0, 0]  # Purely outward motion (gravity-like)
     elseif mode_type == "S"
         return s.*[0, dY[1], dY[2] / sin(θ)]  # Tangential movement
     elseif mode_type == "T"
-        return s.*[0, dY[2] / sin(θ), - dY[1]] # Rotational motion 
+        return s.*[0, dY[2] / sin(θ), - dY[1]] # Rotational motion
     else
         return [0, 0, 0]
     end
@@ -147,15 +188,352 @@ md"### Grids"
 
 # ╔═╡ 7100ad22-5762-465c-a6a4-bbb06e11ac2f
 begin
-	    θ_range = range(0, π, length=50)  # Latitude
+	    θ_ε = 1e-3  # keep grid off the poles: dY[2]/sin(θ) blows up exactly at θ=0,π
+	    θ_range = range(θ_ε, π - θ_ε, length=50)  # Latitude
 	    φ_range = range(0, 2π, length=100)  # Longitude
 	    θ_grid = first.(Iterators.product(θ_range, φ_range))
 		φ_grid = last.(Iterators.product(θ_range, φ_range))
 end;
 
+# ╔═╡ 71c529bf-77d8-481c-94d3-86a80dfcd641
+radius_max = 6000 # in km
+
+# ╔═╡ 8ed29e6e-583c-4fb3-86d3-f34b8d025c0f
+radius_grid = range(0., radius_max, length=1000);
+
+# ╔═╡ ee3ca7fd-327b-408f-918f-55a387e9cb7c
+md"### The Interactive Widget"
+
+# ╔═╡ e2bb7ecd-bcad-4b61-9eae-020c2a507435
+begin
+    """
+        SphericalHarmonicInput(; l=3, m=0, omega=0.05, mode="S")
+
+    Bound widget: degree `l` (0-20), order `m` (auto-clamped client-side to `[-l,l]`),
+    radial frequency `omega`, and R/S/T motion-field `mode`. Renders a drag-to-rotate 3D
+    sphere (colored and radius-lobed by `real(Y_l^m)`, optionally overlaid with motion
+    vectors) plus a radial Bessel-function profile. Bound value is a
+    `Dict{String,Any}` with keys `"l"`, `"m"`, `"omega"`, `"mode"` (the same shape
+    `Base.get` returns below, matching Pluto's default JS-object bond transport).
+    """
+    struct SphericalHarmonicInput
+        l::Int
+        m::Int
+        omega::Float64
+        mode::String
+    end
+
+    SphericalHarmonicInput(; l=3, m=0, omega=0.05, mode="S") =
+        SphericalHarmonicInput(Int(l), Int(m), Float64(omega), mode)
+
+    Base.get(w::SphericalHarmonicInput) = Dict{String,Any}(
+        "l" => w.l, "m" => w.m, "omega" => w.omega, "mode" => w.mode,
+    )
+
+    function Base.show(io::IO, ::MIME"text/html", w::SphericalHarmonicInput)
+        write(io, """
+<div id="shwwidget" style="display:flex;flex-direction:column;align-items:center;width:100%;color:#9ca3af">
+  <style>
+    pluto-cell:has(#shwwidget){width:min(80vw,1400px)!important;margin-left:calc((100% - min(80vw,1400px))/2)!important}
+    #shwwidget .shw-title{width:100%;box-sizing:border-box;text-align:center;margin-bottom:10px;background:#0a0f18;border:1px solid #3b5c85;border-radius:6px;padding:10px 14px}
+    #shwwidget .shw-title-desc{font-size:17px;font-weight:700;color:#e5e7eb}
+    #shwwidget .shw-title-hint{font-size:13px;color:#9ca3af;margin-top:3px}
+    #shwwidget .shw-workspace{display:flex;gap:12px;align-items:flex-start;justify-content:center;width:100%;flex-wrap:wrap}
+    #shwwidget canvas{background:#000;border:1px solid #374151;border-radius:6px;display:block}
+    #shwwidget #shwsphere{cursor:grab}
+    #shwwidget #shwsphere.dragging{cursor:grabbing}
+    #shwwidget .shw-controls{width:min(var(--totalw,960px),100%);margin-top:8px;display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:8px;font:14px sans-serif}
+    #shwwidget .shw-control-group{box-sizing:border-box;background:#050505;border:1px solid #2f3744;border-radius:6px;padding:10px 12px}
+    #shwwidget .shw-control-title{font-weight:700;color:#e5e7eb;margin-bottom:8px;font-size:18px}
+    #shwwidget .shw-control-row{display:grid;grid-template-columns:minmax(60px,90px) minmax(70px,1fr) minmax(40px,64px);gap:6px;align-items:center;margin:7px 0}
+    #shwwidget .shw-control-row input[type=range]{width:100%;min-width:0;vertical-align:middle}
+    #shwwidget .shw-value{color:#d1d5db;text-align:left;font-variant-numeric:tabular-nums}
+    #shwwidget .shw-actions{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+    #shwwidget label{color:#d1d5db}
+    #shwwidget select{background:#111827;color:#e5e7eb;border:1px solid #374151;border-radius:4px;padding:3px 6px}
+    @media (max-width: 900px){
+      #shwwidget .shw-workspace{flex-direction:column;align-items:center}
+      #shwwidget .shw-controls{grid-template-columns:1fr;width:660px;max-width:100%}
+    }
+  </style>
+  <div class="shw-title">
+    <div class="shw-title-desc">Degree `l`, order `m` shape the pattern; R/S/T picks which motion field is drawn on top of it.</div>
+    <div class="shw-title-hint">drag the sphere to rotate &middot; slide l/m/&omega; to change the mode &middot; toggle motion vectors on/off</div>
+  </div>
+  <div class="shw-workspace">
+    <canvas id="shwsphere" width="560" height="560"></canvas>
+    <canvas id="shwradial" width="260" height="560"></canvas>
+  </div>
+  <div class="shw-controls">
+    <div class="shw-control-group">
+      <div class="shw-control-title">Spherical Harmonic</div>
+      <label class="shw-control-row"><span>degree l</span><input type="range" id="shw-l" min="0" max="20" step="1" value="$(w.l)"><span id="shw-l-v" class="shw-value">$(w.l)</span></label>
+      <label class="shw-control-row"><span>order m</span><input type="range" id="shw-m" min="$(-w.l)" max="$(w.l)" step="1" value="$(w.m)"><span id="shw-m-v" class="shw-value">$(w.m)</span></label>
+    </div>
+    <div class="shw-control-group">
+      <div class="shw-control-title">Radial Frequency</div>
+      <label class="shw-control-row"><span>&omega;</span><input type="range" id="shw-omega" min="0" max="0.1" step="0.0001" value="$(w.omega)"><span id="shw-omega-v" class="shw-value">$(w.omega)</span></label>
+      <div style="font-size:12px;color:#6b7280;margin-top:4px">uniform sphere, c = 5 km/s</div>
+    </div>
+    <div class="shw-control-group">
+      <div class="shw-control-title">Motion Field</div>
+      <div class="shw-actions">
+        <select id="shw-mode">
+          <option value="R" $(w.mode == "R" ? "selected" : "")>Radial</option>
+          <option value="S" $(w.mode == "S" ? "selected" : "")>Poloidal</option>
+          <option value="T" $(w.mode == "T" ? "selected" : "")>Toroidal</option>
+        </select>
+        <label><input type="checkbox" id="shw-vec" checked> show vectors</label>
+      </div>
+    </div>
+    <div class="shw-control-group">
+      <div class="shw-control-title">Legend</div>
+      <div style="font-size:13px;line-height:1.6">
+        <span style="color:#ef4444">&#9632;</span> Y &gt; 0&emsp;<span style="color:#3b82f6">&#9632;</span> Y &lt; 0<br>
+        <span style="color:#f5f3ef">&#8594;</span> motion vector (current R/S/T field)
+      </div>
+    </div>
+  </div>
+</div>
+<script>
+  const par = currentScript.previousElementSibling
+  const availW = Math.min(window.innerWidth*0.8, par.clientWidth || window.innerWidth*0.8, 1400)
+  const totalW = Math.max(700, availW)
+  par.style.setProperty('--totalw', Math.round(totalW)+'px')
+  const SEC = Math.round(Math.min(totalW*0.62, 560))
+  const RADW = Math.round(Math.min(totalW*0.30, 260))
+  const DPR = Math.min(window.devicePixelRatio || 1, 2)
+
+  let l = $(w.l), m = $(w.m), omega = $(w.omega), mode = "$(w.mode)"
+  let showVectors = true
+  let yaw = 0.6, pitch = 0.3, dragging = false, lastX = 0, lastY = 0
+  let data = null   // filled in by the 'shw-results' push from Julia, below
+
+  const sphCvs = par.querySelector('#shwsphere'), sctx = sphCvs.getContext('2d')
+  const radCvs = par.querySelector('#shwradial'), rctx = radCvs.getContext('2d')
+  function hidpi(cv, cx, w, h){ cv.width=Math.round(w*DPR); cv.height=Math.round(h*DPR); cv.style.width=w+'px'; cv.style.height=h+'px'; cx.setTransform(DPR,0,0,DPR,0,0) }
+  hidpi(sphCvs, sctx, SEC, SEC)
+  hidpi(radCvs, rctx, RADW, SEC)
+
+  const CX = SEC/2, CY = SEC/2, RPIX = SEC*0.36
+
+  function rot(p){
+    const x = p[0]*Math.cos(yaw) - p[1]*Math.sin(yaw)
+    const y = p[0]*Math.sin(yaw) + p[1]*Math.cos(yaw)
+    const z = p[2]
+    return [x, y*Math.cos(pitch) - z*Math.sin(pitch), y*Math.sin(pitch) + z*Math.cos(pitch)]
+  }
+  function proj(p){ return [CX + p[0]*RPIX, CY - p[2]*RPIX] }
+
+  // Diverging ramp on a dark background: positive Y -> red, negative Y -> blue
+  // (same construction as tomoColor in earth-internal-structure.jl's globe, opposite
+  // sign convention since here it's a mathematical field, not a physical anomaly).
+  function ylmColor(v, mx){
+    const t = Math.max(-1, Math.min(1, mx > 0 ? v/mx : 0))
+    const bg = [18, 22, 29]
+    const hi = t >= 0 ? [239, 68, 68] : [59, 130, 246]
+    const a = Math.min(1, Math.abs(t) * 1.6)
+    const c = [0,1,2].map(i => Math.round(bg[i] + (hi[i]-bg[i])*a))
+    return 'rgb('+c[0]+','+c[1]+','+c[2]+')'
+  }
+
+  function idx(i, j, nt){ return j*nt + i }   // 0-based, matches Julia's column-major (theta-fastest) flattening
+
+  function drawSphere(){
+    sctx.clearRect(0,0,SEC,SEC)
+    if(!data){
+      sctx.fillStyle = '#6b7280'; sctx.font = '13px sans-serif'
+      sctx.fillText('computing...', 12, 20)
+      return
+    }
+    const {nt, np, x, y, z, ylm} = data
+    let ymax = 1e-9
+    for(const v of ylm) ymax = Math.max(ymax, Math.abs(v))
+
+    for(let i=0;i<nt-1;i++){
+      for(let j=0;j<np;j++){
+        const j1 = (j+1) % np
+        const c00 = idx(i,j,nt), c01 = idx(i,j1,nt), c11 = idx(i+1,j1,nt), c10 = idx(i+1,j,nt)
+        const pts = [c00,c01,c11,c10].map(k => rot([x[k],y[k],z[k]]))
+        const avgDepth = (pts[0][1]+pts[1][1]+pts[2][1]+pts[3][1])/4
+        if(avgDepth < 0) continue
+        const vAvg = (ylm[c00]+ylm[c01]+ylm[c11]+ylm[c10])/4
+        sctx.beginPath()
+        const s0 = proj(pts[0]); sctx.moveTo(s0[0], s0[1])
+        for(let k=1;k<4;k++){ const s = proj(pts[k]); sctx.lineTo(s[0], s[1]) }
+        sctx.closePath()
+        sctx.fillStyle = ylmColor(vAvg, ymax)
+        sctx.fill()
+      }
+    }
+
+    if(showVectors && data.arrow_idx && data.arrow_idx.length){
+      let umax = 1e-9
+      for(let k=0;k<data.arrow_ux.length;k++) umax = Math.max(umax, Math.hypot(data.arrow_ux[k], data.arrow_uy[k], data.arrow_uz[k]))
+      const maxPix = 26
+      sctx.strokeStyle = '#f5f3ef'; sctx.fillStyle = '#f5f3ef'; sctx.lineWidth = 1.6
+      for(let a=0;a<data.arrow_idx.length;a++){
+        const k = data.arrow_idx[a]
+        const base = rot([x[k], y[k], z[k]])
+        if(base[1] < 0) continue
+        const mag = Math.hypot(data.arrow_ux[a], data.arrow_uy[a], data.arrow_uz[a])
+        if(mag < 1e-9) continue
+        const scale = (mag/umax) * maxPix / RPIX
+        const dir = rot([data.arrow_ux[a], data.arrow_uy[a], data.arrow_uz[a]])
+        const tip = [base[0]+dir[0]*scale, base[1]+dir[1]*scale, base[2]+dir[2]*scale]
+        const s0 = proj(base), s1 = proj(tip)
+        sctx.beginPath(); sctx.moveTo(s0[0], s0[1]); sctx.lineTo(s1[0], s1[1]); sctx.stroke()
+        const ang = Math.atan2(s1[1]-s0[1], s1[0]-s0[0])
+        sctx.beginPath()
+        sctx.moveTo(s1[0], s1[1])
+        sctx.lineTo(s1[0]-4*Math.cos(ang-0.4), s1[1]-4*Math.sin(ang-0.4))
+        sctx.lineTo(s1[0]-4*Math.cos(ang+0.4), s1[1]-4*Math.sin(ang+0.4))
+        sctx.closePath(); sctx.fill()
+      }
+    }
+
+    sctx.beginPath(); sctx.arc(CX,CY,RPIX,0,2*Math.PI)
+    sctx.strokeStyle='#4b5563'; sctx.lineWidth=1; sctx.stroke()
+    sctx.fillStyle='#9ca3af'; sctx.font='14px sans-serif'
+    sctx.fillText('Y_'+l+'^'+m+' colored on the sphere, radius lobed by |Y|', 12, 20)
+    sctx.font='13px sans-serif'
+    sctx.fillText('drag to rotate', 12, 38)
+  }
+
+  function drawRadial(){
+    rctx.clearRect(0,0,RADW,SEC)
+    if(!data){
+      rctx.fillStyle = '#6b7280'; rctx.font = '12px sans-serif'
+      rctx.fillText('computing...', 10, 18)
+      return
+    }
+    const PAD_L = 42, PAD_R = 10, PAD_T = 30, PAD_B = 24
+    const x0 = PAD_L, x1 = RADW-PAD_R, y0 = PAD_T, y1 = SEC-PAD_B
+    const rMax = Math.max(...data.radial.map(Math.abs)) * 1.1 || 1
+    const depthMax = data.radius_grid[data.radius_grid.length-1]
+    const X = v => x0 + (x1-x0)*0.5 + (v/rMax)*(x1-x0)*0.5
+    const Y = d => y0 + (d/depthMax)*(y1-y0)
+
+    rctx.strokeStyle = '#1f2937'; rctx.fillStyle = '#9ca3af'; rctx.font='10px sans-serif'; rctx.textAlign='right'
+    for(let i=0;i<=5;i++){
+      const d = depthMax*i/5, y = Y(d)
+      rctx.beginPath(); rctx.moveTo(x0,y); rctx.lineTo(x1,y); rctx.stroke()
+      rctx.fillText(Math.round(d)+'', x0-6, y+3)
+    }
+    rctx.strokeStyle = '#374151'
+    rctx.beginPath(); rctx.moveTo(X(0),y0); rctx.lineTo(X(0),y1); rctx.stroke()
+
+    rctx.strokeStyle = '#38bdf8'; rctx.lineWidth = 2
+    rctx.beginPath()
+    data.radius_grid.forEach((r,i) => { const px=X(data.radial[i]), py=Y(r); i===0?rctx.moveTo(px,py):rctx.lineTo(px,py) })
+    rctx.stroke()
+
+    rctx.textAlign='center'; rctx.fillStyle='#e5e7eb'; rctx.font='12px sans-serif'
+    rctx.fillText('Radial function', (x0+x1)/2, 16)
+    rctx.save(); rctx.translate(12, (y0+y1)/2); rctx.rotate(-Math.PI/2)
+    rctx.fillStyle='#9ca3af'; rctx.font='11px sans-serif'; rctx.textAlign='center'
+    rctx.fillText('radius (km)', 0, 0)
+    rctx.restore()
+    rctx.fillStyle='#9ca3af'; rctx.font='11px sans-serif'
+    rctx.fillText('period '+data.period_min+' min', 8, SEC-6)
+  }
+
+  function redraw(){ drawSphere(); drawRadial() }
+  redraw()
+
+  function emit(){
+    par.value = {l, m, omega, mode}
+    par.dispatchEvent(new CustomEvent('input'))
+  }
+
+  const lSlider = par.querySelector('#shw-l'), mSlider = par.querySelector('#shw-m')
+  lSlider.addEventListener('input', e=>{
+    l = parseInt(e.target.value)
+    par.querySelector('#shw-l-v').textContent = l
+    mSlider.min = -l; mSlider.max = l
+    if(Math.abs(m) > l){ m = 0; mSlider.value = 0; par.querySelector('#shw-m-v').textContent = 0 }
+    emit()
+  })
+  mSlider.addEventListener('input', e=>{
+    m = parseInt(e.target.value)
+    par.querySelector('#shw-m-v').textContent = m
+    emit()
+  })
+  par.querySelector('#shw-omega').addEventListener('input', e=>{
+    omega = parseFloat(e.target.value)
+    par.querySelector('#shw-omega-v').textContent = omega.toFixed(4)
+    emit()
+  })
+  par.querySelector('#shw-mode').addEventListener('change', e=>{
+    mode = e.target.value
+    emit()
+  })
+  par.querySelector('#shw-vec').addEventListener('change', e=>{
+    showVectors = e.target.checked
+    redraw()
+  })
+
+  sphCvs.addEventListener('mousedown', e=>{ dragging=true; lastX=e.offsetX; lastY=e.offsetY; sphCvs.classList.add('dragging') })
+  sphCvs.addEventListener('mousemove', e=>{
+    if(dragging){
+      const dx=e.offsetX-lastX, dy=e.offsetY-lastY
+      lastX=e.offsetX; lastY=e.offsetY
+      yaw += dx*0.01
+      pitch = Math.max(-1.3, Math.min(1.3, pitch + dy*0.01))
+      drawSphere()
+    }
+  })
+  window.addEventListener('mouseup', ()=>{ dragging=false; sphCvs.classList.remove('dragging') })
+
+  window.addEventListener('shw-results', ev => {
+    data = JSON.parse(ev.detail)
+    redraw()
+  })
+</script>
+""")
+    end
+
+    # Forces the correct execution order on a fresh restart (Pluto's static dependency
+    # analysis doesn't reliably detect that the bind cell below depends on this cell
+    # defining SphericalHarmonicInput) -- same pattern as `_epi_ready`/`_tgi_ready` in
+    # earth-internal-structure.jl.
+    const _shwi_ready = true
+end
+
+# ╔═╡ 5b7a1c40-8e91-4a2a-9a2c-2f1c0f6a9a01
+begin
+    _shwi_ready
+    @bind shw SphericalHarmonicInput()
+end
+
+# ╔═╡ 2c9e8a11-4f2b-4a7e-9a1a-5b6c7d8e9f01
+begin
+    # `shw` is `nothing` until the widget's JS has fired its first `emit()` (Pluto has no
+    # JS-side initial-value hook wired up for this bond) -- fall back to the same
+    # defaults as `SphericalHarmonicInput()`'s keyword constructor until then.
+    l_value = shw isa AbstractDict ? round(Int, shw["l"]) : 3
+    m_value = shw isa AbstractDict ? round(Int, shw["m"]) : 0
+    ω_value = shw isa AbstractDict ? shw["omega"] : 0.05
+    mode = shw isa AbstractDict ? shw["mode"] : "S"
+end;
+
+# ╔═╡ ca84a03e-053e-47c3-aefc-e81202f0f9f3
+spherical_harmonic_gradient(l_value, m_value, 1.2, -0.1)
+
 # ╔═╡ 665f39ad-0764-4166-8872-8179eba23374
 # Compute spherical harmonics
 Ylm_grid = [real(spherical_harmonics(l_value, m_value, θ, φ)) for (θ, φ) in zip(θ_grid, φ_grid)];
+
+# ╔═╡ 32fa5f32-72b4-4ce2-8d6b-0ab12acff038
+begin
+	 # Convert spherical to Cartesian coordinates, lobing the radius by Ylm_grid so
+	 # the classic "bulging sphere" shape of a spherical harmonic is visible, not just its color
+	lobe_amplitude = 0.35
+	lobe_radius = 1 .+ lobe_amplitude .* Ylm_grid ./ maximum(abs, Ylm_grid)
+	X = lobe_radius .* sin.(θ_grid) .* cos.(φ_grid)
+	Y = lobe_radius .* sin.(θ_grid) .* sin.(φ_grid)
+	Z = lobe_radius .* cos.(θ_grid)
+end;
 
 # ╔═╡ eaa2c2dd-f109-4a2b-b8b8-4f15d5576ca8
 begin
@@ -169,48 +547,45 @@ begin
     Ux = U_r .* sin.(θ_grid) .* cos.(φ_grid) .+ U_θ .* cos.(θ_grid) .* cos.(φ_grid) .+ U_φ .* -sin.(φ_grid)
     Uy = U_r .* sin.(θ_grid) .* sin.(φ_grid) + U_θ .* cos.(θ_grid) .* sin.(φ_grid) + U_φ .* cos.(φ_grid)
     Uz = U_r .* cos.(θ_grid) + U_θ .* (-sin.(θ_grid)) + U_φ .* 0
-	
+
 end;
-
-# ╔═╡ 32fa5f32-72b4-4ce2-8d6b-0ab12acff038
-begin
-	 # Convert spherical to Cartesian coordinates
-	X = sin.(θ_grid) .* cos.(φ_grid) #.* Ylm_grid
-	Y = sin.(θ_grid) .* sin.(φ_grid) #.* Ylm_grid
-	Z = cos.(θ_grid) #.* Ylm_grid
-end;
-
-# ╔═╡ 790e31fe-4cc3-44cd-b33c-0ab0925ce23a
-begin
-    plot(
-        cone(
-            x=vec(X), y=vec(Y), z=vec(Z), u=real(vec(Ux)), v=real(vec(Uy)), w=real(vec(Uz)),
-            colorscale="Reds", showscale=false, sizeref=(mode == "R" ? 1.0 : 0.15), name="Vector Field"
-        )
-    , Layout(
-        title="$mode <br> l=$l_value, m=$m_value",
-        scene=attr(
-            xaxis=attr(title="X"),
-            yaxis=attr(title="Y"),
-            zaxis=attr(title="Z"),
-            aspectmode="cube"
-        )
-    ))
-end
-
-# ╔═╡ 71c529bf-77d8-481c-94d3-86a80dfcd641
-radius_max = 6000 # in km
-
-# ╔═╡ 8ed29e6e-583c-4fb3-86d3-f34b8d025c0f
-radius_grid = range(0., radius_max, length=1000);
 
 # ╔═╡ 4d8bfdc4-175d-4f7a-ad65-338726ad343e
 R = Bessels.sphericalbesselj.(l_value, ω_value .* radius_grid ./c);
 
-# ╔═╡ d7ac1aac-2949-4ca3-a0e9-f233a0a6c1b9
-begin
-	PlutoUI.ExperimentalLayout.hbox([plot(surface(x=X, y=Y, z=Z, surfacecolor=Ylm_grid, colorscale="Seismic", showscale=true), Layout(width=500, title="Spherical Surface Harmonic <br> l=$l_value, m=$m_value")), plot(
-scatter(x=R, y=radius_grid, mode="lines", line=attr(color="blue", width=3), name="Radial Function"), Layout(width=200, yaxis=attr(title="radius (km)"),title="Radial Wave Function<br>period = $(round(2*pi/ω_value/60, digits=2)) min"))])
+# ╔═╡ 785b9164-9a3b-4abe-90ed-1cdf7fae7252
+# Push the currently-computed sphere mesh, subsampled motion-vector field, and radial
+# profile to the widget above -- same CustomEvent pattern used throughout this repo
+# (e.g. geoid-kernel.jl, global-seismic-arrivals.jl) to feed an already-rendered widget
+# from a downstream, non-@bind cell.
+let
+    num(x) = isfinite(x) ? string(round(Float64(x), digits=5)) : "0"
+    jsonarr(v) = "[" * join(num.(v), ",") * "]"
+
+    nt, np = length(θ_range), length(φ_range)
+    # Sparse subgrid for motion-vector glyphs -- the full nt*np mesh is far too dense
+    # to draw as individual arrows without turning into visual noise.
+    arrow_i = 1:4:nt
+    arrow_j = 1:6:np
+    arrow_idx = vec([(j - 1) * nt + i for i in arrow_i, j in arrow_j])
+
+    payload = string(
+        "{\"nt\":", nt, ",\"np\":", np,
+        ",\"x\":", jsonarr(X), ",\"y\":", jsonarr(Y), ",\"z\":", jsonarr(Z),
+        ",\"ylm\":", jsonarr(Ylm_grid),
+        ",\"arrow_idx\":", jsonarr(arrow_idx .- 1),
+        ",\"arrow_ux\":", jsonarr(real.(Ux[arrow_idx])),
+        ",\"arrow_uy\":", jsonarr(real.(Uy[arrow_idx])),
+        ",\"arrow_uz\":", jsonarr(real.(Uz[arrow_idx])),
+        ",\"radius_grid\":", jsonarr(radius_grid),
+        ",\"radial\":", jsonarr(R),
+        ",\"period_min\":", num(2 * pi / ω_value / 60),
+        ",\"l\":", l_value, ",\"m\":", m_value, ",\"mode\":\"", mode, "\"",
+        "}",
+    )
+    HTML("""<script>
+      window.dispatchEvent(new CustomEvent('shw-results', {detail: $(repr(payload))}));
+    </script>""")
 end
 
 # ╔═╡ 00000000-0000-0000-0000-000000000001
@@ -219,21 +594,15 @@ PLUTO_PROJECT_TOML_CONTENTS = """
 AssociatedLegendrePolynomials = "2119f1ac-fb78-50f5-8cc0-dda848ebdb19"
 Bessels = "0e736298-9ec6-45e8-9647-e4fc86a2fe38"
 ForwardDiff = "f6369f11-7733-5829-9624-2563aa707210"
-LaTeXStrings = "b964fa9f-0449-5b57-a5c2-d3ea65f4040f"
-LinearAlgebra = "37e2e46d-f89d-539d-b4ee-838fcccc9c8e"
 PlutoPlotly = "8e989ff0-3d88-8e9f-f020-2b208a939ff0"
 PlutoUI = "7f904dfe-b85e-4ff6-b463-dae2292396a8"
-Printf = "de0858da-6303-5e67-8744-51eddeeeb8d7"
-SpecialFunctions = "276daf66-3868-5448-9aa4-cd146d93841b"
 
 [compat]
 AssociatedLegendrePolynomials = "~1.0.2"
 Bessels = "~0.2.8"
-ForwardDiff = "~1.2.2"
-LaTeXStrings = "~1.4.0"
-PlutoPlotly = "~0.6.5"
-PlutoUI = "~0.7.72"
-SpecialFunctions = "~2.6.1"
+ForwardDiff = "~1.4.3"
+PlutoPlotly = "~0.6.6"
+PlutoUI = "~0.7.83"
 """
 
 # ╔═╡ 00000000-0000-0000-0000-000000000002
@@ -242,13 +611,12 @@ PLUTO_MANIFEST_TOML_CONTENTS = """
 
 julia_version = "1.12.4"
 manifest_format = "2.0"
-project_hash = "a9bbb00069a9be5a5b65a5af30b56fca6dff7b30"
+project_hash = "eddc843fa371db1223676d21a5c2050a3affbb73"
 
 [[deps.AbstractPlutoDingetjes]]
-deps = ["Pkg"]
-git-tree-sha1 = "6e1d2a35f2f90a4bc7c2ed98079b2ba09c35b83a"
+git-tree-sha1 = "6c3913f4e9bdf6ba3c08041a446fb1332716cbc2"
 uuid = "6e696c72-6542-2067-7265-42206c756150"
-version = "1.3.2"
+version = "1.4.0"
 
 [[deps.ArgTools]]
 uuid = "0dad84c5-d112-42e6-8d28-ef12dabb789f"
@@ -334,9 +702,9 @@ version = "1.1.0"
 
 [[deps.DiffRules]]
 deps = ["IrrationalConstants", "LogExpFunctions", "NaNMath", "Random", "SpecialFunctions"]
-git-tree-sha1 = "23163d55f885173722d1e4cf0f6110cdbaf7e272"
+git-tree-sha1 = "79a2aca180a85c690c58a020d47b426954b590f8"
 uuid = "b552c78f-8df3-52c6-915a-8e097449b14b"
-version = "1.15.1"
+version = "1.16.0"
 
 [[deps.DocStringExtensions]]
 git-tree-sha1 = "7442a5dfe1ebb773c29cc2962a8980f47221d76c"
@@ -353,16 +721,16 @@ uuid = "7b1f6079-737a-58dc-b8bc-7a2ca5c1b5ee"
 version = "1.11.0"
 
 [[deps.FixedPointNumbers]]
-deps = ["Statistics"]
-git-tree-sha1 = "05882d6995ae5c12bb5f36dd2ed3f61c98cbb172"
+deps = ["Random", "Statistics"]
+git-tree-sha1 = "59af96b98217c6ef4ae0dfe065ac7c20831d1a84"
 uuid = "53c48c17-4a7d-5ca2-90c5-79b7896eea93"
-version = "0.8.5"
+version = "0.8.6"
 
 [[deps.ForwardDiff]]
 deps = ["CommonSubexpressions", "DiffResults", "DiffRules", "LinearAlgebra", "LogExpFunctions", "NaNMath", "Preferences", "Printf", "Random", "SpecialFunctions"]
-git-tree-sha1 = "ba6ce081425d0afb2bedd00d9884464f764a9225"
+git-tree-sha1 = "73d5084cae45f9d0857776ad78cf303fec09eb02"
 uuid = "f6369f11-7733-5829-9624-2563aa707210"
-version = "1.2.2"
+version = "1.4.3"
 
     [deps.ForwardDiff.extensions]
     ForwardDiffStaticArraysExt = "StaticArrays"
@@ -383,15 +751,15 @@ version = "0.0.5"
 
 [[deps.HypertextLiteral]]
 deps = ["Tricks"]
-git-tree-sha1 = "7134810b1afce04bbc1045ca1985fbe81ce17653"
+git-tree-sha1 = "d1a86724f81bcd184a38fd284ce183ec067d71a0"
 uuid = "ac1192a8-f4b3-4bfe-ba22-af5b92cd3ab2"
-version = "0.9.5"
+version = "1.0.0"
 
 [[deps.IOCapture]]
 deps = ["Logging", "Random"]
-git-tree-sha1 = "b6d6bfdd7ce25b0f9b2f6b3dd56b2673a66c8770"
+git-tree-sha1 = "0ee181ec08df7d7c911901ea38baf16f755114dc"
 uuid = "b5f81e59-6552-4d32-b1f0-c071b021bf89"
-version = "0.2.5"
+version = "1.0.0"
 
 [[deps.InteractiveUtils]]
 deps = ["Markdown"]
@@ -405,15 +773,21 @@ version = "0.2.6"
 
 [[deps.JLLWrappers]]
 deps = ["Artifacts", "Preferences"]
-git-tree-sha1 = "0533e564aae234aff59ab625543145446d8b6ec2"
+git-tree-sha1 = "7204148362dafe5fe6a273f855b8ccbe4df8173e"
 uuid = "692b3bcd-3c85-4b1f-b108-f13ce0eb3210"
-version = "1.7.1"
+version = "1.8.0"
 
 [[deps.JSON]]
-deps = ["Dates", "Mmap", "Parsers", "Unicode"]
-git-tree-sha1 = "31e996f0a15c7b280ba9f76636b3ff9e2ae58c9a"
+deps = ["Dates", "Logging", "Parsers", "PrecompileTools", "StructUtils", "UUIDs", "Unicode"]
+git-tree-sha1 = "c89d196f5ffb64bfbf80985b699ea913b0d2c211"
 uuid = "682c06a0-de6a-54ab-a142-c8b1cf79cde6"
-version = "0.21.4"
+version = "1.6.1"
+
+    [deps.JSON.extensions]
+    JSONArrowExt = ["ArrowTypes"]
+
+    [deps.JSON.weakdeps]
+    ArrowTypes = "31f734f8-188a-4ce0-8406-c8a06bd891cd"
 
 [[deps.JuliaSyntaxHighlighting]]
 deps = ["StyledStrings"]
@@ -461,9 +835,9 @@ version = "1.12.0"
 
 [[deps.LogExpFunctions]]
 deps = ["DocStringExtensions", "IrrationalConstants", "LinearAlgebra"]
-git-tree-sha1 = "13ca9e2586b89836fd20cccf56e57e2b9ae7f38f"
+git-tree-sha1 = "bba2d9aa057d8f126415de240573e86a8f39d2a1"
 uuid = "2ab3a3ac-af41-5b50-aa03-7779005ae688"
-version = "0.3.29"
+version = "1.0.1"
 
     [deps.LogExpFunctions.extensions]
     LogExpFunctionsChainRulesCoreExt = "ChainRulesCore"
@@ -504,9 +878,9 @@ version = "2025.11.4"
 
 [[deps.NaNMath]]
 deps = ["OpenLibm_jll"]
-git-tree-sha1 = "9b8215b1ee9e78a293f99797cd31375471b2bcae"
+git-tree-sha1 = "dbd2e8cd2c1c27f0b584f6661b4309609c5a685e"
 uuid = "77ba4419-2d1f-58cd-9bb1-8ffee604a2e3"
-version = "1.1.3"
+version = "1.1.4"
 
 [[deps.NetworkOptions]]
 uuid = "ca575930-c2e3-43a9-ace4-1e988b2c1908"
@@ -534,9 +908,9 @@ uuid = "efe28fd5-8261-553b-a9e1-b2916fc3738e"
 version = "0.5.6+0"
 
 [[deps.OrderedCollections]]
-git-tree-sha1 = "05868e21324cede2207c6f0f466b4bfef6d5e7ee"
+git-tree-sha1 = "94ba93778373a53bfd5a0caaf7d809c445292ff4"
 uuid = "bac558e1-5e72-5ebc-8fee-abe8a469f55d"
-version = "1.8.1"
+version = "1.8.2"
 
 [[deps.Parameters]]
 deps = ["OrderedCollections", "UnPack"]
@@ -546,9 +920,9 @@ version = "0.12.3"
 
 [[deps.Parsers]]
 deps = ["Dates", "PrecompileTools", "UUIDs"]
-git-tree-sha1 = "7d2f8f21da5db6a806faf7b9b292296da42b2810"
+git-tree-sha1 = "32a4e09c5f29402573d673901778a0e03b0807b9"
 uuid = "69de0a69-1ddd-5017-9359-2bf0b02dc9f0"
-version = "2.8.3"
+version = "2.8.6"
 
 [[deps.Pkg]]
 deps = ["Artifacts", "Dates", "Downloads", "FileWatching", "LibGit2", "Libdl", "Logging", "Markdown", "Printf", "Random", "SHA", "TOML", "Tar", "UUIDs", "p7zip_jll"]
@@ -561,9 +935,9 @@ weakdeps = ["REPL"]
 
 [[deps.PlotlyBase]]
 deps = ["ColorSchemes", "Colors", "Dates", "DelimitedFiles", "DocStringExtensions", "JSON", "LaTeXStrings", "Logging", "Parameters", "Pkg", "REPL", "Requires", "Statistics", "UUIDs"]
-git-tree-sha1 = "28278bb0053da0fd73537be94afd1682cc5a0a83"
+git-tree-sha1 = "6256ab3ee24ef079b3afa310593817e069925eeb"
 uuid = "a03496cd-edff-5a9b-9e67-9cda94a718b5"
-version = "0.8.21"
+version = "0.8.23"
 
     [deps.PlotlyBase.extensions]
     DataFramesExt = "DataFrames"
@@ -579,9 +953,9 @@ version = "0.8.21"
 
 [[deps.PlutoPlotly]]
 deps = ["AbstractPlutoDingetjes", "Artifacts", "ColorSchemes", "Colors", "Dates", "Downloads", "HypertextLiteral", "InteractiveUtils", "LaTeXStrings", "Markdown", "Pkg", "PlotlyBase", "PrecompileTools", "Reexport", "ScopedValues", "Scratch", "TOML"]
-git-tree-sha1 = "8acd04abc9a636ef57004f4c2e6f3f6ed4611099"
+git-tree-sha1 = "2b9e3d771adfe535a4fdda855f4741fdaacd3f7f"
 uuid = "8e989ff0-3d88-8e9f-f020-2b208a939ff0"
-version = "0.6.5"
+version = "0.6.6"
 
     [deps.PlutoPlotly.extensions]
     PlotlyKaleidoExt = "PlotlyKaleido"
@@ -592,22 +966,22 @@ version = "0.6.5"
     Unitful = "1986cc42-f94f-5a68-af5c-568840ba703d"
 
 [[deps.PlutoUI]]
-deps = ["AbstractPlutoDingetjes", "Base64", "ColorTypes", "Dates", "Downloads", "FixedPointNumbers", "Hyperscript", "HypertextLiteral", "IOCapture", "InteractiveUtils", "JSON", "Logging", "MIMEs", "Markdown", "Random", "Reexport", "URIs", "UUIDs"]
-git-tree-sha1 = "f53232a27a8c1c836d3998ae1e17d898d4df2a46"
+deps = ["AbstractPlutoDingetjes", "Base64", "ColorTypes", "Dates", "Downloads", "FixedPointNumbers", "Hyperscript", "HypertextLiteral", "IOCapture", "InteractiveUtils", "Logging", "MIMEs", "Markdown", "Random", "Reexport", "URIs", "UUIDs"]
+git-tree-sha1 = "e189d0623e7ce9c37389bac17e80aac3b0302e75"
 uuid = "7f904dfe-b85e-4ff6-b463-dae2292396a8"
-version = "0.7.72"
+version = "0.7.83"
 
 [[deps.PrecompileTools]]
 deps = ["Preferences"]
-git-tree-sha1 = "5aa36f7049a63a1528fe8f7c3f2113413ffd4e1f"
+git-tree-sha1 = "edbeefc7a4889f528644251bdb5fc9ab5348bc2c"
 uuid = "aea7be01-6a6a-4083-8856-8a6e6704d82a"
-version = "1.2.1"
+version = "1.3.4"
 
 [[deps.Preferences]]
 deps = ["TOML"]
-git-tree-sha1 = "0f27480397253da18fe2c12a4ba4eb9eb208bf3d"
+git-tree-sha1 = "8b770b60760d4451834fe79dd483e318eee709c4"
 uuid = "21216c6a-2e73-6563-6e65-726566657250"
-version = "1.5.0"
+version = "1.5.2"
 
 [[deps.Printf]]
 deps = ["Unicode"]
@@ -641,9 +1015,9 @@ version = "0.7.0"
 
 [[deps.ScopedValues]]
 deps = ["HashArrayMappedTries", "Logging"]
-git-tree-sha1 = "c3b2323466378a2ba15bea4b2f73b081e022f473"
+git-tree-sha1 = "67a144433c4ce877ee6d1ada69a124d6b1ecf7be"
 uuid = "7e506255-f358-4e82-b7e4-beb19740aa63"
-version = "1.5.0"
+version = "1.6.2"
 
 [[deps.Scratch]]
 deps = ["Dates"]
@@ -661,9 +1035,9 @@ version = "1.11.0"
 
 [[deps.SpecialFunctions]]
 deps = ["IrrationalConstants", "LogExpFunctions", "OpenLibm_jll", "OpenSpecFun_jll"]
-git-tree-sha1 = "f2685b435df2613e25fc10ad8c26dddb8640f547"
+git-tree-sha1 = "97c8329c5f503d2936fb36719fe25b9f94b1ae8a"
 uuid = "276daf66-3868-5448-9aa4-cd146d93841b"
-version = "2.6.1"
+version = "2.8.1"
 
     [deps.SpecialFunctions.extensions]
     SpecialFunctionsChainRulesCoreExt = "ChainRulesCore"
@@ -687,6 +1061,22 @@ version = "1.11.1"
 
     [deps.Statistics.weakdeps]
     SparseArrays = "2f01184e-e22b-5df5-ae63-d93ebab69eaf"
+
+[[deps.StructUtils]]
+deps = ["Dates", "UUIDs"]
+git-tree-sha1 = "82bee338d650aa515f31866c460cb7e3bcef90b8"
+uuid = "ec057cc2-7a8d-4b58-b3b3-92acb9f63b42"
+version = "2.8.2"
+
+    [deps.StructUtils.extensions]
+    StructUtilsMeasurementsExt = ["Measurements"]
+    StructUtilsStaticArraysCoreExt = ["StaticArraysCore"]
+    StructUtilsTablesExt = ["Tables"]
+
+    [deps.StructUtils.weakdeps]
+    Measurements = "eff96d63-e80a-5855-80a2-b1b0885c5ab7"
+    StaticArraysCore = "1e83bf80-4336-4d27-bf5d-d5a4f845583c"
+    Tables = "bd369af6-aec1-5ad0-b16a-f7cc5008161c"
 
 [[deps.StyledStrings]]
 uuid = "f489334b-da3d-4c2e-b8f0-e476e12c162b"
@@ -714,14 +1104,14 @@ uuid = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
 version = "1.11.0"
 
 [[deps.Tricks]]
-git-tree-sha1 = "372b90fe551c019541fafc6ff034199dc19c8436"
+git-tree-sha1 = "311349fd1c93a31f783f977a71e8b062a57d4101"
 uuid = "410a4b4d-49e4-4fbc-ab6d-cb71b17b3775"
-version = "0.1.12"
+version = "0.1.13"
 
 [[deps.URIs]]
-git-tree-sha1 = "bef26fb046d031353ef97a82e3fdb6afe7f21b1a"
+git-tree-sha1 = "3b0738bd7c5645641845da25cbd99800b8718689"
 uuid = "5c2747f8-b7ea-4ff2-ba2e-563bfd36b1d4"
-version = "1.6.1"
+version = "1.6.2"
 
 [[deps.UUIDs]]
 deps = ["Random", "SHA"]
@@ -761,31 +1151,32 @@ version = "17.7.0+0"
 # ╔═╡ Cell order:
 # ╠═ca388aaf-f515-4c8e-8b39-a7173641dca0
 # ╟─2a7c4b45-0153-4095-a67d-b48f8f343d6a
-# ╟─0e90753b-b2e6-4b41-a5bb-b2dcdab68bd1
-# ╟─d7ac1aac-2949-4ca3-a0e9-f233a0a6c1b9
+# ╟─5b7a1c40-8e91-4a2a-9a2c-2f1c0f6a9a01
+# ╟─2c9e8a11-4f2b-4a7e-9a1a-5b6c7d8e9f01
 # ╟─866c00fd-bf69-460b-90b2-79ecf1f72d66
-# ╟─54b2c235-e693-4f1f-bd1f-1c651e4dbffc
-# ╟─790e31fe-4cc3-44cd-b33c-0ab0925ce23a
 # ╟─4d6aed73-9b2f-47c6-a161-38e2633cb8db
 # ╟─6750df2d-459b-4467-b405-1bd8177bee42
-# ╠═4d8bfdc4-175d-4f7a-ad65-338726ad343e
-# ╠═fff4b588-59c3-4cd5-b333-222026b8d666
 # ╠═348240ee-f35f-11ef-01ab-d11599b51ca1
 # ╠═88195cf5-894b-4676-99bc-a559e0d5ebd9
+# ╠═fff4b588-59c3-4cd5-b333-222026b8d666
 # ╟─4c892f32-ffa3-4b45-a840-6f1a165293b3
-# ╠═7eb05e0a-12e1-4033-b081-1fc79b38218a
 # ╠═186c6279-4573-4fda-8589-5fabcbc1cc0e
 # ╠═b5be41c0-ff78-4f5d-a795-4c5a79135fb6
-# ╠═665f39ad-0764-4166-8872-8179eba23374
+# ╠═7eb05e0a-12e1-4033-b081-1fc79b38218a
 # ╟─79fa4c7b-5f93-44f9-bf33-311f5efecf32
-# ╠═ca84a03e-053e-47c3-aefc-e81202f0f9f3
 # ╠═ea0d2403-03ea-4c42-a452-59f830c22a16
+# ╠═ca84a03e-053e-47c3-aefc-e81202f0f9f3
 # ╠═38e90f9a-5cba-451f-bae3-341f03988e3c
-# ╠═eaa2c2dd-f109-4a2b-b8b8-4f15d5576ca8
 # ╟─433d799f-9243-4140-ab1f-006feeaf8816
 # ╠═7100ad22-5762-465c-a6a4-bbb06e11ac2f
+# ╠═665f39ad-0764-4166-8872-8179eba23374
 # ╠═32fa5f32-72b4-4ce2-8d6b-0ab12acff038
+# ╠═eaa2c2dd-f109-4a2b-b8b8-4f15d5576ca8
 # ╠═71c529bf-77d8-481c-94d3-86a80dfcd641
 # ╠═8ed29e6e-583c-4fb3-86d3-f34b8d025c0f
+# ╠═4d8bfdc4-175d-4f7a-ad65-338726ad343e
+# ╟─785b9164-9a3b-4abe-90ed-1cdf7fae7252
+# ╟─ee3ca7fd-327b-408f-918f-55a387e9cb7c
+# ╟─e2bb7ecd-bcad-4b61-9eae-020c2a507435
 # ╟─00000000-0000-0000-0000-000000000001
 # ╟─00000000-0000-0000-0000-000000000002

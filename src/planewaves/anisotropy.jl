@@ -1,5 +1,5 @@
 ### A Pluto.jl notebook ###
-# v0.1.0
+# v0.2.6
 
 #> [frontmatter]
 #> title = "Seismic Anisotropy"
@@ -164,6 +164,11 @@ md"In the case of transverse anisotropy, with rock layers oriented along in the 
 # ╔═╡ 4f7b0a05-004a-417d-81d2-e4b1176909d6
 Ctrans = [[A, A - 2N, F, 0, 0, 0];; [A - 2N, A, F, 0, 0, 0];; [F, F, C, 0, 0, 0];; [0, 0, 0, L, 0, 0];; [0, 0, 0, 0, L, 0];; [0, 0, 0, 0, 0, N]]
 
+# ╔═╡ 1fa4ecc5-8c5d-49f6-a023-bb2c4b4d5c27
+Ciso = map(Ctrans) do x
+    substitute(x, [A => λ + 2μ, C => λ + 2 * μ, N => μ, F => λ, L => μ])
+end
+
 # ╔═╡ 1de3540c-6e07-4e4e-b411-7a5667b5c742
 aside(tip(md"For layered rocks, the seismic waves travel faster in the direction parallel to the layers, as opposed to the perpendicular direction. This is because the waves can *choose* to travel in the fast layers in the former case."))
 
@@ -180,11 +185,6 @@ For an isotropic medium, there are only two independent elastic constants $\lamb
 
 # ╔═╡ b64d6d57-c38c-4f54-b86f-0d254d27c3ed
 @variables λ::Real μ::Real
-
-# ╔═╡ 1fa4ecc5-8c5d-49f6-a023-bb2c4b4d5c27
-Ciso = map(Ctrans) do x
-    substitute(x, [A => λ + 2μ, C => λ + 2 * μ, N => μ, F => λ, L => μ])
-end
 
 # ╔═╡ 12a42fbb-bfb7-4852-a638-2dec237c032d
 md"""
