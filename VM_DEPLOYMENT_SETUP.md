@@ -21,11 +21,11 @@ This guide walks you through setting up live notebook deployment to your VM usin
 # SSH into your VM
 ssh user@your-vm-ip
 
-# Install Julia (if not already installed)
+# Install Julia 1.12.0 (if not already installed)
 # See https://julialang.org/downloads/platform/ for your OS
 # For Ubuntu/Debian:
 # curl -fsSL https://install.julialang.org | sh
-# Or install Julia manually
+# Or install Julia manually from https://julialang.org/downloads/
 
 # Install git
 sudo apt-get update

@@ -16,6 +16,11 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: Install Julia
+        uses: julia-actions/setup-julia@v1
+        with:
+          version: "1.12.0"
+
       - name: Deploy to VM
         env:
           VM_HOST: ${{ secrets.VM_HOST }}

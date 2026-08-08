@@ -1,7 +1,7 @@
 # Dockerfile for VM deployment
 # Generates complete static site, then runs PlutoSliderServer for live notebooks
 
-FROM julia:1.11.7
+FROM julia:1.12.0
 
 EXPOSE 8080
 
