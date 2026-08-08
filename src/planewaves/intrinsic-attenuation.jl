@@ -1,5 +1,5 @@
 ### A Pluto.jl notebook ###
-# v0.20.19
+# v0.20.20
 
 #> [frontmatter]
 #> title = "Seismic Attenuation"
@@ -20,6 +20,16 @@ macro bind(def, element)
         el
     end
     #! format: on
+end
+
+# ╔═╡ 74a3e9e3-ed09-4582-91fc-47944d5744db
+begin
+    using Symbolics
+    using SymbolicUtils
+    using PlutoUI
+    using PlutoTeachingTools
+    using PlutoPlotly
+    using FFTW
 end
 
 # ╔═╡ a9436d89-ad43-4cb8-8619-67c0e26eb686
@@ -48,18 +58,12 @@ Indian Institute of Science, Bengaluru, India
 # ╔═╡ 5d9fed8c-860b-48d8-a30d-e1c79f5db1e8
 md"Depending on the type of the medium selected above, the planewave solution is given below."
 
-# ╔═╡ eb190d1a-3c6b-407a-a586-9b13ed40b106
-planewave
-
 # ╔═╡ 9cc49e2c-864d-4fad-9b49-456a85bcf0a2
 md"""
 Towards plotting the plane-wave solution, we shall first choose the frequency wave.
 
 frequency (Hz): $(@bind fp Slider(range(1, stop=5, length=10), default=2, show_value=true)) $(@bind tplot Clock(0.1))
 """
-
-# ╔═╡ 8e2d55d4-340f-49ca-963d-ef33477ed60d
-plot_planewave(planewave)
 
 # ╔═╡ a1c6aea0-35d1-4a5a-9147-461b496a5d82
 md"""
@@ -74,14 +78,6 @@ We can synthesize the pulse in the time domain by summing all the Fourier compon
 
 distance to the receiver: $(@bind xr Slider(range(30, stop=100, length=25), show_value=true))
 """
-
-# ╔═╡ 434f4be3-ecb2-4a0e-9ffc-d24795ef5560
-let
-    fig = Plot(Layout(title="Recorded pulse at $(xr) km", xaxis=attr(range=(-50, 100), title="time (s)"),
-        yaxis=attr(title="amplitude", range=(0, 0.2e-1))))
-    add_trace!(fig, scatter(x=tgrid, y=ureceiver))
-    plot(fig)
-end
 
 # ╔═╡ 53653e30-cec8-467a-bdca-c713f93e67a1
 md"""
@@ -107,9 +103,6 @@ md"""
 Attenuation causes a small amount of velocity dispersion. Otherwise, attenuation of high frequencies will cause pulse broadening and violates causality. An important result from Aki & Richards (ch. 5) is that the velocity c is given by the expression below.
 """
 
-# ╔═╡ 4039e2b0-0406-45dc-89c4-058281769ad3
-c ~ c_dispersive(ω, Q, c₀, ω₀)
-
 # ╔═╡ 4f7a0cf2-d25e-4414-8ac7-62b2f31fe8e0
 md"""
 ## Attenuating Planewave
@@ -124,8 +117,25 @@ md"""
 # ╔═╡ b11c4313-73e6-4d78-bc10-6c64120ae8a9
 @syms c::Real # amplitude of either P or S waves
 
-# ╔═╡ ca29d9b8-d6a7-46d9-bc4f-4bfc263e7009
-planewave = A(medium, A₀) * exp(ı * ω * (t - (x / c)))
+# ╔═╡ 2e6ad714-5972-41ce-92c9-f30a8b50f3dd
+md"""
+## Appendix
+"""
+
+# ╔═╡ 197dd532-fe5d-43d3-bf51-ac10f960dadf
+# reference wave speed is assumed to be 2 km/s
+cp = 2;
+
+# ╔═╡ 4b67cd08-e56c-42ab-9205-a5b4ed4919dc
+# assume a time grid
+tgrid = range(-100, stop=100, length=2048) .+ xr / cp
+
+# ╔═╡ 39cbdb94-dc0c-4d26-855a-94ce52b05dde
+# get the corresponding frequency grid
+freqgrid = rfftfreq(length(tgrid), inv(step(tgrid)))
+
+# ╔═╡ d237a9eb-775a-4d9c-b53c-192f90952ea1
+@syms c₀::Real ω₀::Real
 
 # ╔═╡ 6d1613fa-5fa0-47b8-b39b-520070d786a8
 function A(medium, A₀)
@@ -138,32 +148,23 @@ function A(medium, A₀)
     end
 end
 
-# ╔═╡ 2e6ad714-5972-41ce-92c9-f30a8b50f3dd
-md"""
-## Appendix
-"""
+# ╔═╡ ca29d9b8-d6a7-46d9-bc4f-4bfc263e7009
+planewave = A(medium, A₀) * exp(ı * ω * (t - (x / c)))
 
-# ╔═╡ 74a3e9e3-ed09-4582-91fc-47944d5744db
-begin
-    using Symbolics
-    using SymbolicUtils
-    using PlutoUI
-    using PlutoTeachingTools
-    using PlutoPlotly
-    using FFTW
+# ╔═╡ eb190d1a-3c6b-407a-a586-9b13ed40b106
+planewave
+
+# ╔═╡ a3989848-a4ce-4a6d-94a5-245fb57474a0
+c_dispersive(ω, Q, c₀, ω₀) = c₀ * (1 + 1 / π / Q * log(ω / ω₀)) # not used atm
+
+# ╔═╡ 4039e2b0-0406-45dc-89c4-058281769ad3
+c ~ c_dispersive(ω, Q, c₀, ω₀)
+
+# ╔═╡ fe778290-0f29-4a06-9399-4a15ccf38fe4
+# substitute before plotting
+function subs(ex, om=nothing)
+    substitute(ex, [ı => im, π => pi, A₀ => 1, Q => Qp, c₀ => cp, c => cp, ω => om, ω₀ => 2 * pi * 10])
 end
-
-# ╔═╡ 4b67cd08-e56c-42ab-9205-a5b4ed4919dc
-# assume a time grid
-tgrid = range(-100, stop=100, length=2048) .+ xr / cp
-
-# ╔═╡ 39cbdb94-dc0c-4d26-855a-94ce52b05dde
-# get the corresponding frequency grid
-freqgrid = rfftfreq(length(tgrid), inv(step(tgrid)))
-
-# ╔═╡ 197dd532-fe5d-43d3-bf51-ac10f960dadf
-# reference wave speed is assumed to be 2 km/s
-cp = 2;
 
 # ╔═╡ 24edc710-f14e-4bb4-87f5-7bb48f592e2f
 # scalar field at the receiver in the frequency domain
@@ -179,16 +180,12 @@ end
 # do an fft to get the time series
 ureceiver = fftshift(irfft(Ureceiver, length(tgrid)))
 
-# ╔═╡ d237a9eb-775a-4d9c-b53c-192f90952ea1
-@syms c₀::Real ω₀::Real
-
-# ╔═╡ a3989848-a4ce-4a6d-94a5-245fb57474a0
-c_dispersive(ω, Q, c₀, ω₀) = c₀ * (1 + 1 / π / Q * log(ω / ω₀)) # not used atm
-
-# ╔═╡ fe778290-0f29-4a06-9399-4a15ccf38fe4
-# substitute before plotting
-function subs(ex, om=nothing)
-    substitute(ex, [ı => im, π => pi, A₀ => 1, Q => Qp, c₀ => cp, c => cp, ω => om, ω₀ => 2 * pi * 10])
+# ╔═╡ 434f4be3-ecb2-4a0e-9ffc-d24795ef5560
+let
+    fig = Plot(Layout(title="Recorded pulse at $(xr) km", xaxis=attr(range=(-50, 100), title="time (s)"),
+        yaxis=attr(title="amplitude", range=(0, 0.2e-1))))
+    add_trace!(fig, scatter(x=tgrid, y=ureceiver))
+    plot(fig)
 end
 
 # ╔═╡ 2c192f02-3a6b-48fa-9a68-d51c8e6b4bc5
@@ -213,6 +210,9 @@ function plot_planewave(u, t1=0)
 
 end
 
+# ╔═╡ 8e2d55d4-340f-49ca-963d-ef33477ed60d
+plot_planewave(planewave)
+
 # ╔═╡ 00000000-0000-0000-0000-000000000001
 PLUTO_PROJECT_TOML_CONTENTS = """
 [deps]
@@ -236,9 +236,9 @@ Symbolics = "~6.56.0"
 PLUTO_MANIFEST_TOML_CONTENTS = """
 # This file is machine-generated - editing it directly is not advised
 
-julia_version = "1.11.7"
+julia_version = "1.12.1"
 manifest_format = "2.0"
-project_hash = "e12c4c775227600da4abd453ef01f33a06012071"
+project_hash = "f599c9d12af15d8cb52eabf134300afa895a7c01"
 
 [[deps.ADTypes]]
 git-tree-sha1 = "27cecae79e5cc9935255f90c53bb831cc3c870d7"
@@ -439,7 +439,7 @@ weakdeps = ["Dates", "LinearAlgebra"]
 [[deps.CompilerSupportLibraries_jll]]
 deps = ["Artifacts", "Libdl"]
 uuid = "e66e0078-7015-5450-92f7-15fbd957f2ae"
-version = "1.1.1+0"
+version = "1.3.0+1"
 
 [[deps.CompositeTypes]]
 git-tree-sha1 = "bce26c3dab336582805503bed209faab1c279768"
@@ -727,6 +727,11 @@ git-tree-sha1 = "4255f0032eafd6451d707a51d5f0248b8a165e4d"
 uuid = "aacddb02-875f-59d6-b918-886e6ef4fbf8"
 version = "3.1.3+0"
 
+[[deps.JuliaSyntaxHighlighting]]
+deps = ["StyledStrings"]
+uuid = "ac6e5ff7-fb65-4e79-a425-ec3bc9c03011"
+version = "1.12.0"
+
 [[deps.LaTeXStrings]]
 git-tree-sha1 = "dda21b8cbd6a6c40d9d02a73230f9d70fed6918c"
 uuid = "b964fa9f-0449-5b57-a5c2-d3ea65f4040f"
@@ -761,24 +766,24 @@ uuid = "b27032c2-a3e7-50c8-80cd-2d36dbcbfd21"
 version = "0.6.4"
 
 [[deps.LibCURL_jll]]
-deps = ["Artifacts", "LibSSH2_jll", "Libdl", "MbedTLS_jll", "Zlib_jll", "nghttp2_jll"]
+deps = ["Artifacts", "LibSSH2_jll", "Libdl", "OpenSSL_jll", "Zlib_jll", "nghttp2_jll"]
 uuid = "deac9b47-8bc7-5906-a0fe-35ac56dc84c0"
-version = "8.6.0+0"
+version = "8.11.1+1"
 
 [[deps.LibGit2]]
-deps = ["Base64", "LibGit2_jll", "NetworkOptions", "Printf", "SHA"]
+deps = ["LibGit2_jll", "NetworkOptions", "Printf", "SHA"]
 uuid = "76f85450-5226-5b5a-8eaa-529ad045b433"
 version = "1.11.0"
 
 [[deps.LibGit2_jll]]
-deps = ["Artifacts", "LibSSH2_jll", "Libdl", "MbedTLS_jll"]
+deps = ["Artifacts", "LibSSH2_jll", "Libdl", "OpenSSL_jll"]
 uuid = "e37daf67-58a4-590a-8e99-b0245dd2ffc5"
-version = "1.7.2+0"
+version = "1.9.0+0"
 
 [[deps.LibSSH2_jll]]
-deps = ["Artifacts", "Libdl", "MbedTLS_jll"]
+deps = ["Artifacts", "Libdl", "OpenSSL_jll"]
 uuid = "29816b5a-b9ab-546f-933c-edad1886dfa8"
-version = "1.11.0+1"
+version = "1.11.3+1"
 
 [[deps.Libdl]]
 uuid = "8f399da3-3557-5675-b5ff-fb832c97cbdb"
@@ -787,7 +792,7 @@ version = "1.11.0"
 [[deps.LinearAlgebra]]
 deps = ["Libdl", "OpenBLAS_jll", "libblastrampoline_jll"]
 uuid = "37e2e46d-f89d-539d-b4ee-838fcccc9c8e"
-version = "1.11.0"
+version = "1.12.0"
 
 [[deps.LogExpFunctions]]
 deps = ["DocStringExtensions", "IrrationalConstants", "LinearAlgebra"]
@@ -826,14 +831,9 @@ uuid = "1914dd2f-81c6-5fcd-8719-6d5c9610ff09"
 version = "0.5.16"
 
 [[deps.Markdown]]
-deps = ["Base64"]
+deps = ["Base64", "JuliaSyntaxHighlighting", "StyledStrings"]
 uuid = "d6f4376e-aef5-505a-96c1-9c027394607a"
 version = "1.11.0"
-
-[[deps.MbedTLS_jll]]
-deps = ["Artifacts", "Libdl"]
-uuid = "c8ffd9c3-330d-5841-b78e-0817d7145fa1"
-version = "2.28.6+0"
 
 [[deps.Missings]]
 deps = ["DataAPI"]
@@ -853,7 +853,7 @@ version = "0.3.7"
 
 [[deps.MozillaCACerts_jll]]
 uuid = "14a3606d-f60d-562e-9121-12d972cd8159"
-version = "2023.12.12"
+version = "2025.5.20"
 
 [[deps.MultivariatePolynomials]]
 deps = ["DataStructures", "LinearAlgebra", "MutableArithmetics"]
@@ -879,7 +879,7 @@ version = "1.1.3"
 
 [[deps.NetworkOptions]]
 uuid = "ca575930-c2e3-43a9-ace4-1e988b2c1908"
-version = "1.2.0"
+version = "1.3.0"
 
 [[deps.OffsetArrays]]
 git-tree-sha1 = "117432e406b5c023f665fa73dc26e79ec3630151"
@@ -893,12 +893,17 @@ weakdeps = ["Adapt"]
 [[deps.OpenBLAS_jll]]
 deps = ["Artifacts", "CompilerSupportLibraries_jll", "Libdl"]
 uuid = "4536629a-c528-5b80-bd46-f80d51c5b363"
-version = "0.3.27+1"
+version = "0.3.29+0"
 
 [[deps.OpenLibm_jll]]
 deps = ["Artifacts", "Libdl"]
 uuid = "05823500-19ac-5b8b-9628-191a04bc5112"
-version = "0.8.5+0"
+version = "0.8.7+0"
+
+[[deps.OpenSSL_jll]]
+deps = ["Artifacts", "Libdl"]
+uuid = "458c3c95-2e84-50aa-8efc-19380b2a3a95"
+version = "3.5.1+0"
 
 [[deps.OpenSpecFun_jll]]
 deps = ["Artifacts", "CompilerSupportLibraries_jll", "JLLWrappers", "Libdl"]
@@ -932,7 +937,7 @@ version = "2.8.3"
 [[deps.Pkg]]
 deps = ["Artifacts", "Dates", "Downloads", "FileWatching", "LibGit2", "Libdl", "Logging", "Markdown", "Printf", "Random", "SHA", "TOML", "Tar", "UUIDs", "p7zip_jll"]
 uuid = "44cfe95a-1eb2-52ea-b672-e2afdf69b78f"
-version = "1.11.0"
+version = "1.12.0"
 weakdeps = ["REPL"]
 
     [deps.Pkg.extensions]
@@ -1039,7 +1044,7 @@ version = "2.11.2"
     Enzyme = "7da242da-08ed-463a-9acd-ee780be4f1d9"
 
 [[deps.REPL]]
-deps = ["InteractiveUtils", "Markdown", "Sockets", "StyledStrings", "Unicode"]
+deps = ["InteractiveUtils", "JuliaSyntaxHighlighting", "Markdown", "Sockets", "StyledStrings", "Unicode"]
 uuid = "3fa0cd96-eef1-5676-8a61-b3b8758bbffb"
 version = "1.11.0"
 
@@ -1219,7 +1224,7 @@ version = "1.2.2"
 [[deps.SparseArrays]]
 deps = ["Libdl", "LinearAlgebra", "Random", "Serialization", "SuiteSparse_jll"]
 uuid = "2f01184e-e22b-5df5-ae63-d93ebab69eaf"
-version = "1.11.0"
+version = "1.12.0"
 
 [[deps.SpecialFunctions]]
 deps = ["IrrationalConstants", "LogExpFunctions", "OpenLibm_jll", "OpenSpecFun_jll"]
@@ -1291,7 +1296,7 @@ uuid = "4607b0f0-06f3-5cda-b6b1-a6196a1729e9"
 [[deps.SuiteSparse_jll]]
 deps = ["Artifacts", "Libdl", "libblastrampoline_jll"]
 uuid = "bea87d4a-7f5b-5778-9afe-8cc45184846c"
-version = "7.7.0+0"
+version = "7.8.3+2"
 
 [[deps.SymbolicIndexingInterface]]
 deps = ["Accessors", "ArrayInterface", "RuntimeGeneratedFunctions", "StaticArraysCore"]
@@ -1427,17 +1432,17 @@ version = "0.1.6"
 [[deps.Zlib_jll]]
 deps = ["Libdl"]
 uuid = "83775a58-1f1d-513f-b197-d71354ab007a"
-version = "1.2.13+1"
+version = "1.3.1+2"
 
 [[deps.libblastrampoline_jll]]
 deps = ["Artifacts", "Libdl"]
 uuid = "8e850b90-86db-534c-a0d3-1478176c7d93"
-version = "5.11.0+0"
+version = "5.15.0+0"
 
 [[deps.nghttp2_jll]]
 deps = ["Artifacts", "Libdl"]
 uuid = "8e850ede-7688-5339-a07c-302acd2aaf8d"
-version = "1.59.0+0"
+version = "1.64.0+1"
 
 [[deps.oneTBB_jll]]
 deps = ["Artifacts", "JLLWrappers", "LazyArtifacts", "Libdl"]
@@ -1448,7 +1453,7 @@ version = "2022.0.0+1"
 [[deps.p7zip_jll]]
 deps = ["Artifacts", "Libdl"]
 uuid = "3f19e933-33d8-53b3-aaab-bd5110c3b7a0"
-version = "17.4.0+2"
+version = "17.5.0+2"
 """
 
 # ╔═╡ Cell order:

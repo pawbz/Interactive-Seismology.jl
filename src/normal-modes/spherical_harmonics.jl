@@ -1,5 +1,5 @@
 ### A Pluto.jl notebook ###
-# v0.20.19
+# v0.20.21
 
 #> [frontmatter]
 #> title = "Spherical Harmonics"
@@ -20,6 +20,18 @@ macro bind(def, element)
     end
     #! format: on
 end
+
+# ╔═╡ 348240ee-f35f-11ef-01ab-d11599b51ca1
+begin
+    using PlutoUI, PlutoPlotly, SpecialFunctions, LinearAlgebra, Printf, AssociatedLegendrePolynomials, LaTeXStrings, Bessels
+
+
+
+	
+end
+
+# ╔═╡ 88195cf5-894b-4676-99bc-a559e0d5ebd9
+using ForwardDiff
 
 # ╔═╡ ca388aaf-f515-4c8e-8b39-a7173641dca0
 TableOfContents()
@@ -54,65 +66,23 @@ $( @bind ω_value Slider(range(0, 0.1, length=1000), default=0.05, show_value=tr
 
 """
 
-# ╔═╡ d7ac1aac-2949-4ca3-a0e9-f233a0a6c1b9
-begin
-	PlutoUI.ExperimentalLayout.hbox([plot(surface(x=X, y=Y, z=Z, surfacecolor=Ylm_grid, colorscale="Seismic", showscale=true), Layout(width=500, title="Spherical Surface Harmonic <br> l=$l_value, m=$m_value")), plot(
-scatter(x=R, y=radius_grid, mode="lines", line=attr(color="blue", width=3), name="Radial Function"), Layout(width=200, yaxis=attr(title="radius (km)"),title="Radial Wave Function<br>period = $(round(2*pi/ω_value/60, digits=2)) min"))])
-end
+# ╔═╡ 866c00fd-bf69-460b-90b2-79ecf1f72d66
+md"## Vector spherical harmonics"
 
 # ╔═╡ 54b2c235-e693-4f1f-bd1f-1c651e4dbffc
-@bind mode Select(["R", "S", "T"])
+@bind mode Select(["R"=>"Radial", "S"=>"Poloidal", "T"=>"Toroidal"])
 
-# ╔═╡ 790e31fe-4cc3-44cd-b33c-0ab0925ce23a
-begin
-    plot(
-        cone(
-            x=vec(X), y=vec(Y), z=vec(Z), u=real(vec(Ux)), v=real(vec(Uy)), w=real(vec(Uz)),
-            colorscale="Reds", showscale=false, sizeref=(mode == "R" ? 1.0 : 0.15), name="Vector Field"
-        )
-    , Layout(
-        title="$mode <br> l=$l_value, m=$m_value",
-        scene=attr(
-            xaxis=attr(title="X"),
-            yaxis=attr(title="Y"),
-            zaxis=attr(title="Z"),
-            aspectmode="cube"
-        )
-    ))
-end
-
-# ╔═╡ 4d8bfdc4-175d-4f7a-ad65-338726ad343e
-R = Bessels.sphericalbesselj.(l_value, ω_value .* radius_grid ./c);
-
-# ╔═╡ fff4b588-59c3-4cd5-b333-222026b8d666
-c = 5.0 # in km/s
+# ╔═╡ 4d6aed73-9b2f-47c6-a161-38e2633cb8db
+md"---"
 
 # ╔═╡ 6750df2d-459b-4467-b405-1bd8177bee42
 md"## Appendix"
 
-# ╔═╡ 348240ee-f35f-11ef-01ab-d11599b51ca1
-begin
-    using PlutoUI, PlutoPlotly, SpecialFunctions, LinearAlgebra, Printf, AssociatedLegendrePolynomials, LaTeXStrings, Bessels
-
-
-
-	
-end
-
-# ╔═╡ 88195cf5-894b-4676-99bc-a559e0d5ebd9
-using ForwardDiff
+# ╔═╡ fff4b588-59c3-4cd5-b333-222026b8d666
+c = 5.0 # in km/s
 
 # ╔═╡ 4c892f32-ffa3-4b45-a840-6f1a165293b3
 md"### Surface Spherical Harmonics "
-
-# ╔═╡ 7eb05e0a-12e1-4033-b081-1fc79b38218a
-function spherical_harmonics(l, m, θ, φ)
-        if abs(m) > l
-            return zero(θ)
-        end
-        Y = Y_lm(l, m, θ, φ)
-        return Y  # Return the real part for visualization
-end
 
 # ╔═╡ 186c6279-4573-4fda-8589-5fabcbc1cc0e
 function Y_lm(l, m, θ, φ)
@@ -125,15 +95,17 @@ function Y_lm(l, m, thetaphi)
 	return Y_lm(l, m, thetaphi[1], thetaphi[2])
 end
 
-# ╔═╡ 665f39ad-0764-4166-8872-8179eba23374
-# Compute spherical harmonics
-Ylm_grid = [real(spherical_harmonics(l_value, m_value, θ, φ)) for (θ, φ) in zip(θ_grid, φ_grid)];
+# ╔═╡ 7eb05e0a-12e1-4033-b081-1fc79b38218a
+function spherical_harmonics(l, m, θ, φ)
+        if abs(m) > l
+            return zero(θ)
+        end
+        Y = Y_lm(l, m, θ, φ)
+        return Y  # Return the real part for visualization
+end
 
 # ╔═╡ 79fa4c7b-5f93-44f9-bf33-311f5efecf32
 md"### Vector Spherical Harmonics"
-
-# ╔═╡ ca84a03e-053e-47c3-aefc-e81202f0f9f3
-spherical_harmonic_gradient(l_value, m_value, 1.2, -0.1)
 
 # ╔═╡ ea0d2403-03ea-4c42-a452-59f830c22a16
 function spherical_harmonic_gradient(l::Int, m::Int, θ, φ)
@@ -146,6 +118,9 @@ function spherical_harmonic_gradient(l::Int, m::Int, θ, φ)
 
     return dY
 end
+
+# ╔═╡ ca84a03e-053e-47c3-aefc-e81202f0f9f3
+spherical_harmonic_gradient(l_value, m_value, 1.2, -0.1)
 
 # ╔═╡ 38e90f9a-5cba-451f-bae3-341f03988e3c
 function vector_spherical_harmonics(l, m, θ, φ, mode_type)
@@ -167,6 +142,21 @@ function vector_spherical_harmonics(l, m, θ, φ, mode_type)
     end
 end
 
+# ╔═╡ 433d799f-9243-4140-ab1f-006feeaf8816
+md"### Grids"
+
+# ╔═╡ 7100ad22-5762-465c-a6a4-bbb06e11ac2f
+begin
+	    θ_range = range(0, π, length=50)  # Latitude
+	    φ_range = range(0, 2π, length=100)  # Longitude
+	    θ_grid = first.(Iterators.product(θ_range, φ_range))
+		φ_grid = last.(Iterators.product(θ_range, φ_range))
+end;
+
+# ╔═╡ 665f39ad-0764-4166-8872-8179eba23374
+# Compute spherical harmonics
+Ylm_grid = [real(spherical_harmonics(l_value, m_value, θ, φ)) for (θ, φ) in zip(θ_grid, φ_grid)];
+
 # ╔═╡ eaa2c2dd-f109-4a2b-b8b8-4f15d5576ca8
 begin
 	    # Compute selected VSH function in spherical coordinates
@@ -182,17 +172,6 @@ begin
 	
 end;
 
-# ╔═╡ 433d799f-9243-4140-ab1f-006feeaf8816
-md"### Grids"
-
-# ╔═╡ 7100ad22-5762-465c-a6a4-bbb06e11ac2f
-begin
-	    θ_range = range(0, π, length=50)  # Latitude
-	    φ_range = range(0, 2π, length=100)  # Longitude
-	    θ_grid = first.(Iterators.product(θ_range, φ_range))
-		φ_grid = last.(Iterators.product(θ_range, φ_range))
-end;
-
 # ╔═╡ 32fa5f32-72b4-4ce2-8d6b-0ab12acff038
 begin
 	 # Convert spherical to Cartesian coordinates
@@ -201,11 +180,38 @@ begin
 	Z = cos.(θ_grid) #.* Ylm_grid
 end;
 
+# ╔═╡ 790e31fe-4cc3-44cd-b33c-0ab0925ce23a
+begin
+    plot(
+        cone(
+            x=vec(X), y=vec(Y), z=vec(Z), u=real(vec(Ux)), v=real(vec(Uy)), w=real(vec(Uz)),
+            colorscale="Reds", showscale=false, sizeref=(mode == "R" ? 1.0 : 0.15), name="Vector Field"
+        )
+    , Layout(
+        title="$mode <br> l=$l_value, m=$m_value",
+        scene=attr(
+            xaxis=attr(title="X"),
+            yaxis=attr(title="Y"),
+            zaxis=attr(title="Z"),
+            aspectmode="cube"
+        )
+    ))
+end
+
 # ╔═╡ 71c529bf-77d8-481c-94d3-86a80dfcd641
 radius_max = 6000 # in km
 
 # ╔═╡ 8ed29e6e-583c-4fb3-86d3-f34b8d025c0f
 radius_grid = range(0., radius_max, length=1000);
+
+# ╔═╡ 4d8bfdc4-175d-4f7a-ad65-338726ad343e
+R = Bessels.sphericalbesselj.(l_value, ω_value .* radius_grid ./c);
+
+# ╔═╡ d7ac1aac-2949-4ca3-a0e9-f233a0a6c1b9
+begin
+	PlutoUI.ExperimentalLayout.hbox([plot(surface(x=X, y=Y, z=Z, surfacecolor=Ylm_grid, colorscale="Seismic", showscale=true), Layout(width=500, title="Spherical Surface Harmonic <br> l=$l_value, m=$m_value")), plot(
+scatter(x=R, y=radius_grid, mode="lines", line=attr(color="blue", width=3), name="Radial Function"), Layout(width=200, yaxis=attr(title="radius (km)"),title="Radial Wave Function<br>period = $(round(2*pi/ω_value/60, digits=2)) min"))])
+end
 
 # ╔═╡ 00000000-0000-0000-0000-000000000001
 PLUTO_PROJECT_TOML_CONTENTS = """
@@ -234,9 +240,9 @@ SpecialFunctions = "~2.6.1"
 PLUTO_MANIFEST_TOML_CONTENTS = """
 # This file is machine-generated - editing it directly is not advised
 
-julia_version = "1.11.7"
+julia_version = "1.12.4"
 manifest_format = "2.0"
-project_hash = "2bd2c87cf81219280577daf8f71fd79883fc0265"
+project_hash = "a9bbb00069a9be5a5b65a5af30b56fca6dff7b30"
 
 [[deps.AbstractPlutoDingetjes]]
 deps = ["Pkg"]
@@ -307,7 +313,7 @@ version = "0.3.1"
 [[deps.CompilerSupportLibraries_jll]]
 deps = ["Artifacts", "Libdl"]
 uuid = "e66e0078-7015-5450-92f7-15fbd957f2ae"
-version = "1.1.1+0"
+version = "1.3.0+1"
 
 [[deps.Dates]]
 deps = ["Printf"]
@@ -340,7 +346,7 @@ version = "0.9.5"
 [[deps.Downloads]]
 deps = ["ArgTools", "FileWatching", "LibCURL", "NetworkOptions"]
 uuid = "f43a241f-c20a-4ad4-852c-f6b1247861c6"
-version = "1.6.0"
+version = "1.7.0"
 
 [[deps.FileWatching]]
 uuid = "7b1f6079-737a-58dc-b8bc-7a2ca5c1b5ee"
@@ -409,6 +415,11 @@ git-tree-sha1 = "31e996f0a15c7b280ba9f76636b3ff9e2ae58c9a"
 uuid = "682c06a0-de6a-54ab-a142-c8b1cf79cde6"
 version = "0.21.4"
 
+[[deps.JuliaSyntaxHighlighting]]
+deps = ["StyledStrings"]
+uuid = "ac6e5ff7-fb65-4e79-a425-ec3bc9c03011"
+version = "1.12.0"
+
 [[deps.LaTeXStrings]]
 git-tree-sha1 = "dda21b8cbd6a6c40d9d02a73230f9d70fed6918c"
 uuid = "b964fa9f-0449-5b57-a5c2-d3ea65f4040f"
@@ -420,24 +431,24 @@ uuid = "b27032c2-a3e7-50c8-80cd-2d36dbcbfd21"
 version = "0.6.4"
 
 [[deps.LibCURL_jll]]
-deps = ["Artifacts", "LibSSH2_jll", "Libdl", "MbedTLS_jll", "Zlib_jll", "nghttp2_jll"]
+deps = ["Artifacts", "LibSSH2_jll", "Libdl", "OpenSSL_jll", "Zlib_jll", "nghttp2_jll"]
 uuid = "deac9b47-8bc7-5906-a0fe-35ac56dc84c0"
-version = "8.6.0+0"
+version = "8.15.0+0"
 
 [[deps.LibGit2]]
-deps = ["Base64", "LibGit2_jll", "NetworkOptions", "Printf", "SHA"]
+deps = ["LibGit2_jll", "NetworkOptions", "Printf", "SHA"]
 uuid = "76f85450-5226-5b5a-8eaa-529ad045b433"
 version = "1.11.0"
 
 [[deps.LibGit2_jll]]
-deps = ["Artifacts", "LibSSH2_jll", "Libdl", "MbedTLS_jll"]
+deps = ["Artifacts", "LibSSH2_jll", "Libdl", "OpenSSL_jll"]
 uuid = "e37daf67-58a4-590a-8e99-b0245dd2ffc5"
-version = "1.7.2+0"
+version = "1.9.0+0"
 
 [[deps.LibSSH2_jll]]
-deps = ["Artifacts", "Libdl", "MbedTLS_jll"]
+deps = ["Artifacts", "Libdl", "OpenSSL_jll"]
 uuid = "29816b5a-b9ab-546f-933c-edad1886dfa8"
-version = "1.11.0+1"
+version = "1.11.3+1"
 
 [[deps.Libdl]]
 uuid = "8f399da3-3557-5675-b5ff-fb832c97cbdb"
@@ -446,7 +457,7 @@ version = "1.11.0"
 [[deps.LinearAlgebra]]
 deps = ["Libdl", "OpenBLAS_jll", "libblastrampoline_jll"]
 uuid = "37e2e46d-f89d-539d-b4ee-838fcccc9c8e"
-version = "1.11.0"
+version = "1.12.0"
 
 [[deps.LogExpFunctions]]
 deps = ["DocStringExtensions", "IrrationalConstants", "LinearAlgebra"]
@@ -479,14 +490,9 @@ uuid = "1914dd2f-81c6-5fcd-8719-6d5c9610ff09"
 version = "0.5.16"
 
 [[deps.Markdown]]
-deps = ["Base64"]
+deps = ["Base64", "JuliaSyntaxHighlighting", "StyledStrings"]
 uuid = "d6f4376e-aef5-505a-96c1-9c027394607a"
 version = "1.11.0"
-
-[[deps.MbedTLS_jll]]
-deps = ["Artifacts", "Libdl"]
-uuid = "c8ffd9c3-330d-5841-b78e-0817d7145fa1"
-version = "2.28.6+0"
 
 [[deps.Mmap]]
 uuid = "a63ad114-7e13-5084-954f-fe012c677804"
@@ -494,7 +500,7 @@ version = "1.11.0"
 
 [[deps.MozillaCACerts_jll]]
 uuid = "14a3606d-f60d-562e-9121-12d972cd8159"
-version = "2023.12.12"
+version = "2025.11.4"
 
 [[deps.NaNMath]]
 deps = ["OpenLibm_jll"]
@@ -504,17 +510,22 @@ version = "1.1.3"
 
 [[deps.NetworkOptions]]
 uuid = "ca575930-c2e3-43a9-ace4-1e988b2c1908"
-version = "1.2.0"
+version = "1.3.0"
 
 [[deps.OpenBLAS_jll]]
 deps = ["Artifacts", "CompilerSupportLibraries_jll", "Libdl"]
 uuid = "4536629a-c528-5b80-bd46-f80d51c5b363"
-version = "0.3.27+1"
+version = "0.3.29+0"
 
 [[deps.OpenLibm_jll]]
 deps = ["Artifacts", "Libdl"]
 uuid = "05823500-19ac-5b8b-9628-191a04bc5112"
-version = "0.8.5+0"
+version = "0.8.7+0"
+
+[[deps.OpenSSL_jll]]
+deps = ["Artifacts", "Libdl"]
+uuid = "458c3c95-2e84-50aa-8efc-19380b2a3a95"
+version = "3.5.4+0"
 
 [[deps.OpenSpecFun_jll]]
 deps = ["Artifacts", "CompilerSupportLibraries_jll", "JLLWrappers", "Libdl"]
@@ -542,7 +553,7 @@ version = "2.8.3"
 [[deps.Pkg]]
 deps = ["Artifacts", "Dates", "Downloads", "FileWatching", "LibGit2", "Libdl", "Logging", "Markdown", "Printf", "Random", "SHA", "TOML", "Tar", "UUIDs", "p7zip_jll"]
 uuid = "44cfe95a-1eb2-52ea-b672-e2afdf69b78f"
-version = "1.11.0"
+version = "1.12.1"
 weakdeps = ["REPL"]
 
     [deps.Pkg.extensions]
@@ -604,7 +615,7 @@ uuid = "de0858da-6303-5e67-8744-51eddeeeb8d7"
 version = "1.11.0"
 
 [[deps.REPL]]
-deps = ["InteractiveUtils", "Markdown", "Sockets", "StyledStrings", "Unicode"]
+deps = ["InteractiveUtils", "JuliaSyntaxHighlighting", "Markdown", "Sockets", "StyledStrings", "Unicode"]
 uuid = "3fa0cd96-eef1-5676-8a61-b3b8758bbffb"
 version = "1.11.0"
 
@@ -729,22 +740,22 @@ version = "1.11.0"
 [[deps.Zlib_jll]]
 deps = ["Libdl"]
 uuid = "83775a58-1f1d-513f-b197-d71354ab007a"
-version = "1.2.13+1"
+version = "1.3.1+2"
 
 [[deps.libblastrampoline_jll]]
 deps = ["Artifacts", "Libdl"]
 uuid = "8e850b90-86db-534c-a0d3-1478176c7d93"
-version = "5.11.0+0"
+version = "5.15.0+0"
 
 [[deps.nghttp2_jll]]
 deps = ["Artifacts", "Libdl"]
 uuid = "8e850ede-7688-5339-a07c-302acd2aaf8d"
-version = "1.59.0+0"
+version = "1.64.0+1"
 
 [[deps.p7zip_jll]]
-deps = ["Artifacts", "Libdl"]
+deps = ["Artifacts", "CompilerSupportLibraries_jll", "Libdl"]
 uuid = "3f19e933-33d8-53b3-aaab-bd5110c3b7a0"
-version = "17.4.0+2"
+version = "17.7.0+0"
 """
 
 # ╔═╡ Cell order:
@@ -752,11 +763,13 @@ version = "17.4.0+2"
 # ╟─2a7c4b45-0153-4095-a67d-b48f8f343d6a
 # ╟─0e90753b-b2e6-4b41-a5bb-b2dcdab68bd1
 # ╟─d7ac1aac-2949-4ca3-a0e9-f233a0a6c1b9
+# ╟─866c00fd-bf69-460b-90b2-79ecf1f72d66
 # ╟─54b2c235-e693-4f1f-bd1f-1c651e4dbffc
 # ╟─790e31fe-4cc3-44cd-b33c-0ab0925ce23a
+# ╟─4d6aed73-9b2f-47c6-a161-38e2633cb8db
+# ╟─6750df2d-459b-4467-b405-1bd8177bee42
 # ╠═4d8bfdc4-175d-4f7a-ad65-338726ad343e
 # ╠═fff4b588-59c3-4cd5-b333-222026b8d666
-# ╟─6750df2d-459b-4467-b405-1bd8177bee42
 # ╠═348240ee-f35f-11ef-01ab-d11599b51ca1
 # ╠═88195cf5-894b-4676-99bc-a559e0d5ebd9
 # ╟─4c892f32-ffa3-4b45-a840-6f1a165293b3

@@ -1,5 +1,5 @@
 ### A Pluto.jl notebook ###
-# v0.20.19
+# v0.20.13
 
 #> [frontmatter]
 #> title = "Born Approximation"
@@ -20,6 +20,22 @@ macro bind(def, element)
         el
     end
     #! format: on
+end
+
+# ╔═╡ 8acbffaf-1811-4592-a2d1-a8f561242d85
+begin
+    using Symbolics
+    using SymbolicUtils
+    using Latexify
+    using FFTW
+    using PlutoPlotly
+    using PlutoUI
+    using PlutoTeachingTools
+    using Einsum
+    using MLUtils
+    using PlutoLinks, PlutoHooks
+	using Bessels
+	using Tullio
 end
 
 # ╔═╡ c0e6e258-7fcb-4bd8-9931-be0203c1adc9
@@ -93,49 +109,14 @@ Draw on the canvas below to place the scatterers and interact with this notebook
 </script>
 """)
 
-# ╔═╡ 3786bd54-105a-46d7-8232-b93835b01129
-plot_image(image)
-
-# ╔═╡ ffd19316-d2ba-4bec-abde-19cf05994ecf
-md"Select Sources $(@bind sUI MultiCheckBox(1:ns, select_all=true, default=collect(1:ns)))"
-
-# ╔═╡ 6e74479f-96ce-4af7-ae7d-603fe32ba88f
-md"Select Receivers $(@bind rUI MultiCheckBox(1:nr, select_all=true, default=collect(1:nr)))"
-
-# ╔═╡ 56d75f42-6a38-4e79-a0a9-e9f005996ac6
-plot_data(d[:, :, first(sUI)], δd[:, :, 1][first(sUI)], maximum(abs,d[:,:,1][first(sUI)])/2)
-
-# ╔═╡ 4972f23b-88a8-49d9-acad-75a65bdbe101
-md"""
-In the experiment above, the distance (x) range $(extrema(xgridUI))m and the depth (z) range $(extrema(zgridUI))m.
-The seismic source is located near the surface at (x, z)=(0,0),
-and $(length(rUI)) receivers on the surface (z=0).
-"""
-
 # ╔═╡ 9d498284-f702-4f6b-aace-54743c7df206
 TwoColumn(md"""
 $(@bind it_plot Clock(0.1))
 	""", md"""$(@bind reset_anim CounterButton("Reset Animation"))
  """)
 
-# ╔═╡ cff433fb-e1c4-42ae-a310-db85f48d09e3
-begin
-	reset_anim
-	plot_animations(dgrid[mod(it_plot, div(length(tgrid), 2))+1, :, :], δdgrid[mod(it_plot, div(length(tgrid), 2))+1, :, :], maximum(abs, dgrid) / 1.0)
-end
-
 # ╔═╡ 30d354da-fceb-42a3-8c4c-59bc211e0022
 md"## Scalar Helmholtz Equation"
-
-# ╔═╡ 75ebf7f5-2f25-4be2-8da4-bc1a483e71be
-# TODO: get Helmholtz eq with the following substitution 
-U(𝐱, 𝐱ₛ) * exp(ı * ω * t)
-
-# ╔═╡ e197b835-cf69-46e5-8d0f-a2aa5d02ad04
-L(u, s) = ω^2 * s * u + Dx(Dx(u)) + Dz(Dz(u))
-
-# ╔═╡ bc542855-8281-4b61-b8d9-d758d15f4dcd
-L(U(𝐱, 𝐱ₛ), s(𝐱)) ~ F(ω) * δ(𝐱 - 𝐱ₛ)
 
 # ╔═╡ 802eb9d4-98da-4ac8-88de-36365227a971
 @syms x z
@@ -161,6 +142,9 @@ Dt = Differential(t)
 # ╔═╡ 36c73570-8cbd-447d-8d1d-20953903ece8
 @syms ω # angular frequency
 
+# ╔═╡ e197b835-cf69-46e5-8d0f-a2aa5d02ad04
+L(u, s) = ω^2 * s * u + Dx(Dx(u)) + Dz(Dz(u))
+
 # ╔═╡ c4479321-2f68-4359-aa5b-99441a317efe
 @syms s(𝐱) δs(𝐱) # reference and perturbed slowness
 
@@ -176,6 +160,10 @@ Dt = Differential(t)
 # ╔═╡ d7b8f7e9-49f6-4a7f-b67d-83f00753ef76
 @syms 𝐱ₛ # source coordinate vector
 
+# ╔═╡ 75ebf7f5-2f25-4be2-8da4-bc1a483e71be
+# TODO: get Helmholtz eq with the following substitution 
+U(𝐱, 𝐱ₛ) * exp(ı * ω * t)
+
 # ╔═╡ f478e161-06b3-4a91-b45b-f1e3434e1832
 @syms f(t) # source time function
 
@@ -184,6 +172,9 @@ Dt = Differential(t)
 
 # ╔═╡ 703ed5fa-4e67-442d-8423-041b417b9a9e
 @syms δ(𝐱) # Dirac delta function
+
+# ╔═╡ bc542855-8281-4b61-b8d9-d758d15f4dcd
+L(U(𝐱, 𝐱ₛ), s(𝐱)) ~ F(ω) * δ(𝐱 - 𝐱ₛ)
 
 # ╔═╡ bc57a10f-9d2d-4284-baf6-0875e169dbb4
 md"## Perturbation Theory"
@@ -312,74 +303,8 @@ scattered_wavefield = δU(𝐱ᵣ, 𝐱ₛ) ~ ∫ᵥ(arguments(ex2)[1]) ~ ∫ᵥ
 # ╔═╡ db0b5eb4-406d-4d8c-b0ac-544c1d6f37b1
 md"## Modeling"
 
-# ╔═╡ 887cc848-e97e-451d-8bb4-3f0eebb20723
-d = get_reference_wavefield(paUI, acq, tgrid);
-
-# ╔═╡ 9f05fce9-9c03-49b4-abeb-70977dcb9892
-dgrid = reshape(get_reference_wavefield(pagrid, acqgrid, tgrid)[:, :, 1], :, nzgrid, nxgrid);
-
-# ╔═╡ 9ce0b88a-4e39-4c95-83fb-1758ee661b45
-forward_UI = map(slocs_x, slocs_z) do sx, sz
-	get_forward_operator(paUI, acq, sx, sz);
-end
-
-# ╔═╡ 8218676f-0d09-4beb-bd17-8ae5b692c56d
-forward_grid = @use_memo([reset_anim]) do
-    get_forward_operator_with_scatterer_locations(pagrid, acqgrid, slowness_pert_draw_input, δxUI, nzUI)
-end;
-
-# ╔═╡ acba3f10-975b-423d-9ab8-ead6d9f9774b
-begin
-    slowness_grid_input = zeros(Float32, nzUI, nxUI)
-    map(slowness_pert_draw_input) do I
-        slowness_grid_input[nzUI-I[2]+1, I[1]] += 1.0f-8
-    end
-end;
-
-# ╔═╡ 68d92a09-8fc6-485c-aeac-c392a21951e4
-begin
-    δd = map(forward_UI) do Gmat
-		d = get_scattered_wavefield(slowness_grid_input, Gmat, acq, paUI)
-		d[:, filter(x -> x ∉ rUI, 1:nr)] .= 0.0f0
-		d
-	end
-end;
-
-# ╔═╡ 2bf0042b-f9b3-4ea3-b3d8-46d89a1ce2fe
-δdgrid = reshape(get_scattered_wavefield(1.0f-8 * ones(5), forward_grid, acqgrid, pagrid), :, nzgrid, nxgrid);
-
-# ╔═╡ 8eba66af-f61f-4453-a9b1-ee8c779ab059
-forward_grid
-
-# ╔═╡ 661ccded-ddcc-4606-9788-3a0913755d67
-get_scattered_wavefield(1.0f-8 * ones(5), forward_grid, acqgrid, pagrid)
-
-# ╔═╡ d8fc5b82-84a7-4f86-88f0-55b09b355a25
-images = map(forward_UI, δd) do Gmat, d
-	get_migration_image(d, Gmat, acq, paUI)
-end;
-
-# ╔═╡ 98d344f7-3ee2-42b7-aefe-d88604abdc8b
-image = sum(images[sUI]);
-
 # ╔═╡ b48cf5ec-a033-46e3-aec8-da5864b2386a
 md"## Appendix"
-
-# ╔═╡ 8acbffaf-1811-4592-a2d1-a8f561242d85
-begin
-    using Symbolics
-    using SymbolicUtils
-    using Latexify
-    using FFTW
-    using PlutoPlotly
-    using PlutoUI
-    using PlutoTeachingTools
-    using Einsum
-    using MLUtils
-    using PlutoLinks, PlutoHooks
-	using Bessels
-	using Tullio
-end
 
 # ╔═╡ 3affdcaf-8b32-496e-81a3-a898578948d2
 import PlutoUIExtra
@@ -427,6 +352,14 @@ begin
     zgridUI = Float32.(collect(range(0, step=δxUI, length=nzUI)))
 end;
 
+# ╔═╡ acba3f10-975b-423d-9ab8-ead6d9f9774b
+begin
+    slowness_grid_input = zeros(Float32, nzUI, nxUI)
+    map(slowness_pert_draw_input) do I
+        slowness_grid_input[nzUI-I[2]+1, I[1]] += 1.0f-8
+    end
+end;
+
 # ╔═╡ 227a30d4-9cec-440a-8238-87cd0d560e33
 paUI = (; tgrid, vp0, rho0, freqgrid, kgrid, Fsource, xgrid=xgridUI, zgrid=zgridUI)
 
@@ -465,8 +398,21 @@ end
 # ╔═╡ 2ac0ea94-aa5d-43da-a240-db4a57dda204
 nr = 50;
 
+# ╔═╡ 6e74479f-96ce-4af7-ae7d-603fe32ba88f
+md"Select Receivers $(@bind rUI MultiCheckBox(1:nr, select_all=true, default=collect(1:nr)))"
+
+# ╔═╡ 4972f23b-88a8-49d9-acad-75a65bdbe101
+md"""
+In the experiment above, the distance (x) range $(extrema(xgridUI))m and the depth (z) range $(extrema(zgridUI))m.
+The seismic source is located near the surface at (x, z)=(0,0),
+and $(length(rUI)) receivers on the surface (z=0).
+"""
+
 # ╔═╡ 97b3eaf7-c528-4693-8b89-bd33bdd9184c
 ns = 5;
+
+# ╔═╡ ffd19316-d2ba-4bec-abde-19cf05994ecf
+md"Select Sources $(@bind sUI MultiCheckBox(1:ns, select_all=true, default=collect(1:ns)))"
 
 # ╔═╡ 4389a492-2096-4e2a-b05f-91e9820e15a4
 rlocs_x = [rx for rx in range(0, stop=last(xgridUI), length=nr)] # receiver locations
@@ -510,6 +456,12 @@ Green's function for the given source-receiver pair in the 2-D homogeneous mediu
 Green's function describes the response of a medium with velocity `c` and density `rho` to a point source at `(sx, sz)` and a receiver at `(rx, rz)` at a given frequency `f`.
 """
 
+# ╔═╡ e2f1867b-a786-4a0a-a82f-b8a80c2745d5
+md"Method to get distance between source and receiver"
+
+# ╔═╡ dc40bf64-587f-452c-abb1-56fc44a740c7
+rad(sx, sz, rx, rz) = sqrt(abs2(sx - rx) + abs2(sz - rz))
+
 # ╔═╡ ab29f4e1-cc96-46a3-b0b1-9592378d5c64
 function G0(rx, rz, sx, sz, k, rho)
     # k = ω/c wavenumber
@@ -517,12 +469,6 @@ function G0(rx, rz, sx, sz, k, rho)
     r = rad(sx, sz, rx, rz)
     return -0.25 * rho * im * hankelh2(0, k * r)
 end
-
-# ╔═╡ e2f1867b-a786-4a0a-a82f-b8a80c2745d5
-md"Method to get distance between source and receiver"
-
-# ╔═╡ dc40bf64-587f-452c-abb1-56fc44a740c7
-rad(sx, sz, rx, rz) = sqrt(abs2(sx - rx) + abs2(sz - rz))
 
 # ╔═╡ f78d9f96-0d4c-445b-a433-06f1a9a9eb12
 md"### Modeling"
@@ -551,6 +497,14 @@ function get_forward_operator_with_scatterer_locations(pa, acq, scatterer_locati
     return reshape(G, nr * nω, :)
 end
 
+# ╔═╡ 8218676f-0d09-4beb-bd17-8ae5b692c56d
+forward_grid = @use_memo([reset_anim]) do
+    get_forward_operator_with_scatterer_locations(pagrid, acqgrid, slowness_pert_draw_input, δxUI, nzUI)
+end;
+
+# ╔═╡ 8eba66af-f61f-4453-a9b1-ee8c779ab059
+forward_grid
+
 # ╔═╡ 173adc88-5366-49e7-a1af-6478404e082e
 function get_forward_operator(pa, acq, sloc_x, sloc_z)
     (; xgrid, zgrid, freqgrid, kgrid, Fsource, vp0, rho0) = pa
@@ -568,6 +522,11 @@ function get_forward_operator(pa, acq, sloc_x, sloc_z)
     return reshape(G, nr * nω, nx * nz)
 end
 
+# ╔═╡ 9ce0b88a-4e39-4c95-83fb-1758ee661b45
+forward_UI = map(slocs_x, slocs_z) do sx, sz
+	get_forward_operator(paUI, acq, sx, sz);
+end
+
 # ╔═╡ e5a6e125-c700-4471-9781-abbd0b1c49c7
 function get_reference_wavefield(pa, acq, tgrid)
     (; xgrid, zgrid, freqgrid, kgrid, Fsource, vp0, rho0) = pa
@@ -577,6 +536,12 @@ function get_reference_wavefield(pa, acq, tgrid)
     # transform to time domain
     return irfft(D, length(tgrid), 1,)
 end
+
+# ╔═╡ 887cc848-e97e-451d-8bb4-3f0eebb20723
+d = get_reference_wavefield(paUI, acq, tgrid);
+
+# ╔═╡ 9f05fce9-9c03-49b4-abeb-70977dcb9892
+dgrid = reshape(get_reference_wavefield(pagrid, acqgrid, tgrid)[:, :, 1], :, nzgrid, nxgrid);
 
 # ╔═╡ 04669a0d-9bb8-4106-ab87-7afd3ac86597
 function get_scattered_wavefield(slowness, G, acq, pa)
@@ -588,6 +553,21 @@ function get_scattered_wavefield(slowness, G, acq, pa)
     # transform to time domain
     return irfft(d, length(pa.tgrid), 1,)
 end
+
+# ╔═╡ 68d92a09-8fc6-485c-aeac-c392a21951e4
+begin
+    δd = map(forward_UI) do Gmat
+		d = get_scattered_wavefield(slowness_grid_input, Gmat, acq, paUI)
+		d[:, filter(x -> x ∉ rUI, 1:nr)] .= 0.0f0
+		d
+	end
+end;
+
+# ╔═╡ 2bf0042b-f9b3-4ea3-b3d8-46d89a1ce2fe
+δdgrid = reshape(get_scattered_wavefield(1.0f-8 * ones(5), forward_grid, acqgrid, pagrid), :, nzgrid, nxgrid);
+
+# ╔═╡ 661ccded-ddcc-4606-9788-3a0913755d67
+get_scattered_wavefield(1.0f-8 * ones(5), forward_grid, acqgrid, pagrid)
 
 # ╔═╡ 2ebe48c7-e2c2-4002-b57a-2c5b94d90165
 # δs is the perturbation in slowness
@@ -605,6 +585,14 @@ function get_migration_image(δd, G, acq, pa)
     return real.(δs)
 end
 
+# ╔═╡ d8fc5b82-84a7-4f86-88f0-55b09b355a25
+images = map(forward_UI, δd) do Gmat, d
+	get_migration_image(d, Gmat, acq, paUI)
+end;
+
+# ╔═╡ 98d344f7-3ee2-42b7-aefe-d88604abdc8b
+image = sum(images[sUI]);
+
 # ╔═╡ 3c23a484-0b9a-4044-bcec-fec447509991
 md"### Plots"
 
@@ -620,6 +608,24 @@ function plot_data(d, δd, d1max)
 
 end
 
+# ╔═╡ 56d75f42-6a38-4e79-a0a9-e9f005996ac6
+plot_data(d[:, :, first(sUI)], δd[:, :, 1][first(sUI)], maximum(abs,d[:,:,1][first(sUI)])/2)
+
+# ╔═╡ 44dfa401-7f1d-467f-99e9-beab9ec52427
+function add_ageom!(fig, ageom, row=1, col=1)
+    if (!(ageom === nothing))
+        add_trace!(fig, scatter(
+                x=ageom.rlocs_x[filter(x -> x ∈ rUI, 1:nr)],
+                y=ageom.rlocs_z, mode="markers",
+                marker_color="black", marker_symbol="triangle-down", showlegend=false), row=row, col=col)
+        add_trace!(fig, scatter(
+                x=ageom.slocs_x,
+                y=ageom.slocs_z, mode="markers",
+                marker_color="black", marker_size=10, marker_symbol="star", showlegend=false), row=row, col=col)
+    end
+
+end
+
 # ╔═╡ e80193d9-0d99-4cfd-92d6-20afde48bef7
 function plot_image(image)
     fig = Plot(Layout(yaxis_autorange="reversed", xaxis=attr(range=extrema(xgridUI) .+ [-20, 20]),
@@ -630,6 +636,9 @@ function plot_image(image)
     return PlutoPlotly.plot(fig)
 
 end
+
+# ╔═╡ 3786bd54-105a-46d7-8232-b93835b01129
+plot_image(image)
 
 # ╔═╡ 1c95eb36-adc8-44f1-867b-eb3521684eb9
 function plot_animations(d1, d2, d1max)
@@ -645,19 +654,10 @@ function plot_animations(d1, d2, d1max)
 
 end
 
-# ╔═╡ 44dfa401-7f1d-467f-99e9-beab9ec52427
-function add_ageom!(fig, ageom, row=1, col=1)
-    if (!(ageom === nothing))
-        add_trace!(fig, scatter(
-                x=ageom.rlocs_x[filter(x -> x ∈ rUI, 1:nr)],
-                y=ageom.rlocs_z, mode="markers",
-                marker_color="black", marker_symbol="triangle-down", showlegend=false), row=row, col=col)
-        add_trace!(fig, scatter(
-                x=ageom.slocs_x,
-                y=ageom.slocs_z, mode="markers",
-                marker_color="black", marker_size=10, marker_symbol="star", showlegend=false), row=row, col=col)
-    end
-
+# ╔═╡ cff433fb-e1c4-42ae-a310-db85f48d09e3
+begin
+	reset_anim
+	plot_animations(dgrid[mod(it_plot, div(length(tgrid), 2))+1, :, :], δdgrid[mod(it_plot, div(length(tgrid), 2))+1, :, :], maximum(abs, dgrid) / 1.0)
 end
 
 # ╔═╡ 98521f53-fbf4-4ba2-b0b9-629f21478a31
@@ -699,17 +699,17 @@ Tullio = "bc48ee85-29a4-5162-ae0b-a64e1601d4bc"
 Bessels = "~0.2.8"
 Einsum = "~0.4.1"
 FFTW = "~1.10.0"
-Latexify = "~0.16.1"
-MLUtils = "~0.4.3"
+Latexify = "~0.16.10"
+MLUtils = "~0.4.8"
 PlutoHooks = "~0.0.5"
 PlutoLinks = "~0.1.6"
-PlutoPlotly = "~0.4.4"
-PlutoTeachingTools = "~0.2.14"
-PlutoUI = "~0.7.54"
+PlutoPlotly = "~0.6.5"
+PlutoTeachingTools = "~0.4.6"
+PlutoUI = "~0.7.72"
 PlutoUIExtra = "~0.1.8"
-SymbolicUtils = "~1.5.0"
-Symbolics = "~5.28.0"
-Tullio = "~0.3.7"
+SymbolicUtils = "~3.32.0"
+Symbolics = "~6.56.0"
+Tullio = "~0.3.8"
 """
 
 # ╔═╡ 00000000-0000-0000-0000-000000000002
@@ -718,7 +718,7 @@ PLUTO_MANIFEST_TOML_CONTENTS = """
 
 julia_version = "1.11.7"
 manifest_format = "2.0"
-project_hash = "ace951dd51d94c24de884e06f37a08c40c16e791"
+project_hash = "46fcc77f4d8b95cfca7540875b4deb22eb452dbc"
 
 [[deps.ADTypes]]
 git-tree-sha1 = "27cecae79e5cc9935255f90c53bb831cc3c870d7"
@@ -889,11 +889,6 @@ version = "0.4.6"
 uuid = "2a0f44e3-6c83-55bd-87e4-b1978d98bd5f"
 version = "1.11.0"
 
-[[deps.BaseDirs]]
-git-tree-sha1 = "bca794632b8a9bbe159d56bf9e31c422671b35e0"
-uuid = "18cc8868-cbac-4acf-b575-c8ff214dc66f"
-version = "1.3.2"
-
 [[deps.Baselet]]
 git-tree-sha1 = "aebf55e6d7795e02ca500a689d326ac979aaf89e"
 uuid = "9718e550-a3fa-408a-8086-8db961cd8217"
@@ -905,9 +900,9 @@ uuid = "0e736298-9ec6-45e8-9647-e4fc86a2fe38"
 version = "0.2.8"
 
 [[deps.Bijections]]
-git-tree-sha1 = "6aaafea90a56dc1fc8cbc15e3cf26d6bc81eb0a3"
+git-tree-sha1 = "a2d308fcd4c2fb90e943cf9cd2fbfa9c32b69733"
 uuid = "e2ed5e7c-b2de-5872-ae92-c73ca462fb04"
-version = "0.1.10"
+version = "0.2.2"
 
 [[deps.ChainRulesCore]]
 deps = ["Compat", "LinearAlgebra"]
@@ -933,15 +928,19 @@ version = "3.31.0"
 
 [[deps.ColorTypes]]
 deps = ["FixedPointNumbers", "Random"]
-git-tree-sha1 = "b10d0b65641d57b8b4d5e234446582de5047050d"
+git-tree-sha1 = "67e11ee83a43eb71ddc950302c53bf33f0690dfe"
 uuid = "3da002f7-5984-5a60-b8a6-cbb66c0b333f"
-version = "0.11.5"
+version = "0.12.1"
+weakdeps = ["StyledStrings"]
+
+    [deps.ColorTypes.extensions]
+    StyledStringsExt = "StyledStrings"
 
 [[deps.ColorVectorSpace]]
 deps = ["ColorTypes", "FixedPointNumbers", "LinearAlgebra", "Requires", "Statistics", "TensorCore"]
-git-tree-sha1 = "a1f44953f2382ebb937d60dafbe2deea4bd23249"
+git-tree-sha1 = "8b3b6f87ce8f65a2b4f857528fd8d70086cd72b1"
 uuid = "c3611d14-8923-5661-9e6a-0046d554d3a4"
-version = "0.10.0"
+version = "0.11.0"
 weakdeps = ["SpecialFunctions"]
 
     [deps.ColorVectorSpace.extensions]
@@ -949,25 +948,24 @@ weakdeps = ["SpecialFunctions"]
 
 [[deps.Colors]]
 deps = ["ColorTypes", "FixedPointNumbers", "Reexport"]
-git-tree-sha1 = "362a287c3aa50601b0bc359053d5c2468f0e7ce0"
+git-tree-sha1 = "37ea44092930b1811e666c3bc38065d7d87fcc74"
 uuid = "5ae59095-9a9b-59fe-a467-6f913c188581"
-version = "0.12.11"
+version = "0.13.1"
 
 [[deps.Combinatorics]]
-git-tree-sha1 = "8010b6bb3388abe68d95743dcbea77650bb2eddf"
+git-tree-sha1 = "08c8b6831dc00bfea825826be0bc8336fc369860"
 uuid = "861a8166-3701-5b0c-9a16-15d98fcdc6aa"
-version = "1.0.3"
+version = "1.0.2"
 
 [[deps.CommonSolve]]
 git-tree-sha1 = "0eee5eb66b1cf62cd6ad1b460238e60e4b09400c"
 uuid = "38540f10-b2f7-11e9-35d8-d573e4eb0ff2"
 version = "0.2.4"
 
-[[deps.CommonSubexpressions]]
-deps = ["MacroTools"]
-git-tree-sha1 = "cda2cfaebb4be89c9084adaca7dd7333369715c5"
-uuid = "bbf7d656-a473-5ed7-a52c-81e309532950"
-version = "0.3.1"
+[[deps.CommonWorldInvalidations]]
+git-tree-sha1 = "ae52d1c52048455e85a387fbee9be553ec2b68d0"
+uuid = "f70d9fcc-98c5-4d4a-abd7-e4cdeebd8ca8"
+version = "1.0.0"
 
 [[deps.Compat]]
 deps = ["TOML", "UUIDs"]
@@ -1004,14 +1002,14 @@ weakdeps = ["InverseFunctions"]
     CompositionsBaseInverseFunctionsExt = "InverseFunctions"
 
 [[deps.ConstructionBase]]
-deps = ["LinearAlgebra"]
-git-tree-sha1 = "d8a9c0b6ac2d9081bf76324b39c78ca3ce4f0c98"
+git-tree-sha1 = "b4b092499347b18a015186eae3042f72267106cb"
 uuid = "187b0558-2788-49d3-abe0-74a17ed4e7c9"
-version = "1.5.6"
-weakdeps = ["IntervalSets", "StaticArrays"]
+version = "1.6.0"
+weakdeps = ["IntervalSets", "LinearAlgebra", "StaticArrays"]
 
     [deps.ConstructionBase.extensions]
     ConstructionBaseIntervalSetsExt = "IntervalSets"
+    ConstructionBaseLinearAlgebraExt = "LinearAlgebra"
     ConstructionBaseStaticArraysExt = "StaticArrays"
 
 [[deps.ContextVariablesX]]
@@ -1031,10 +1029,10 @@ uuid = "02685ad9-2d12-40c3-9f73-c6aeda6a7ff5"
 version = "0.3.18"
 
 [[deps.DataStructures]]
-deps = ["Compat", "InteractiveUtils", "OrderedCollections"]
-git-tree-sha1 = "4e1fe97fdaed23e9dc21d4d664bea76b65fc50a0"
+deps = ["OrderedCollections"]
+git-tree-sha1 = "6c72198e6a101cccdd4c9731d3985e904ba26037"
 uuid = "864edb3b-99cc-5e75-8d2d-829cb0a9cfe8"
-version = "0.18.22"
+version = "0.19.1"
 
 [[deps.DataValueInterfaces]]
 git-tree-sha1 = "bfc1187b79289637fa0ef6d4436ebdfe6905cbd6"
@@ -1056,12 +1054,6 @@ deps = ["Mmap"]
 git-tree-sha1 = "9e2f36d3c96a820c678f2f1f1782582fcf685bae"
 uuid = "8bb1440f-4735-579b-a4ab-409b98df4dab"
 version = "1.9.1"
-
-[[deps.DiffResults]]
-deps = ["StaticArraysCore"]
-git-tree-sha1 = "782dd5f4561f5d267313f23853baaaa4c52ea621"
-uuid = "163ba53b-c6d8-5494-b064-1a9d43ac40c5"
-version = "1.1.0"
 
 [[deps.DiffRules]]
 deps = ["IrrationalConstants", "LogExpFunctions", "NaNMath", "Random", "SpecialFunctions"]
@@ -1115,10 +1107,10 @@ uuid = "f43a241f-c20a-4ad4-852c-f6b1247861c6"
 version = "1.6.0"
 
 [[deps.DynamicPolynomials]]
-deps = ["Future", "LinearAlgebra", "MultivariatePolynomials", "MutableArithmetics", "Pkg", "Reexport", "Test"]
-git-tree-sha1 = "30a1848c4f4fc35d1d4bbbd125650f6a11b5bc6c"
+deps = ["Future", "LinearAlgebra", "MultivariatePolynomials", "MutableArithmetics", "Reexport", "Test"]
+git-tree-sha1 = "3f50fa86c968fc1a9e006c07b6bc40ccbb1b704d"
 uuid = "7c1d4256-1411-5781-91ec-d7bc3513ac07"
-version = "0.5.7"
+version = "0.6.4"
 
 [[deps.Einsum]]
 deps = ["Compat"]
@@ -1212,16 +1204,6 @@ git-tree-sha1 = "9c68794ef81b08086aeb32eeaf33531668d5f5fc"
 uuid = "1fa38f19-a742-5d3f-a2b9-30dd87b9d5f8"
 version = "1.3.7"
 
-[[deps.ForwardDiff]]
-deps = ["CommonSubexpressions", "DiffResults", "DiffRules", "LinearAlgebra", "LogExpFunctions", "NaNMath", "Preferences", "Printf", "Random", "SpecialFunctions"]
-git-tree-sha1 = "afb7c51ac63e40708a3071f80f5e84a752299d4f"
-uuid = "f6369f11-7733-5829-9624-2563aa707210"
-version = "0.10.39"
-weakdeps = ["StaticArrays"]
-
-    [deps.ForwardDiff.extensions]
-    ForwardDiffStaticArraysExt = "StaticArrays"
-
 [[deps.FunctionWrappers]]
 git-tree-sha1 = "d62485945ce5ae9c0c48f124a84998d755bae00e"
 uuid = "069b7b12-0de2-55c6-9aab-29f3d0a68a2e"
@@ -1279,15 +1261,15 @@ git-tree-sha1 = "b6d6bfdd7ce25b0f9b2f6b3dd56b2673a66c8770"
 uuid = "b5f81e59-6552-4d32-b1f0-c071b021bf89"
 version = "0.2.5"
 
-[[deps.IfElse]]
-git-tree-sha1 = "debdd00ffef04665ccbb3e150747a77560e8fad1"
-uuid = "615f187c-cbe4-4ef1-ba3b-2fcf58d6d173"
-version = "0.1.1"
-
 [[deps.InitialValues]]
 git-tree-sha1 = "4da0f88e9a39111c2fa3add390ab15f3a44f3ca3"
 uuid = "22cec73e-a1b8-11e9-2c92-598750a2cf9c"
 version = "0.3.1"
+
+[[deps.IntegerMathUtils]]
+git-tree-sha1 = "4c1acff2dc6b6967e7e750633c50bc3b8d83e617"
+uuid = "18e54dd8-cb9d-406c-a71d-865a43cbb235"
+version = "0.1.3"
 
 [[deps.IntelOpenMP_jll]]
 deps = ["Artifacts", "JLLWrappers", "LazyArtifacts", "Libdl"]
@@ -1387,17 +1369,6 @@ version = "0.9.38"
 git-tree-sha1 = "dda21b8cbd6a6c40d9d02a73230f9d70fed6918c"
 uuid = "b964fa9f-0449-5b57-a5c2-d3ea65f4040f"
 version = "1.4.0"
-
-[[deps.LabelledArrays]]
-deps = ["ArrayInterface", "ChainRulesCore", "ForwardDiff", "LinearAlgebra", "MacroTools", "PreallocationTools", "RecursiveArrayTools", "StaticArrays"]
-git-tree-sha1 = "787746e59dc50568695927afd7ffb09e294382c8"
-uuid = "2ee39098-c373-598a-b85f-a56591580800"
-version = "1.16.1"
-
-[[deps.LambertW]]
-git-tree-sha1 = "c5ffc834de5d61d00d2b0e18c96267cffc21f648"
-uuid = "984bce1d-4616-540c-a9ee-88d1112d94c9"
-version = "0.4.6"
 
 [[deps.Latexify]]
 deps = ["Format", "Ghostscript_jll", "InteractiveUtils", "LaTeXStrings", "MacroTools", "Markdown", "OrderedCollections", "Requires"]
@@ -1552,10 +1523,14 @@ uuid = "14a3606d-f60d-562e-9121-12d972cd8159"
 version = "2023.12.12"
 
 [[deps.MultivariatePolynomials]]
-deps = ["ChainRulesCore", "DataStructures", "LinearAlgebra", "MutableArithmetics"]
-git-tree-sha1 = "fade91fe9bee7b142d332fc6ab3f0deea29f637b"
+deps = ["DataStructures", "LinearAlgebra", "MutableArithmetics"]
+git-tree-sha1 = "d38b8653b1cdfac5a7da3b819c0a8d6024f9a18c"
 uuid = "102ac46a-7ee4-5c85-9060-abc95bfdeaa3"
-version = "0.5.9"
+version = "0.5.13"
+weakdeps = ["ChainRulesCore"]
+
+    [deps.MultivariatePolynomials.extensions]
+    MultivariatePolynomialsChainRulesCoreExt = "ChainRulesCore"
 
 [[deps.MutableArithmetics]]
 deps = ["LinearAlgebra", "SparseArrays", "Test"]
@@ -1602,6 +1577,15 @@ version = "0.1.5"
 [[deps.NetworkOptions]]
 uuid = "ca575930-c2e3-43a9-ace4-1e988b2c1908"
 version = "1.2.0"
+
+[[deps.OffsetArrays]]
+git-tree-sha1 = "117432e406b5c023f665fa73dc26e79ec3630151"
+uuid = "6fe1bfb0-de20-5000-8ca7-80f57d26f881"
+version = "1.17.0"
+weakdeps = ["Adapt"]
+
+    [deps.OffsetArrays.extensions]
+    OffsetArraysAdaptExt = "Adapt"
 
 [[deps.OpenBLAS_jll]]
 deps = ["Artifacts", "CompilerSupportLibraries_jll", "Libdl"]
@@ -1682,10 +1666,10 @@ uuid = "0ff47ea0-7a50-410d-8455-4348d5de0420"
 version = "0.1.6"
 
 [[deps.PlutoPlotly]]
-deps = ["AbstractPlutoDingetjes", "BaseDirs", "Colors", "Dates", "Downloads", "HypertextLiteral", "InteractiveUtils", "LaTeXStrings", "Markdown", "Pkg", "PlotlyBase", "Reexport", "TOML"]
-git-tree-sha1 = "1ae939782a5ce9a004484eab5416411c7190d3ce"
+deps = ["AbstractPlutoDingetjes", "Artifacts", "ColorSchemes", "Colors", "Dates", "Downloads", "HypertextLiteral", "InteractiveUtils", "LaTeXStrings", "Markdown", "Pkg", "PlotlyBase", "PrecompileTools", "Reexport", "ScopedValues", "Scratch", "TOML"]
+git-tree-sha1 = "8acd04abc9a636ef57004f4c2e6f3f6ed4611099"
 uuid = "8e989ff0-3d88-8e9f-f020-2b208a939ff0"
-version = "0.4.6"
+version = "0.6.5"
 
     [deps.PlutoPlotly.extensions]
     PlotlyKaleidoExt = "PlotlyKaleido"
@@ -1696,10 +1680,10 @@ version = "0.4.6"
     Unitful = "1986cc42-f94f-5a68-af5c-568840ba703d"
 
 [[deps.PlutoTeachingTools]]
-deps = ["Downloads", "HypertextLiteral", "LaTeXStrings", "Latexify", "Markdown", "PlutoLinks", "PlutoUI", "Random"]
-git-tree-sha1 = "5d9ab1a4faf25a62bb9d07ef0003396ac258ef1c"
+deps = ["Downloads", "HypertextLiteral", "Latexify", "Markdown", "PlutoUI"]
+git-tree-sha1 = "dacc8be63916b078b592806acd13bb5e5137d7e9"
 uuid = "661c6b06-c737-4d37-b85c-46df65de6f69"
-version = "0.2.15"
+version = "0.4.6"
 
 [[deps.PlutoUI]]
 deps = ["AbstractPlutoDingetjes", "Base64", "ColorTypes", "Dates", "Downloads", "FixedPointNumbers", "Hyperscript", "HypertextLiteral", "IOCapture", "InteractiveUtils", "JSON", "Logging", "MIMEs", "Markdown", "Random", "Reexport", "URIs", "UUIDs"]
@@ -1745,6 +1729,12 @@ version = "1.5.0"
 git-tree-sha1 = "632eb4abab3449ab30c5e1afaa874f0b98b586e4"
 uuid = "8162dcfd-2161-5ef2-ae6c-7681170c5f98"
 version = "0.2.0"
+
+[[deps.Primes]]
+deps = ["IntegerMathUtils"]
+git-tree-sha1 = "25cdd1d20cd005b52fc12cb6be3f75faaf59bb9b"
+uuid = "27ebfcd6-29c5-5fa9-bf4b-fb8fc14df3ae"
+version = "0.5.7"
 
 [[deps.Printf]]
 deps = ["Unicode"]
@@ -1930,6 +1920,12 @@ git-tree-sha1 = "c3b2323466378a2ba15bea4b2f73b081e022f473"
 uuid = "7e506255-f358-4e82-b7e4-beb19740aa63"
 version = "1.5.0"
 
+[[deps.Scratch]]
+deps = ["Dates"]
+git-tree-sha1 = "9b81b8393e50b7d4e6d0a9f14e192294d3b7c109"
+uuid = "6c6a2e73-6563-6170-7368-637461726353"
+version = "1.3.0"
+
 [[deps.Serialization]]
 uuid = "9e88b42a-f829-5b0c-bbe9-9e923198166b"
 version = "1.11.0"
@@ -2058,33 +2054,49 @@ version = "0.3.46"
 
 [[deps.SymbolicLimits]]
 deps = ["SymbolicUtils"]
-git-tree-sha1 = "fb099adbd7504f1e68b4512828e9d94197a8b889"
+git-tree-sha1 = "f75c7deb7e11eea72d2c1ea31b24070b713ba061"
 uuid = "19f23fe9-fdab-4a78-91af-e7b7767979c3"
-version = "0.2.1"
+version = "0.2.3"
 
 [[deps.SymbolicUtils]]
-deps = ["AbstractTrees", "Bijections", "ChainRulesCore", "Combinatorics", "ConstructionBase", "DataStructures", "DocStringExtensions", "DynamicPolynomials", "IfElse", "LabelledArrays", "LinearAlgebra", "MultivariatePolynomials", "NaNMath", "Setfield", "SparseArrays", "SpecialFunctions", "StaticArrays", "SymbolicIndexingInterface", "TimerOutputs", "Unityper"]
-git-tree-sha1 = "669e43e90df46fcee4aa859b587da7a7948272ac"
+deps = ["AbstractTrees", "ArrayInterface", "Bijections", "ChainRulesCore", "Combinatorics", "ConstructionBase", "DataStructures", "DocStringExtensions", "DynamicPolynomials", "ExproniconLite", "LinearAlgebra", "MultivariatePolynomials", "NaNMath", "Setfield", "SparseArrays", "SpecialFunctions", "StaticArrays", "SymbolicIndexingInterface", "TaskLocalValues", "TermInterface", "TimerOutputs", "Unityper"]
+git-tree-sha1 = "a85b4262a55dbd1af39bb6facf621d79ca6a322d"
 uuid = "d1185830-fcd6-423d-90d6-eec64667417b"
-version = "1.5.1"
+version = "3.32.0"
+
+    [deps.SymbolicUtils.extensions]
+    SymbolicUtilsLabelledArraysExt = "LabelledArrays"
+    SymbolicUtilsReverseDiffExt = "ReverseDiff"
+
+    [deps.SymbolicUtils.weakdeps]
+    LabelledArrays = "2ee39098-c373-598a-b85f-a56591580800"
+    ReverseDiff = "37e2e3b7-166d-5795-8a7a-e32c996b4267"
 
 [[deps.Symbolics]]
-deps = ["ArrayInterface", "Bijections", "ConstructionBase", "DataStructures", "DiffRules", "Distributions", "DocStringExtensions", "DomainSets", "DynamicPolynomials", "ForwardDiff", "IfElse", "LaTeXStrings", "LambertW", "Latexify", "Libdl", "LinearAlgebra", "LogExpFunctions", "MacroTools", "Markdown", "NaNMath", "PrecompileTools", "RecipesBase", "Reexport", "Requires", "RuntimeGeneratedFunctions", "SciMLBase", "Setfield", "SparseArrays", "SpecialFunctions", "StaticArrays", "SymbolicIndexingInterface", "SymbolicLimits", "SymbolicUtils"]
-git-tree-sha1 = "4104548fff14d7370b278ee767651d6ec61eb195"
+deps = ["ADTypes", "ArrayInterface", "Bijections", "CommonWorldInvalidations", "ConstructionBase", "DataStructures", "DiffRules", "Distributions", "DocStringExtensions", "DomainSets", "DynamicPolynomials", "LaTeXStrings", "Latexify", "Libdl", "LinearAlgebra", "LogExpFunctions", "MacroTools", "Markdown", "NaNMath", "OffsetArrays", "PrecompileTools", "Primes", "RecipesBase", "Reexport", "RuntimeGeneratedFunctions", "SciMLBase", "SciMLPublic", "Setfield", "SparseArrays", "SpecialFunctions", "StaticArraysCore", "SymbolicIndexingInterface", "SymbolicLimits", "SymbolicUtils", "TermInterface"]
+git-tree-sha1 = "1b09f5faec5284f505c40e68ba565115e7d48718"
 uuid = "0c5d862f-8b57-4792-8d23-62f2024744c7"
-version = "5.28.0"
+version = "6.56.0"
 
     [deps.Symbolics.extensions]
+    SymbolicsD3TreesExt = "D3Trees"
+    SymbolicsForwardDiffExt = "ForwardDiff"
     SymbolicsGroebnerExt = "Groebner"
-    SymbolicsLuxCoreExt = "LuxCore"
-    SymbolicsPreallocationToolsExt = "PreallocationTools"
+    SymbolicsLuxExt = "Lux"
+    SymbolicsNemoExt = "Nemo"
+    SymbolicsPreallocationToolsExt = ["PreallocationTools", "ForwardDiff"]
     SymbolicsSymPyExt = "SymPy"
+    SymbolicsSymPyPythonCallExt = "SymPyPythonCall"
 
     [deps.Symbolics.weakdeps]
+    D3Trees = "e3df1716-f71e-5df9-9e2d-98e193103c45"
+    ForwardDiff = "f6369f11-7733-5829-9624-2563aa707210"
     Groebner = "0b43b601-686d-58a3-8a1c-6623616c7cd4"
-    LuxCore = "bb33d45b-7691-41d6-9220-0943567d0623"
+    Lux = "b2108857-7c20-44ae-9111-449ecde12c47"
+    Nemo = "2edaba10-b0f1-5616-af89-8c11ac63239a"
     PreallocationTools = "d236fae5-4411-538c-8e31-a6e3d9e00b46"
     SymPy = "24249f21-da20-56a4-8eb1-6a02cf4ae2e6"
+    SymPyPythonCall = "bc8888f7-b21e-4b7c-a06a-5d9c9496438c"
 
 [[deps.TOML]]
 deps = ["Dates"]
@@ -2108,11 +2120,21 @@ deps = ["ArgTools", "SHA"]
 uuid = "a4e569a6-e804-4fa4-b0f3-eef7a1d5b13e"
 version = "1.10.0"
 
+[[deps.TaskLocalValues]]
+git-tree-sha1 = "67e469338d9ce74fc578f7db1736a74d93a49eb8"
+uuid = "ed4db957-447d-4319-bfb6-7fa9ae7ecf34"
+version = "0.1.3"
+
 [[deps.TensorCore]]
 deps = ["LinearAlgebra"]
 git-tree-sha1 = "1feb45f88d133a655e001435632f019a9a1bcdb6"
 uuid = "62fd8b95-f654-4bbd-a8a5-9c27f68ccd50"
 version = "0.1.1"
+
+[[deps.TermInterface]]
+git-tree-sha1 = "d673e0aca9e46a2f63720201f55cc7b3e7169b16"
+uuid = "8ea1fca8-c5ef-4a55-8b96-4e9afe9c9a3c"
+version = "2.0.0"
 
 [[deps.Test]]
 deps = ["InteractiveUtils", "Logging", "Random", "Serialization"]

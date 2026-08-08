@@ -1,0 +1,17 @@
+{
+	"folders": [
+		{
+			"path": "."
+		},
+		{
+			"path": "../Downloads/Computer_Programs_Seismology.330"
+		}
+	],
+	"settings": {
+		"files.associations": {
+			"*.jlmd": "markdown",
+			"*.jlhtml": "html"
+		},
+		"julia.environmentPath": "/Users/pawan/Interactive-Seismology.jl"
+	}
+}

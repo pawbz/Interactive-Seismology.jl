@@ -1,0 +1,37 @@
+# Dockerfile for VM deployment
+# Generates complete static site, then runs PlutoSliderServer for live notebooks
+
+FROM julia:1.11.7
+
+EXPOSE 8080
+
+RUN apt-get update -y && apt-get upgrade -y && \
+    apt-get install -y git && \
+    useradd -ms /bin/bash pluto
+
+WORKDIR /home/pluto
+USER pluto
+
+# Copy repo
+COPY --chown=pluto . ${HOME}/
+
+# Initialize deployment environment
+RUN julia --project=${HOME}/pluto-deployment-environment \
+    -e "import Pkg; Pkg.instantiate(); Pkg.precompile()"
+
+# Generate static site on build
+RUN julia --project=${HOME}/pluto-deployment-environment \
+    -e "include(\"generate.jl\")" && \
+    mkdir -p ${HOME}/_site_serving && \
+    cp -r ${HOME}/_site/* ${HOME}/_site_serving/ 2>/dev/null || true
+
+# Health check endpoint
+HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
+    CMD curl -f http://localhost:8080/ || exit 1
+
+# Run PlutoSliderServer
+# - Serves complete site (including static notebooks)
+# - Live notebooks from live-notebooks.yml are interactive
+# - Static notebooks appear as pre-rendered HTML
+CMD ["julia", "--project=/home/pluto/pluto-deployment-environment", \
+     "-e", "import PlutoSliderServer; PlutoSliderServer.run_directory(\".\"; port=8080, host=\"0.0.0.0\", exclude=[\"**/hw*.jl\"])"]

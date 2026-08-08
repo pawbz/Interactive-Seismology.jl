@@ -1,5 +1,5 @@
 ### A Pluto.jl notebook ###
-# v0.20.19
+# v0.20.21
 
 #> [frontmatter]
 #> title = "Fourier Series And Dispersion"
@@ -22,6 +22,12 @@ macro bind(def, element)
     #! format: on
 end
 
+# ╔═╡ 7f5b0439-0ad7-4ab6-83ca-093fc2d48915
+using HypertextLiteral: @htl
+
+# ╔═╡ 90384046-a500-11f0-8c2f-5ff4e899d2de
+using PlutoUI, PlutoPlotly, FFTW, LinearAlgebra
+
 # ╔═╡ 903844b8-a500-11f0-afa6-f187b28c7860
 TableOfContents()
 
@@ -40,104 +46,11 @@ Instructor: *Pawan Bharadwaj*,
 Indian Institute of Science, Bengaluru, India
 """
 
-# ╔═╡ 90384aca-a500-11f0-9af9-738a0287bdbb
-let
-    # Create time and space grids
-    t = 0.0  # Fixed time for now
-    x = range(-2π, 2π, length=1000)
-
-	wave_type = "impulse"
-    
-    # Get Fourier coefficients
-    coeffs = get_fourier_coefficients(wave_type, n_harmonics)
-    
-    # Get true/analytical signal
-    true_signal = get_true_signal(wave_type, x, f0)
-    
-    # Extract phase shifts from UI (handle case where phase_shifts might not be available)
-    phases = zeros(n_harmonics)
-    # if show_phase_controls && @isdefined(phase_shifts)
-        for n in 1:n_harmonics
-            phase_key = "phase_$n"
-            if haskey(phase_shifts, phase_key)
-                phases[n] = phase_shifts[phase_key]
-            end
-        end
-    # end
-    
-    # Initialize arrays for plotting
-    individual_waves = []
-    cumulative_sum = zeros(length(x))
-    
-    # Create plot
-    fig = plot(Layout(
-        title="Fourier Series Decomposition",
-        xaxis_title="Position (radians)",
-        yaxis_title="Amplitude",
-        height=600,
-        showlegend=true
-    ))
-    
-    # Plot individual harmonics (show up to 10 for visual clarity)
-    colors = ["red", "blue", "green", "orange", "purple", "brown", "pink", "gray", "olive", "cyan"]
-    display_limit = min(n_harmonics, 10)  # Limit display for clarity
-    
-    for n in 1:display_limit
-        if coeffs[n] ≠ 0
-            # Apply phase shift: cos(n*f0*x + phase) where phase = -f0*n*time_shift
-            phase_shift = -f0 * n * phases[n]  # Convert time shift to phase
-            harmonic = coeffs[n] * cos.(n * f0 * x .+ phase_shift)
-            cumulative_sum .+= harmonic
-            
-            add_trace!(fig, scatter(
-                x=x, y=harmonic,
-                mode="lines",
-                name="Harmonic $n (Δt=$(phases[n])s)",
-                line=attr(color=colors[mod(n-1, length(colors))+1], width=1, dash="dot"),
-                opacity=0.75
-            ))
-        end
-    end
-    
-    # Add remaining harmonics to cumulative sum (without plotting individually)
-    for n in (display_limit+1):n_harmonics
-        if coeffs[n] ≠ 0
-            phase_shift = -f0 * n * phases[n]
-            harmonic = coeffs[n] * cos.(n * f0 * x .+ phase_shift)
-            cumulative_sum .+= harmonic
-        end
-    end
-    
-    # Plot true signal (only if no phase shifts applied)
-   
-        add_trace!(fig, scatter(
-            x=x, y=true_signal,
-            mode="lines",
-            name="True Signal",
-            line=attr(color="darkred", width=3, dash="dash"),
-            opacity=0.8
-        ))
-    # end
-    
-    # Plot cumulative sum (Fourier series approximation)
-    add_trace!(fig, scatter(
-        x=x, y=cumulative_sum,
-        mode="lines",
-        name="Fourier Series (N=$n_harmonics)",
-        line=attr(color="black", width=3, dash="solid")
-    ))
-    
-    fig
-end
-
 # ╔═╡ 903847d0-a500-11f0-b347-cb097b21036e
 md"""
 **Number of harmonics:** $(@bind n_harmonics Slider(1:20, default=5, show_value=true))
 
 """
-
-# ╔═╡ 93948b6b-d2ce-40c5-976d-0e565ddc0ca4
-@bind phase_shifts harmonic_phase_input(n_harmonics; default_shift=0.0, max_shift=2.0)
 
 # ╔═╡ d8f3a2b0-a586-11f0-9c84-3b2f5e1a8d7c
 md"""
@@ -320,6 +233,9 @@ md"## Appendix"
 # ╔═╡ c31dd2bc-562a-4b04-86fa-99e3d241fdde
 md"### UI"
 
+# ╔═╡ c8806df8-6aab-4018-9c5e-7230195e8580
+f0 = 0.6
+
 # ╔═╡ 384fa2f0-38fb-464e-b72e-2ec26276f1cf
 """
 Create a table-style input for harmonic phase shifts with sliders
@@ -401,14 +317,8 @@ function harmonic_phase_input(n_harmonics::Int; default_shift=0.0, max_shift=2.0
     end
 end
 
-# ╔═╡ 7f5b0439-0ad7-4ab6-83ca-093fc2d48915
-using HypertextLiteral: @htl
-
-# ╔═╡ 90384046-a500-11f0-8c2f-5ff4e899d2de
-using PlutoUI, PlutoPlotly, FFTW, LinearAlgebra
-
-# ╔═╡ c8806df8-6aab-4018-9c5e-7230195e8580
-f0 = 0.6
+# ╔═╡ 93948b6b-d2ce-40c5-976d-0e565ddc0ca4
+@bind phase_shifts harmonic_phase_input(n_harmonics; default_shift=0.0, max_shift=2.0)
 
 # ╔═╡ 5c99f48d-94f6-46e8-b3a3-6c7a2a5c8b7b
 """Generate Fourier series coefficients for different wave types"""
@@ -457,6 +367,96 @@ function get_true_signal(wave_type, x, f0)
     end
 end
 
+# ╔═╡ 90384aca-a500-11f0-9af9-738a0287bdbb
+let
+    # Create time and space grids
+    t = 0.0  # Fixed time for now
+    x = range(-2π, 2π, length=1000)
+
+	wave_type = "impulse"
+    
+    # Get Fourier coefficients
+    coeffs = get_fourier_coefficients(wave_type, n_harmonics)
+    
+    # Get true/analytical signal
+    true_signal = get_true_signal(wave_type, x, f0)
+    
+    # Extract phase shifts from UI (handle case where phase_shifts might not be available)
+    phases = zeros(n_harmonics)
+    # if show_phase_controls && @isdefined(phase_shifts)
+        for n in 1:n_harmonics
+            phase_key = "phase_$n"
+            if haskey(phase_shifts, phase_key)
+                phases[n] = phase_shifts[phase_key]
+            end
+        end
+    # end
+    
+    # Initialize arrays for plotting
+    individual_waves = []
+    cumulative_sum = zeros(length(x))
+    
+    # Create plot
+    fig = plot(Layout(
+        title="Fourier Series Decomposition",
+        xaxis_title="Position (radians)",
+        yaxis_title="Amplitude",
+        height=600,
+        showlegend=true
+    ))
+    
+    # Plot individual harmonics (show up to 10 for visual clarity)
+    colors = ["red", "blue", "green", "orange", "purple", "brown", "pink", "gray", "olive", "cyan"]
+    display_limit = min(n_harmonics, 10)  # Limit display for clarity
+    
+    for n in 1:display_limit
+        if coeffs[n] ≠ 0
+            # Apply phase shift: cos(n*f0*x + phase) where phase = -f0*n*time_shift
+            phase_shift = -f0 * n * phases[n]  # Convert time shift to phase
+            harmonic = coeffs[n] * cos.(n * f0 * x .+ phase_shift)
+            cumulative_sum .+= harmonic
+            
+            add_trace!(fig, scatter(
+                x=x, y=harmonic,
+                mode="lines",
+                name="Harmonic $n (Δt=$(phases[n])s)",
+                line=attr(color=colors[mod(n-1, length(colors))+1], width=1, dash="dot"),
+                opacity=0.75
+            ))
+        end
+    end
+    
+    # Add remaining harmonics to cumulative sum (without plotting individually)
+    for n in (display_limit+1):n_harmonics
+        if coeffs[n] ≠ 0
+            phase_shift = -f0 * n * phases[n]
+            harmonic = coeffs[n] * cos.(n * f0 * x .+ phase_shift)
+            cumulative_sum .+= harmonic
+        end
+    end
+    
+    # Plot true signal (only if no phase shifts applied)
+   
+        add_trace!(fig, scatter(
+            x=x, y=true_signal,
+            mode="lines",
+            name="True Signal",
+            line=attr(color="darkred", width=3, dash="dash"),
+            opacity=0.8
+        ))
+    # end
+    
+    # Plot cumulative sum (Fourier series approximation)
+    add_trace!(fig, scatter(
+        x=x, y=cumulative_sum,
+        mode="lines",
+        name="Fourier Series (N=$n_harmonics)",
+        line=attr(color="black", width=3, dash="solid")
+    ))
+    
+    fig
+end
+
 # ╔═╡ 00000000-0000-0000-0000-000000000001
 PLUTO_PROJECT_TOML_CONTENTS = """
 [deps]
@@ -477,9 +477,9 @@ PlutoUI = "~0.7.72"
 PLUTO_MANIFEST_TOML_CONTENTS = """
 # This file is machine-generated - editing it directly is not advised
 
-julia_version = "1.11.7"
+julia_version = "1.12.1"
 manifest_format = "2.0"
-project_hash = "c38ba138082eed4cee4c442553757650e05d8ac7"
+project_hash = "12cd0b4046b366044235ef63a21b66829bc04db5"
 
 [[deps.AbstractFFTs]]
 deps = ["LinearAlgebra"]
@@ -550,7 +550,7 @@ version = "0.13.1"
 [[deps.CompilerSupportLibraries_jll]]
 deps = ["Artifacts", "Libdl"]
 uuid = "e66e0078-7015-5450-92f7-15fbd957f2ae"
-version = "1.1.1+0"
+version = "1.3.0+1"
 
 [[deps.Dates]]
 deps = ["Printf"]
@@ -641,6 +641,11 @@ git-tree-sha1 = "31e996f0a15c7b280ba9f76636b3ff9e2ae58c9a"
 uuid = "682c06a0-de6a-54ab-a142-c8b1cf79cde6"
 version = "0.21.4"
 
+[[deps.JuliaSyntaxHighlighting]]
+deps = ["StyledStrings"]
+uuid = "ac6e5ff7-fb65-4e79-a425-ec3bc9c03011"
+version = "1.12.0"
+
 [[deps.LaTeXStrings]]
 git-tree-sha1 = "dda21b8cbd6a6c40d9d02a73230f9d70fed6918c"
 uuid = "b964fa9f-0449-5b57-a5c2-d3ea65f4040f"
@@ -657,24 +662,24 @@ uuid = "b27032c2-a3e7-50c8-80cd-2d36dbcbfd21"
 version = "0.6.4"
 
 [[deps.LibCURL_jll]]
-deps = ["Artifacts", "LibSSH2_jll", "Libdl", "MbedTLS_jll", "Zlib_jll", "nghttp2_jll"]
+deps = ["Artifacts", "LibSSH2_jll", "Libdl", "OpenSSL_jll", "Zlib_jll", "nghttp2_jll"]
 uuid = "deac9b47-8bc7-5906-a0fe-35ac56dc84c0"
-version = "8.6.0+0"
+version = "8.11.1+1"
 
 [[deps.LibGit2]]
-deps = ["Base64", "LibGit2_jll", "NetworkOptions", "Printf", "SHA"]
+deps = ["LibGit2_jll", "NetworkOptions", "Printf", "SHA"]
 uuid = "76f85450-5226-5b5a-8eaa-529ad045b433"
 version = "1.11.0"
 
 [[deps.LibGit2_jll]]
-deps = ["Artifacts", "LibSSH2_jll", "Libdl", "MbedTLS_jll"]
+deps = ["Artifacts", "LibSSH2_jll", "Libdl", "OpenSSL_jll"]
 uuid = "e37daf67-58a4-590a-8e99-b0245dd2ffc5"
-version = "1.7.2+0"
+version = "1.9.0+0"
 
 [[deps.LibSSH2_jll]]
-deps = ["Artifacts", "Libdl", "MbedTLS_jll"]
+deps = ["Artifacts", "Libdl", "OpenSSL_jll"]
 uuid = "29816b5a-b9ab-546f-933c-edad1886dfa8"
-version = "1.11.0+1"
+version = "1.11.3+1"
 
 [[deps.Libdl]]
 uuid = "8f399da3-3557-5675-b5ff-fb832c97cbdb"
@@ -683,7 +688,7 @@ version = "1.11.0"
 [[deps.LinearAlgebra]]
 deps = ["Libdl", "OpenBLAS_jll", "libblastrampoline_jll"]
 uuid = "37e2e46d-f89d-539d-b4ee-838fcccc9c8e"
-version = "1.11.0"
+version = "1.12.0"
 
 [[deps.Logging]]
 uuid = "56ddb016-857b-54e1-b83d-db4d58db5568"
@@ -701,14 +706,9 @@ uuid = "856f044c-d86e-5d09-b602-aeab76dc8ba7"
 version = "2025.2.0+0"
 
 [[deps.Markdown]]
-deps = ["Base64"]
+deps = ["Base64", "JuliaSyntaxHighlighting", "StyledStrings"]
 uuid = "d6f4376e-aef5-505a-96c1-9c027394607a"
 version = "1.11.0"
-
-[[deps.MbedTLS_jll]]
-deps = ["Artifacts", "Libdl"]
-uuid = "c8ffd9c3-330d-5841-b78e-0817d7145fa1"
-version = "2.28.6+0"
 
 [[deps.Mmap]]
 uuid = "a63ad114-7e13-5084-954f-fe012c677804"
@@ -716,16 +716,21 @@ version = "1.11.0"
 
 [[deps.MozillaCACerts_jll]]
 uuid = "14a3606d-f60d-562e-9121-12d972cd8159"
-version = "2023.12.12"
+version = "2025.5.20"
 
 [[deps.NetworkOptions]]
 uuid = "ca575930-c2e3-43a9-ace4-1e988b2c1908"
-version = "1.2.0"
+version = "1.3.0"
 
 [[deps.OpenBLAS_jll]]
 deps = ["Artifacts", "CompilerSupportLibraries_jll", "Libdl"]
 uuid = "4536629a-c528-5b80-bd46-f80d51c5b363"
-version = "0.3.27+1"
+version = "0.3.29+0"
+
+[[deps.OpenSSL_jll]]
+deps = ["Artifacts", "Libdl"]
+uuid = "458c3c95-2e84-50aa-8efc-19380b2a3a95"
+version = "3.5.1+0"
 
 [[deps.OrderedCollections]]
 git-tree-sha1 = "05868e21324cede2207c6f0f466b4bfef6d5e7ee"
@@ -747,7 +752,7 @@ version = "2.8.3"
 [[deps.Pkg]]
 deps = ["Artifacts", "Dates", "Downloads", "FileWatching", "LibGit2", "Libdl", "Logging", "Markdown", "Printf", "Random", "SHA", "TOML", "Tar", "UUIDs", "p7zip_jll"]
 uuid = "44cfe95a-1eb2-52ea-b672-e2afdf69b78f"
-version = "1.11.0"
+version = "1.12.0"
 weakdeps = ["REPL"]
 
     [deps.Pkg.extensions]
@@ -809,7 +814,7 @@ uuid = "de0858da-6303-5e67-8744-51eddeeeb8d7"
 version = "1.11.0"
 
 [[deps.REPL]]
-deps = ["InteractiveUtils", "Markdown", "Sockets", "StyledStrings", "Unicode"]
+deps = ["InteractiveUtils", "JuliaSyntaxHighlighting", "Markdown", "Sockets", "StyledStrings", "Unicode"]
 uuid = "3fa0cd96-eef1-5676-8a61-b3b8758bbffb"
 version = "1.11.0"
 
@@ -917,17 +922,17 @@ version = "1.11.0"
 [[deps.Zlib_jll]]
 deps = ["Libdl"]
 uuid = "83775a58-1f1d-513f-b197-d71354ab007a"
-version = "1.2.13+1"
+version = "1.3.1+2"
 
 [[deps.libblastrampoline_jll]]
 deps = ["Artifacts", "Libdl"]
 uuid = "8e850b90-86db-534c-a0d3-1478176c7d93"
-version = "5.11.0+0"
+version = "5.15.0+0"
 
 [[deps.nghttp2_jll]]
 deps = ["Artifacts", "Libdl"]
 uuid = "8e850ede-7688-5339-a07c-302acd2aaf8d"
-version = "1.59.0+0"
+version = "1.64.0+1"
 
 [[deps.oneTBB_jll]]
 deps = ["Artifacts", "JLLWrappers", "LazyArtifacts", "Libdl"]
@@ -938,7 +943,7 @@ version = "2022.0.0+1"
 [[deps.p7zip_jll]]
 deps = ["Artifacts", "Libdl"]
 uuid = "3f19e933-33d8-53b3-aaab-bd5110c3b7a0"
-version = "17.4.0+2"
+version = "17.5.0+2"
 """
 
 # ╔═╡ Cell order:

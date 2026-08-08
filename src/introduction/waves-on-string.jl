@@ -1,5 +1,5 @@
 ### A Pluto.jl notebook ###
-# v0.20.19
+# v0.20.21
 
 #> [frontmatter]
 #> title = "Waves On A String"
@@ -22,6 +22,14 @@ macro bind(def, element)
     #! format: on
 end
 
+# ╔═╡ 9185cd5d-2557-4f2d-9eeb-3d6865ca9331
+begin
+    using FFTW, PlutoPlotly, PlutoUI, LinearAlgebra
+    using ParallelStencil
+    using ParallelStencil.FiniteDifferences1D
+    using Printf, Statistics
+end
+
 # ╔═╡ 236740c7-9c82-4d23-8133-9f7be87f6520
 TableOfContents()
 
@@ -37,14 +45,6 @@ Indian Institute of Science, Bengaluru, India
 
 """
 
-# ╔═╡ 73aa375b-4887-4608-b699-17112c238d5a
-md"""Time $(@bind T Slider(tgrid, show_value=true)) 
-
-Interface Position $(@bind X Slider(xgrid, show_value=true, default=0))"""
-
-# ╔═╡ 647f6d79-818f-468f-900c-cd00eb165664
-plot_string(vy_save, X, T)
-
 # ╔═╡ ab615f30-f095-4d4f-a92b-ecd18e69a20a
 md"## Medium"
 
@@ -53,20 +53,6 @@ begin
     nx = 1000
     xgrid = range(-100, 100, length=nx)
 end
-
-# ╔═╡ ad18ed7d-f050-455b-9a13-a2fab7de4215
-begin
-    courant_number = 0.1
-
-    # lets calculate the min distance from the center to the edge of the domain
-    r = min(xgrid[end] - xgrid[1]) * 0.5
-
-    # choose time stepping dt to satisfy Courant condition
-    dt = courant_number * step(xgrid) * inv(vs0)
-    nt = Int(floor(r / (vs0 * dt))) * 2
-    tgrid = range(0, length=nt, step=dt)
-    nothing
-end;
 
 # ╔═╡ 4c7b8ce9-1caf-4a81-a2dd-4b4138a6fef7
 ρ0 = Float32(3.22 * 10^-3 * 10^15) # density in kg/km3
@@ -85,6 +71,25 @@ medium_ref_values = (; μ0, invμ0, ρ0, invρ0)
 
 # ╔═╡ 10014376-cdf6-4ae4-95e4-32c8ea4ef803
 vs0 = sqrt.(μ0 ./ ρ0)
+
+# ╔═╡ ad18ed7d-f050-455b-9a13-a2fab7de4215
+begin
+    courant_number = 0.1
+
+    # lets calculate the min distance from the center to the edge of the domain
+    r = min(xgrid[end] - xgrid[1]) * 0.5
+
+    # choose time stepping dt to satisfy Courant condition
+    dt = courant_number * step(xgrid) * inv(vs0)
+    nt = Int(floor(r / (vs0 * dt))) * 2
+    tgrid = range(0, length=nt, step=dt)
+    nothing
+end;
+
+# ╔═╡ 73aa375b-4887-4608-b699-17112c238d5a
+md"""Time $(@bind T Slider(tgrid, show_value=true)) 
+
+Interface Position $(@bind X Slider(xgrid, show_value=true, default=0))"""
 
 # ╔═╡ 82a7a1ab-88da-4c22-a075-7640991bb6ac
 md"## Governing Equations"
@@ -167,14 +172,6 @@ vy_save = model_string(μ0, ρ0, xgrid, tgrid, X);
 # ╔═╡ e470ca4d-4e06-4808-a513-25ef47c125c8
 md"## Appendix"
 
-# ╔═╡ 9185cd5d-2557-4f2d-9eeb-3d6865ca9331
-begin
-    using FFTW, PlutoPlotly, PlutoUI, LinearAlgebra
-    using ParallelStencil
-    using ParallelStencil.FiniteDifferences1D
-    using Printf, Statistics
-end
-
 # ╔═╡ 77710384-fc16-4ece-a7d5-62cfddb5f0f9
 md"### Plot"
 
@@ -202,6 +199,9 @@ function plot_string(vy_save, X, T)
     )
     plot(fig)
 end
+
+# ╔═╡ 647f6d79-818f-468f-900c-cd00eb165664
+plot_string(vy_save, X, T)
 
 # ╔═╡ 00000000-0000-0000-0000-000000000001
 PLUTO_PROJECT_TOML_CONTENTS = """

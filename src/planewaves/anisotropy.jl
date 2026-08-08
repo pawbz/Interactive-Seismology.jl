@@ -1,5 +1,5 @@
 ### A Pluto.jl notebook ###
-# v0.20.19
+# v0.1.0
 
 #> [frontmatter]
 #> title = "Seismic Anisotropy"
@@ -20,6 +20,22 @@ macro bind(def, element)
         el
     end
     #! format: on
+end
+
+# ╔═╡ 5f12d3e9-4d5c-434c-bdef-bcc74b79705e
+begin
+    using PlutoUI
+    using PlutoTeachingTools
+    using Symbolics
+    using SymbolicUtils
+    using Tullio
+    using Plots
+    using TensorOperations
+    using LinearAlgebra
+    using Einsum
+    using Unitful
+    using PlotThemes
+    theme(:dark)
 end
 
 # ╔═╡ b48fc46c-47b2-4090-83fb-710b1974c2a2
@@ -57,9 +73,6 @@ Select medium type $(@bind cmedium Select([colivine => "olivine", ctrans=>"trans
 aside(tip(md"**Mantle anisotropy**
 Mapping anisotropy in the upper mantle helps identify the preferential orientation of olivine crystals, and therefore helps investigate plate motions."))
 
-# ╔═╡ e28c94fd-f04d-442c-8b19-be84d565d5c7
-plot_wavefronts()
-
 # ╔═╡ 56efaf7d-2b8b-4540-b0e8-b722edd1d8f8
 md"""
 For the transverse anisotropy option, if selected above, adjust the five independent elastic constants to interact with the wavefronts.
@@ -74,6 +87,17 @@ N (GPa) $(@bind Np Slider(range(50, stop=300, length=100), default=50, show_valu
 
 F (GPa) $(@bind Fp Slider(range(50, stop=300, length=100), default=60, show_value=true))
 
+"""
+
+# ╔═╡ 3bfab7cf-8b35-408d-8d25-ce6a37a0f19e
+md"""
+| **Love Constant** | **Equivalent \(c_{ij}\)** | **Physical Meaning** |
+|--------------------|---------------------------|----------------------|
+| \(A\) | \(c_{11}\) | P-wave modulus in the horizontal (x–y) plane |
+| \(C\) | \(c_{33}\) | P-wave modulus along the symmetry axis (z) |
+| \(F\) | \(c_{13}\) | Coupling between vertical and horizontal strain |
+| \(L\) | \(c_{44}\) | Shear modulus for SV motion in the x–z plane |
+| \(N\) | \(c_{66}\) | Shear modulus for SH motion in the x–y plane |
 """
 
 # ╔═╡ d2027f44-361b-4d00-9efb-86fe2c7e9b68
@@ -91,6 +115,44 @@ md"""
 $(LocalResource("../assets/images/rock_strata.jpg", :width => 300))
 
 *Example of SPO: transverse anisotropy because of layered rock materials.*
+"""
+
+# ╔═╡ d000b26c-e67a-4e20-a2b8-b417b596ccd8
+md"""
+| **Type** | **Symmetry** | **Typical Cause** | **Example** |
+|-----------|---------------|-------------------|--------------|
+| **Transverse isotropy (TI)** | Axis of symmetry | Layered media or aligned cracks | Sedimentary basins |
+| **Vertical TI (VTI)** | Axis vertical | Bedding or layering | Marine sediments |
+| **Horizontal TI (HTI)** | Axis horizontal | Vertical cracks | Reservoirs |
+| **Azimuthal anisotropy** | Depends on propagation direction | Aligned fractures | Upper crust |
+| **Shear-wave splitting** | Two orthogonal shear waves with different speeds | Mantle fabrics | SKS phases |
+"""
+
+# ╔═╡ 8a6982d7-9d05-4d06-bcba-33cd5b79034a
+md"""
+In global seismology, SKS splitting is the most common measurement:
+* The incoming SKS wave (nearly vertically incident) passes through azimuthal anisotropy (often HTI-like) in the upper mantle.
+* Fast polarization direction \phi → indicates mantle fabric / flow direction.
+* Delay time \delta t → measures strength of anisotropy or layer thickness.
+"""
+
+# ╔═╡ 1724771c-d1ef-4c1c-93dc-e889a74d80e9
+md"""
+| **Observable** | **Measured from** | **Related Constant** |
+|-----------------|-------------------|----------------------|
+| \(V_{P0}\) | Vertical P-wave | \(C\) |
+| \(V_{S0}\) | Vertical S-wave | \(L\) |
+| \(V_{PH}\) | Horizontal P-wave | \(A\) |
+| \(V_{SHH}\) | Horizontal SH-wave | \(N\) |
+"""
+
+# ╔═╡ 846457f5-d684-470f-bba5-144b41f8dd14
+md"""
+| **Type** | **Example** | **Splitting?** | **Explanation** |
+|-----------|-------------|----------------|-----------------|
+| **VTI** | Layered sediments | Only for oblique incidence | No splitting for vertical propagation |
+| **HTI** | Aligned vertical cracks | ✅ Yes, clear splitting for horizontal propagation | Fast direction = crack alignment |
+| **General anisotropy (orthorhombic, triclinic)** | Complex fabrics | ✅ Yes | Two shear modes with distinct speeds |
 """
 
 # ╔═╡ 4b2d3084-e981-4ab2-bf40-fea4335082ad
@@ -135,11 +197,11 @@ function get_cijkl(C)
     [C[i*(isequal(i, j))+(1-isequal(i, j))*(9-i-j), k*isequal(k, l)+(1-isequal(k, l))*(9-k-l)] for i in 1:3, j in 1:3, k in 1:3, l in 1:3]
 end
 
-# ╔═╡ eb482986-f6b0-4900-9e4e-441351691e12
-ciso[:,1,:,1]
-
 # ╔═╡ 2d4ab726-4257-4fc4-aac0-2cc90ce76e53
 ciso = get_cijkl(Ciso); # for isotropic 
+
+# ╔═╡ eb482986-f6b0-4900-9e4e-441351691e12
+ciso[:,1,:,1]
 
 # ╔═╡ f2c3eeca-4e03-4360-b14b-4fd98e24d530
 ctrans = get_cijkl(Ctrans); # for transverse anisotropy
@@ -222,10 +284,10 @@ utrail = Symbolics.scalarize(g .* utrail1)
 md"The equation of motion is satisfied only when the following two expressions are equal to each other."
 
 # ╔═╡ 77f96830-e81b-438d-b5ae-4ac59cb031df
-ga = simplify.(uddot_trail1 ./ utrail1 ./ ω^2 ./ ı^2 / p^2)
+ga = simplify_fractions.(uddot_trail1 ./ utrail1 ./ ω^2 ./ ı^2 / p^2)
 
 # ╔═╡ 27f97bab-bef0-4705-bc22-8e9b087444b2
-gb = simplify.(uddot_trail2 ./ utrail1 ./ ω^2 ./ ı^2 * v^2)
+gb = simplify_fractions.(uddot_trail2 ./ utrail1 ./ ω^2 ./ ı^2 * v^2)
 
 # ╔═╡ 366ee997-e2fc-4b48-bb6e-33b666ea38f5
 md"""
@@ -239,21 +301,24 @@ where the eigenvalues will give us the phase velocities. Note that `M` depends o
 
 # ╔═╡ f6675c52-740c-4098-98d6-9c9038b4f6f4
 M1 = map(ga) do x
-    simplify(substitute(x, [g[2] => 0, g[3] => 0]) / g[1])
+    simplify_fractions(substitute(x, [g[2] => 0, g[3] => 0]) / g[1])
 end
 
 # ╔═╡ 97da0c08-b971-4104-88fe-aa1d1f2c68b0
 M2 = map(ga) do x
-    simplify(substitute(x, [g[1] => 0, g[3] => 0]) / g[2])
+    simplify_fractions(substitute(x, [g[1] => 0, g[3] => 0]) / g[2])
 end
 
 # ╔═╡ cbdb003e-09a2-419b-8811-7d0cd290968d
 M3 = map(ga) do x
-    simplify(substitute(x, [g[2] => 0, g[1] => 0]) / g[3])
+    simplify_fractions(substitute(x, [g[2] => 0, g[1] => 0]) / g[3])
 end
 
+# ╔═╡ edfc88be-4bef-4478-b154-ec920782c295
+# M = symbolics_to_sympy.([M1;; M2;; M3])
+
 # ╔═╡ b22a4fcd-1f0c-410f-95b8-f67671d3aa63
-M = [M1;; M2;; M3] # concat all the columns to get the Christoffel matrix
+M = ([M1;; M2;; M3]) # concat all the columns to get the Christoffel matrix
 
 # ╔═╡ b5997b61-2ca2-4c2f-acd6-16c121f0aa13
 md"""
@@ -276,7 +341,7 @@ end
 
 # ╔═╡ 747ca67e-60d7-44a4-bac1-78cfa9b20cc7
 map(M) do x
-    simplify(substitute(x, [s[1] => 0, s[2] => 0, s[3] => 1]))
+    simplify(substitute(x, [s[1] => 0, s[2] => sqrt(0.5), s[3] => sqrt(0.5)]))
 end
 
 # ╔═╡ 4a66af73-6b29-475e-9c71-8e62ee69802a
@@ -307,26 +372,20 @@ begin
     ssubs(::zx) = [s[1] => cos(θ), s[2] => 0, s[3] => sin(θ)]
 end
 
-# ╔═╡ 13677e27-65f5-4606-8ded-a0f36ae4bb95
-# return a function of azimuth θ that generates the Christoffel matrix
-function get_Christoffel_matrix(M, plane)
-    mp = map(M) do x
-        simplify(subsp(substitute(x, ssubs(plane))))
-    end
-    mpfn = map(mp) do x
-        build_function(x, θ, expression=Val{false})
-    end
+# ╔═╡ 5cbb7aed-70d1-4122-9b0c-63ce1e15d2bb
+ρp = 4u"g/cm^3" # fix density
 
-    return mpfn
-end
-
-# ╔═╡ 502cde6b-b1a4-4994-86ce-72d56345f3d3
-# generate the functions and store, for further plotting
+# ╔═╡ 99e819ab-a88c-41a0-9bbf-27d49fe19557
 begin
-    Mxy = get_Christoffel_matrix(M, xy())
-    Myz = get_Christoffel_matrix(M, yz())
-    Mzx = get_Christoffel_matrix(M, zx())
-end;
+	θp = 0:0.01:2pi
+	Vp = sqrt.(Cp .+ (Ap - Cp).*sin.(θp).^2) ./ sqrt(ρp)
+	Vsh = sqrt.((Np .* sin.(θp).^2 .+ Lp .* cos.(θp).^2) ./ ρp)
+	plot(rad2deg.(θp), Vp, label="qP")
+	plot!(rad2deg.(θp), Vsh, label="qSH")
+	title!("Vertical Transverse Isotropy (VTI)")
+	xlabel!("Propagation angle (°)")
+	ylabel!("Velocity (km/s)")
+end
 
 # ╔═╡ b95076ef-632e-4826-9bc1-f811c72fe1c5
 # return phase velocities (qP, qS1, qS2) for each θ
@@ -343,9 +402,6 @@ function get_phase_velocity(θgrid, M)
     return hcat(V...)
 end
 
-# ╔═╡ 5cbb7aed-70d1-4122-9b0c-63ce1e15d2bb
-ρp = 4u"g/cm^3" # fix density
-
 # ╔═╡ 83f8924d-0db4-484c-8c6e-40acb1b01b26
 # substitute a given array of expressions with UI elastic constants
 function subsp(X)
@@ -354,24 +410,29 @@ function subsp(X)
     # end
 end
 
+# ╔═╡ 13677e27-65f5-4606-8ded-a0f36ae4bb95
+# return a function of azimuth θ that generates the Christoffel matrix
+function get_Christoffel_matrix(M, plane)
+    mp = map(M) do x
+        (subsp(substitute(x, ssubs(plane))))
+    end
+    mpfn = map(mp) do x
+        build_function(x, θ, expression=Val{false})
+    end
+
+    return mpfn
+end
+
+# ╔═╡ 502cde6b-b1a4-4994-86ce-72d56345f3d3
+# generate the functions and store, for further plotting
+begin
+    Mxy = get_Christoffel_matrix(M, xy())
+    Myz = get_Christoffel_matrix(M, yz())
+    Mzx = get_Christoffel_matrix(M, zx())
+end;
+
 # ╔═╡ 816abdd5-74de-415b-a19b-95b7ad7cdf0c
 θgrid = range(0, stop=2π, length=50) # need an azimuth grid to slice wavefronts along each plane
-
-# ╔═╡ 5f12d3e9-4d5c-434c-bdef-bcc74b79705e
-begin
-    using PlutoUI
-    using PlutoTeachingTools
-    using Symbolics
-    using SymbolicUtils
-    using Tullio
-    using Plots
-    using TensorOperations
-    using LinearAlgebra
-    using Einsum
-    using Unitful
-    using PlotThemes
-    theme(:dark)
-end
 
 # ╔═╡ 8ff5c871-08a3-4b94-b2ea-2e3eaca16308
 md"### Plots"
@@ -416,6 +477,9 @@ function plot_wavefronts()
     end
 end
 
+# ╔═╡ e28c94fd-f04d-442c-8b19-be84d565d5c7
+plot_wavefronts()
+
 # ╔═╡ 0989b0f0-06c6-4353-9933-ec713563f0c6
 md"""
 ## TODO
@@ -444,9 +508,9 @@ Einsum = "~0.4.1"
 PlotThemes = "~3.3.0"
 Plots = "~1.41.1"
 PlutoTeachingTools = "~0.4.6"
-PlutoUI = "~0.7.72"
+PlutoUI = "~0.7.73"
 SymbolicUtils = "~3.32.0"
-Symbolics = "~6.56.0"
+Symbolics = "~6.57.0"
 TensorOperations = "~5.3.1"
 Tullio = "~0.3.8"
 Unitful = "~1.25.1"
@@ -456,9 +520,9 @@ Unitful = "~1.25.1"
 PLUTO_MANIFEST_TOML_CONTENTS = """
 # This file is machine-generated - editing it directly is not advised
 
-julia_version = "1.11.7"
+julia_version = "1.12.4"
 manifest_format = "2.0"
-project_hash = "d736e75150d9312793bdc1e48fb2936f51d12f09"
+project_hash = "4f3d3c246b9edc1410dc15e2f4989ad1616188ae"
 
 [[deps.ADTypes]]
 git-tree-sha1 = "27cecae79e5cc9935255f90c53bb831cc3c870d7"
@@ -671,7 +735,7 @@ weakdeps = ["Dates", "LinearAlgebra"]
 [[deps.CompilerSupportLibraries_jll]]
 deps = ["Artifacts", "Libdl"]
 uuid = "e66e0078-7015-5450-92f7-15fbd957f2ae"
-version = "1.1.1+0"
+version = "1.3.0+1"
 
 [[deps.CompositeTypes]]
 git-tree-sha1 = "bce26c3dab336582805503bed209faab1c279768"
@@ -786,7 +850,7 @@ version = "0.7.16"
 [[deps.Downloads]]
 deps = ["ArgTools", "FileWatching", "LibCURL", "NetworkOptions"]
 uuid = "f43a241f-c20a-4ad4-852c-f6b1247861c6"
-version = "1.6.0"
+version = "1.7.0"
 
 [[deps.DynamicPolynomials]]
 deps = ["Future", "LinearAlgebra", "MultivariatePolynomials", "MutableArithmetics", "Reexport", "Test"]
@@ -835,15 +899,15 @@ version = "0.10.14"
 
 [[deps.FFMPEG]]
 deps = ["FFMPEG_jll"]
-git-tree-sha1 = "83dc665d0312b41367b7263e8a4d172eac1897f4"
+git-tree-sha1 = "95ecf07c2eea562b5adbd0696af6db62c0f52560"
 uuid = "c87230d0-a227-11e9-1b43-d7ebe4e7570a"
-version = "0.4.4"
+version = "0.4.5"
 
 [[deps.FFMPEG_jll]]
 deps = ["Artifacts", "Bzip2_jll", "FreeType2_jll", "FriBidi_jll", "JLLWrappers", "LAME_jll", "Libdl", "Ogg_jll", "OpenSSL_jll", "Opus_jll", "PCRE2_jll", "Zlib_jll", "libaom_jll", "libass_jll", "libfdk_aac_jll", "libvorbis_jll", "x264_jll", "x265_jll"]
-git-tree-sha1 = "3a948313e7a41eb1db7a1e733e6335f17b4ab3c4"
+git-tree-sha1 = "ccc81ba5e42497f4e76553a5545665eed577a663"
 uuid = "b22a6f82-2f65-5046-a5b2-351ab43fb4e5"
-version = "7.1.1+0"
+version = "8.0.0+0"
 
 [[deps.FileWatching]]
 uuid = "7b1f6079-737a-58dc-b8bc-7a2ca5c1b5ee"
@@ -920,15 +984,15 @@ version = "0.2.0"
 
 [[deps.GR]]
 deps = ["Artifacts", "Base64", "DelimitedFiles", "Downloads", "GR_jll", "HTTP", "JSON", "Libdl", "LinearAlgebra", "Preferences", "Printf", "Qt6Wayland_jll", "Random", "Serialization", "Sockets", "TOML", "Tar", "Test", "p7zip_jll"]
-git-tree-sha1 = "1828eb7275491981fa5f1752a5e126e8f26f8741"
+git-tree-sha1 = "f52c27dd921390146624f3aab95f4e8614ad6531"
 uuid = "28b8d3ca-fb5f-59d9-8090-bfdbd6d07a71"
-version = "0.73.17"
+version = "0.73.18"
 
 [[deps.GR_jll]]
 deps = ["Artifacts", "Bzip2_jll", "Cairo_jll", "FFMPEG_jll", "Fontconfig_jll", "FreeType2_jll", "GLFW_jll", "JLLWrappers", "JpegTurbo_jll", "Libdl", "Libtiff_jll", "Pixman_jll", "Qt6Base_jll", "Zlib_jll", "libpng_jll"]
-git-tree-sha1 = "27299071cc29e409488ada41ec7643e0ab19091f"
+git-tree-sha1 = "4b0406b866ea9fdbaf1148bc9c0b887e59f9af68"
 uuid = "d2c73de3-f751-5644-a686-071e5b155ba9"
-version = "0.73.17+0"
+version = "0.73.18+0"
 
 [[deps.GettextRuntime_jll]]
 deps = ["Artifacts", "CompilerSupportLibraries_jll", "JLLWrappers", "Libdl", "Libiconv_jll"]
@@ -991,9 +1055,9 @@ version = "0.9.5"
 
 [[deps.IOCapture]]
 deps = ["Logging", "Random"]
-git-tree-sha1 = "b6d6bfdd7ce25b0f9b2f6b3dd56b2673a66c8770"
+git-tree-sha1 = "0ee181ec08df7d7c911901ea38baf16f755114dc"
 uuid = "b5f81e59-6552-4d32-b1f0-c071b021bf89"
-version = "0.2.5"
+version = "1.0.0"
 
 [[deps.IntegerMathUtils]]
 git-tree-sha1 = "4c1acff2dc6b6967e7e750633c50bc3b8d83e617"
@@ -1066,6 +1130,11 @@ git-tree-sha1 = "4255f0032eafd6451d707a51d5f0248b8a165e4d"
 uuid = "aacddb02-875f-59d6-b918-886e6ef4fbf8"
 version = "3.1.3+0"
 
+[[deps.JuliaSyntaxHighlighting]]
+deps = ["StyledStrings"]
+uuid = "ac6e5ff7-fb65-4e79-a425-ec3bc9c03011"
+version = "1.12.0"
+
 [[deps.LAME_jll]]
 deps = ["Artifacts", "JLLWrappers", "Libdl"]
 git-tree-sha1 = "059aabebaa7c82ccb853dd4a0ee9d17796f7e1bc"
@@ -1128,24 +1197,24 @@ uuid = "b27032c2-a3e7-50c8-80cd-2d36dbcbfd21"
 version = "0.6.4"
 
 [[deps.LibCURL_jll]]
-deps = ["Artifacts", "LibSSH2_jll", "Libdl", "MbedTLS_jll", "Zlib_jll", "nghttp2_jll"]
+deps = ["Artifacts", "LibSSH2_jll", "Libdl", "OpenSSL_jll", "Zlib_jll", "nghttp2_jll"]
 uuid = "deac9b47-8bc7-5906-a0fe-35ac56dc84c0"
-version = "8.6.0+0"
+version = "8.15.0+0"
 
 [[deps.LibGit2]]
-deps = ["Base64", "LibGit2_jll", "NetworkOptions", "Printf", "SHA"]
+deps = ["LibGit2_jll", "NetworkOptions", "Printf", "SHA"]
 uuid = "76f85450-5226-5b5a-8eaa-529ad045b433"
 version = "1.11.0"
 
 [[deps.LibGit2_jll]]
-deps = ["Artifacts", "LibSSH2_jll", "Libdl", "MbedTLS_jll"]
+deps = ["Artifacts", "LibSSH2_jll", "Libdl", "OpenSSL_jll"]
 uuid = "e37daf67-58a4-590a-8e99-b0245dd2ffc5"
-version = "1.7.2+0"
+version = "1.9.0+0"
 
 [[deps.LibSSH2_jll]]
-deps = ["Artifacts", "Libdl", "MbedTLS_jll"]
+deps = ["Artifacts", "Libdl", "OpenSSL_jll"]
 uuid = "29816b5a-b9ab-546f-933c-edad1886dfa8"
-version = "1.11.0+1"
+version = "1.11.3+1"
 
 [[deps.Libdl]]
 uuid = "8f399da3-3557-5675-b5ff-fb832c97cbdb"
@@ -1190,7 +1259,7 @@ version = "2.41.2+0"
 [[deps.LinearAlgebra]]
 deps = ["Libdl", "OpenBLAS_jll", "libblastrampoline_jll"]
 uuid = "37e2e46d-f89d-539d-b4ee-838fcccc9c8e"
-version = "1.11.0"
+version = "1.12.0"
 
 [[deps.LogExpFunctions]]
 deps = ["DocStringExtensions", "IrrationalConstants", "LinearAlgebra"]
@@ -1229,7 +1298,7 @@ uuid = "1914dd2f-81c6-5fcd-8719-6d5c9610ff09"
 version = "0.5.16"
 
 [[deps.Markdown]]
-deps = ["Base64"]
+deps = ["Base64", "JuliaSyntaxHighlighting", "StyledStrings"]
 uuid = "d6f4376e-aef5-505a-96c1-9c027394607a"
 version = "1.11.0"
 
@@ -1240,7 +1309,8 @@ uuid = "739be429-bea8-5141-9913-cc70e7f3736d"
 version = "1.1.9"
 
 [[deps.MbedTLS_jll]]
-deps = ["Artifacts", "Libdl"]
+deps = ["Artifacts", "JLLWrappers", "Libdl"]
+git-tree-sha1 = "926c6af3a037c68d02596a44c22ec3595f5f760b"
 uuid = "c8ffd9c3-330d-5841-b78e-0817d7145fa1"
 version = "2.28.6+0"
 
@@ -1267,7 +1337,7 @@ version = "0.3.7"
 
 [[deps.MozillaCACerts_jll]]
 uuid = "14a3606d-f60d-562e-9121-12d972cd8159"
-version = "2023.12.12"
+version = "2025.11.4"
 
 [[deps.MultivariatePolynomials]]
 deps = ["DataStructures", "LinearAlgebra", "MutableArithmetics"]
@@ -1293,7 +1363,7 @@ version = "1.1.3"
 
 [[deps.NetworkOptions]]
 uuid = "ca575930-c2e3-43a9-ace4-1e988b2c1908"
-version = "1.2.0"
+version = "1.3.0"
 
 [[deps.OffsetArrays]]
 git-tree-sha1 = "117432e406b5c023f665fa73dc26e79ec3630151"
@@ -1313,22 +1383,21 @@ version = "1.3.6+0"
 [[deps.OpenBLAS_jll]]
 deps = ["Artifacts", "CompilerSupportLibraries_jll", "Libdl"]
 uuid = "4536629a-c528-5b80-bd46-f80d51c5b363"
-version = "0.3.27+1"
+version = "0.3.29+0"
 
 [[deps.OpenLibm_jll]]
 deps = ["Artifacts", "Libdl"]
 uuid = "05823500-19ac-5b8b-9628-191a04bc5112"
-version = "0.8.5+0"
+version = "0.8.7+0"
 
 [[deps.OpenSSL]]
-deps = ["BitFlags", "Dates", "MozillaCACerts_jll", "OpenSSL_jll", "Sockets"]
-git-tree-sha1 = "f1a7e086c677df53e064e0fdd2c9d0b0833e3f6e"
+deps = ["BitFlags", "Dates", "MozillaCACerts_jll", "NetworkOptions", "OpenSSL_jll", "Sockets"]
+git-tree-sha1 = "386b47442468acfb1add94bf2d85365dea10cbab"
 uuid = "4d8831e6-92b7-49fb-bdf8-b643e874388c"
-version = "1.5.0"
+version = "1.6.0"
 
 [[deps.OpenSSL_jll]]
-deps = ["Artifacts", "JLLWrappers", "Libdl"]
-git-tree-sha1 = "f19301ae653233bc88b1810ae908194f07f8db9d"
+deps = ["Artifacts", "Libdl"]
 uuid = "458c3c95-2e84-50aa-8efc-19380b2a3a95"
 version = "3.5.4+0"
 
@@ -1352,13 +1421,17 @@ version = "1.8.1"
 [[deps.PCRE2_jll]]
 deps = ["Artifacts", "Libdl"]
 uuid = "efcefdf7-47ab-520b-bdef-62a2eaa19f15"
-version = "10.42.0+1"
+version = "10.44.0+1"
 
 [[deps.PDMats]]
 deps = ["LinearAlgebra", "SparseArrays", "SuiteSparse"]
-git-tree-sha1 = "f07c06228a1c670ae4c87d1276b92c7c597fdda0"
+git-tree-sha1 = "d922b4d80d1e12c658da7785e754f4796cc1d60d"
 uuid = "90014a1f-27ba-587c-ab20-58faa44d9150"
-version = "0.11.35"
+version = "0.11.36"
+weakdeps = ["StatsBase"]
+
+    [deps.PDMats.extensions]
+    StatsBaseExt = "StatsBase"
 
 [[deps.PackageExtensionCompat]]
 git-tree-sha1 = "fb28e33b8a95c4cee25ce296c817d89cc2e53518"
@@ -1387,7 +1460,7 @@ version = "0.44.2+0"
 [[deps.Pkg]]
 deps = ["Artifacts", "Dates", "Downloads", "FileWatching", "LibGit2", "Libdl", "Logging", "Markdown", "Printf", "Random", "SHA", "TOML", "Tar", "UUIDs", "p7zip_jll"]
 uuid = "44cfe95a-1eb2-52ea-b672-e2afdf69b78f"
-version = "1.11.0"
+version = "1.12.1"
 weakdeps = ["REPL"]
 
     [deps.Pkg.extensions]
@@ -1433,9 +1506,9 @@ version = "0.4.6"
 
 [[deps.PlutoUI]]
 deps = ["AbstractPlutoDingetjes", "Base64", "ColorTypes", "Dates", "Downloads", "FixedPointNumbers", "Hyperscript", "HypertextLiteral", "IOCapture", "InteractiveUtils", "JSON", "Logging", "MIMEs", "Markdown", "Random", "Reexport", "URIs", "UUIDs"]
-git-tree-sha1 = "f53232a27a8c1c836d3998ae1e17d898d4df2a46"
+git-tree-sha1 = "3faff84e6f97a7f18e0dd24373daa229fd358db5"
 uuid = "7f904dfe-b85e-4ff6-b463-dae2292396a8"
-version = "0.7.72"
+version = "0.7.73"
 
 [[deps.PreallocationTools]]
 deps = ["Adapt", "ArrayInterface", "PrecompileTools"]
@@ -1518,7 +1591,7 @@ version = "2.11.2"
     Enzyme = "7da242da-08ed-463a-9acd-ee780be4f1d9"
 
 [[deps.REPL]]
-deps = ["InteractiveUtils", "Markdown", "Sockets", "StyledStrings", "Unicode"]
+deps = ["InteractiveUtils", "JuliaSyntaxHighlighting", "Markdown", "Sockets", "StyledStrings", "Unicode"]
 uuid = "3fa0cd96-eef1-5676-8a61-b3b8758bbffb"
 version = "1.11.0"
 
@@ -1611,13 +1684,14 @@ uuid = "ea8e919c-243c-51af-8825-aaa63cd721ce"
 version = "0.7.0"
 
 [[deps.SciMLBase]]
-deps = ["ADTypes", "Accessors", "Adapt", "ArrayInterface", "CommonSolve", "ConstructionBase", "Distributed", "DocStringExtensions", "EnumX", "FunctionWrappersWrappers", "IteratorInterfaceExtensions", "LinearAlgebra", "Logging", "Markdown", "Moshi", "PreallocationTools", "PrecompileTools", "Preferences", "Printf", "RecipesBase", "RecursiveArrayTools", "Reexport", "RuntimeGeneratedFunctions", "SciMLOperators", "SciMLPublic", "SciMLStructures", "StaticArraysCore", "Statistics", "SymbolicIndexingInterface"]
-git-tree-sha1 = "7680fbbc8a4fdf9837b4cae5e3fbebe53ec8e4ff"
+deps = ["ADTypes", "Accessors", "Adapt", "ArrayInterface", "CommonSolve", "ConstructionBase", "Distributed", "DocStringExtensions", "EnumX", "FunctionWrappersWrappers", "IteratorInterfaceExtensions", "LinearAlgebra", "Logging", "Markdown", "Moshi", "PreallocationTools", "PrecompileTools", "Preferences", "Printf", "RecipesBase", "RecursiveArrayTools", "Reexport", "RuntimeGeneratedFunctions", "SciMLLogging", "SciMLOperators", "SciMLPublic", "SciMLStructures", "StaticArraysCore", "Statistics", "SymbolicIndexingInterface"]
+git-tree-sha1 = "7614a1b881317b6800a8c66eb1180c6ea5b986f3"
 uuid = "0bca4576-84f4-4d90-8ffe-ffa030f20462"
-version = "2.122.0"
+version = "2.124.0"
 
     [deps.SciMLBase.extensions]
     SciMLBaseChainRulesCoreExt = "ChainRulesCore"
+    SciMLBaseDifferentiationInterfaceExt = "DifferentiationInterface"
     SciMLBaseDistributionsExt = "Distributions"
     SciMLBaseEnzymeExt = "Enzyme"
     SciMLBaseForwardDiffExt = "ForwardDiff"
@@ -1637,6 +1711,7 @@ version = "2.122.0"
     [deps.SciMLBase.weakdeps]
     ChainRules = "082447d4-558c-5d27-93f4-14fc19e9eca2"
     ChainRulesCore = "d360d2e6-b24c-11e9-a2a3-2a2ae2dbcce4"
+    DifferentiationInterface = "a0c0ee7d-e4b9-4e03-894e-1c5f64a51d63"
     Distributions = "31c24e10-a181-5473-b8eb-7969acd0382f"
     Enzyme = "7da242da-08ed-463a-9acd-ee780be4f1d9"
     ForwardDiff = "f6369f11-7733-5829-9624-2563aa707210"
@@ -1652,6 +1727,12 @@ version = "2.122.0"
     ReverseDiff = "37e2e3b7-166d-5795-8a7a-e32c996b4267"
     Tracker = "9f7883ad-71c0-57eb-9f7f-b5c9e6d3789c"
     Zygote = "e88e6eb3-aa80-5325-afca-941959d7151f"
+
+[[deps.SciMLLogging]]
+deps = ["Logging", "LoggingExtras", "Preferences"]
+git-tree-sha1 = "5a026f5549ad167cda34c67b62f8d3dc55754da3"
+uuid = "a6db7da4-7206-11f0-1eab-35f2a5dbe1d1"
+version = "1.3.1"
 
 [[deps.SciMLOperators]]
 deps = ["Accessors", "ArrayInterface", "DocStringExtensions", "LinearAlgebra", "MacroTools"]
@@ -1715,7 +1796,7 @@ version = "1.2.2"
 [[deps.SparseArrays]]
 deps = ["Libdl", "LinearAlgebra", "Random", "Serialization", "SuiteSparse_jll"]
 uuid = "2f01184e-e22b-5df5-ae63-d93ebab69eaf"
-version = "1.11.0"
+version = "1.12.0"
 
 [[deps.SpecialFunctions]]
 deps = ["IrrationalConstants", "LogExpFunctions", "OpenLibm_jll", "OpenSpecFun_jll"]
@@ -1813,7 +1894,7 @@ uuid = "4607b0f0-06f3-5cda-b6b1-a6196a1729e9"
 [[deps.SuiteSparse_jll]]
 deps = ["Artifacts", "Libdl", "libblastrampoline_jll"]
 uuid = "bea87d4a-7f5b-5778-9afe-8cc45184846c"
-version = "7.7.0+0"
+version = "7.8.3+2"
 
 [[deps.SymbolicIndexingInterface]]
 deps = ["Accessors", "ArrayInterface", "RuntimeGeneratedFunctions", "StaticArraysCore"]
@@ -1849,9 +1930,9 @@ version = "3.32.0"
 
 [[deps.Symbolics]]
 deps = ["ADTypes", "ArrayInterface", "Bijections", "CommonWorldInvalidations", "ConstructionBase", "DataStructures", "DiffRules", "Distributions", "DocStringExtensions", "DomainSets", "DynamicPolynomials", "LaTeXStrings", "Latexify", "Libdl", "LinearAlgebra", "LogExpFunctions", "MacroTools", "Markdown", "NaNMath", "OffsetArrays", "PrecompileTools", "Primes", "RecipesBase", "Reexport", "RuntimeGeneratedFunctions", "SciMLBase", "SciMLPublic", "Setfield", "SparseArrays", "SpecialFunctions", "StaticArraysCore", "SymbolicIndexingInterface", "SymbolicLimits", "SymbolicUtils", "TermInterface"]
-git-tree-sha1 = "1b09f5faec5284f505c40e68ba565115e7d48718"
+git-tree-sha1 = "8206e177903a41519145f577cb7f3793f3b7c960"
 uuid = "0c5d862f-8b57-4792-8d23-62f2024744c7"
-version = "6.56.0"
+version = "6.57.0"
 
     [deps.Symbolics.extensions]
     SymbolicsD3TreesExt = "D3Trees"
@@ -2183,7 +2264,7 @@ version = "1.6.0+0"
 [[deps.Zlib_jll]]
 deps = ["Libdl"]
 uuid = "83775a58-1f1d-513f-b197-d71354ab007a"
-version = "1.2.13+1"
+version = "1.3.1+2"
 
 [[deps.Zstd_jll]]
 deps = ["Artifacts", "JLLWrappers", "Libdl"]
@@ -2218,7 +2299,7 @@ version = "0.17.4+0"
 [[deps.libblastrampoline_jll]]
 deps = ["Artifacts", "Libdl"]
 uuid = "8e850b90-86db-534c-a0d3-1478176c7d93"
-version = "5.11.0+0"
+version = "5.15.0+0"
 
 [[deps.libdecor_jll]]
 deps = ["Artifacts", "Dbus_jll", "JLLWrappers", "Libdl", "Libglvnd_jll", "Pango_jll", "Wayland_jll", "xkbcommon_jll"]
@@ -2265,12 +2346,12 @@ version = "1.1.7+0"
 [[deps.nghttp2_jll]]
 deps = ["Artifacts", "Libdl"]
 uuid = "8e850ede-7688-5339-a07c-302acd2aaf8d"
-version = "1.59.0+0"
+version = "1.64.0+1"
 
 [[deps.p7zip_jll]]
-deps = ["Artifacts", "Libdl"]
+deps = ["Artifacts", "CompilerSupportLibraries_jll", "Libdl"]
 uuid = "3f19e933-33d8-53b3-aaab-bd5110c3b7a0"
-version = "17.4.0+2"
+version = "17.7.0+0"
 
 [[deps.x264_jll]]
 deps = ["Artifacts", "JLLWrappers", "Libdl"]
@@ -2299,19 +2380,25 @@ version = "1.9.2+0"
 # ╟─109f4df4-aa1b-400c-b9d4-ff3604afa7d3
 # ╟─b99cb15b-b51b-4bd6-ac88-d5f6b99bf10b
 # ╠═e28c94fd-f04d-442c-8b19-be84d565d5c7
+# ╠═99e819ab-a88c-41a0-9bbf-27d49fe19557
 # ╟─56efaf7d-2b8b-4540-b0e8-b722edd1d8f8
+# ╟─3bfab7cf-8b35-408d-8d25-ce6a37a0f19e
 # ╟─d2027f44-361b-4d00-9efb-86fe2c7e9b68
 # ╟─7d5bcebe-3f1c-485a-a094-78eb3b976352
 # ╟─bba0ec5e-32bd-4ab1-84d1-76e18c88dc5a
+# ╟─d000b26c-e67a-4e20-a2b8-b417b596ccd8
+# ╟─8a6982d7-9d05-4d06-bcba-33cd5b79034a
+# ╟─1724771c-d1ef-4c1c-93dc-e889a74d80e9
+# ╟─846457f5-d684-470f-bba5-144b41f8dd14
 # ╠═4b2d3084-e981-4ab2-bf40-fea4335082ad
 # ╟─70ebdd20-3a02-4493-a0d6-718fa5b51675
 # ╠═4f7b0a05-004a-417d-81d2-e4b1176909d6
+# ╠═1fa4ecc5-8c5d-49f6-a023-bb2c4b4d5c27
 # ╟─1de3540c-6e07-4e4e-b411-7a5667b5c742
 # ╟─f5f78c1e-9062-4a5b-8bc3-4efb0f1883ca
 # ╠═5c3cea52-3154-4aa3-824c-5be50a302be5
 # ╟─88fb688e-d768-4895-8fe9-822f5db335b0
 # ╠═b64d6d57-c38c-4f54-b86f-0d254d27c3ed
-# ╠═1fa4ecc5-8c5d-49f6-a023-bb2c4b4d5c27
 # ╟─12a42fbb-bfb7-4852-a638-2dec237c032d
 # ╠═0ea0a70c-72b2-47da-902d-00cd6279fbb5
 # ╠═eb482986-f6b0-4900-9e4e-441351691e12
@@ -2347,6 +2434,7 @@ version = "1.9.2+0"
 # ╠═f6675c52-740c-4098-98d6-9c9038b4f6f4
 # ╠═97da0c08-b971-4104-88fe-aa1d1f2c68b0
 # ╠═cbdb003e-09a2-419b-8811-7d0cd290968d
+# ╠═edfc88be-4bef-4478-b154-ec920782c295
 # ╠═b22a4fcd-1f0c-410f-95b8-f67671d3aa63
 # ╟─b5997b61-2ca2-4c2f-acd6-16c121f0aa13
 # ╟─2bdba346-7a64-4de6-9b71-7034b9d68986

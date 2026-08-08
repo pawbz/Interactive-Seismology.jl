@@ -1,5 +1,5 @@
 ### A Pluto.jl notebook ###
-# v0.20.19
+# v0.1.0
 
 using Markdown
 using InteractiveUtils
@@ -51,6 +51,21 @@ Here, you can:
 
 Instructor: *Pawan Bharadwaj*,
 Indian Institute of Science, Bengaluru, India
+"""
+
+# ╔═╡ 59e635d1-33aa-4917-9e03-7c579ef8518c
+@bind n_layers Slider(1:length(default_layers), default=length(default_layers), show_value=true)
+
+# ╔═╡ 863ca41a-959c-49b4-af0d-1876165a64a5
+(@bind layers layer_table_input(n_layers))
+
+# ╔═╡ fa019722-6bca-11f1-9c8d-9ffc56627241
+md"""
+### Observed dispersion overlay
+
+Phase file: $(@bind observed_phase_file FilePicker())
+
+Group file: $(@bind observed_group_file FilePicker())
 """
 
 # ╔═╡ b21471fd-f2f7-4715-b354-48ddd7aa0207
@@ -346,8 +361,261 @@ function compute_rayleigh_dispersion(layers::Vector{Layer}, periods::Vector{Floa
     return R
 end
 
+# ╔═╡ e55ee346-de7c-4b88-88f2-cd1afbbc73a2
+md"""
+Maximum period: $(@bind period_max Slider(20.0:5.0:200.0, default=100.0, show_value=true)) s
+"""
+
 # ╔═╡ 3e02c803-9bc3-4123-a4d8-ab07021a0062
-periods = collect(range(5.0, stop = 100.0, length=64))
+periods = collect(range(5.0, stop = period_max, length=64))
+
+# ╔═╡ 994df54b-fab7-4a39-868d-aa97f87dec9b
+res = compute_rayleigh_dispersion(layers, periods)
+
+# ╔═╡ 7a1c3608-a871-424f-9455-62350343f906
+begin
+	struct ObservedDispersion
+	    periods::Vector{Float64}
+	    phase_velocities::Vector{Float64}
+	    group_velocities::Vector{Float64}
+	end
+	
+	empty_observed_dispersion() = ObservedDispersion(Float64[], Float64[], Float64[])
+	load_observed_dispersion(::Missing; kind::Symbol=:auto) = empty_observed_dispersion()
+	load_observed_dispersion(::Nothing; kind::Symbol=:auto) = empty_observed_dispersion()
+	
+	function _parse_observed_number(token::AbstractString)
+	    t = strip(token)
+	    isempty(t) && return NaN
+	    lowercase(t) in ("nan", "missing", "none") && return NaN
+	    return tryparse(Float64, t) === nothing ? NaN : parse(Float64, t)
+	end
+	
+	function _numeric_rows_from_string(text::AbstractString)
+	    rows = Vector{Vector{Float64}}()
+	    for line in split(text, '\n')
+	        body = strip(first(split(first(split(line, "#")), "//")))
+	        isempty(body) && continue
+	        tokens = split(replace(body, ',' => ' '))
+	        nums = [_parse_observed_number(tok) for tok in tokens]
+	        length(nums) >= 2 && push!(rows, nums)
+	    end
+	    return rows
+	end
+	
+	function _observed_rows_from_path(path::AbstractString)
+		path = expanduser(strip(path))
+		isempty(path) && return Vector{Vector{Float64}}()
+		isfile(path) || error("Observed dispersion file not found: $path")
+		return _numeric_rows_from_string(read(path, String))
+	end
+	
+	function _observed_rows_from_filepicker(file)
+		data = if haskey(file, "data")
+			file["data"]
+		elseif haskey(file, :data)
+			file[:data]
+		else
+			nothing
+		end
+		data === nothing && return Vector{Vector{Float64}}()
+		text = data isa AbstractVector{UInt8} ? String(data) : String(data)
+		return _numeric_rows_from_string(text)
+	end
+	
+	function _dispersion_from_rows(rows; kind::Symbol=:auto)
+		isempty(rows) && return empty_observed_dispersion()
+	    period = Float64[]
+	    phase = Float64[]
+	    group = Float64[]
+	    for row in rows
+	        T = row[1]
+	        isfinite(T) && T > 0 || continue
+	
+	        if length(row) >= 6
+	            # pDSurfTomo flat file: period lat1 lon1 lat2 lon2 velocity.
+	            v = row[6]
+	            if kind == :group
+	                push!(period, T); push!(phase, NaN); push!(group, v)
+	            else
+	                push!(period, T); push!(phase, v); push!(group, NaN)
+	            end
+	        elseif length(row) >= 3
+	            # Simple combined table: period phase_velocity group_velocity.
+	            push!(period, T); push!(phase, row[2]); push!(group, row[3])
+	        else
+	            v = row[2]
+	            if kind == :group
+	                push!(period, T); push!(phase, NaN); push!(group, v)
+	            else
+	                push!(period, T); push!(phase, v); push!(group, NaN)
+	            end
+	        end
+	    end
+	    return ObservedDispersion(period, phase, group)
+	end
+	
+	function load_observed_dispersion(path::AbstractString; kind::Symbol=:auto)
+		return _dispersion_from_rows(_observed_rows_from_path(path); kind=kind)
+	end
+	
+	function load_observed_dispersion(file::AbstractDict; kind::Symbol=:auto)
+		return _dispersion_from_rows(_observed_rows_from_filepicker(file); kind=kind)
+	end
+	
+	function merge_observed_dispersion(phase_obs::ObservedDispersion, group_obs::ObservedDispersion)
+	    return ObservedDispersion(
+	        vcat(phase_obs.periods, group_obs.periods),
+	        vcat(phase_obs.phase_velocities, group_obs.phase_velocities),
+	        vcat(phase_obs.group_velocities, group_obs.group_velocities),
+	    )
+	end
+	
+	function fundamental_phase_velocities(results)
+	    return map(results) do r
+	        isempty(r.phase_velocities) ? NaN : first(sort(r.phase_velocities))
+	    end
+	end
+	
+	function group_velocity_from_phase(periods::AbstractVector, phase_velocities::AbstractVector)
+	    U = fill(NaN, length(periods))
+	    for i in eachindex(periods)
+	        isfinite(phase_velocities[i]) || continue
+	        left = max(1, i - 1)
+	        right = min(length(periods), i + 1)
+	        left == right && continue
+	        isfinite(phase_velocities[left]) && isfinite(phase_velocities[right]) || continue
+	        dc_dT = (phase_velocities[right] - phase_velocities[left]) / (periods[right] - periods[left])
+	        denom = 1 + periods[i] * dc_dT / phase_velocities[i]
+	        isfinite(denom) && denom != 0 || continue
+	        U[i] = phase_velocities[i] / denom
+	    end
+	    return U
+	end
+end
+
+# ╔═╡ 8b06bf24-58b3-450e-90a0-cdcda4bf015c
+observed_dispersion = merge_observed_dispersion(
+	load_observed_dispersion(observed_phase_file; kind=:phase),
+	load_observed_dispersion(observed_group_file; kind=:group),
+)
+
+# ╔═╡ 0a2f9984-4cf5-4ebe-b12e-974b284256a4
+begin
+	fundamental_phase = fundamental_phase_velocities(res)
+	fundamental_group = group_velocity_from_phase(periods, fundamental_phase)
+end
+
+# ╔═╡ dc65b138-737c-44df-a866-74ff223c8489
+let
+	valid_phase = findall(isfinite, fundamental_phase)
+	valid_group = findall(isfinite, fundamental_group)
+	observed_phase_indices = findall(i -> isfinite(observed_dispersion.phase_velocities[i]), eachindex(observed_dispersion.periods))
+	observed_group_indices = findall(i -> isfinite(observed_dispersion.group_velocities[i]), eachindex(observed_dispersion.periods))
+	
+	if !isempty(valid_phase)
+		function vs_depth_profile(layers)
+			positive_thickness = [layer.thickness for layer in layers if layer.thickness > 0]
+			halfspace_thickness = isempty(positive_thickness) ? 25.0 : max(25.0, 0.15 * sum(positive_thickness))
+			depths = Float64[]
+			vs = Float64[]
+			depth = 0.0
+			for (i, layer) in enumerate(layers)
+				h = (i == length(layers) || layer.thickness <= 0) ? halfspace_thickness : layer.thickness
+				push!(depths, depth); push!(vs, layer.vs)
+				depth += h
+				push!(depths, depth); push!(vs, layer.vs)
+			end
+			return vs, depths
+		end
+
+		model_vs, model_depths = vs_depth_profile(layers)
+		traces = typeof(scatter())[]
+	
+	    push!(traces,
+	        scatter(
+	            x=periods[valid_phase],
+	            y=fundamental_phase[valid_phase],
+	            mode="lines+markers",
+	            name="Modeled Phase Velocity",
+				xaxis="x",
+				yaxis="y",
+	            line=attr(color="blue", width=3),
+	            marker=attr(size=6)
+	        )
+	    )
+	
+	    if !isempty(observed_phase_indices)
+	        push!(traces,
+	            scatter(
+	                x=observed_dispersion.periods[observed_phase_indices],
+	                y=observed_dispersion.phase_velocities[observed_phase_indices],
+	                mode="markers",
+	                name="Observed Phase Velocity",
+					xaxis="x",
+					yaxis="y",
+	                marker=attr(size=8, color="black", symbol="x")
+	            )
+	        )
+	    end
+	
+	    push!(traces,
+	        scatter(
+	            x=periods[valid_group],
+	            y=fundamental_group[valid_group],
+	            mode="lines+markers",
+	            name="Modeled Group Velocity",
+				xaxis="x2",
+				yaxis="y2",
+	            line=attr(color="red", width=3),
+	            marker=attr(size=6)
+	        )
+	    )
+	
+	    if !isempty(observed_group_indices)
+	        push!(traces,
+	            scatter(
+	                x=observed_dispersion.periods[observed_group_indices],
+	                y=observed_dispersion.group_velocities[observed_group_indices],
+	                mode="markers",
+	                name="Observed Group Velocity",
+					xaxis="x2",
+					yaxis="y2",
+	                marker=attr(size=8, color="black", symbol="x")
+	            )
+	        )
+	    end
+
+		push!(traces,
+			scatter(
+				x=model_vs,
+				y=model_depths,
+				mode="lines",
+				name="Model Vs",
+				xaxis="x3",
+				yaxis="y3",
+				line=attr(color="green", width=3, shape="hv")
+			)
+		)
+	
+	    plot(traces, Layout(
+	        title="Rayleigh Fundamental-Mode Dispersion Curves",
+	        xaxis=attr(domain=[0.0, 0.68], title="", showgrid=true, anchor="y"),
+	        yaxis=attr(domain=[0.56, 1.0], title="Phase Velocity (km/s)", showgrid=true, range=[2.5, 6.5], anchor="x"),
+	        xaxis2=attr(domain=[0.0, 0.68], title="Period (s)", showgrid=true, anchor="y2"),
+	        yaxis2=attr(domain=[0.0, 0.44], title="Group Velocity (km/s)", showgrid=true, range=[2.5, 6.5], anchor="x2"),
+	        xaxis3=attr(domain=[0.78, 1.0], title="Vs (km/s)", showgrid=true, anchor="y3"),
+	        yaxis3=attr(domain=[0.0, 1.0], title="Depth (km)", autorange="reversed", showgrid=true, anchor="x3", side="right", ticks="outside", showticklabels=true),
+	        hovermode="closest",
+			legend=attr(orientation="h", x=0.5, xanchor="center", y=-0.16, yanchor="top"),
+			margin=attr(l=70, r=40, t=60, b=100),
+	        showlegend=true,
+	        height=650
+	    ))
+	else
+	    md"_No valid dispersion solutions found._"
+	end
+end
 
 # ╔═╡ 2c205b96-d934-4302-a107-ee6aab03c522
 md"## Appendix"
@@ -386,13 +654,26 @@ const GUTENBERG_MODEL = [
 # ╔═╡ 8275ce20-7366-48be-aee1-b6a2c38f1b13
 default_layers = GUTENBERG_MODEL;
 
-# ╔═╡ 59e635d1-33aa-4917-9e03-7c579ef8518c
-md"""
-Number of layers: $(@bind n_layers Slider(1:length(default_layers), default=length(default_layers), show_value=true))
-"""
-
 # ╔═╡ c1c6a307-13b9-4e47-b391-d271820b6c02
 function layer_table_input(n_layers::Int)
+    function gutenberg_layer_defaults(n_layers::Int)
+        n_layers <= 1 && return [default_layers[end]]
+        finite_layers = default_layers[1:end-1]
+        edges = round.(Int, range(1, length(finite_layers) + 1, length=n_layers))
+        grouped = Layer[]
+        for i in 1:(n_layers - 1)
+            block = finite_layers[edges[i]:(edges[i + 1] - 1)]
+            h = sum(layer.thickness for layer in block)
+            vp = sum(layer.vp * layer.thickness for layer in block) / h
+            vs = sum(layer.vs * layer.thickness for layer in block) / h
+            rho = sum(layer.rho * layer.thickness for layer in block) / h
+            push!(grouped, Layer(h, vp, vs, rho, 1000.0, 1000.0))
+        end
+        return vcat(grouped, default_layers[end])
+    end
+
+    gutenberg_defaults = gutenberg_layer_defaults(n_layers)
+
     ui = PlutoUI.combine() do Child
         # header
         header = @htl("""
@@ -407,8 +688,7 @@ function layer_table_input(n_layers::Int)
 
         rows = Any[]
         for i in 1:n_layers
-            # Use Gutenberg model values if available, else fallback
-            layer = i <= length(default_layers) ? default_layers[i] : default_layers[i]
+            layer = gutenberg_defaults[i]
             tw = i < n_layers ? Child("thickness_$i", Slider(0.5:0.5:200, default=layer.thickness, show_value=true)) : "∞"
             vp = Child("vp_$i", Slider(4.0:0.05:12.0, default=layer.vp, show_value=true))
             vs = Child("vs_$i", Slider(2.5:0.01:8.0, default=layer.vs, show_value=true))
@@ -473,39 +753,6 @@ function layer_table_input(n_layers::Int)
     end
 end
 
-# ╔═╡ 863ca41a-959c-49b4-af0d-1876165a64a5
-(@bind layers layer_table_input(n_layers))
-
-# ╔═╡ 994df54b-fab7-4a39-868d-aa97f87dec9b
-res = compute_rayleigh_dispersion(layers, periods)
-
-# ╔═╡ dc65b138-737c-44df-a866-74ff223c8489
-let
-    plt = Plot(
-		[
-        scatter(
-            x=periods,
-            y=map(x->sort(x.phase_velocities)[i], res),
-            mode="lines+markers",
-            name="Dispersion Curve"
-        )
-		for i in 1:1]
-    )
-
-    plt.layout = Layout(
-        title="Rayleigh Fundamental-Mode Dispersion Curve",
-        xaxis=attr(title="Period (s)", showgrid=true),
-        yaxis=attr(
-            title="Phase Velocity (km/s)",
-            showgrid=true,
-            range=[2.5, 6.5]
-        ),
-        hovermode="closest"
-    )
-
-    plot(plt)
-end
-
 # ╔═╡ dd68aded-1346-49c0-aa7d-2ed339e221db
 md"""
 ### Reference
@@ -526,31 +773,30 @@ PlutoUI = "7f904dfe-b85e-4ff6-b463-dae2292396a8"
 Roots = "f2b01f46-fcfa-551c-844a-d8ac1e96c665"
 
 [compat]
-HypertextLiteral = "~0.9.5"
-PlutoPlotly = "~0.6.5"
-PlutoUI = "~0.7.72"
-Roots = "~2.2.10"
+HypertextLiteral = "~1.0.0"
+PlutoPlotly = "~0.6.6"
+PlutoUI = "~0.7.83"
+Roots = "~3.0.0"
 """
 
 # ╔═╡ 00000000-0000-0000-0000-000000000002
 PLUTO_MANIFEST_TOML_CONTENTS = """
 # This file is machine-generated - editing it directly is not advised
 
-julia_version = "1.12.0"
+julia_version = "1.12.4"
 manifest_format = "2.0"
-project_hash = "28d493f4887e75d088e73e58643bd15d35c7bf11"
+project_hash = "f7ffed29d63282104be9ad1f56cf8f95fcfd9a73"
 
 [[deps.AbstractPlutoDingetjes]]
-deps = ["Pkg"]
-git-tree-sha1 = "6e1d2a35f2f90a4bc7c2ed98079b2ba09c35b83a"
+git-tree-sha1 = "6c3913f4e9bdf6ba3c08041a446fb1332716cbc2"
 uuid = "6e696c72-6542-2067-7265-42206c756150"
-version = "1.3.2"
+version = "1.4.0"
 
 [[deps.Accessors]]
 deps = ["CompositionsBase", "ConstructionBase", "Dates", "InverseFunctions", "MacroTools"]
-git-tree-sha1 = "3b86719127f50670efe356bc11073d84b4ed7a5d"
+git-tree-sha1 = "2eeb2c9bef11013efc6f8f97f32ee59b146b09fb"
 uuid = "7d9f7c33-5ae7-4f3b-8dc6-eff91059b697"
-version = "0.1.42"
+version = "0.1.44"
 
     [deps.Accessors.extensions]
     AxisKeysExt = "AxisKeys"
@@ -617,9 +863,15 @@ uuid = "5ae59095-9a9b-59fe-a467-6f913c188581"
 version = "0.13.1"
 
 [[deps.CommonSolve]]
-git-tree-sha1 = "0eee5eb66b1cf62cd6ad1b460238e60e4b09400c"
+git-tree-sha1 = "dd91a10d8b8ae06e15706158eaf1a3e87e97b5f5"
 uuid = "38540f10-b2f7-11e9-35d8-d573e4eb0ff2"
-version = "0.2.4"
+version = "0.2.7"
+
+    [deps.CommonSolve.extensions]
+    CommonSolveEnzymeCoreExt = "EnzymeCore"
+
+    [deps.CommonSolve.weakdeps]
+    EnzymeCore = "f151be2c-9106-41f4-ab19-57ee4f262869"
 
 [[deps.CompilerSupportLibraries_jll]]
 deps = ["Artifacts", "Libdl"]
@@ -669,17 +921,17 @@ version = "0.9.5"
 [[deps.Downloads]]
 deps = ["ArgTools", "FileWatching", "LibCURL", "NetworkOptions"]
 uuid = "f43a241f-c20a-4ad4-852c-f6b1247861c6"
-version = "1.6.0"
+version = "1.7.0"
 
 [[deps.FileWatching]]
 uuid = "7b1f6079-737a-58dc-b8bc-7a2ca5c1b5ee"
 version = "1.11.0"
 
 [[deps.FixedPointNumbers]]
-deps = ["Statistics"]
-git-tree-sha1 = "05882d6995ae5c12bb5f36dd2ed3f61c98cbb172"
+deps = ["Random", "Statistics"]
+git-tree-sha1 = "59af96b98217c6ef4ae0dfe065ac7c20831d1a84"
 uuid = "53c48c17-4a7d-5ca2-90c5-79b7896eea93"
-version = "0.8.5"
+version = "0.8.6"
 
 [[deps.HashArrayMappedTries]]
 git-tree-sha1 = "2eaa69a7cab70a52b9687c8bf950a5a93ec895ae"
@@ -694,15 +946,15 @@ version = "0.0.5"
 
 [[deps.HypertextLiteral]]
 deps = ["Tricks"]
-git-tree-sha1 = "7134810b1afce04bbc1045ca1985fbe81ce17653"
+git-tree-sha1 = "d1a86724f81bcd184a38fd284ce183ec067d71a0"
 uuid = "ac1192a8-f4b3-4bfe-ba22-af5b92cd3ab2"
-version = "0.9.5"
+version = "1.0.0"
 
 [[deps.IOCapture]]
 deps = ["Logging", "Random"]
-git-tree-sha1 = "b6d6bfdd7ce25b0f9b2f6b3dd56b2673a66c8770"
+git-tree-sha1 = "0ee181ec08df7d7c911901ea38baf16f755114dc"
 uuid = "b5f81e59-6552-4d32-b1f0-c071b021bf89"
-version = "0.2.5"
+version = "1.0.0"
 
 [[deps.InteractiveUtils]]
 deps = ["Markdown"]
@@ -720,10 +972,16 @@ weakdeps = ["Dates", "Test"]
     InverseFunctionsTestExt = "Test"
 
 [[deps.JSON]]
-deps = ["Dates", "Mmap", "Parsers", "Unicode"]
-git-tree-sha1 = "31e996f0a15c7b280ba9f76636b3ff9e2ae58c9a"
+deps = ["Dates", "Logging", "Parsers", "PrecompileTools", "StructUtils", "UUIDs", "Unicode"]
+git-tree-sha1 = "c89d196f5ffb64bfbf80985b699ea913b0d2c211"
 uuid = "682c06a0-de6a-54ab-a142-c8b1cf79cde6"
-version = "0.21.4"
+version = "1.6.1"
+
+    [deps.JSON.extensions]
+    JSONArrowExt = ["ArrowTypes"]
+
+    [deps.JSON.weakdeps]
+    ArrowTypes = "31f734f8-188a-4ce0-8406-c8a06bd891cd"
 
 [[deps.JuliaSyntaxHighlighting]]
 deps = ["StyledStrings"]
@@ -743,7 +1001,7 @@ version = "0.6.4"
 [[deps.LibCURL_jll]]
 deps = ["Artifacts", "LibSSH2_jll", "Libdl", "OpenSSL_jll", "Zlib_jll", "nghttp2_jll"]
 uuid = "deac9b47-8bc7-5906-a0fe-35ac56dc84c0"
-version = "8.11.1+1"
+version = "8.15.0+0"
 
 [[deps.LibGit2]]
 deps = ["LibGit2_jll", "NetworkOptions", "Printf", "SHA"]
@@ -794,7 +1052,7 @@ version = "1.11.0"
 
 [[deps.MozillaCACerts_jll]]
 uuid = "14a3606d-f60d-562e-9121-12d972cd8159"
-version = "2025.5.20"
+version = "2025.11.4"
 
 [[deps.NetworkOptions]]
 uuid = "ca575930-c2e3-43a9-ace4-1e988b2c1908"
@@ -808,12 +1066,12 @@ version = "0.3.29+0"
 [[deps.OpenSSL_jll]]
 deps = ["Artifacts", "Libdl"]
 uuid = "458c3c95-2e84-50aa-8efc-19380b2a3a95"
-version = "3.5.1+0"
+version = "3.5.4+0"
 
 [[deps.OrderedCollections]]
-git-tree-sha1 = "05868e21324cede2207c6f0f466b4bfef6d5e7ee"
+git-tree-sha1 = "94ba93778373a53bfd5a0caaf7d809c445292ff4"
 uuid = "bac558e1-5e72-5ebc-8fee-abe8a469f55d"
-version = "1.8.1"
+version = "1.8.2"
 
 [[deps.Parameters]]
 deps = ["OrderedCollections", "UnPack"]
@@ -823,14 +1081,14 @@ version = "0.12.3"
 
 [[deps.Parsers]]
 deps = ["Dates", "PrecompileTools", "UUIDs"]
-git-tree-sha1 = "7d2f8f21da5db6a806faf7b9b292296da42b2810"
+git-tree-sha1 = "32a4e09c5f29402573d673901778a0e03b0807b9"
 uuid = "69de0a69-1ddd-5017-9359-2bf0b02dc9f0"
-version = "2.8.3"
+version = "2.8.6"
 
 [[deps.Pkg]]
 deps = ["Artifacts", "Dates", "Downloads", "FileWatching", "LibGit2", "Libdl", "Logging", "Markdown", "Printf", "Random", "SHA", "TOML", "Tar", "UUIDs", "p7zip_jll"]
 uuid = "44cfe95a-1eb2-52ea-b672-e2afdf69b78f"
-version = "1.12.0"
+version = "1.12.1"
 weakdeps = ["REPL"]
 
     [deps.Pkg.extensions]
@@ -838,9 +1096,9 @@ weakdeps = ["REPL"]
 
 [[deps.PlotlyBase]]
 deps = ["ColorSchemes", "Colors", "Dates", "DelimitedFiles", "DocStringExtensions", "JSON", "LaTeXStrings", "Logging", "Parameters", "Pkg", "REPL", "Requires", "Statistics", "UUIDs"]
-git-tree-sha1 = "28278bb0053da0fd73537be94afd1682cc5a0a83"
+git-tree-sha1 = "6256ab3ee24ef079b3afa310593817e069925eeb"
 uuid = "a03496cd-edff-5a9b-9e67-9cda94a718b5"
-version = "0.8.21"
+version = "0.8.23"
 
     [deps.PlotlyBase.extensions]
     DataFramesExt = "DataFrames"
@@ -856,9 +1114,9 @@ version = "0.8.21"
 
 [[deps.PlutoPlotly]]
 deps = ["AbstractPlutoDingetjes", "Artifacts", "ColorSchemes", "Colors", "Dates", "Downloads", "HypertextLiteral", "InteractiveUtils", "LaTeXStrings", "Markdown", "Pkg", "PlotlyBase", "PrecompileTools", "Reexport", "ScopedValues", "Scratch", "TOML"]
-git-tree-sha1 = "8acd04abc9a636ef57004f4c2e6f3f6ed4611099"
+git-tree-sha1 = "2b9e3d771adfe535a4fdda855f4741fdaacd3f7f"
 uuid = "8e989ff0-3d88-8e9f-f020-2b208a939ff0"
-version = "0.6.5"
+version = "0.6.6"
 
     [deps.PlutoPlotly.extensions]
     PlotlyKaleidoExt = "PlotlyKaleido"
@@ -869,22 +1127,22 @@ version = "0.6.5"
     Unitful = "1986cc42-f94f-5a68-af5c-568840ba703d"
 
 [[deps.PlutoUI]]
-deps = ["AbstractPlutoDingetjes", "Base64", "ColorTypes", "Dates", "Downloads", "FixedPointNumbers", "Hyperscript", "HypertextLiteral", "IOCapture", "InteractiveUtils", "JSON", "Logging", "MIMEs", "Markdown", "Random", "Reexport", "URIs", "UUIDs"]
-git-tree-sha1 = "f53232a27a8c1c836d3998ae1e17d898d4df2a46"
+deps = ["AbstractPlutoDingetjes", "Base64", "ColorTypes", "Dates", "Downloads", "FixedPointNumbers", "Hyperscript", "HypertextLiteral", "IOCapture", "InteractiveUtils", "Logging", "MIMEs", "Markdown", "Random", "Reexport", "URIs", "UUIDs"]
+git-tree-sha1 = "e189d0623e7ce9c37389bac17e80aac3b0302e75"
 uuid = "7f904dfe-b85e-4ff6-b463-dae2292396a8"
-version = "0.7.72"
+version = "0.7.83"
 
 [[deps.PrecompileTools]]
 deps = ["Preferences"]
-git-tree-sha1 = "07a921781cab75691315adc645096ed5e370cb77"
+git-tree-sha1 = "edbeefc7a4889f528644251bdb5fc9ab5348bc2c"
 uuid = "aea7be01-6a6a-4083-8856-8a6e6704d82a"
-version = "1.3.3"
+version = "1.3.4"
 
 [[deps.Preferences]]
 deps = ["TOML"]
-git-tree-sha1 = "0f27480397253da18fe2c12a4ba4eb9eb208bf3d"
+git-tree-sha1 = "8b770b60760d4451834fe79dd483e318eee709c4"
 uuid = "21216c6a-2e73-6563-6e65-726566657250"
-version = "1.5.0"
+version = "1.5.2"
 
 [[deps.Printf]]
 deps = ["Unicode"]
@@ -914,9 +1172,9 @@ version = "1.3.1"
 
 [[deps.Roots]]
 deps = ["Accessors", "CommonSolve", "Printf"]
-git-tree-sha1 = "8a433b1ede5e9be9a7ba5b1cc6698daa8d718f1d"
+git-tree-sha1 = "91cfb1cb4f6e27557cc2df798a31eff6089a41eb"
 uuid = "f2b01f46-fcfa-551c-844a-d8ac1e96c665"
-version = "2.2.10"
+version = "3.0.0"
 
     [deps.Roots.extensions]
     RootsChainRulesCoreExt = "ChainRulesCore"
@@ -940,9 +1198,9 @@ version = "0.7.0"
 
 [[deps.ScopedValues]]
 deps = ["HashArrayMappedTries", "Logging"]
-git-tree-sha1 = "c3b2323466378a2ba15bea4b2f73b081e022f473"
+git-tree-sha1 = "67a144433c4ce877ee6d1ada69a124d6b1ecf7be"
 uuid = "7e506255-f358-4e82-b7e4-beb19740aa63"
-version = "1.5.0"
+version = "1.6.2"
 
 [[deps.Scratch]]
 deps = ["Dates"]
@@ -970,6 +1228,22 @@ version = "1.11.1"
     [deps.Statistics.weakdeps]
     SparseArrays = "2f01184e-e22b-5df5-ae63-d93ebab69eaf"
 
+[[deps.StructUtils]]
+deps = ["Dates", "UUIDs"]
+git-tree-sha1 = "82bee338d650aa515f31866c460cb7e3bcef90b8"
+uuid = "ec057cc2-7a8d-4b58-b3b3-92acb9f63b42"
+version = "2.8.2"
+
+    [deps.StructUtils.extensions]
+    StructUtilsMeasurementsExt = ["Measurements"]
+    StructUtilsStaticArraysCoreExt = ["StaticArraysCore"]
+    StructUtilsTablesExt = ["Tables"]
+
+    [deps.StructUtils.weakdeps]
+    Measurements = "eff96d63-e80a-5855-80a2-b1b0885c5ab7"
+    StaticArraysCore = "1e83bf80-4336-4d27-bf5d-d5a4f845583c"
+    Tables = "bd369af6-aec1-5ad0-b16a-f7cc5008161c"
+
 [[deps.StyledStrings]]
 uuid = "f489334b-da3d-4c2e-b8f0-e476e12c162b"
 version = "1.11.0"
@@ -996,9 +1270,9 @@ uuid = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
 version = "1.11.0"
 
 [[deps.Tricks]]
-git-tree-sha1 = "372b90fe551c019541fafc6ff034199dc19c8436"
+git-tree-sha1 = "311349fd1c93a31f783f977a71e8b062a57d4101"
 uuid = "410a4b4d-49e4-4fbc-ab6d-cb71b17b3775"
-version = "0.1.12"
+version = "0.1.13"
 
 [[deps.URIs]]
 git-tree-sha1 = "bef26fb046d031353ef97a82e3fdb6afe7f21b1a"
@@ -1027,7 +1301,7 @@ version = "1.3.1+2"
 [[deps.libblastrampoline_jll]]
 deps = ["Artifacts", "Libdl"]
 uuid = "8e850b90-86db-534c-a0d3-1478176c7d93"
-version = "5.13.1+1"
+version = "5.15.0+0"
 
 [[deps.nghttp2_jll]]
 deps = ["Artifacts", "Libdl"]
@@ -1035,17 +1309,18 @@ uuid = "8e850ede-7688-5339-a07c-302acd2aaf8d"
 version = "1.64.0+1"
 
 [[deps.p7zip_jll]]
-deps = ["Artifacts", "Libdl"]
+deps = ["Artifacts", "CompilerSupportLibraries_jll", "Libdl"]
 uuid = "3f19e933-33d8-53b3-aaab-bd5110c3b7a0"
-version = "17.5.0+2"
+version = "17.7.0+0"
 """
 
 # ╔═╡ Cell order:
 # ╠═6e3d880e-82d5-45b0-a823-b2df7d8be6f0
 # ╟─c3a8bd5e-41c3-46f4-bfb5-773eadfb67ee
-# ╟─59e635d1-33aa-4917-9e03-7c579ef8518c
+# ╠═59e635d1-33aa-4917-9e03-7c579ef8518c
 # ╟─863ca41a-959c-49b4-af0d-1876165a64a5
-# ╟─dc65b138-737c-44df-a866-74ff223c8489
+# ╟─fa019722-6bca-11f1-9c8d-9ffc56627241
+# ╠═dc65b138-737c-44df-a866-74ff223c8489
 # ╟─b21471fd-f2f7-4715-b354-48ddd7aa0207
 # ╠═5c136747-07b4-454e-9a75-0998a24560df
 # ╠═48f94773-cfea-46d5-b341-ae57fbe43e55
@@ -1057,8 +1332,12 @@ version = "17.5.0+2"
 # ╠═c6187aa6-a890-4b35-8fc8-ef66373a4d2e
 # ╠═54effe7a-7d35-40e1-a861-4fa7f6ec9c06
 # ╠═87a1ea4f-e41c-44f0-8712-6dad46b1f2a3
+# ╟─e55ee346-de7c-4b88-88f2-cd1afbbc73a2
 # ╠═3e02c803-9bc3-4123-a4d8-ab07021a0062
 # ╠═994df54b-fab7-4a39-868d-aa97f87dec9b
+# ╠═7a1c3608-a871-424f-9455-62350343f906
+# ╠═8b06bf24-58b3-450e-90a0-cdcda4bf015c
+# ╠═0a2f9984-4cf5-4ebe-b12e-974b284256a4
 # ╟─2c205b96-d934-4302-a107-ee6aab03c522
 # ╠═ed6135c9-be36-4a57-b0b8-d54c79efca2f
 # ╠═9a802663-864a-454c-9e36-e5ee2cf60e87

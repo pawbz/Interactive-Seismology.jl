@@ -1,5 +1,5 @@
 ### A Pluto.jl notebook ###
-# v0.20.19
+# v0.20.21
 
 #> [frontmatter]
 #> title = "Pseudo-spectral Method -- Seismic Wave Equation"
@@ -18,6 +18,18 @@ macro bind(def, element)
         el
     end
     #! format: on
+end
+
+# ╔═╡ c5815f5e-9164-11ec-10e1-691834761dff
+begin
+    using FFTW
+    using LinearAlgebra
+    using LaTeXStrings
+    import DrWatson: @strdict
+    using Plots
+    using PlutoUI
+    using Statistics
+    using ProgressLogging
 end
 
 # ╔═╡ 9c32f5bc-f6d1-4048-903a-27224aaa1f40
@@ -118,9 +130,6 @@ begin
     dt = courant_number * step(xgrid) * minimum(inv.(sqrt.(μ ./ ρ)))
     nothing
 end
-
-# ╔═╡ f9f36d76-6e4e-4cf4-ac7a-ef9980b94936
-myheat(vy0, "Initial \$v_y\$")
 
 # ╔═╡ 6be2f4c2-e9ed-43c2-b66c-ef3176bb9000
 md"""
@@ -258,23 +267,10 @@ md"""
 Observer 1
 """
 
-# ╔═╡ ebcaf0f0-83ed-436e-938f-9e29c0f3fa38
-@bind obs1 confirm(position_input())
-
 # ╔═╡ 26cebdf0-84f2-4df8-8fe2-b3ad1844c786
 md"""
 Observer 2
 """
-
-# ╔═╡ 35b8eb3c-0364-44a3-9404-6933c7703ebc
-@bind obs2 confirm(position_input())
-
-# ╔═╡ 8a334359-5320-4a8e-b7eb-18b8f3c81609
-begin
-    vel_prof_obs1 = get_velocity_profile(snaps_store, obs1)
-    vel_prof_obs2 = get_velocity_profile(snaps_store, obs2)
-    nothing
-end
 
 # ╔═╡ b88aed3d-9cb0-4377-8797-65385ab59436
 @bind tsnap PlutoUI.combine() do Child
@@ -283,39 +279,16 @@ end
     """
 end
 
-# ╔═╡ 0e149101-a9f8-4dc7-89b9-93c494fadc1b
-begin
-    myheat(snaps_store[tsnap[1]], L"Particle Velocity $v_y$")
-    scatter!([obs1[:xpos]], [obs1[:zpos]], label="Observer 1", legendfontsize=6, c="cyan")
-    scatter!([obs2[:xpos]], [obs2[:zpos]], label="Observer 2", legendfontsize=6, c="orange")
-end
-
-# ╔═╡ c2d109b0-32f2-4063-b954-1f79640dcfc4
-begin
-    plot(1:1:length(snaps_store), vel_prof_obs1, c="cyan", label="Observer 1", xlabel="Time step", ylabel="Particle velocity")
-    plot!(1:1:length(snaps_store), vel_prof_obs2, c="orange", label="Observer 2")
-    vline!(tsnap, c="magenta", label="", linestyle=:dash)
-end
-
 # ╔═╡ fc49a6d7-a1b1-458a-a9ad-e120282bbabc
 md"""
 ## Appendix
 """
 
-# ╔═╡ c5815f5e-9164-11ec-10e1-691834761dff
-begin
-    using FFTW
-    using LinearAlgebra
-    using LaTeXStrings
-    import DrWatson: @strdict
-    using Plots
-    using PlutoUI
-    using Statistics
-    using ProgressLogging
-end
-
 # ╔═╡ 36408698-f85c-4529-972f-6389534fcb88
 myheat(x, t="") = heatmap(xgrid, zgrid, x, c=:grays, aspect_ratio=1, title=t, ylim=(-50, 50))
+
+# ╔═╡ f9f36d76-6e4e-4cf4-ac7a-ef9980b94936
+myheat(vy0, "Initial \$v_y\$")
 
 # ╔═╡ 521fbcc7-9078-48bc-b61d-749e94053a9b
 # Lets check the derivative operators
@@ -340,6 +313,19 @@ begin
     nothing
 end
 
+# ╔═╡ ebcaf0f0-83ed-436e-938f-9e29c0f3fa38
+@bind obs1 confirm(position_input())
+
+# ╔═╡ 35b8eb3c-0364-44a3-9404-6933c7703ebc
+@bind obs2 confirm(position_input())
+
+# ╔═╡ 0e149101-a9f8-4dc7-89b9-93c494fadc1b
+begin
+    myheat(snaps_store[tsnap[1]], L"Particle Velocity $v_y$")
+    scatter!([obs1[:xpos]], [obs1[:zpos]], label="Observer 1", legendfontsize=6, c="cyan")
+    scatter!([obs2[:xpos]], [obs2[:zpos]], label="Observer 2", legendfontsize=6, c="orange")
+end
+
 # ╔═╡ c48792ac-ed09-4ed0-acc5-c2635ab9b908
 begin
     # Function to get the velocity profiles
@@ -358,6 +344,20 @@ begin
         return velocity_profile
     end
     nothing
+end
+
+# ╔═╡ 8a334359-5320-4a8e-b7eb-18b8f3c81609
+begin
+    vel_prof_obs1 = get_velocity_profile(snaps_store, obs1)
+    vel_prof_obs2 = get_velocity_profile(snaps_store, obs2)
+    nothing
+end
+
+# ╔═╡ c2d109b0-32f2-4063-b954-1f79640dcfc4
+begin
+    plot(1:1:length(snaps_store), vel_prof_obs1, c="cyan", label="Observer 1", xlabel="Time step", ylabel="Particle velocity")
+    plot!(1:1:length(snaps_store), vel_prof_obs2, c="orange", label="Observer 2")
+    vline!(tsnap, c="magenta", label="", linestyle=:dash)
 end
 
 # ╔═╡ 00000000-0000-0000-0000-000000000001

@@ -1,5 +1,5 @@
 ### A Pluto.jl notebook ###
-# v0.1.0
+# v0.2.6
 
 #> [frontmatter]
 #> title = "Seismic Interferometry"
@@ -23,9 +23,12 @@ end
 
 # ╔═╡ 290b50eb-0faf-4a5f-86bf-36628e61ff06
 begin
-    using PlutoUI, Statistics, PlutoPlotly, FourierTools, FFTW, StatsBase, MLUtils
+    using PlutoUI, Statistics, PlutoPlotly, FourierTools, FFTW, StatsBase, MLUtils, ColorSchemes
     import PlutoUI: combine
 end
+
+# ╔═╡ ec238280-1edc-442f-837e-d3c807ea5fc6
+using LinearAlgebra
 
 # ╔═╡ 7ede27ab-f524-4f20-8bcb-5be70600c892
 using LaTeXStrings
@@ -35,8 +38,13 @@ TableOfContents(include_definitions=true)
 
 # ╔═╡ bd04a8af-7666-47b7-87cc-a212ec8adcbd
 md"""
-## Simple Seismic Interferometry Demo
-We generate wavelet at many sources in a homogeneous medium. There are 2 receivers that are recording the wavelets from all the sources. The wavelet from a source recorded at one of the receivers is cross-correlated with the wavelet recorded at the other receiver. The cross-correlogram of all the sources are stacked to get the approximate Green's function between the 2 receivers.
+## Seismic Interferometry Demo
+The notebook is an interactive sandbox for seismic interferometry with ambient noise sources. The main source/receiver canvas lets you control the geometry: two receivers sit on the horizontal axis, and you can place, clear, drag, or preset distributions of sources around them. The controls change receiver spacing d, wave period T, bandwidth, source distance scale, spray width, and a stationary-zone threshold. As these change, the notebook regenerates synthetic seismograms, cross-correlates receiver records, and averages selected source contributions.
+The top comparison panel shows the recovered interstation response against the ideal “true” virtual-source response. The orange trace is the averaged cross-correlation, and the blue trace is the true reference response. The legend labels are clickable, so you can inspect either trace alone or both together. Markers show zero lag and expected positive/negative arrivals, making it easy to see whether the causal and acausal branches line up with the physical receiver travel time.
+The source colors show which sources contribute strongly to the recovered response. With the stationary-zone threshold, weak or geometrically poor contributors are faded out, while stronger contributors are colored by contribution strength. This helps demonstrate the central idea of interferometry: not every noise source helps equally, and source geometry controls whether the cross-correlation reconstructs a clean Green’s-function-like response.
+The metrics panel quantifies the two branches separately. For both causal and acausal arrivals, it estimates group velocity U, phase velocity c, phase mismatch Δφ, three-station residuals R3U and R3c, and a mode-consistency residual Rmode. Invalid or too-weak branches are shown as --, using the relative amplitude gate we added so tiny tails or numerical leakage do not produce misleading numbers.
+There is also an optional phase correction mode. When enabled, the notebook estimates the phase mismatch between the averaged trace and the reference trace near the expected arrival windows, then rotates valid branches accordingly before reporting measurements. If a branch is too weak, it is not phase-corrected and its phase-related output stays invalid, which keeps the UI honest rather than inventing metrics from noise.
+Overall, the notebook is meant to make the full interferometry workflow visible: choose source geometry, generate receiver records, cross-correlate, average, compare to the ideal response, and evaluate whether the recovered causal/acausal branches are physically meaningful.
 
 ##### [Interactive Seismology Notebooks](https://pawbz.github.io/Interactive-Seismology.jl/)
 
@@ -46,15 +54,33 @@ Indian Institute of Science, Bengaluru, India
 
 """
 
-# ╔═╡ 1083c0c6-beb2-42ba-8c99-e8d8d77ce83a
-@bind _wavelet_params PlutoUI.combine() do Child
-    md"""
-    ## Source Wavelet
-    | Parameter | Value | Notes |
-    |:---|:---|:---|
-    | Central frequency f₀ (Hz) | $(Child("f0", Slider(1.0:0.5:50.0, default=20.0, show_value=true))) | peak of Gaussian spectrum |
-    | Bandwidth (%) | $(Child("bw_perc", Slider(5:5:100, default=40, show_value=true))) | FTAN-style half-power width |
-    """
+# ╔═╡ 4a592f7e-fa42-4724-8281-1534333816d0
+md"---"
+
+# ╔═╡ b8671b46-d45b-4ec7-99f2-b1a2cb0aee12
+function average_selected_cross_correlations(cross, contributions, threshold)
+    nlag, nsrc = size(cross)
+    avg = zeros(Float32, nlag, 1)
+    nselected = 0
+    use_threshold = threshold > 0 && length(contributions) == nsrc
+
+    @inbounds for j in 1:nsrc
+        if !use_threshold || contributions[j] > threshold
+            nselected += 1
+            for i in 1:nlag
+                avg[i, 1] += cross[i, j]
+            end
+        end
+    end
+
+    if nselected > 0
+        invn = 1 / nselected
+        @inbounds for i in 1:nlag
+            avg[i, 1] *= invn
+        end
+    end
+
+    return avg
 end
 
 # ╔═╡ 1bc0ce25-4de0-4628-a308-8106544fc0ec
@@ -62,35 +88,37 @@ md"""
 ## Cross-Correlation
 """
 
-# ╔═╡ 3c5fd716-5b57-4e6a-aa8a-022a1cb476c4
-md"""
-| | |
-|:---|:---|
-| **λ** (wavelength) | $(round(lambda, digits=4)) distance units |
-| **d** (inter-station distance) | $(round(d_interstation, digits=3)) distance units |
-| **d/λ** | $(round(d_over_lambda, digits=2)) |
-"""
+# ╔═╡ 5427df02-9278-41c9-9b3b-b5d1ab5b4c24
+stationary_phase_source_distance = 1000.0
 
 # ╔═╡ e0ae191c-b674-46c7-bf05-bfecade313a5
 md"""
 ## Generate Wavelets
 """
 
-# ╔═╡ 0279d32c-d884-4990-a1a6-68b43fae2f92
-begin
-    dt_wav = 0.002
-    d_interstation = sqrt((rec2[1] - rec1[1])^2 + (rec2[2] - rec1[2])^2)
-    lambda = vel / (f0 * dt_wav)
-    d_over_lambda = d_interstation / lambda
+# ╔═╡ 9a74489f-8e6d-45ce-ab57-464ee36d3316
+function delaywav!(out, w, t, dt)
+    fill!(out, 0)
+    sample_center = t / dt + 1
+    wavelet_center = (length(w) + 1) / 2
+    @inbounds for i in eachindex(out)
+        j = i - sample_center + wavelet_center
+        j0 = floor(Int, j)
+        a = j - j0
+        if 1 <= j0 < length(w)
+            out[i] = (1 - a) * w[j0] + a * w[j0 + 1]
+        elseif j0 == length(w)
+            out[i] = w[j0]
+        end
+    end
+    return out
 end
 
-# ╔═╡ e1f1fa09-87ef-4cdb-94b1-0d2e0e483323
-function delaywav(w, t)
-    ts = w
-    ts = cat(zeros(Float32, 200), ts, zeros(Float32, 1000), dims=1)
-    td = shift(ts, tuple(t - 300))
-    return td[1:1000]
-
+# ╔═╡ f0e27c51-233b-45ef-be1e-34b624b5a4b2
+function delaywav(w, t, nt, dt)
+    y = zeros(Float32, nt)
+    delaywav!(y, w, t, dt)
+    return y
 end
 
 # ╔═╡ 577d411c-88b5-495d-a49a-d2379336f533
@@ -98,27 +126,15 @@ md"""
 ## Generate Random Source Locations
 """
 
-# ╔═╡ c71bc2d6-cc33-4cae-8195-5fe26ec39d7f
-begin
-    rad = 20
-    srcloc = map(srcloc_pixels) do I
-        x = (I[1] - 200) / 10.0
-        y = -(I[2] - 200) / 10.0
-        [x, y]
-    end
-    xs = isempty(srcloc) ? Float64[] : getindex.(srcloc, 1)
-    ys = isempty(srcloc) ? Float64[] : getindex.(srcloc, 2)
-end
-
 # ╔═╡ 8d45d812-fb70-45c5-a123-4f93844fef6d
 md"""
 ## Receivers
 """
 
 # ╔═╡ 3b144853-0d82-46e2-a4ee-301516f3ce10
-vel = 0.035
+vel = 4
 
-# ╔═╡ 3cf54d17-5931-461c-9e35-bad1fc8d9ac3
+# ╔═╡ 4e20077c-3687-47a1-8ab0-048b99fb0a46
 """
     get_traveltime(rec, src)
 
@@ -134,35 +150,16 @@ Calculate the travel time of a seismic wave between a receiver and a source.
 # Notes
 - The function assumes a constant velocity `vel` which should be defined in the scope where this function is used.
 """
-function get_traveltime(rec, src)
+function get_traveltime(rec, src, velocity)
     dis = sqrt((rec[1] - src[1])^2 + (rec[2] - src[2])^2)
-    tm = dis / vel
+    tm = dis / velocity
     return tm
 end
 
-# ╔═╡ d483d881-11c4-495f-a103-2d2dd6371ca3
-md"## Appendix"
+# ╔═╡ e04a82d2-9eda-419f-a6b3-0af28431e554
+get_traveltime(rec, src) = get_traveltime(rec, src, vel)
 
-# ╔═╡ e059662c-69af-460c-aada-408a365d0ff7
-default_plotly_template(:plotly_dark)
-
-# ╔═╡ 41870289-3874-43ca-9837-3cead43d0200
-function gaussian_wavelet(f0, bw_perc)
-    dt = 0.002
-    N = 350
-    t = dt .* (0:N-1) .- dt * (N ÷ 2)
-    sigma_t = sqrt(log(2)) / (2 * π * f0 * (bw_perc / 100))
-    w = @. exp(-t^2 / (2 * sigma_t^2)) * cos(2 * π * f0 * t)
-    w ./= maximum(abs, w)
-    return Float32.(w)
-end
-
-# ╔═╡ 1ea5bea2-0c9d-4095-a395-24ad4f67ba05
-function wavetype()
-    return gaussian_wavelet(f0, bw_perc)
-end
-
-# ╔═╡ 09c19be2-867a-4c16-ace5-6e4a9389472c
+# ╔═╡ 1ce924ce-5a35-4a84-835a-3bdf16b876dc
 """
     generate_seismograms(rec1, rec2, srcloc)
 
@@ -180,35 +177,90 @@ Generate seismograms for two receivers from multiple source locations.
 # Description
 This function computes the travel times from each source location to two receivers, generates delayed waveforms based on these travel times, and stacks the waveforms into matrices for each receiver.
 """
-function generate_seismograms(rec1, rec2, srcloc)
-    tm1 = map(1:length(srcloc)) do i
-        get_traveltime(rec1, srcloc[i])
+function generate_seismograms!(seis1, seis2, rec1, rec2, srcloc, wavelet, nt, dt, velocity)
+    @views for i in eachindex(srcloc)
+        delaywav!(seis1[:, i], wavelet, get_traveltime(rec1, srcloc[i], velocity), dt)
+        delaywav!(seis2[:, i], wavelet, get_traveltime(rec2, srcloc[i], velocity), dt)
     end
-    tm2 = map(1:length(srcloc)) do i
-        get_traveltime(rec2, srcloc[i])
+    return seis1, seis2
+end
+
+# ╔═╡ 32be7b92-0b34-4ad0-8968-c77a13225383
+function generate_seismograms(rec1, rec2, srcloc, wavelet, nt, dt, velocity)
+    nsrc = length(srcloc)
+    seis1 = zeros(Float32, nt, nsrc)
+    seis2 = zeros(Float32, nt, nsrc)
+    generate_seismograms!(seis1, seis2, rec1, rec2, srcloc, wavelet, nt, dt, velocity)
+    return seis1, seis2
+end
+
+# ╔═╡ 2fd6cc16-519d-4d0f-ba42-874e58a32124
+function normalized_inner_product_range(a, b, idxs)
+    adotb = 0.0
+    anorm2 = 0.0
+    bnorm2 = 0.0
+    @inbounds for i in idxs
+        av = a[i]
+        bv = b[i]
+        adotb += av * bv
+        anorm2 += abs2(av)
+        bnorm2 += abs2(bv)
     end
-    wavel = wavetype()
-    wav1 = map(1:length(tm1)) do h
-        delaywav(wavel, tm1[h])
+    anorm2 > 0 && bnorm2 > 0 ? adotb / sqrt(anorm2 * bnorm2) : 0.0
+end
+
+# ╔═╡ e4f79b31-aa1f-4132-bc8e-b30d79380a3b
+function source_contributions(cross, ref, tgrid)
+    nsrc = size(cross, 2)
+    contributions = zeros(Float64, nsrc)
+    nsrc == 0 && return contributions
+
+    causal = searchsortedfirst(tgrid, 0.0):length(tgrid)
+    acausal = 1:searchsortedlast(tgrid, 0.0)
+
+    @views for i in 1:nsrc
+        c = cross[:, i]
+        score_causal = normalized_inner_product_range(c, ref, causal)
+        score_acausal = normalized_inner_product_range(c, ref, acausal)
+        contributions[i] = max(score_causal, score_acausal, 0.0)
     end
 
-    wav2 = map(1:length(tm2)) do h
-        delaywav(wavel, tm2[h])
-    end
+    return contributions
+end
 
-    wav1 = stack(wav1, dims=2)
-    wav2 = stack(wav2, dims=2)
-    return wav1, wav2
+# ╔═╡ d483d881-11c4-495f-a103-2d2dd6371ca3
+md"## Appendix"
+
+# ╔═╡ e059662c-69af-460c-aada-408a365d0ff7
+default_plotly_template(:plotly_dark)
+
+# ╔═╡ 366783f3-3a48-4e0d-a850-6c8cb7275377
+function gaussian_wavelet(f0, bw_perc, dt)
+    sigma_t = sqrt(log(2)) / (2 * π * f0 * (bw_perc / 100))
+    N = max(51, 2 * ceil(Int, 6 * sigma_t / dt) + 1)
+    t = dt .* (0:N-1) .- dt * (N ÷ 2)
+    w = @. exp(-t^2 / (2 * sigma_t^2)) * cos(2 * π * f0 * t)
+    w ./= maximum(abs, w)
+    return Float32.(w)
 end
 
 # ╔═╡ 6a8aeed2-173a-4523-afb3-f9d77c252816
-nt = 1999
+nt = 1028
+
+# ╔═╡ b2c0af32-b19d-47b0-86f3-66e8fd7d7269
+dt = 0.25
+
+# ╔═╡ dafaabbb-4263-41ce-b17f-0634adc01b8f
+delaywav(w, t) = delaywav(w, t, nt, dt)
+
+# ╔═╡ b11959f8-3cf2-4488-bbc1-6597220ea599
+gaussian_wavelet(f0, bw_perc) = gaussian_wavelet(f0, bw_perc, dt)
 
 # ╔═╡ af973cc3-21b3-4dca-91ad-0c310e1214bc
-tgrid_xcorr = range(-100, stop=100, length=nt)
+tgrid_xcorr = dt .* (-(nt - 1):(nt - 1))
 
 # ╔═╡ 09bd50ae-ab80-4cde-bdb7-ccc7cd7041d4
-tgrid = range(0, stop=100, length=nt)
+tgrid = dt .* (0:(nt - 1))
 
 # ╔═╡ d9727185-8f69-49a5-a98f-7514562529ab
 md"""
@@ -219,6 +271,11 @@ md"""
 function seis_heatmap(tgrid, r, title, ytitle, xtitle)
     m = maximum(abs, r)
     plot(heatmap(y=tgrid, z=r, colorscale="seismic", zmin=-m, zmax=m), Layout(title=title, yaxis_autorange="reversed", height=350, width=600, yaxis=attr(title=ytitle), xaxis=attr(title=xtitle)))
+end
+
+# ╔═╡ 8b213ed6-b4ec-44a9-8e3f-8ad03ee9f270
+function randobs_safe(a, n)
+    size(a, 2) == 0 ? zeros(eltype(a), size(a, 1), 1) : randobs(a, min(n, size(a, 2)))
 end
 
 # ╔═╡ ccf893d9-5b6e-4a79-b09d-3da957bc612c
@@ -235,44 +292,935 @@ function plot_line(tgrid, tr; title="", names=fill(" ", length(tr)))
     PlutoPlotly.plot(fig)
 end
 
-# ╔═╡ a153664e-24bc-4fea-b0f4-f12360eaa688
+# ╔═╡ 34f81006-dead-4687-aff1-ed2753f27469
 function xcorr(x, y; padmode=:longest)
     n = length(x) + length(y) - 1
     X = fft(vcat(x, zeros(eltype(x), length(y) - 1)))
     Y = fft(vcat(y, zeros(eltype(y), length(x) - 1)))
-    return real.(ifft(conj(X) .* Y))
+    return fftshift(real.(ifft(conj(X) .* Y)))
 end
 
-# ╔═╡ 5427df02-9278-41c9-9b3b-b5d1ab5b4c24
-@bind _analysis_params PlutoUI.combine() do Child
-    md"""
-    ## Analysis
-    | Parameter | Value | Notes |
-    |:---|:---|:---|
-    | Lag window (s) | $(Child("lag_window", Slider(0.5:0.5:20.0, default=2.0, show_value=true))) | window for stationary source highlighting |
-    | Stationary phase distance | $(Child("source_distance", Slider(range(1, 10, length=100), default=5.0, show_value=true))) | source distance for stationary phase plot |
-    """
+# ╔═╡ 4ce9cc5d-6808-4977-98bb-8e9cacf171cc
+function true_virtual_response_for_traveltime(t0, wavelet, tgrid, dt)
+    nlag = length(tgrid)
+    lag0 = first(tgrid)
+    acorr_wav = xcorr(wavelet, wavelet)     # length 2N-1; index length(wavelet) = lag 0
+    wavelet_center = length(wavelet)
+    ref = zeros(Float32, nlag)
+    for τ in (t0, -t0)
+        lag_center = (τ - lag0) / dt + 1
+        for i in eachindex(ref)
+            j = i - lag_center + wavelet_center
+            j0 = floor(Int, j)
+            a = j - j0
+            if 1 <= j0 < length(acorr_wav)
+                ref[i] += (1 - a) * acorr_wav[j0] + a * acorr_wav[j0 + 1]
+            elseif j0 == length(acorr_wav)
+                ref[i] += acorr_wav[j0]
+            end
+        end
+    end
+    ref
 end
 
-# ╔═╡ c4339754-42eb-4969-9045-010ca1d23ef8
-@bind _receiver_params confirm(PlutoUI.combine() do Child
-    md"""
-    ## Receiver Positions
-    | Receiver | x | y |
-    |:---|:---|:---|
-    | R1 | $(Child("r1x", Slider(-20:1:20, default=-5, show_value=true))) | $(Child("r1y", Slider(-20:1:20, default=0, show_value=true))) |
-    | R2 | $(Child("r2x", Slider(-20:1:20, default=5,  show_value=true))) | $(Child("r2y", Slider(-20:1:20, default=0, show_value=true))) |
-    """
-end)
+# ╔═╡ 15a556df-3ed3-4068-86ca-d3c130cb81d9
+function xcorr!(out, x, y)
+    out .= xcorr(x, y)
+    return out
+end
+
+# ╔═╡ cd3a586a-b737-451e-921f-5463cc286f73
+function cross_correlations!(cross, seis1, seis2)
+    @views for i in axes(seis1, 2)
+        xcorr!(cross[:, i], seis1[:, i], seis2[:, i])
+    end
+    return cross
+end
+
+# ╔═╡ 0d2266c7-312c-4c56-8f7b-8a98fba81fc6
+function cross_correlations(seis1, seis2)
+    nsrc = size(seis1, 2)
+    nlag = size(seis1, 1) + size(seis2, 1) - 1
+    cross = zeros(Float32, nlag, nsrc)
+    cross_correlations!(cross, seis1, seis2)
+    return cross
+end
+
+# ╔═╡ 7fe32a18-b484-4179-b0a8-d6c49059ed59
+begin
+    struct CanvasSourceInput
+        default_pts::Vector{Vector{Int}}
+        d::Float64
+        f0::Float64
+        bw_perc::Int
+        vel::Float64
+        subsample_threshold::Float64
+        source_distance_scale::Float64
+    end
+
+    function CanvasSourceInput(vel; d=50.0, f0=0.1, bw_perc=40, subsample_threshold=0.0, source_distance_scale=1.0)
+        pts = [[round(Int, 320 + 255*cos(a)), round(Int, 320 + 255*sin(a))]
+               for a in range(0, 2π, length=501)[1:end-1]]
+        CanvasSourceInput(pts, Float64(d), Float64(f0), Int(bw_perc), Float64(vel), Float64(subsample_threshold), Float64(source_distance_scale))
+    end
+
+    function colorscheme_stops_js(scheme, n=9)
+        stops = map(range(0, 1, length=n)) do x
+            c = get(scheme, x)
+            rgb = round.(Int, 255 .* (c.r, c.g, c.b))
+            "[$(round(x, digits=4)),[$(rgb[1]),$(rgb[2]),$(rgb[3])]]"
+        end
+        "[" * join(stops, ",") * "]"
+    end
+
+    Base.get(w::CanvasSourceInput) = Dict{String,Any}(
+        "sources" => w.default_pts,
+        "d" => w.d,
+        "f0" => w.f0,
+        "bw_perc" => w.bw_perc,
+        "subsample_threshold" => w.subsample_threshold,
+        "source_distance_scale" => w.source_distance_scale
+    )
+
+    function Base.show(io::IO, ::MIME"text/html", w::CanvasSourceInput)
+        write(io, """
+<div id="siwidget" style="display:flex;flex-direction:column;align-items:center;width:100%;color:#9ca3af">
+  <style>
+    #siwidget .si-workspace{display:flex;gap:12px;align-items:flex-start;justify-content:center;width:100%}
+    #siwidget .si-metrics{width:260px;min-height:640px;box-sizing:border-box;background:#050505;border:1px solid #374151;border-radius:6px;padding:12px;font:12px/1.35 sans-serif;color:#d1d5db}
+    #siwidget .si-metrics h3{margin:0 0 10px 0;font-size:20px;color:#e5e7eb}
+    #siwidget .si-metric-card{border:1px solid #1f2937;border-radius:6px;background:#0b0b0b;padding:10px;margin-bottom:10px}
+    #siwidget .si-metric-title{font-weight:700;color:#f3f4f6;margin-bottom:7px}
+    #siwidget .si-metric-row{display:grid;grid-template-columns:42px 1fr;gap:8px;margin:4px 0}
+    #siwidget .si-metric-label{color:#9ca3af}
+    #siwidget .si-metric-value{color:#e5e7eb}
+    #siwidget .si-percent{color:#93c5fd}
+    #siwidget .si-controls{width:min(914px,100%);margin-top:8px;display:grid;grid-template-columns:repeat(2,minmax(300px,1fr));gap:8px;font:12px sans-serif}
+    #siwidget .si-control-group{box-sizing:border-box;background:#050505;border:1px solid #2f3744;border-radius:6px;padding:9px 10px}
+    #siwidget .si-control-title{font-weight:700;color:#e5e7eb;margin-bottom:7px;font-size:20px}
+    #siwidget .si-control-row{display:grid;grid-template-columns:120px minmax(120px,1fr) 56px;gap:8px;align-items:center;margin:6px 0}
+    #siwidget .si-control-row.wide{grid-template-columns:190px minmax(120px,1fr) 56px}
+    #siwidget .si-control-row input[type=range]{width:100%;vertical-align:middle}
+    #siwidget .si-value{color:#d1d5db;text-align:left;font-variant-numeric:tabular-nums}
+    #siwidget .si-actions{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+    #siwidget .si-presets{display:flex;gap:5px;align-items:center;flex-wrap:wrap}
+    #siwidget button{border-radius:4px;border:1px solid #6b7280;background:#606060;color:#f3f4f6;padding:4px 9px}
+    @media (max-width: 980px){
+      #siwidget .si-workspace{flex-direction:column;align-items:center}
+      #siwidget .si-metrics{width:640px;max-width:100%;min-height:0}
+      #siwidget .si-controls{grid-template-columns:1fr;width:640px;max-width:100%}
+    }
+  </style>
+  <canvas id="cmpcvs" width="914" height="140"
+    style="cursor:default;background:#000;border:1px solid #374151;border-radius:4px;display:block;margin-bottom:4px"></canvas>
+  <div class="si-workspace">
+    <canvas id="srccvs" width="640" height="640"
+      style="cursor:crosshair;background:#000;border:1px solid #374151;border-radius:6px;display:block"></canvas>
+    <div id="metricspanel" class="si-metrics">
+      <h3>Branch metrics</h3>
+      <div style="color:#9ca3af">Waiting for comparison data...</div>
+    </div>
+  </div>
+  <div class="si-controls">
+    <div class="si-control-group">
+      <div class="si-control-title">Wave / Geometry</div>
+      <label class="si-control-row"><span>d (km)</span><input type="range" id="dist" min="10" max="100" step="5" value="$(w.d)"><span id="distv" class="si-value">$(round(w.d, digits=1))</span></label>
+      <label class="si-control-row"><span>T (s)</span><input type="range" id="period" min="0" max="$(round(log10(25), digits=6))" step="0.001" value="$(round(log10(1/w.f0), digits=6))"><span id="periodv" class="si-value">$(round(Int, 1/w.f0)) s</span></label>
+      <label class="si-control-row"><span>Bandwidth</span><input type="range" id="bw" min="5" max="100" step="5" value="$(w.bw_perc)"><span id="bwv" class="si-value">$(w.bw_perc)%</span></label>
+      <label class="si-control-row"><span>Phase branch</span><input type="range" id="phasebranch" min="-20" max="20" step="1" value="0"><span id="phasebranchv" class="si-value">0</span></label>
+    </div>
+    <div class="si-control-group">
+      <div class="si-control-title">Source distribution</div>
+      <label class="si-control-row wide"><span>Coherent source subsampling</span><input type="range" id="subsamp" min="0" max="1" step="0.01" value="$(w.subsample_threshold)"><span id="subsampv" class="si-value">$(round(w.subsample_threshold, digits=2))</span></label>
+      <label class="si-control-row wide"><span>Source distance scale</span><input type="range" id="srcscale" min="1" max="4" step="1" value="$(round(Int, w.source_distance_scale))"><span id="srcscalev" class="si-value">$(round(Int, w.source_distance_scale))x</span></label>
+      <label class="si-control-row wide"><span>Spray width</span><input type="range" id="spraywidth" min="0" max="15" step="1" value="15"><span id="spraywidthv" class="si-value">15 km</span></label>
+    </div>
+    <div class="si-control-group">
+      <div class="si-control-title">Actions</div>
+      <div class="si-actions">
+        <label><input type="checkbox" id="phasecorr" style="vertical-align:middle"> Apply phase correction</label>
+        <label><input type="checkbox" id="dragsources" style="vertical-align:middle"> Drag sources</label>
+        <button id="clrbtn">Clear</button>
+        <span id="cnt" class="si-value">Sources: $(length(w.default_pts))</span>
+      </div>
+    </div>
+    <div class="si-control-group">
+      <div class="si-control-title">Presets</div>
+      <div class="si-presets">
+        <button class="preset" data-preset="circular">Circular</button>
+        <button class="preset" data-preset="sectional">Sectional</button>
+        <button class="preset" data-preset="leftarc">Left Arc</button>
+        <button class="preset" data-preset="rightarc">Right Arc</button>
+        <button class="preset" data-preset="special">Special</button>
+        <button class="preset" data-preset="bimodal">Twin Beams</button>
+        <button class="preset" data-preset="uniformdisk">Uniform Disk</button>
+        <button class="preset" data-preset="sourcecloud">Source Cloud</button>
+        <button class="preset" data-preset="twoclouds">Two Clouds</button>
+      </div>
+    </div>
+  </div>
+</div>
+<script>
+  const PIX=640, CMP_W=914, CMP_H=140, MID=320, SCALE=1.5, DEFAULT_SPREAD=15, PER_PT=15, RAD=200, RING=170, N=1000
+  const DPR=Math.min(window.devicePixelRatio || 1, 2)
+  const VEL=$(w.vel), DT=$(dt)
+  const T_MIN=1.0, T_MAX=25.0
+  const COLOR_STOPS=$(colorscheme_stops_js(ColorSchemes.viridis))
+  const STATE_KEY='seismic_interferometry_canvas_v6'
+  const par = currentScript.previousElementSibling
+  const cvs = par.querySelector('#srccvs')
+  const ctx = cvs.getContext('2d')
+  const cmpcvs = par.querySelector('#cmpcvs')
+  const cmpctx = cmpcvs.getContext('2d')
+  const metricsPanel = par.querySelector('#metricspanel')
+  const lbl = par.querySelector('#cnt')
+
+  function setupHiDPICanvas(canvas, context, width, height) {
+    canvas.width = Math.round(width * DPR)
+    canvas.height = Math.round(height * DPR)
+    canvas.style.width = width + 'px'
+    canvas.style.height = height + 'px'
+    context.setTransform(DPR, 0, 0, DPR, 0, 0)
+  }
+  setupHiDPICanvas(cvs, ctx, PIX, PIX)
+  setupHiDPICanvas(cmpcvs, cmpctx, CMP_W, CMP_H)
+
+  const toP = (d, flip) => MID + (flip ? -1 : 1) * d * SCALE
+
+  function makeArc(a1, a2, n) {
+    const out=[]
+    for(let i=0;i<n;i++){
+      const a=a1+(a2-a1)*i/Math.max(n-1,1)
+      out.push([Math.round(MID+RING*SCALE*Math.cos(a)),Math.round(MID+RING*SCALE*Math.sin(a))])
+    }
+    return out
+  }
+  function makeUniformDisk(n) {
+    const out=[]
+    for(let i=0;i<n;i++){
+      const r=RAD*SCALE*Math.sqrt(Math.random())
+      const a=2*Math.PI*Math.random()
+      out.push([Math.round(MID+r*Math.cos(a)),Math.round(MID+r*Math.sin(a))])
+    }
+    return out
+  }
+  function clampToSourceCircle(px, py) {
+    const dx=px-MID, dy=py-MID
+    const maxr=RAD*SCALE
+    const r=Math.sqrt(dx*dx+dy*dy)
+    if(r <= maxr) return [Math.round(px), Math.round(py)]
+    const s=maxr/r
+    return [Math.round(MID+dx*s), Math.round(MID+dy*s)]
+  }
+  function randn() {
+    let u=0, v=0
+    while(u === 0) u = Math.random()
+    while(v === 0) v = Math.random()
+    return Math.sqrt(-2*Math.log(u)) * Math.cos(2*Math.PI*v)
+  }
+  function makeSourceCloud(n, cx, cy, sigmaKm) {
+    const out=[]
+    for(let i=0;i<n;i++){
+      const px=MID + (cx + sigmaKm*randn()) * SCALE
+      const py=MID - (cy + sigmaKm*randn()) * SCALE
+      out.push(clampToSourceCircle(px, py))
+    }
+    return out
+  }
+  function makeTwoClouds(n) {
+    const n1=Math.floor(n/2)
+    return makeSourceCloud(n1, 135, 52, 12).concat(makeSourceCloud(n-n1, 145, -54, 12))
+  }
+  const PRESETS = {
+    circular:  makeArc(0, 2*Math.PI, N),
+    sectional: makeArc(-0.1*Math.PI,0.1*Math.PI,N/2).concat(makeArc(0.9*Math.PI,1.1*Math.PI,N/2)),
+    leftarc:   makeArc(Math.PI/3,-Math.PI/3,N),
+    rightarc:  makeArc(2*Math.PI/3,4*Math.PI/3,N),
+    special:   makeArc(Math.PI/3,2*Math.PI/3,N/2).concat(makeArc(4*Math.PI/3,5*Math.PI/3,N/2)),
+    bimodal:   makeArc(0,Math.PI/6,N/2).concat(makeArc(Math.PI,7*Math.PI/6,N/2)),
+  }
+
+  // Restore persisted state or start fresh
+  let saved = null
+  try { saved = JSON.parse(sessionStorage.getItem(STATE_KEY)) } catch(e) {}
+  let pts = saved ? saved.pts : PRESETS.circular.slice()
+  let d = saved && Number.isFinite(saved.d) ? saved.d : $(w.d)
+  let period = saved && Number.isFinite(saved.period) ? saved.period : $(round(Int, 1/w.f0))
+  let bwPerc = saved && Number.isFinite(saved.bw_perc) ? saved.bw_perc : $(w.bw_perc)
+  let phaseBranch = saved && Number.isFinite(saved.phase_branch) ? Math.round(saved.phase_branch) : 0
+  let subsampThreshold = saved && Number.isFinite(saved.subsamp_threshold) ? saved.subsamp_threshold : $(w.subsample_threshold)
+  let sourceScale = saved && Number.isFinite(saved.source_distance_scale) ? saved.source_distance_scale : $(w.source_distance_scale)
+  let sprayWidth = saved && Number.isFinite(saved.spray_width) ? saved.spray_width : DEFAULT_SPREAD
+  let applyPhaseCorrection = saved && typeof saved.apply_phase_correction === 'boolean' ? saved.apply_phase_correction : false
+  let dragSourcesMode = saved && typeof saved.drag_sources === 'boolean' ? saved.drag_sources : false
+  let showAverageTrace = true
+  let showReferenceTrace = true
+  let comparisonLegendHits = []
+  let currentWeights = (window._seismic_weights && window._seismic_weights.length) ? window._seismic_weights : []
+  let currentComparison = window._seismic_comparison || null
+
+  let drawing = false
+  let draggingReceiver = false
+  let draggingSource = false
+  let selectedSourceIndices = new Set()
+  let boxSelecting = false
+  let selectionStart = null
+  let selectionRect = null
+  let dragStart = null
+  let dragInitialPositions = []
+
+  const r1 = () => [-d/2, 0]
+  const r2 = () => [ d/2, 0]
+  const receiverPixel = r => [toP(r[0],false), toP(r[1],true)]
+  const clampPeriod = T => Math.max(T_MIN, Math.min(T_MAX, T))
+  const periodToSlider = T => Math.log10(clampPeriod(T))
+  const sliderToPeriod = x => clampPeriod(Math.pow(10, x))
+  const formatPeriod = T => T < 10 ? T.toFixed(2) : T.toFixed(1)
+
+  function enforcePeriodConstraint() {
+    period = clampPeriod(period)
+  }
+
+  function syncControls() {
+    enforcePeriodConstraint()
+    par.querySelector('#dist').value = d
+    par.querySelector('#distv').textContent = d.toFixed(1)
+    par.querySelector('#period').value = periodToSlider(period)
+    par.querySelector('#periodv').textContent = formatPeriod(period) + ' s'
+    par.querySelector('#bw').value = bwPerc
+    par.querySelector('#bwv').textContent = bwPerc + '%'
+    par.querySelector('#phasebranch').value = phaseBranch
+    par.querySelector('#phasebranchv').textContent = phaseBranch.toFixed(0)
+    par.querySelector('#subsamp').value = subsampThreshold
+    par.querySelector('#subsampv').textContent = subsampThreshold.toFixed(2)
+    par.querySelector('#srcscale').value = sourceScale
+    par.querySelector('#srcscalev').textContent = sourceScale.toFixed(0) + 'x'
+    par.querySelector('#spraywidth').value = sprayWidth
+    par.querySelector('#spraywidthv').textContent = sprayWidth === 0 ? 'single' : sprayWidth.toFixed(0) + ' km'
+    par.querySelector('#phasecorr').checked = applyPhaseCorrection
+    par.querySelector('#dragsources').checked = dragSourcesMode
+  }
+
+  function drawAxes() {
+    ctx.strokeStyle='#4b5563'; ctx.lineWidth=0.8
+    ctx.beginPath(); ctx.moveTo(MID,8); ctx.lineTo(MID,PIX-8); ctx.stroke()
+    ctx.beginPath(); ctx.moveTo(8,MID); ctx.lineTo(PIX-8,MID); ctx.stroke()
+    ctx.fillStyle='#6b7280'; ctx.font='12px sans-serif'; ctx.textAlign='center'
+    for(let v=-200;v<=200;v+=100){
+      if(v===0) continue
+      const px=toP(v,false), py=toP(v,true)
+      ctx.strokeStyle='#4b5563'; ctx.lineWidth=0.5
+      ctx.beginPath(); ctx.moveTo(px,MID-4); ctx.lineTo(px,MID+4); ctx.stroke()
+      ctx.beginPath(); ctx.moveTo(MID-4,py); ctx.lineTo(MID+4,py); ctx.stroke()
+      ctx.fillStyle='#6b7280'
+      ctx.fillText(v,px,MID+20)
+      ctx.textAlign='right'; ctx.fillText(v,MID-8,py+4); ctx.textAlign='center'
+    }
+    ctx.fillStyle='#9ca3af'; ctx.font='11px sans-serif'
+    ctx.fillText('x',PIX-10,MID-6)
+    ctx.textAlign='left'; ctx.fillText('y',MID+6,16); ctx.textAlign='center'
+  }
+
+  function drawCanvasTitle() {
+    ctx.fillStyle='#e5e7eb'
+    ctx.font='bold 20px sans-serif'
+    ctx.textAlign='left'
+    ctx.fillText('Interferometry experiment setup',12,25)
+    ctx.textAlign='center'
+  }
+
+  function drawReceiver(r, color) {
+    const px=toP(r[0],false), py=toP(r[1],true)
+    ctx.fillStyle=color
+    ctx.beginPath(); ctx.moveTo(px,py-15); ctx.lineTo(px-10,py+8); ctx.lineTo(px+10,py+8); ctx.closePath(); ctx.fill()
+  }
+
+  function drawInfo() {
+    const lam = VEL * period
+    const dol = d / lam
+    ctx.fillStyle='rgba(0,0,0,0.82)'
+    ctx.fillRect(6,PIX-38,400,30)
+    ctx.fillStyle='#e5e7eb'; ctx.font='13px monospace'; ctx.textAlign='left'
+    ctx.fillText('T='+formatPeriod(period)+' s  λ='+lam.toFixed(1)+' km  d='+d.toFixed(1)+' km  d/λ='+dol.toFixed(2)+'  src×='+sourceScale.toFixed(0),12,PIX-18)
+    ctx.textAlign='center'
+  }
+
+  function colorSchemeScale(w, alpha=0.85) {
+    const x = Math.max(0, Math.min(1, w))
+    let lo = COLOR_STOPS[0], hi = COLOR_STOPS[COLOR_STOPS.length-1]
+    for(let i=1;i<COLOR_STOPS.length;i++){
+      if(x <= COLOR_STOPS[i][0]) { lo = COLOR_STOPS[i-1]; hi = COLOR_STOPS[i]; break }
+    }
+    const a = hi[0] === lo[0] ? 0 : (x - lo[0]) / (hi[0] - lo[0])
+    const r = Math.round(lo[1][0] + a * (hi[1][0] - lo[1][0]))
+    const g = Math.round(lo[1][1] + a * (hi[1][1] - lo[1][1]))
+    const b = Math.round(lo[1][2] + a * (hi[1][2] - lo[1][2]))
+    return 'rgba('+r+','+g+','+b+','+alpha+')'
+  }
+
+  function fmtVelocity(v) {
+    return Number.isFinite(v) ? v.toFixed(2) + ' km/s' : '--'
+  }
+  function fmtError(v) {
+    return Number.isFinite(v) ? '<span class="si-percent">' + v.toFixed(1) + '%</span>' : '--'
+  }
+  function fmtResidual(v, pct) {
+    return Number.isFinite(v) && Number.isFinite(pct) ? v.toFixed(2) + ' km/s, <span class="si-percent">' + pct.toFixed(1) + '%</span>' : '--'
+  }
+  function fmtPhase(v) {
+    if(!Number.isFinite(v)) return '--'
+    if(Math.abs(v) < 0.005) return '0'
+    const sign = v < 0 ? '-' : ''
+    const denom = 1 / Math.abs(v)
+    if(Math.abs(denom - 1) < 0.05) return sign + 'π'
+    return sign + 'π/' + denom.toFixed(2)
+  }
+  function fmtModeResidual(v, pct) {
+    return Number.isFinite(v) && Number.isFinite(pct) ? v.toFixed(2) + ' km/s, <span class="si-percent">' + pct.toFixed(1) + '%</span>' : '--'
+  }
+  function metricCard(title, U, Uerr, c, cerr, phasePi, r3U, r3Upct, r3c, r3cpct, rmode, rmodePct) {
+    return '<div class="si-metric-card">' +
+      '<div class="si-metric-title">' + title + '</div>' +
+      '<div class="si-metric-row"><span class="si-metric-label">U</span><span class="si-metric-value">' + fmtVelocity(U) + ', err ' + fmtError(Uerr) + '</span></div>' +
+      '<div class="si-metric-row"><span class="si-metric-label">c</span><span class="si-metric-value">' + fmtVelocity(c) + ', err ' + fmtError(cerr) + '</span></div>' +
+      '<div class="si-metric-row"><span class="si-metric-label">Δφ</span><span class="si-metric-value">' + fmtPhase(phasePi) + '</span></div>' +
+      '<div class="si-metric-row"><span class="si-metric-label">R3U</span><span class="si-metric-value">' + fmtResidual(r3U, r3Upct) + '</span></div>' +
+      '<div class="si-metric-row"><span class="si-metric-label">R3c</span><span class="si-metric-value">' + fmtResidual(r3c, r3cpct) + '</span></div>' +
+      '<div class="si-metric-row"><span class="si-metric-label">Rmode</span><span class="si-metric-value">' + fmtModeResidual(rmode, rmodePct) + '</span></div>' +
+      '</div>'
+  }
+  function renderMetricsPanel() {
+    if(!currentComparison || !currentComparison.velocity){
+      metricsPanel.innerHTML = '<h3>Branch metrics</h3><div style="color:#9ca3af">Waiting for comparison data...</div>'
+      return
+    }
+    const velocity = currentComparison.velocity || {}
+    const phaseText = velocity.phase_corrected ? '<div style="color:#a7f3d0;margin-bottom:8px">phase corrected</div>' : ''
+    metricsPanel.innerHTML = '<h3>Branch metrics</h3>' + phaseText +
+      metricCard('Causal', velocity.U_causal, velocity.U_causal_error_pct, velocity.c_causal, velocity.c_causal_error_pct, velocity.phase_causal_pi, velocity.R3_U_causal, velocity.R3_U_causal_pct, velocity.R3_c_causal, velocity.R3_c_causal_pct, velocity.R_mode_causal, velocity.R_mode_causal_pct) +
+      metricCard('Acausal', velocity.U_acausal, velocity.U_acausal_error_pct, velocity.c_acausal, velocity.c_acausal_error_pct, velocity.phase_acausal_pi, velocity.R3_U_acausal, velocity.R3_U_acausal_pct, velocity.R3_c_acausal, velocity.R3_c_acausal_pct, velocity.R_mode_acausal, velocity.R_mode_acausal_pct)
+  }
+
+  function drawComparisonPanel() {
+    const cw=CMP_W, ch=CMP_H, padL=48, padR=14, padT=42, padB=24
+    comparisonLegendHits = []
+    cmpctx.fillStyle='#000'
+    cmpctx.fillRect(0,0,cw,ch)
+    cmpctx.fillStyle='#e5e7eb'; cmpctx.font='bold 18px sans-serif'; cmpctx.textAlign='left'
+    cmpctx.fillText('Interstation response comparison',10,23)
+
+    if(!currentComparison || !currentComparison.avg || !currentComparison.ref || currentComparison.avg.length < 2){
+      cmpctx.fillStyle='#9ca3af'; cmpctx.font='11px sans-serif'
+      cmpctx.fillText('Waiting for comparison data…',padL,ch/2+4)
+      return
+    }
+
+    const avg=currentComparison.avg, ref=currentComparison.ref, t=currentComparison.t || []
+    const t0=currentComparison.t0 || 0
+    const velocity=currentComparison.velocity || {}
+    const n=Math.min(avg.length, ref.length, t.length)
+    if(velocity.phase_corrected){
+      cmpctx.font='10px sans-serif'
+      cmpctx.fillStyle='#a7f3d0'
+      cmpctx.fillText('phase corrected', 10, 28)
+    }
+
+    // Fixed x-axis: ±3·t0 (at least 5 s so axis is never degenerate)
+    const xlim = Math.max(3 * t0, 5)
+    const ptx = tv => padL + (cw-padL-padR) * (tv + xlim) / (2*xlim)
+
+    let maxAbs=0
+    for(let i=0;i<n;i++){
+      const a=showAverageTrace ? Math.abs(avg[i]) : 0
+      const r=showReferenceTrace ? Math.abs(ref[i]) : 0
+      if(Number.isFinite(a) && a>maxAbs) maxAbs=a
+      if(Number.isFinite(r) && r>maxAbs) maxAbs=r
+    }
+    if(maxAbs <= 0) maxAbs = 1
+
+    const py = v => padT+(ch-padT-padB)*(0.5 - 0.45*v/maxAbs)
+    const yMid = py(0)
+
+    // Horizontal zero-amplitude line
+    cmpctx.strokeStyle='#374151'; cmpctx.lineWidth=0.8
+    cmpctx.beginPath(); cmpctx.moveTo(padL,yMid); cmpctx.lineTo(cw-padR,yMid); cmpctx.stroke()
+
+    // Vertical marker lines
+    function vline(tv, color, dash) {
+      const x = ptx(tv)
+      if(x < padL || x > cw-padR) return
+      cmpctx.save()
+      cmpctx.strokeStyle=color; cmpctx.lineWidth=1
+      if(dash) cmpctx.setLineDash([4,3])
+      cmpctx.beginPath(); cmpctx.moveTo(x,padT); cmpctx.lineTo(x,ch-padB); cmpctx.stroke()
+      cmpctx.setLineDash([])
+      cmpctx.restore()
+    }
+    vline(0,   '#6b7280', false)    // lag = 0
+    vline( t0, '#a3a3a3', true)     // +t0
+    vline(-t0, '#a3a3a3', true)     // -t0
+
+    // Traces
+    function trace(values, color, width) {
+      cmpctx.strokeStyle=color; cmpctx.lineWidth=width
+      cmpctx.beginPath()
+      let started=false
+      for(let i=0;i<n;i++){
+        const v=values[i]
+        if(!Number.isFinite(v)) continue
+        const x=ptx(t[i]), y=py(v)
+        if(started) cmpctx.lineTo(x,y); else { cmpctx.moveTo(x,y); started=true }
+      }
+      cmpctx.stroke()
+    }
+    if(showReferenceTrace) trace(ref,'#38bdf8',3)
+    if(showAverageTrace) trace(avg,'#f97316',1)
+
+    // Legend
+    cmpctx.font='15px sans-serif'; cmpctx.textAlign='left'
+    function legendItem(key, label, x, color, active) {
+      cmpctx.fillStyle=active ? color : 'rgba(156,163,175,0.45)'
+      cmpctx.fillText(label,x,15)
+      const w = cmpctx.measureText(label).width
+      comparisonLegendHits.push({key:key, x0:x-4, y0:1, x1:x+w+4, y1:21})
+    }
+    legendItem('avg', 'averaged', cw-150, '#f97316', showAverageTrace)
+    legendItem('ref', 'true', cw-78, 'rgba(56,189,248,0.75)', showReferenceTrace)
+
+    // Axis labels: left edge, right edge, centre
+    cmpctx.fillStyle='#9ca3af'; cmpctx.font='10px sans-serif'
+    cmpctx.textAlign='left';   cmpctx.fillText((-xlim).toFixed(1)+' s', padL, ch-7)
+    cmpctx.textAlign='right';  cmpctx.fillText((+xlim).toFixed(1)+' s', cw-padR, ch-7)
+    cmpctx.textAlign='center'; cmpctx.fillText('zero lag', padL+(cw-padL-padR)/2, ch-7)
+
+    // t0 tick labels
+    if(t0 > 0){
+      const xp=ptx(t0), xn=ptx(-t0)
+      cmpctx.fillStyle='#6b7280'; cmpctx.textAlign='center'
+      if(xp < cw-padR-2) cmpctx.fillText('+'+t0.toFixed(1), xp, ch-7)
+      if(xn > padL+2)    cmpctx.fillText('-'+t0.toFixed(1), xn, ch-7)
+    }
+  }
+
+  function comparisonLegendHit(px, py) {
+    return comparisonLegendHits.find(hit => px >= hit.x0 && px <= hit.x1 && py >= hit.y0 && py <= hit.y1)
+  }
+
+  function redraw() {
+    ctx.clearRect(0,0,PIX,PIX)
+    ctx.strokeStyle='#374151'; ctx.lineWidth=1
+    ctx.beginPath(); ctx.arc(MID,MID,RAD*SCALE,0,2*Math.PI); ctx.stroke()
+    drawAxes()
+    drawCanvasTitle()
+    const hasWeights = currentWeights.length === pts.length
+    pts.forEach(([px,py], i) => {
+      const isDiscarded = hasWeights && subsampThreshold > 0 && currentWeights[i] <= subsampThreshold
+      ctx.fillStyle = hasWeights ? (isDiscarded ? 'rgba(209,213,219,0.25)' : colorSchemeScale(currentWeights[i], 0.85)) : 'rgba(255,255,255,0.78)'
+      ctx.beginPath(); ctx.arc(px,py,3,0,2*Math.PI); ctx.fill()
+      if(selectedSourceIndices.has(i)){
+        ctx.strokeStyle='#f8fafc'
+        ctx.lineWidth=1.5
+        ctx.beginPath(); ctx.arc(px,py,7,0,2*Math.PI); ctx.stroke()
+      }
+    })
+    if(selectionRect) drawSelectionRect(selectionRect)
+    drawReceiver(r1(),'#ef4444')
+    drawReceiver(r2(),'#ef4444')
+    drawInfo()
+    lbl.textContent='Sources: '+pts.length
+  }
+
+  function emit() {
+    enforcePeriodConstraint()
+    try { sessionStorage.setItem(STATE_KEY, JSON.stringify({pts,d,period,bw_perc:bwPerc,phase_branch:phaseBranch,subsamp_threshold:subsampThreshold,source_distance_scale:sourceScale,spray_width:sprayWidth,apply_phase_correction:applyPhaseCorrection,drag_sources:dragSourcesMode})) } catch(e) {}
+    par.value={sources:pts, d:d, f0:1/period, bw_perc:bwPerc, phase_branch:phaseBranch, subsample_threshold:subsampThreshold, source_distance_scale:sourceScale, apply_phase_correction:applyPhaseCorrection}
+    par.dispatchEvent(new CustomEvent('input'))
+  }
+
+  function insideSourceCircle(px, py) {
+    const dx=(px-MID)/SCALE, dy=(py-MID)/SCALE
+    return dx*dx+dy*dy<=RAD*RAD
+  }
+
+  function nearestSourceIndex(px, py, radiusPx=8) {
+    let best=-1, bestd2=radiusPx*radiusPx
+    for(let i=pts.length-1;i>=0;i--){
+      const dx=pts[i][0]-px, dy=pts[i][1]-py
+      const d2=dx*dx+dy*dy
+      if(d2 <= bestd2){
+        best=i
+        bestd2=d2
+      }
+    }
+    return best
+  }
+
+  function selectedSourceHit(px, py, radiusPx=8) {
+    let best=-1, bestd2=radiusPx*radiusPx
+    selectedSourceIndices.forEach(i => {
+      if(i < 0 || i >= pts.length) return
+      const dx=pts[i][0]-px, dy=pts[i][1]-py
+      const d2=dx*dx+dy*dy
+      if(d2 <= bestd2){
+        best=i
+        bestd2=d2
+      }
+    })
+    return best
+  }
+
+  function sourceInSelectionRect(pt, rect) {
+    if(!rect) return false
+    const x0=Math.min(rect.x0, rect.x1), x1=Math.max(rect.x0, rect.x1)
+    const y0=Math.min(rect.y0, rect.y1), y1=Math.max(rect.y0, rect.y1)
+    return pt[0] >= x0 && pt[0] <= x1 && pt[1] >= y0 && pt[1] <= y1
+  }
+
+  function drawSelectionRect(rect) {
+    if(!rect) return
+    const x=Math.min(rect.x0, rect.x1), y=Math.min(rect.y0, rect.y1)
+    const w=Math.abs(rect.x1-rect.x0), h=Math.abs(rect.y1-rect.y0)
+    ctx.fillStyle='rgba(147,197,253,0.16)'
+    ctx.strokeStyle='rgba(147,197,253,0.9)'
+    ctx.lineWidth=1
+    ctx.fillRect(x,y,w,h)
+    ctx.strokeRect(x,y,w,h)
+  }
+
+  function clampGroupDelta(indices, dx, dy) {
+    let scale=1
+    const maxr=RAD*SCALE
+    indices.forEach(i => {
+      if(i < 0 || i >= dragInitialPositions.length) return
+      const p=dragInitialPositions[i]
+      const tx=p[0]+dx, ty=p[1]+dy
+      const vx=tx-MID, vy=ty-MID
+      const a=dx*dx + dy*dy
+      const b=2*((p[0]-MID)*dx + (p[1]-MID)*dy)
+      const c=(p[0]-MID)*(p[0]-MID) + (p[1]-MID)*(p[1]-MID) - maxr*maxr
+      if(vx*vx + vy*vy <= maxr*maxr || a <= Number.EPSILON) return
+      const disc=b*b-4*a*c
+      if(disc < 0) {
+        scale=0
+      } else {
+        const t=(-b + Math.sqrt(disc))/(2*a)
+        scale=Math.min(scale, Math.max(0, Math.min(1, t)))
+      }
+    })
+    return [dx*scale, dy*scale]
+  }
+
+  function startGroupDrag(px, py) {
+    draggingSource=true
+    boxSelecting=false
+    selectionRect=null
+    dragStart=[px, py]
+    dragInitialPositions=pts.map(p => [p[0], p[1]])
+    cvs.style.cursor='grabbing'
+  }
+
+  function moveSelectedSources(px, py) {
+    if(!dragStart) return
+    let dx=px-dragStart[0], dy=py-dragStart[1]
+    const clampedDelta = clampGroupDelta(selectedSourceIndices, dx, dy)
+    dx = clampedDelta[0]
+    dy = clampedDelta[1]
+    selectedSourceIndices.forEach(i => {
+      if(i < 0 || i >= pts.length || i >= dragInitialPositions.length) return
+      pts[i]=[Math.round(dragInitialPositions[i][0]+dx), Math.round(dragInitialPositions[i][1]+dy)]
+    })
+    redraw()
+  }
+
+  function deleteSelectedSources() {
+    if(!dragSourcesMode || selectedSourceIndices.size === 0) return false
+    const selected = selectedSourceIndices
+    pts = pts.filter((_, i) => !selected.has(i))
+    selectedSourceIndices.clear()
+    draggingSource=false
+    boxSelecting=false
+    selectionStart=null
+    selectionRect=null
+    dragStart=null
+    dragInitialPositions=[]
+    currentWeights=[]
+    window._seismic_weights=[]
+    redraw()
+    emit()
+    return true
+  }
+
+  function addPts(px,py) {
+    let added=false
+    if(sprayWidth === 0){
+      if(insideSourceCircle(px, py)){
+        pts.push([Math.round(px),Math.round(py)])
+        added=true
+      }
+    } else {
+      for(let i=0;i<PER_PT;i++){
+        const dx=(Math.random()-0.5)*2*sprayWidth*SCALE
+        const dy=(Math.random()-0.5)*2*sprayWidth*SCALE
+        const nx=px+dx, ny=py+dy
+        if(insideSourceCircle(nx, ny)){
+          pts.push([Math.round(nx),Math.round(ny)])
+          added=true
+        }
+      }
+    }
+    redraw()
+    return added
+  }
+
+  function hitReceiver(px, py) {
+    const hits = [receiverPixel(r1()), receiverPixel(r2())]
+    return hits.some(([rx,ry]) => (px-rx)*(px-rx) + (py-ry)*(py-ry) <= 18*18)
+  }
+
+  function setDistanceFromPointer(px) {
+    const x = (px - MID) / SCALE
+    d = Math.max(10, Math.min(100, 2 * Math.abs(x)))
+    d = Math.round(d / 5) * 5
+    syncControls()
+    redraw()
+  }
+
+  par.querySelector('#dist').addEventListener('input', e => {
+    d = +e.target.value
+    syncControls(); redraw(); emit()
+  })
+  par.querySelector('#period').addEventListener('input', e => {
+    period = sliderToPeriod(+e.target.value)
+    syncControls(); redraw(); emit()
+  })
+  par.querySelector('#bw').addEventListener('input', e => {
+    bwPerc = +e.target.value
+    syncControls(); emit()
+  })
+  par.querySelector('#phasebranch').addEventListener('input', e => {
+    phaseBranch = Math.round(+e.target.value)
+    syncControls(); emit()
+  })
+  par.querySelector('#subsamp').addEventListener('input', e => {
+    subsampThreshold = +e.target.value
+    syncControls(); redraw(); emit()
+  })
+  par.querySelector('#srcscale').addEventListener('input', e => {
+    sourceScale = +e.target.value
+    syncControls(); redraw(); emit()
+  })
+  par.querySelector('#spraywidth').addEventListener('input', e => {
+    sprayWidth = +e.target.value
+    syncControls()
+    emit()
+  })
+  par.querySelector('#phasecorr').addEventListener('change', e => {
+    applyPhaseCorrection = e.target.checked
+    syncControls()
+    emit()
+  })
+  par.querySelector('#dragsources').addEventListener('change', e => {
+    dragSourcesMode = e.target.checked
+    draggingSource=false
+    boxSelecting=false
+    selectionStart=null
+    selectionRect=null
+    dragStart=null
+    dragInitialPositions=[]
+    if(!dragSourcesMode) selectedSourceIndices.clear()
+    syncControls(); redraw(); emit()
+  })
+
+  cvs.addEventListener('mousedown',e=>{
+    if(hitReceiver(e.offsetX,e.offsetY)){
+      draggingReceiver=true
+      cvs.style.cursor='grabbing'
+      setDistanceFromPointer(e.offsetX)
+    } else if(dragSourcesMode) {
+      const selectedHit = selectedSourceHit(e.offsetX, e.offsetY)
+      const hit = selectedHit >= 0 ? selectedHit : nearestSourceIndex(e.offsetX, e.offsetY)
+      if(hit >= 0){
+        if(!selectedSourceIndices.has(hit)){
+          selectedSourceIndices.clear()
+          selectedSourceIndices.add(hit)
+        }
+        startGroupDrag(e.offsetX, e.offsetY)
+      } else {
+        draggingSource=false
+        selectedSourceIndices.clear()
+        boxSelecting=true
+        selectionStart=[e.offsetX, e.offsetY]
+        selectionRect={x0:e.offsetX, y0:e.offsetY, x1:e.offsetX, y1:e.offsetY}
+        cvs.style.cursor='crosshair'
+        redraw()
+      }
+    } else {
+      if(sprayWidth === 0){
+        if(addPts(e.offsetX,e.offsetY)) emit()
+      } else {
+        drawing=true
+        addPts(e.offsetX,e.offsetY)
+      }
+    }
+  })
+  cvs.addEventListener('mousemove',e=>{
+    if(draggingReceiver){
+      setDistanceFromPointer(e.offsetX)
+    } else if(draggingSource) {
+      moveSelectedSources(e.offsetX, e.offsetY)
+    } else if(boxSelecting) {
+      selectionRect={x0:selectionStart[0], y0:selectionStart[1], x1:e.offsetX, y1:e.offsetY}
+      redraw()
+    } else if(drawing && sprayWidth > 0) {
+      addPts(e.offsetX,e.offsetY)
+    } else {
+      if(hitReceiver(e.offsetX,e.offsetY)){
+        cvs.style.cursor = 'ew-resize'
+      } else if(dragSourcesMode && nearestSourceIndex(e.offsetX, e.offsetY) >= 0){
+        cvs.style.cursor = 'grab'
+      } else {
+        cvs.style.cursor = dragSourcesMode ? 'default' : 'crosshair'
+      }
+    }
+  })
+  window.addEventListener('mouseup',()=>{
+    if(draggingReceiver){
+      draggingReceiver=false
+      cvs.style.cursor=dragSourcesMode ? 'default' : 'crosshair'
+      emit()
+    } else if(draggingSource){
+      draggingSource=false
+      dragStart=null
+      dragInitialPositions=[]
+      cvs.style.cursor=dragSourcesMode ? 'default' : 'crosshair'
+      emit()
+    } else if(boxSelecting){
+      const w=selectionRect ? Math.abs(selectionRect.x1-selectionRect.x0) : 0
+      const h=selectionRect ? Math.abs(selectionRect.y1-selectionRect.y0) : 0
+      selectedSourceIndices.clear()
+      if(w >= 4 && h >= 4){
+        pts.forEach((pt, i) => {
+          if(sourceInSelectionRect(pt, selectionRect)) selectedSourceIndices.add(i)
+        })
+      }
+      boxSelecting=false
+      selectionStart=null
+      selectionRect=null
+      cvs.style.cursor=dragSourcesMode ? 'default' : 'crosshair'
+      redraw()
+    } else if(drawing){
+      drawing=false
+      emit()
+    } else {
+      drawing=false
+    }
+  })
+
+  window.addEventListener('keydown', e => {
+    if(e.key !== 'Delete' && e.key !== 'Backspace') return
+    const target = e.target
+    const tag = target && target.tagName ? target.tagName.toLowerCase() : ''
+    if(tag === 'input' || tag === 'textarea' || tag === 'select' || (target && target.isContentEditable)) return
+    if(deleteSelectedSources()) e.preventDefault()
+  })
+
+  cmpcvs.addEventListener('click', e => {
+    const hit = comparisonLegendHit(e.offsetX, e.offsetY)
+    if(!hit) return
+    if(hit.key === 'avg') {
+      showAverageTrace = !showAverageTrace
+      if(!showAverageTrace && !showReferenceTrace) showAverageTrace = true
+    } else if(hit.key === 'ref') {
+      showReferenceTrace = !showReferenceTrace
+      if(!showAverageTrace && !showReferenceTrace) showReferenceTrace = true
+    }
+    drawComparisonPanel()
+  })
+  cmpcvs.addEventListener('mousemove', e => {
+    cmpcvs.style.cursor = comparisonLegendHit(e.offsetX, e.offsetY) ? 'pointer' : 'default'
+  })
+
+  par.querySelector('#clrbtn').addEventListener('click',()=>{
+    pts=[]; selectedSourceIndices.clear(); currentWeights=[]; window._seismic_weights=[]; redraw(); emit()
+  })
+  par.querySelectorAll('.preset').forEach(btn=>btn.addEventListener('click',()=>{
+    if(btn.dataset.preset === 'uniformdisk') {
+      pts=makeUniformDisk(2*N)
+    } else if(btn.dataset.preset === 'sourcecloud') {
+      pts=makeSourceCloud(N, 135, 50, 14)
+    } else if(btn.dataset.preset === 'twoclouds') {
+      pts=makeTwoClouds(N)
+    } else {
+      pts=PRESETS[btn.dataset.preset].slice()
+    }
+    selectedSourceIndices.clear(); currentWeights=[]; window._seismic_weights=[]; redraw(); emit()
+  }))
+
+  // Listen for contribution weights fired by the reactive signal cell
+  window.addEventListener('seismic-weights', e => {
+    currentWeights = e.detail ? e.detail.split(',').map(Number) : []
+    window._seismic_weights = currentWeights
+    redraw()
+  })
+  window.addEventListener('seismic-comparison', e => {
+    currentComparison = e.detail || null
+    window._seismic_comparison = currentComparison
+    drawComparisonPanel()
+    renderMetricsPanel()
+  })
+
+  syncControls()
+  emit()
+  redraw()
+  drawComparisonPanel()
+  renderMetricsPanel()
+</script>
+        """)
+    end
+
+    const _canvas_ready = true
+end
+
+# ╔═╡ d59342b1-cb2a-4472-9717-b82fa12335f9
+begin
+    _canvas_ready
+    WideCell(@bind _canvas_widget CanvasSourceInput(vel))
+end
 
 # ╔═╡ ca1b63bf-c868-4200-80f0-f8d6e40d9a6c
 begin
-    f0              = _wavelet_params.f0
-    bw_perc         = _wavelet_params.bw_perc
-    lag_window      = _analysis_params.lag_window
-    source_distance = _analysis_params.source_distance
-    rec1 = [_receiver_params.r1x, _receiver_params.r1y]
-    rec2 = [_receiver_params.r2x, _receiver_params.r2y]
+    f0              = _canvas_widget["f0"]
+    bw_perc         = _canvas_widget["bw_perc"]
+    source_distance = stationary_phase_source_distance
+end
+
+# ╔═╡ 1ea5bea2-0c9d-4095-a395-24ad4f67ba05
+function wavetype()
+    return gaussian_wavelet(f0, bw_perc, dt)
+end
+
+# ╔═╡ 92057a3a-e880-46ce-86cc-7cc702085384
+function generate_seismograms(rec1, rec2, srcloc)
+    generate_seismograms(rec1, rec2, srcloc, wavetype(), nt, dt, vel)
+end
+
+# ╔═╡ c71bc2d6-cc33-4cae-8195-5fe26ec39d7f
+begin
+    srcloc_pixels = _canvas_widget["sources"]
+    d_receiver = Float64(_canvas_widget["d"])
+    source_distance_scale = Float64(get(_canvas_widget, "source_distance_scale", 1.0))
+    rec1 = Float64[-d_receiver / 2, 0.0]
+    rec_origin = Float64[0.0, 0.0]
+    rec2 = Float64[ d_receiver / 2, 0.0]
+    rad = 200
+    srcloc = map(srcloc_pixels) do I
+        x = (I[1] - 320) / 1.5
+        y = -(I[2] - 320) / 1.5
+        [x, y]
+    end
+    srcloc_for_noise = map(p -> source_distance_scale .* p, srcloc)
+    xs = isempty(srcloc) ? Float64[] : getindex.(srcloc, 1)
+    ys = isempty(srcloc) ? Float64[] : getindex.(srcloc, 2)
 end
 
 # ╔═╡ 280b6269-a022-4846-9071-61481649b008
@@ -281,43 +1229,63 @@ let
     plot(rad2deg.(Th), [get_traveltime(rec1, source_distance .*[cos(th), sin(th)]) - get_traveltime(rec2, source_distance.*[cos(th), sin(th)]) for th in Th], Layout(title="Stationary phase", xaxis=attr(title="source backazimuth (deg)"), yaxis=attr(title="traveltime difference")))
 end
 
+# ╔═╡ 0279d32c-d884-4990-a1a6-68b43fae2f92
+begin
+    d_interstation = sqrt((rec2[1] - rec1[1])^2 + (rec2[2] - rec1[2])^2)
+    d_ab = sqrt((rec_origin[1] - rec1[1])^2 + (rec_origin[2] - rec1[2])^2)
+    d_bc = sqrt((rec2[1] - rec_origin[1])^2 + (rec2[2] - rec_origin[2])^2)
+    lambda = vel / f0
+    d_over_lambda = d_interstation / lambda
+end
+
+# ╔═╡ 3c5fd716-5b57-4e6a-aa8a-022a1cb476c4
+md"""
+| | |
+|:---|:---|
+| **λ** (wavelength) | $(round(lambda, digits=2)) km |
+| **d** (inter-station distance) | $(round(d_interstation, digits=2)) km |
+| **d/λ** | $(round(d_over_lambda, digits=2)) |
+"""
+
 # ╔═╡ a0f471bd-8139-4f42-bf0e-c019e6d42832
 traveltime_between_receivers = get_traveltime(rec1, rec2)
 
-# ╔═╡ 6098be3e-fe12-4f11-9749-b8c66c6106a8
-true_virtual_response = delaywav(wavetype(), traveltime_between_receivers)
+# ╔═╡ d5305327-7086-4e2a-a4b7-7e3456864b8a
+true_virtual_response = true_virtual_response_for_traveltime(traveltime_between_receivers, wavetype(), tgrid_xcorr, dt)
 
 # ╔═╡ 97289274-85f2-46f7-b9bf-916f0a420301
-seis1, seis2 = generate_seismograms(rec1, rec2, srcloc);
+seis1, seis2 = generate_seismograms(rec1, rec2, srcloc_for_noise, wavetype(), nt, dt, vel);
 
 # ╔═╡ 617fd9b1-c6be-476e-9622-b6482602c7c7
 let
 
-    seis_heatmap(tgrid, randobs(seis1, 200), "Noise at receiver 1", "time (s)", "Noise source index")
+    seis_heatmap(tgrid, randobs_safe(seis1, 200), "Noise at receiver 1", "time (s)", "Noise source index")
 end
 
 # ╔═╡ 64a67ad0-2a5f-49c4-8a90-8fe8fb55342f
 let
-    seis_heatmap(tgrid, randobs(seis2, 200), "Noise at receiver 2", "time (s)", "Noise source index")
+    seis_heatmap(tgrid, randobs_safe(seis2, 200), "Noise at receiver 2", "time (s)", "Noise source index")
 end
 
 # ╔═╡ 2bad7a74-1b12-499f-b435-7f99c7d64ae9
-begin
-    cross = map(1:size(seis1, 2)) do i
-        xcorr(seis1[:, i], seis2[:, i], padmode=:longest)
-    end
-    cross = stack(cross, dims=2)
-end;
-
-# ╔═╡ 46c9b13c-088c-47e7-8fd3-b56aee4a8923
-begin
-    gren = mean(cross, dims=2)
-    plot_line(tgrid_xcorr, [gren[:, 1], cat(reverse(true_virtual_response), true_virtual_response, dims=1)], names=["Averaged cross-correlation", "True virtual source response"], title="Comparision")
-end
+cross = cross_correlations(seis1, seis2);
 
 # ╔═╡ e69db63a-52b4-45c0-8b17-5239468cf5ad
 let
-    seis_heatmap(tgrid_xcorr, randobs(cross, 1000), "Cross-correlated noise", "time lag (s)", "Source Index")
+    seis_heatmap(tgrid_xcorr, randobs_safe(cross, 1000), "Cross-correlated noise", "time lag (s)", "Source Index")
+end
+
+# ╔═╡ 3651d79a-e1f8-4960-a058-00ee5b609598
+contributions = source_contributions(cross, true_virtual_response, tgrid_xcorr)
+
+# ╔═╡ f3a2b1c0-5d4e-4f60-9012-345678901bcd
+let _ = contributions
+    csv = isempty(contributions) ? "" : join(round.(contributions, digits=4), ",")
+    weights_js = isempty(contributions) ? "[]" : "[" * csv * "]"
+    HTML("""<script>
+      window._seismic_weights = $(weights_js);
+      window.dispatchEvent(new CustomEvent('seismic-weights', {detail: '$(csv)'}));
+    </script>""")
 end
 
 # ╔═╡ 77d2d0d5-05e8-44e4-910b-b8bc8cf3137f
@@ -328,149 +1296,420 @@ function plot_point(x1, x2; weights=nothing)
     src_marker = if isnothing(weights) || isempty(weights)
         attr(size=5, color="red")
     else
-        attr(size=5, color=weights, colorscale="RdYlGn", cmin=0, cmax=1,
+        attr(size=5, color=weights, colorscale="Viridis", cmin=0, cmax=1,
              colorbar=attr(title="Contribution", thickness=12))
     end
     add_trace!(fig, scatter(x=x1, y=x2, mode="markers", showlegend=false, marker=src_marker))
-    add_trace!(fig, scatter(x=[rec1[1]], y=[rec1[2]], mode="markers", name="Receiver 1", marker=attr(size=15, color="blue", symbol="triangle-down")))
-    add_trace!(fig, scatter(x=[rec2[1]], y=[rec2[2]], mode="markers", name="Receiver 2", marker=attr(size=15, color="green", symbol="triangle-down")))
+    add_trace!(fig, scatter(x=[rec1[1]], y=[rec1[2]], mode="markers", name="Receiver 1", marker=attr(size=15, color="red", symbol="triangle-down")))
+    add_trace!(fig, scatter(x=[rec2[1]], y=[rec2[2]], mode="markers", name="Receiver 2", marker=attr(size=15, color="red", symbol="triangle-down")))
     return PlutoPlotly.plot(fig)
 end
 
 # ╔═╡ b933216e-203a-47a1-b4f1-901fa5b38f70
 plot_point(xs, ys; weights=length(contributions) == length(xs) ? contributions : nothing)
 
-# ╔═╡ 7fe32a18-b484-4179-b0a8-d6c49059ed59
-begin
-    struct CanvasSourceInput
-        default_pts::Vector{Vector{Int}}
-    end
-
-    function CanvasSourceInput()
-        pts = [[round(Int, 200 + 170*cos(a)), round(Int, 200 + 170*sin(a))]
-               for a in range(0, 2π, length=501)[1:end-1]]
-        CanvasSourceInput(pts)
-    end
-
-    Base.get(w::CanvasSourceInput) = w.default_pts
-
-    function Base.show(io::IO, ::MIME"text/html", w::CanvasSourceInput)
-        write(io, """
-<div style="display:inline-block">
-  <canvas id="srccvs" width="400" height="400"
-    style="cursor:crosshair;background:#111827;border-radius:6px;display:block"></canvas>
-  <div style="margin-top:4px;display:flex;gap:6px;align-items:center;flex-wrap:wrap">
-    <button id="clrbtn">Clear</button>
-    <span id="cnt" style="color:#9ca3af;font-size:0.85em">Sources: $(length(w.default_pts))</span>
-  </div>
-  <div style="margin-top:4px;display:flex;gap:4px;flex-wrap:wrap">
-    <span style="color:#9ca3af;font-size:0.8em;align-self:center">Preset:</span>
-    <button class="preset" data-preset="circular">Circular</button>
-    <button class="preset" data-preset="sectional">Sectional</button>
-    <button class="preset" data-preset="leftarc">Left Arc</button>
-    <button class="preset" data-preset="rightarc">Right Arc</button>
-    <button class="preset" data-preset="special">Special</button>
-    <button class="preset" data-preset="bimodal">Bimodal</button>
-  </div>
-</div>
-<script>
-  const SCALE=10, SPREAD=1.5, PER_PT=15, RAD=20, RING=17, N=500
-  const par = currentScript.previousElementSibling
-  const cvs = par.querySelector('#srccvs')
-  const ctx = cvs.getContext('2d')
-  const lbl = par.querySelector('#cnt')
-
-  function makeArc(a1, a2, n) {
-    const out = []
-    for(let i=0;i<n;i++){
-      const a = a1 + (a2-a1)*i/Math.max(n-1,1)
-      out.push([Math.round(200+RING*SCALE*Math.cos(a)), Math.round(200+RING*SCALE*Math.sin(a))])
-    }
-    return out
-  }
-
-  const PRESETS = {
-    circular:  makeArc(0, 2*Math.PI, N),
-    sectional: makeArc(-0.1*Math.PI, 0.1*Math.PI, N/2).concat(makeArc(0.9*Math.PI, 1.1*Math.PI, N/2)),
-    leftarc:   makeArc(Math.PI/3, -Math.PI/3, N),
-    rightarc:  makeArc(2*Math.PI/3, 4*Math.PI/3, N),
-    special:   makeArc(Math.PI/3, 2*Math.PI/3, N/2).concat(makeArc(4*Math.PI/3, 5*Math.PI/3, N/2)),
-    bimodal:   makeArc(0, Math.PI/6, N/2).concat(makeArc(Math.PI, 7*Math.PI/6, N/2)),
-  }
-
-  let pts = PRESETS.circular.slice()
-  let drawing = false
-
-  function redraw() {
-    ctx.clearRect(0,0,400,400)
-    ctx.strokeStyle='#374151'; ctx.lineWidth=1
-    ctx.beginPath(); ctx.arc(200,200,RAD*SCALE,0,2*Math.PI); ctx.stroke()
-    ctx.strokeStyle='#1f2937'; ctx.lineWidth=0.5
-    ctx.beginPath(); ctx.moveTo(200,0); ctx.lineTo(200,400); ctx.stroke()
-    ctx.beginPath(); ctx.moveTo(0,200); ctx.lineTo(400,200); ctx.stroke()
-    ctx.fillStyle='rgba(239,68,68,0.5)'
-    pts.forEach(([px,py])=>{ ctx.beginPath(); ctx.arc(px,py,2,0,2*Math.PI); ctx.fill() })
-    lbl.textContent = 'Sources: ' + pts.length
-  }
-
-  function emit() { par.value=pts; par.dispatchEvent(new CustomEvent('input')) }
-
-  function addPts(px,py) {
-    for(let i=0;i<PER_PT;i++){
-      const dx=(Math.random()-0.5)*2*SPREAD*SCALE
-      const dy=(Math.random()-0.5)*2*SPREAD*SCALE
-      const nx=px+dx, ny=py+dy
-      const dx2=(nx-200)/SCALE, dy2=(ny-200)/SCALE
-      if(dx2*dx2+dy2*dy2<=RAD*RAD) pts.push([Math.round(nx),Math.round(ny)])
-    }
-    redraw()
-  }
-
-  cvs.addEventListener('mousedown', e=>{drawing=true; addPts(e.offsetX,e.offsetY)})
-  cvs.addEventListener('mousemove', e=>{if(drawing) addPts(e.offsetX,e.offsetY)})
-  window.addEventListener('mouseup', ()=>{ if(drawing){ drawing=false; emit() } else drawing=false })
-
-  par.querySelector('#clrbtn').addEventListener('click',()=>{ pts=[]; redraw(); emit() })
-
-  par.querySelectorAll('.preset').forEach(btn => btn.addEventListener('click', ()=>{
-    pts = PRESETS[btn.dataset.preset].slice()
-    redraw(); emit()
-  }))
-
-  par.value = pts
-  par.dispatchEvent(new CustomEvent('input'))
-  redraw()
-</script>
-        """)
-    end
+# ╔═╡ d4b78a1f-a6f7-44ef-ac09-fd0eb329bb2c
+normalize_trace(x) = begin
+    m = maximum(abs, x)
+    m > 0 ? x ./ m : x
 end
 
-# ╔═╡ d59342b1-cb2a-4472-9717-b82fa12335f9
-@bind srcloc_pixels CanvasSourceInput()
+# ╔═╡ a0c7145b-cb4c-4648-a989-b6a5f88fd32a
+begin
+    _subsamp_threshold = Float64(get(_canvas_widget, "subsample_threshold", 0.0))
+    gren = average_selected_cross_correlations(cross, contributions, _subsamp_threshold)
+    plot_line(tgrid_xcorr, [normalize_trace(gren[:, 1]), normalize_trace(true_virtual_response)], names=["Averaged cross-correlation", "True virtual source response"], title="C---")
+end
 
-# ╔═╡ 8939c552-a1d9-4941-aa2e-a81a761574eb
-@bind compute_contributions CounterButton("Highlight stationary sources")
+# ╔═╡ 8f5d89d2-ae71-4b43-bf24-9c7ce404071a
+function analytic_signal_fft(x)
+    n = length(x)
+    n == 0 && return ComplexF64[]
 
-# ╔═╡ 1c9caca3-375a-4ee6-9586-1fe99d1f73dc
-contributions = let _ = compute_contributions
-    if compute_contributions == 0 || isempty(srcloc)
-        Float64[]
+    h = zeros(Float64, n)
+    h[1] = 1.0
+    if iseven(n)
+        h[2:(n ÷ 2)] .= 2.0
+        h[n ÷ 2 + 1] = 1.0
     else
-        t0 = traveltime_between_receivers
-        inwindow = abs.(tgrid_xcorr .- t0) .<= lag_window
-        w = [sum(abs.(cross[inwindow, i])) for i in 1:size(cross, 2)]
-        m = maximum(w)
-        m > 0 ? w ./ m : w
+        h[2:((n + 1) ÷ 2)] .= 2.0
     end
+
+    ifft(fft(Float64.(x)) .* h)
+end
+
+# ╔═╡ 7c3bf8c7-7c8b-4a35-b2b4-f0557d9a64d6
+function arrival_window_half_width(tgrid, distance, vref, f0)
+    t0 = distance / vref
+    dt_local = length(tgrid) > 1 ? abs(tgrid[2] - tgrid[1]) : 0.0
+    min(0.75 * t0, max(1.5 / f0, 10 * dt_local))
+end
+
+# ╔═╡ 125d1e24-b6fe-4771-941d-dba92dc0e10e
+function global_trace_peak(trace)
+    isempty(trace) && return NaN
+    peak = maximum(abs, trace)
+    isfinite(peak) && peak > eps(Float64) ? peak : NaN
+end
+
+# ╔═╡ 40f06dca-4a81-471e-913a-28cde7b6f5a8
+function branch_trace_peak(trace, tgrid, center, half_width)
+    peak = 0.0
+    has_sample = false
+    @inbounds for i in eachindex(tgrid)
+        if abs(tgrid[i] - center) <= half_width
+            peak = max(peak, abs(trace[i]))
+            has_sample = true
+        end
+    end
+    has_sample && isfinite(peak) ? peak : NaN
+end
+
+# ╔═╡ 65820b94-ff46-4060-aacb-d5c997c86d41
+function branch_is_valid(trace, tgrid, center, half_width, global_peak; threshold=0.1)
+    isfinite(global_peak) || return false
+    peak = branch_trace_peak(trace, tgrid, center, half_width)
+    isfinite(peak) && peak >= threshold * global_peak
+end
+
+# ╔═╡ c24b2a79-6138-47e6-bd8f-d8023880bb6c
+function branch_phase_differences(avg, ref, tgrid, distance, vref, f0)
+    z_avg = analytic_signal_fft(avg)
+    z_ref = analytic_signal_fft(ref)
+    t0 = distance / vref
+    half_width = arrival_window_half_width(tgrid, distance, vref, f0)
+    avg_peak = global_trace_peak(avg)
+
+    phase_for(idxs) = begin
+        s = zero(ComplexF64)
+        avg_norm2 = 0.0
+        ref_norm2 = 0.0
+        @inbounds for i in idxs
+            avg_norm2 += abs2(avg[i])
+            ref_norm2 += abs2(ref[i])
+            s += conj(z_avg[i]) * z_ref[i]
+        end
+        avg_norm2 > eps(Float64) && ref_norm2 > eps(Float64) && abs(s) > eps(Float64) ? angle(s) : NaN
+    end
+
+    causal = findall(t -> abs(t - t0) <= half_width, tgrid)
+    acausal = findall(t -> abs(t + t0) <= half_width, tgrid)
+    phi_causal = branch_is_valid(avg, tgrid, t0, half_width, avg_peak) ? phase_for(causal) : NaN
+    phi_acausal = branch_is_valid(avg, tgrid, -t0, half_width, avg_peak) ? phase_for(acausal) : NaN
+
+    (; phase_causal=phi_causal,
+     phase_acausal=phi_acausal,
+     phase_causal_pi=isfinite(phi_causal) ? phi_causal / π : NaN,
+     phase_acausal_pi=isfinite(phi_acausal) ? phi_acausal / π : NaN)
+end
+
+# ╔═╡ f34c5f90-6ac4-4ca6-b6a9-294a42421cd6
+function phase_correct_trace(avg, ref, tgrid, distance, vref, f0)
+    phases = branch_phase_differences(avg, ref, tgrid, distance, vref, f0)
+    z_avg = analytic_signal_fft(avg)
+    corrected = copy(z_avg)
+
+    if isfinite(phases.phase_causal)
+        rot = cis(phases.phase_causal)
+        @inbounds for i in searchsortedfirst(tgrid, 0.0):length(tgrid)
+            corrected[i] = z_avg[i] * rot
+        end
+    end
+
+    if isfinite(phases.phase_acausal)
+        rot = cis(phases.phase_acausal)
+        @inbounds for i in 1:searchsortedlast(tgrid, 0.0)
+            corrected[i] = z_avg[i] * rot
+        end
+    end
+
+    (; trace=real.(corrected),
+     phase_causal_pi=phases.phase_causal_pi,
+     phase_acausal_pi=phases.phase_acausal_pi)
+end
+
+# ╔═╡ 57a034c4-9ff5-4edc-9c54-11759e02eed9
+function branch_velocity_measurements(trace, tgrid, distance, vref, f0, phase_branch)
+        invalid = (; U=NaN, U_error_pct=NaN, c=NaN, c_error_pct=NaN)
+        isempty(trace) && return (; U_causal=NaN, U_causal_error_pct=NaN, U_acausal=NaN, U_acausal_error_pct=NaN,
+            c_causal=NaN, c_causal_error_pct=NaN, c_acausal=NaN, c_acausal_error_pct=NaN)
+
+        z = analytic_signal_fft(trace)
+        env = abs.(z)
+        t0 = distance / vref
+        half_width = arrival_window_half_width(tgrid, distance, vref, f0)
+        trace_peak = global_trace_peak(trace)
+        omega = 2π * f0
+
+        measure_branch(center) = begin
+            peak_amp = -Inf
+            ig = 0
+            branch_is_valid(trace, tgrid, center, half_width, trace_peak) || return invalid
+            @inbounds for i in eachindex(tgrid)
+                if abs(tgrid[i] - center) <= half_width
+                    if env[i] > peak_amp
+                        peak_amp = env[i]
+                        ig = i
+                    end
+                end
+            end
+            ig == 0 && return invalid
+            (!isfinite(peak_amp) || peak_amp <= eps(Float64)) && return invalid
+
+            t_group = tgrid[ig]
+            abs(t_group) <= eps(Float64) && return invalid
+
+            U = distance / abs(t_group)
+            phase = angle(z[ig])
+            tau = t_group - (phase + 2π * phase_branch) / omega
+            c = abs(tau) > eps(Float64) ? distance / abs(tau) : NaN
+            isfinite(c) && c > 0 || return invalid
+
+            (; U=U,
+             U_error_pct=100 * abs(U - vref) / vref,
+             c=c,
+             c_error_pct=100 * abs(c - vref) / vref)
+        end
+
+        causal = measure_branch(t0)
+        acausal = measure_branch(-t0)
+
+        (; U_causal=causal.U,
+         U_causal_error_pct=causal.U_error_pct,
+         U_acausal=acausal.U,
+         U_acausal_error_pct=acausal.U_error_pct,
+         c_causal=causal.c,
+         c_causal_error_pct=causal.c_error_pct,
+         c_acausal=acausal.c,
+         c_acausal_error_pct=acausal.c_error_pct)
+    end
+
+# ╔═╡ 9fb5c14c-cb15-440e-aaf2-116fe146c70c
+function three_station_residual(v_ac, v_ab, v_bc, d_ac, d_ab, d_bc, vref)
+        if !(isfinite(v_ac) && isfinite(v_ab) && isfinite(v_bc))
+            return (; value=NaN, pct=NaN)
+        end
+
+        denom = d_ab / v_ab + d_bc / v_bc
+        if !(isfinite(denom) && denom > eps(Float64))
+            return (; value=NaN, pct=NaN)
+        end
+
+        v_abc = d_ac / denom
+        value = abs(v_abc - v_ac)
+        (; value=value, pct=100 * value / vref)
+    end
+
+# ╔═╡ ee8752a4-a9ad-46dd-bbdd-92fcf52174b2
+function three_station_residuals(ac, ab, bc, d_ac, d_ab, d_bc, vref)
+        U_causal = three_station_residual(ac.U_causal, ab.U_causal, bc.U_causal, d_ac, d_ab, d_bc, vref)
+        U_acausal = three_station_residual(ac.U_acausal, ab.U_acausal, bc.U_acausal, d_ac, d_ab, d_bc, vref)
+        c_causal = three_station_residual(ac.c_causal, ab.c_causal, bc.c_causal, d_ac, d_ab, d_bc, vref)
+        c_acausal = three_station_residual(ac.c_acausal, ab.c_acausal, bc.c_acausal, d_ac, d_ab, d_bc, vref)
+
+        (; R3_U_causal=U_causal.value,
+         R3_U_causal_pct=U_causal.pct,
+         R3_U_acausal=U_acausal.value,
+         R3_U_acausal_pct=U_acausal.pct,
+         R3_c_causal=c_causal.value,
+         R3_c_causal_pct=c_causal.pct,
+         R3_c_acausal=c_acausal.value,
+         R3_c_acausal_pct=c_acausal.pct)
+    end
+
+# ╔═╡ fcc4e475-112a-458d-b484-e75893af35c2
+function gaussian_period_filter_trace(trace, dt, period, bw_perc)
+        if isempty(trace) || !(isfinite(dt) && dt > 0 && isfinite(period) && period > eps(Float64) && isfinite(bw_perc) && bw_perc > 0)
+            return Float64.(trace)
+        end
+
+        n = length(trace)
+        center_freq = 1 / period
+        sigma_freq = center_freq * (bw_perc / 100) / sqrt(log(2))
+        spectrum = fft(Float64.(trace))
+        weights = similar(spectrum, Float64)
+        @inbounds for k in 1:n
+            freq = (k - 1 <= n ÷ 2) ? (k - 1) / (n * dt) : (k - 1 - n) / (n * dt)
+            weights[k] = exp(-((abs(freq) - center_freq)^2) / (2 * sigma_freq^2))
+        end
+
+        real.(ifft(spectrum .* weights))
+    end
+
+# ╔═╡ 09792337-3d9e-45c8-85fd-675b87596436
+function phase_velocity_at_arrival(trace, tgrid, dt, distance, vref, period, bw_perc, branch_sign, phase_branch)
+        if !(isfinite(period) && period > eps(Float64) && isfinite(branch_sign) && branch_sign != 0)
+            return NaN
+        end
+        isempty(trace) && return NaN
+
+        filtered = gaussian_period_filter_trace(trace, dt, period, bw_perc)
+        z = analytic_signal_fft(filtered)
+        env = abs.(z)
+        center = branch_sign * distance / vref
+        half_width = arrival_window_half_width(tgrid, distance, vref, 1 / period)
+        peak_amp = -Inf
+        ig = 0
+        @inbounds for i in eachindex(tgrid)
+            if abs(tgrid[i] - center) <= half_width && env[i] > peak_amp
+                peak_amp = env[i]
+                ig = i
+            end
+        end
+        (ig == 0 || !isfinite(peak_amp) || peak_amp <= eps(Float64)) && return NaN
+
+        t_group = tgrid[ig]
+        abs(t_group) <= eps(Float64) && return NaN
+        omega = 2π / period
+        phase = angle(z[ig])
+        tau = t_group - (phase + 2π * phase_branch) / omega
+        c = abs(tau) > eps(Float64) ? distance / abs(tau) : NaN
+
+        isfinite(c) && c > 0 ? c : NaN
+    end
+
+# ╔═╡ 5e98ea10-78ff-43e3-89d9-08bab29d1943
+function mode_residual(U, c, trace, tgrid, dt, distance, vref, period, bw_perc, branch_sign, phase_branch)
+        if !(isfinite(U) && U > 0 && isfinite(c) && c > 0 && isfinite(period) && period > 0)
+            return (; value=NaN, pct=NaN)
+        end
+
+        c0 = phase_velocity_at_arrival(trace, tgrid, dt, distance, vref, period, bw_perc, branch_sign, phase_branch)
+        isfinite(c0) || return (; value=NaN, pct=NaN)
+
+        dT = 0.1
+        Tlo = max(eps(Float64), period - dT)
+        Thi = period + dT
+        c_lo = Tlo < period ? phase_velocity_at_arrival(trace, tgrid, dt, distance, vref, Tlo, bw_perc, branch_sign, phase_branch) : NaN
+        c_hi = phase_velocity_at_arrival(trace, tgrid, dt, distance, vref, Thi, bw_perc, branch_sign, phase_branch)
+
+        dc_dT = if isfinite(c_lo) && isfinite(c_hi) && Thi > Tlo
+            (c_hi - c_lo) / (Thi - Tlo)
+        elseif isfinite(c_hi) && Thi > period
+            (c_hi - c0) / (Thi - period)
+        elseif isfinite(c_lo) && period > Tlo
+            (c0 - c_lo) / (period - Tlo)
+        else
+            NaN
+        end
+
+        denom = 1 + (period / c) * dc_dT
+        if !(isfinite(denom) && abs(denom) > eps(Float64))
+            return (; value=NaN, pct=NaN)
+        end
+
+        value = abs(U - c / denom)
+        return (; value=value, pct=100 * value / vref)
+    end
+
+# ╔═╡ dc58d268-fbfa-4e7b-9fd9-c7073cae7b35
+function mode_residuals(measurements, trace, tgrid, dt, distance, vref, f0, bw_perc, phase_branch)
+        isempty(trace) && return (; R_mode_causal=NaN, R_mode_causal_pct=NaN, R_mode_acausal=NaN, R_mode_acausal_pct=NaN)
+        period = 1 / f0
+        causal = mode_residual(measurements.U_causal, measurements.c_causal, trace, tgrid, dt, distance, vref, period, bw_perc, 1.0, phase_branch)
+        acausal = mode_residual(measurements.U_acausal, measurements.c_acausal, trace, tgrid, dt, distance, vref, period, bw_perc, -1.0, phase_branch)
+
+        (; R_mode_causal=causal.value,
+         R_mode_causal_pct=causal.pct,
+         R_mode_acausal=acausal.value,
+         R_mode_acausal_pct=acausal.pct)
+    end
+
+# ╔═╡ a57e060f-73b6-4989-a742-553631cdd873
+begin
+    apply_phase_correction = Bool(get(_canvas_widget, "apply_phase_correction", false))
+    phase_branch = Int(round(Float64(get(_canvas_widget, "phase_branch", 0))))
+    _phase_corrected = phase_correct_trace(gren[:, 1], true_virtual_response, tgrid_xcorr, d_interstation, vel, f0)
+    comparison_trace = apply_phase_correction ? _phase_corrected.trace : gren[:, 1]
+    ac_measurements = branch_velocity_measurements(comparison_trace, tgrid_xcorr, d_interstation, vel, f0, phase_branch)
+
+    _three_station_wavelet = wavetype()
+    _true_ab = true_virtual_response_for_traveltime(get_traveltime(rec1, rec_origin), _three_station_wavelet, tgrid_xcorr, dt)
+    _true_bc = true_virtual_response_for_traveltime(get_traveltime(rec_origin, rec2), _three_station_wavelet, tgrid_xcorr, dt)
+
+    _seis_ab_1, _seis_ab_2 = generate_seismograms(rec1, rec_origin, srcloc_for_noise, _three_station_wavelet, nt, dt, vel)
+    _cross_ab = cross_correlations(_seis_ab_1, _seis_ab_2)
+    _gren_ab = average_selected_cross_correlations(_cross_ab, contributions, _subsamp_threshold)
+    _phase_ab = phase_correct_trace(_gren_ab[:, 1], _true_ab, tgrid_xcorr, d_ab, vel, f0)
+    _trace_ab = apply_phase_correction ? _phase_ab.trace : _gren_ab[:, 1]
+    _measurements_ab = branch_velocity_measurements(_trace_ab, tgrid_xcorr, d_ab, vel, f0, phase_branch)
+
+    _seis_bc_1, _seis_bc_2 = generate_seismograms(rec_origin, rec2, srcloc_for_noise, _three_station_wavelet, nt, dt, vel)
+    _cross_bc = cross_correlations(_seis_bc_1, _seis_bc_2)
+    _gren_bc = average_selected_cross_correlations(_cross_bc, contributions, _subsamp_threshold)
+    _phase_bc = phase_correct_trace(_gren_bc[:, 1], _true_bc, tgrid_xcorr, d_bc, vel, f0)
+    _trace_bc = apply_phase_correction ? _phase_bc.trace : _gren_bc[:, 1]
+    _measurements_bc = branch_velocity_measurements(_trace_bc, tgrid_xcorr, d_bc, vel, f0, phase_branch)
+
+    _r3_measurements = three_station_residuals(ac_measurements, _measurements_ab, _measurements_bc, d_interstation, d_ab, d_bc, vel)
+    _mode_measurements = mode_residuals(ac_measurements, comparison_trace, tgrid_xcorr, dt, d_interstation, vel, f0, bw_perc, phase_branch)
+    velocity_measurements = merge(
+        ac_measurements,
+        (; phase_causal_pi=_phase_corrected.phase_causal_pi,
+         phase_acausal_pi=_phase_corrected.phase_acausal_pi,
+         phase_corrected=apply_phase_correction),
+        _r3_measurements,
+        _mode_measurements
+    )
+end
+
+# ╔═╡ 07f887de-ea77-4f39-9df4-6754734d8c5d
+let
+    jsnum(x) = isfinite(x) ? string(Float64(x)) : "null"
+    t0 = traveltime_between_receivers
+    wav = wavetype()
+    win = max(5 * t0, 5 * dt * length(wav))
+    mask = abs.(tgrid_xcorr) .<= win
+    t_win   = tgrid_xcorr[mask]
+    avg_win = normalize_trace(comparison_trace[mask])
+    ref_win = normalize_trace(true_virtual_response[mask])
+    t_js   = join(Float64.(t_win),   ",")
+    avg_js = join(Float64.(avg_win), ",")
+    ref_js = join(Float64.(ref_win), ",")
+    HTML("""<script>
+      window._seismic_comparison = {
+        t: [$(t_js)],
+        avg: [$(avg_js)],
+        ref: [$(ref_js)],
+        t0: $(Float64(t0)),
+        velocity: {
+          U_causal: $(jsnum(velocity_measurements.U_causal)),
+          U_causal_error_pct: $(jsnum(velocity_measurements.U_causal_error_pct)),
+          U_acausal: $(jsnum(velocity_measurements.U_acausal)),
+          U_acausal_error_pct: $(jsnum(velocity_measurements.U_acausal_error_pct)),
+          c_causal: $(jsnum(velocity_measurements.c_causal)),
+          c_causal_error_pct: $(jsnum(velocity_measurements.c_causal_error_pct)),
+          c_acausal: $(jsnum(velocity_measurements.c_acausal)),
+          c_acausal_error_pct: $(jsnum(velocity_measurements.c_acausal_error_pct)),
+          phase_causal_pi: $(jsnum(velocity_measurements.phase_causal_pi)),
+          phase_acausal_pi: $(jsnum(velocity_measurements.phase_acausal_pi)),
+          R3_U_causal: $(jsnum(velocity_measurements.R3_U_causal)),
+          R3_U_causal_pct: $(jsnum(velocity_measurements.R3_U_causal_pct)),
+          R3_U_acausal: $(jsnum(velocity_measurements.R3_U_acausal)),
+          R3_U_acausal_pct: $(jsnum(velocity_measurements.R3_U_acausal_pct)),
+          R3_c_causal: $(jsnum(velocity_measurements.R3_c_causal)),
+          R3_c_causal_pct: $(jsnum(velocity_measurements.R3_c_causal_pct)),
+          R3_c_acausal: $(jsnum(velocity_measurements.R3_c_acausal)),
+          R3_c_acausal_pct: $(jsnum(velocity_measurements.R3_c_acausal_pct)),
+          R_mode_causal: $(jsnum(velocity_measurements.R_mode_causal)),
+          R_mode_causal_pct: $(jsnum(velocity_measurements.R_mode_causal_pct)),
+          R_mode_acausal: $(jsnum(velocity_measurements.R_mode_acausal)),
+          R_mode_acausal_pct: $(jsnum(velocity_measurements.R_mode_acausal_pct)),
+          phase_corrected: $(velocity_measurements.phase_corrected)
+        }
+      };
+      window.dispatchEvent(new CustomEvent('seismic-comparison', {detail: window._seismic_comparison}));
+    </script>""")
 end
 
 # ╔═╡ 00000000-0000-0000-0000-000000000001
 PLUTO_PROJECT_TOML_CONTENTS = """
 [deps]
-DSP = "717857b8-e6f2-59f4-9121-6e50c889abd2"
+ColorSchemes = "35d6a980-a343-548e-a6ea-1d62b119f2f4"
 FFTW = "7a1cc6ca-52ef-59f5-83cd-3a7055c09341"
 FourierTools = "b18b359b-aebc-45ac-a139-9c0ccbb2871e"
 LaTeXStrings = "b964fa9f-0449-5b57-a5c2-d3ea65f4040f"
+LinearAlgebra = "37e2e46d-f89d-539d-b4ee-838fcccc9c8e"
 MLUtils = "f1d291b0-491e-4a28-83b9-f70985020b54"
 PlutoPlotly = "8e989ff0-3d88-8e9f-f020-2b208a939ff0"
 PlutoUI = "7f904dfe-b85e-4ff6-b463-dae2292396a8"
@@ -478,7 +1717,7 @@ Statistics = "10745b16-79ce-11e8-11f9-7d13ad32a3b2"
 StatsBase = "2913bbd2-ae8a-5f71-8c99-4fb6c76f3a91"
 
 [compat]
-DSP = "~0.8.5"
+ColorSchemes = "~3.31.0"
 FFTW = "~1.10.0"
 FourierTools = "~0.5.0"
 LaTeXStrings = "~1.4.0"
@@ -494,7 +1733,7 @@ PLUTO_MANIFEST_TOML_CONTENTS = """
 
 julia_version = "1.12.4"
 manifest_format = "2.0"
-project_hash = "5fc6e362100f69ce4bd9d05ed65b8db9562b1a74"
+project_hash = "d9e9d0423b6adf95c3674a561532e89d1e5d829f"
 
 [[deps.AbstractFFTs]]
 deps = ["LinearAlgebra"]
@@ -621,11 +1860,6 @@ git-tree-sha1 = "3f7be532673fc4a22825e7884e9e0e876236b12a"
 uuid = "26cce99e-4866-4b6d-ab74-862489e035e0"
 version = "0.7.1"
 
-[[deps.Bessels]]
-git-tree-sha1 = "4435559dc39793d53a9e3d278e185e920b4619ef"
-uuid = "0e736298-9ec6-45e8-9647-e4fc86a2fe38"
-version = "0.2.8"
-
 [[deps.ChainRulesCore]]
 deps = ["Compat", "LinearAlgebra"]
 git-tree-sha1 = "12177ad6b3cad7fd50c8b3825ce24a99ad61c18f"
@@ -718,18 +1952,6 @@ version = "1.6.0"
     LinearAlgebra = "37e2e46d-f89d-539d-b4ee-838fcccc9c8e"
     StaticArrays = "90137ffa-7385-5640-81b9-e52037218182"
 
-[[deps.DSP]]
-deps = ["Bessels", "FFTW", "IterTools", "LinearAlgebra", "Polynomials", "Random", "Reexport", "SpecialFunctions", "Statistics"]
-git-tree-sha1 = "d335b2929e1b6067951a1250df247cc5fab7d40e"
-uuid = "717857b8-e6f2-59f4-9121-6e50c889abd2"
-version = "0.8.5"
-
-    [deps.DSP.extensions]
-    OffsetArraysExt = "OffsetArrays"
-
-    [deps.DSP.weakdeps]
-    OffsetArrays = "6fe1bfb0-de20-5000-8ca7-80f57d26f881"
-
 [[deps.DataAPI]]
 git-tree-sha1 = "abe83f3a2f1b857aac70ef8b269080af17764bbe"
 uuid = "9a962f9c-6df0-11e9-0e5d-c546b8b5ee8a"
@@ -807,11 +2029,6 @@ version = "0.5.0"
     Adapt = "79e6a3ab-5dfb-504d-930d-738a2a938a0e"
     CUDA = "052768ef-5323-5732-b1bb-66c8b64840ba"
 
-[[deps.Future]]
-deps = ["Random"]
-uuid = "9fa8497b-333b-5362-9e8d-4d0656e87820"
-version = "1.11.0"
-
 [[deps.GPUArraysCore]]
 deps = ["Adapt"]
 git-tree-sha1 = "83cf05ab16a73219e5f6bd1bdfa9848fa24ac627"
@@ -877,11 +2094,6 @@ weakdeps = ["Dates", "Test"]
 git-tree-sha1 = "b2d91fe939cae05960e760110b328288867b5758"
 uuid = "92d709cd-6900-40b7-9082-c6be49f344b6"
 version = "0.2.6"
-
-[[deps.IterTools]]
-git-tree-sha1 = "42d5f897009e7ff2cf88db414a389e5ed1bdd023"
-uuid = "c8e1da08-722c-5040-9ed9-7db0dc04731e"
-version = "1.10.0"
 
 [[deps.IteratorInterfaceExtensions]]
 git-tree-sha1 = "a3f24677c21f5bbe9d2a714f95dcd58337fb2856"
@@ -1212,26 +2424,6 @@ git-tree-sha1 = "e189d0623e7ce9c37389bac17e80aac3b0302e75"
 uuid = "7f904dfe-b85e-4ff6-b463-dae2292396a8"
 version = "0.7.83"
 
-[[deps.Polynomials]]
-deps = ["LinearAlgebra", "OrderedCollections", "Setfield", "SparseArrays"]
-git-tree-sha1 = "2d99b4c8a7845ab1342921733fa29366dae28b24"
-uuid = "f27b6e38-b328-58d1-80ce-0feddd5e7a45"
-version = "4.1.1"
-
-    [deps.Polynomials.extensions]
-    PolynomialsChainRulesCoreExt = "ChainRulesCore"
-    PolynomialsFFTWExt = "FFTW"
-    PolynomialsMakieExt = "Makie"
-    PolynomialsMutableArithmeticsExt = "MutableArithmetics"
-    PolynomialsRecipesBaseExt = "RecipesBase"
-
-    [deps.Polynomials.weakdeps]
-    ChainRulesCore = "d360d2e6-b24c-11e9-a2a3-2a2ae2dbcce4"
-    FFTW = "7a1cc6ca-52ef-59f5-83cd-3a7055c09341"
-    Makie = "ee78f7c6-11fb-53f2-987a-cfe4a2b5a57a"
-    MutableArithmetics = "d8a4904e-b15c-11e9-3269-09a3773c0cb0"
-    RecipesBase = "3cdcf5f2-1ef4-517c-9805-6587b60abb01"
-
 [[deps.PrecompileTools]]
 deps = ["Preferences"]
 git-tree-sha1 = "edbeefc7a4889f528644251bdb5fc9ab5348bc2c"
@@ -1294,12 +2486,6 @@ version = "1.3.0"
 [[deps.Serialization]]
 uuid = "9e88b42a-f829-5b0c-bbe9-9e923198166b"
 version = "1.11.0"
-
-[[deps.Setfield]]
-deps = ["ConstructionBase", "Future", "MacroTools", "StaticArraysCore"]
-git-tree-sha1 = "c5391c6ace3bc430ca630251d02ea9687169ca68"
-uuid = "efcf1570-3423-57d1-acb7-fd33fddbac46"
-version = "1.1.2"
 
 [[deps.ShowCases]]
 git-tree-sha1 = "7f534ad62ab2bd48591bdeac81994ea8c445e4a5"
@@ -1508,21 +2694,24 @@ version = "17.7.0+0"
 # ╔═╡ Cell order:
 # ╠═f986cb42-7cbe-11ee-22de-cbc3714ed81d
 # ╟─bd04a8af-7666-47b7-87cc-a212ec8adcbd
-# ╟─1083c0c6-beb2-42ba-8c99-e8d8d77ce83a
-# ╟─5427df02-9278-41c9-9b3b-b5d1ab5b4c24
-# ╟─c4339754-42eb-4969-9045-010ca1d23ef8
 # ╟─d59342b1-cb2a-4472-9717-b82fa12335f9
-# ╟─8939c552-a1d9-4941-aa2e-a81a761574eb
+# ╟─3c5fd716-5b57-4e6a-aa8a-022a1cb476c4
+# ╟─4a592f7e-fa42-4724-8281-1534333816d0
+# ╠═b8671b46-d45b-4ec7-99f2-b1a2cb0aee12
 # ╠═b933216e-203a-47a1-b4f1-901fa5b38f70
-# ╠═3c5fd716-5b57-4e6a-aa8a-022a1cb476c4
-# ╟─46c9b13c-088c-47e7-8fd3-b56aee4a8923
-# ╟─617fd9b1-c6be-476e-9622-b6482602c7c7
+# ╠═a0c7145b-cb4c-4648-a989-b6a5f88fd32a
+# ╟─a57e060f-73b6-4989-a742-553631cdd873
+# ╟─07f887de-ea77-4f39-9df4-6754734d8c5d
+# ╠═617fd9b1-c6be-476e-9622-b6482602c7c7
 # ╟─64a67ad0-2a5f-49c4-8a90-8fe8fb55342f
 # ╟─1bc0ce25-4de0-4628-a308-8106544fc0ec
 # ╟─e69db63a-52b4-45c0-8b17-5239468cf5ad
+# ╠═5427df02-9278-41c9-9b3b-b5d1ab5b4c24
 # ╠═280b6269-a022-4846-9071-61481649b008
 # ╟─e0ae191c-b674-46c7-bf05-bfecade313a5
-# ╠═e1f1fa09-87ef-4cdb-94b1-0d2e0e483323
+# ╠═9a74489f-8e6d-45ce-ab57-464ee36d3316
+# ╠═f0e27c51-233b-45ef-be1e-34b624b5a4b2
+# ╠═dafaabbb-4263-41ce-b17f-0634adc01b8f
 # ╠═1ea5bea2-0c9d-4095-a395-24ad4f67ba05
 # ╟─577d411c-88b5-495d-a49a-d2379336f533
 # ╠═c71bc2d6-cc33-4cae-8195-5fe26ec39d7f
@@ -1530,26 +2719,55 @@ version = "17.7.0+0"
 # ╠═ca1b63bf-c868-4200-80f0-f8d6e40d9a6c
 # ╠═3b144853-0d82-46e2-a4ee-301516f3ce10
 # ╠═0279d32c-d884-4990-a1a6-68b43fae2f92
-# ╠═3cf54d17-5931-461c-9e35-bad1fc8d9ac3
+# ╠═4e20077c-3687-47a1-8ab0-048b99fb0a46
+# ╠═e04a82d2-9eda-419f-a6b3-0af28431e554
 # ╠═a0f471bd-8139-4f42-bf0e-c019e6d42832
-# ╠═6098be3e-fe12-4f11-9749-b8c66c6106a8
-# ╠═09c19be2-867a-4c16-ace5-6e4a9389472c
+# ╠═4ce9cc5d-6808-4977-98bb-8e9cacf171cc
+# ╠═d5305327-7086-4e2a-a4b7-7e3456864b8a
+# ╠═1ce924ce-5a35-4a84-835a-3bdf16b876dc
+# ╠═32be7b92-0b34-4ad0-8968-c77a13225383
+# ╠═92057a3a-e880-46ce-86cc-7cc702085384
 # ╠═97289274-85f2-46f7-b9bf-916f0a420301
 # ╠═2bad7a74-1b12-499f-b435-7f99c7d64ae9
-# ╠═1c9caca3-375a-4ee6-9586-1fe99d1f73dc
+# ╠═2fd6cc16-519d-4d0f-ba42-874e58a32124
+# ╠═e4f79b31-aa1f-4132-bc8e-b30d79380a3b
+# ╠═3651d79a-e1f8-4960-a058-00ee5b609598
+# ╟─f3a2b1c0-5d4e-4f60-9012-345678901bcd
 # ╟─d483d881-11c4-495f-a103-2d2dd6371ca3
 # ╠═290b50eb-0faf-4a5f-86bf-36628e61ff06
+# ╠═ec238280-1edc-442f-837e-d3c807ea5fc6
 # ╠═7ede27ab-f524-4f20-8bcb-5be70600c892
 # ╠═e059662c-69af-460c-aada-408a365d0ff7
-# ╠═41870289-3874-43ca-9837-3cead43d0200
+# ╠═366783f3-3a48-4e0d-a850-6c8cb7275377
+# ╠═b11959f8-3cf2-4488-bbc1-6597220ea599
 # ╠═6a8aeed2-173a-4523-afb3-f9d77c252816
+# ╠═b2c0af32-b19d-47b0-86f3-66e8fd7d7269
 # ╠═af973cc3-21b3-4dca-91ad-0c310e1214bc
 # ╠═09bd50ae-ab80-4cde-bdb7-ccc7cd7041d4
 # ╟─d9727185-8f69-49a5-a98f-7514562529ab
 # ╠═77d2d0d5-05e8-44e4-910b-b8bc8cf3137f
 # ╠═1293b18a-15d5-4d54-8396-59899c89a172
+# ╠═8b213ed6-b4ec-44a9-8e3f-8ad03ee9f270
 # ╠═ccf893d9-5b6e-4a79-b09d-3da957bc612c
-# ╠═a153664e-24bc-4fea-b0f4-f12360eaa688
+# ╠═34f81006-dead-4687-aff1-ed2753f27469
+# ╠═15a556df-3ed3-4068-86ca-d3c130cb81d9
+# ╠═cd3a586a-b737-451e-921f-5463cc286f73
+# ╠═0d2266c7-312c-4c56-8f7b-8a98fba81fc6
 # ╠═7fe32a18-b484-4179-b0a8-d6c49059ed59
+# ╠═d4b78a1f-a6f7-44ef-ac09-fd0eb329bb2c
+# ╠═8f5d89d2-ae71-4b43-bf24-9c7ce404071a
+# ╠═7c3bf8c7-7c8b-4a35-b2b4-f0557d9a64d6
+# ╠═125d1e24-b6fe-4771-941d-dba92dc0e10e
+# ╠═40f06dca-4a81-471e-913a-28cde7b6f5a8
+# ╠═65820b94-ff46-4060-aacb-d5c997c86d41
+# ╠═c24b2a79-6138-47e6-bd8f-d8023880bb6c
+# ╠═f34c5f90-6ac4-4ca6-b6a9-294a42421cd6
+# ╠═57a034c4-9ff5-4edc-9c54-11759e02eed9
+# ╠═9fb5c14c-cb15-440e-aaf2-116fe146c70c
+# ╠═ee8752a4-a9ad-46dd-bbdd-92fcf52174b2
+# ╠═fcc4e475-112a-458d-b484-e75893af35c2
+# ╠═09792337-3d9e-45c8-85fd-675b87596436
+# ╠═5e98ea10-78ff-43e3-89d9-08bab29d1943
+# ╠═dc58d268-fbfa-4e7b-9fd9-c7073cae7b35
 # ╟─00000000-0000-0000-0000-000000000001
 # ╟─00000000-0000-0000-0000-000000000002

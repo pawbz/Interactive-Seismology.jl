@@ -1,5 +1,5 @@
 ### A Pluto.jl notebook ###
-# v0.20.19
+# v0.20.21
 
 #> [frontmatter]
 #> title = "Lamb's Problem"
@@ -22,6 +22,18 @@ macro bind(def, element)
     #! format: on
 end
 
+# ╔═╡ 897afffa-77e8-11ef-1a54-c73d1df8f6a4
+using QuadGK, Bessels, PlutoPlotly, FFTW, Symbolics, SpecialFunctions, PlutoUI, ProgressLogging
+
+# ╔═╡ aa38e7f6-b8d2-4270-9142-1aa688041eb4
+using LinearAlgebra
+
+# ╔═╡ 4621f804-6a44-4c46-af37-3d364ba74cfe
+using Groebner, Nemo, Statistics
+
+# ╔═╡ 9b488729-aadc-4c1d-b971-6931d4bc9a08
+using HypertextLiteral: @htl
+
 # ╔═╡ 6188ff3e-cfd5-4c9c-aa39-619dc280d494
 TableOfContents()
 
@@ -37,62 +49,433 @@ Instructor: *Pawan Bharadwaj*,
 Indian Institute of Science, Bengaluru, India
 """
 
-# ╔═╡ 4e31b3c7-e7ab-4a10-ba04-292dd03a3732
-md"""Select the term $(@bind plot_phase confirm(Select([Direct() => "Direct", Preflect() => "Reflected P",  Sreflect() => "Reflected S"])))"""
+# ╔═╡ 5d8719c8-4b50-435b-9c3e-aa8eee50df98
+n_layers = 5
 
-# ╔═╡ 96556fec-4bea-4132-946a-92d17372df54
-let
-    U = seismograms
-    Umaxclip = maximum(abs, U) * 0.01
-    plot(heatmap(y=seismograms_param.tgrid, x=seismograms_param.xgrid, z=U, zmin=-Umaxclip, zmax=Umaxclip, colorscale=:seismic,), Layout(title="Seismograms", width=300, yaxis_autorange="reversed", xaxis=attr(title="distance to receiver"), yaxis=attr(title="time (s)")))
-end
+# ╔═╡ d1f5e223-cc49-4fe8-9b2e-c1ccecf2315a
+# Reference frequency for causal-Q dispersion
+@bind f_ref_hz PlutoUI.Slider(0.05:0.05:5.0, default=1.0, show_value=true)
 
-# ╔═╡ a7b582ba-57fa-4f90-b017-5a9d059c30e5
-plot(contour(x=snapshot_param.xgrid, y=snapshot_param.zgrid, z=log.(abs.(snapshot))), Layout(title="Radiation", yaxis_autorange="reversed", height=300, width=650))
+# ╔═╡ 614a3832-7bc7-4bd3-a09d-50b76afdd7cf
+ω_ref = 2π * f_ref_hz
+
+# ╔═╡ 9f5c360c-7699-4c78-8e4b-8a2d316bc304
+@bind z Slider(range(0, 100, length=10), show_value=true)
+
+# ╔═╡ d060f642-89bf-430d-a509-25133ab0aacd
+z
+
+# ╔═╡ cc9dbdc7-56a7-410e-9787-6ce75748596e
+100
 
 # ╔═╡ 7a3bd5df-0f9f-489c-b522-4098c325c0c0
 md"## Conical Wave"
 
 # ╔═╡ 29020170-3173-40a4-aac6-9d0fd1212aaf
-function get_vertical_wavenumber(c, p)
-    c2 = abs2(c)
-    ξ = if (inv(c2) >= abs2(p))
-        -sqrt(inv(c2) - abs2(p))
-    else
-        im * sqrt(abs2(p) - inv(c2))
-    end
-    return ξ
+"""
+    get_vertical_wavenumber(c, p; tol=1e-10)
+
+Compute vertical wavenumber with numerically stable branch selection.
+Adds tolerance to avoid roundoff errors near critical angles.
+
+- Propagating (p < 1/c): returns negative real root
+- Evanescent (p > 1/c): returns positive imaginary root
+- Near-critical: handled with tolerance
+"""
+function get_vertical_wavenumber(c, k, ω)
+    # - Propagating: negative real root (downward convention)
+    # - Evanescent: positive imaginary root (decay)
+    arg = @. (ω * inv(abs2(c))) - abs2(k)
+    return map(arg) do a
+		a >= 0 ? -sqrt(a) : 1im * sqrt(-a)
+	end
 end
 
-# ╔═╡ 05ec38ea-3431-490c-bc38-24f8c1b2d54f
-begin
-    function conical_wave(p, ωgrid, x, y, z, c, h)
-        r = sqrt.(abs2.(x) + abs2.(y))
-        ξ = get_vertical_wavenumber(c, p)
-        return Bessels.besselj0.(ωgrid .* p .* r) .* exp.(im .* ωgrid .* ξ .* (h .- z)) .* p / ξ
-    end
-    function conical_wave(p, ωgrid, x, y, z, c1, c2, h)
-        r = sqrt.(abs2.(x) + abs2.(y))
-        ξ = get_vertical_wavenumber(c1, p)
-        η = get_vertical_wavenumber(c2, p)
-        return Bessels.besselj0.(ωgrid .* p .* r) .* exp.(im .* ωgrid .* (ξ .* h .- η .* z)) .* p / ξ
-    end
-end
-
-# ╔═╡ 3f8684cb-03c7-4c86-86b5-0af2d9a32418
-@time conical_wave(0.0, seismograms_param.Ω, seismograms_param.X, seismograms_param.Y, seismograms_param.Z, media.α₁ + 1e-3, 0.0)
+# ╔═╡ add5414e-8a87-4164-9c2c-a3deeb13a864
+kz = get_vertical_wavenumber(1.0, 1.0, 1.0)
 
 # ╔═╡ e2fea7d5-00a3-4796-ad51-26f2dcffa55b
 md"## Medium"
 
+# ╔═╡ 5ea371a8-8035-4ba3-ab83-a9ffa2e3d504
+begin
+	struct Layer
+	    thickness::Float64   # km
+	    vp::Float64          # km/s
+	    vs::Float64          # km/s
+	    rho::Float64         # g/cm³
+	    Qp::Float64          # P-wave quality factor
+	    Qs::Float64          # S-wave quality factor
+	end
+	Layer(th, vp, vs, rho) = Layer(th, vp, vs, rho, 1000.0, 1000.0)
+end
+
 # ╔═╡ d430c8ec-fa65-4e72-951e-987ba9f2f160
 media = (; α₁=5.0, α₂=7.0, β₁=3.0, β₂=5.0, ρ₁=3.0, ρ₂=7.0)
+
+# ╔═╡ f047c190-0bf3-4763-9f31-b4272e837dd2
+const GUTENBERG_MODEL = [
+    Layer(19.0, 6.14, 3.55, 2.74, 1000.0, 1000.0),
+    Layer(19.0, 6.58, 3.80, 3.00, 1000.0, 1000.0),
+    Layer(12.0, 8.20, 4.65, 3.32, 1000.0, 1000.0),
+    Layer(10.0, 8.17, 4.62, 3.34, 1000.0, 1000.0),
+    Layer(10.0, 8.14, 4.57, 3.35, 1000.0, 1000.0),
+    Layer(10.0, 8.10, 4.51, 3.36, 1000.0, 1000.0),
+    Layer(10.0, 8.07, 4.46, 3.37, 1000.0, 1000.0),
+    Layer(10.0, 8.02, 4.41, 3.38, 1000.0, 1000.0),
+    Layer(25.0, 7.93, 4.37, 3.39, 1000.0, 1000.0),
+    Layer(25.0, 7.85, 4.35, 3.41, 1000.0, 1000.0),
+    Layer(25.0, 7.89, 4.36, 3.43, 1000.0, 1000.0),
+    Layer(25.0, 7.98, 4.38, 3.46, 1000.0, 1000.0),
+    Layer(25.0, 8.10, 4.42, 3.48, 1000.0, 1000.0),
+    Layer(25.0, 8.21, 4.46, 3.50, 1000.0, 1000.0),
+    Layer(50.0, 8.38, 4.54, 3.53, 1000.0, 1000.0),
+    Layer(50.0, 8.62, 4.68, 3.58, 1000.0, 1000.0),
+    Layer(50.0, 8.87, 4.85, 3.62, 1000.0, 1000.0),
+    Layer(50.0, 9.15, 5.04, 3.69, 1000.0, 1000.0),
+    Layer(50.0, 9.45, 5.21, 3.82, 1000.0, 1000.0),
+    Layer(100.0, 9.88, 5.45, 4.01, 1000.0, 1000.0),
+    Layer(100.0, 10.30, 5.76, 4.21, 1000.0, 1000.0),
+    Layer(100.0, 10.71, 6.03, 4.40, 1000.0, 1000.0),
+    Layer(100.0, 11.10, 6.23, 4.56, 1000.0, 1000.0),
+    Layer(100.0, 11.35, 6.32, 4.63, 1000.0, 1000.0)
+]
 
 # ╔═╡ 360de109-d7db-4402-bca8-5b39c6f17da9
 md"## Derive Reflection Coefficients"
 
+# ╔═╡ 687b7062-ee25-4498-948f-43b187e0ccfa
+# one-way phase with overflow clamp (use for Dunkin-style propagators)
+function one_way_phase(q, ω::Real, h::Real; clip=80.0)
+    if !isfinite(h)
+        return one(q)
+    end
+    atten = clamp(-ω * imag(q) * h, -clip, clip)
+    phase = exp(1im * ω * real(q) * h)
+    return phase * exp(atten)
+end
+
+# ╔═╡ 8902f19a-6b93-458a-9198-f2322b2f5ab5
+# causal constant-Q dispersion with reference frequency
+function causal_velocity(v, Q, ω, ω_ref)
+    if Q <= 0 || !isfinite(Q)
+        return complex(v)
+    end
+    ωref = max(ω_ref, 1e-5)
+    α = atan(1 / Q) / π
+    mag = (abs(ω) / ωref)^α
+    return v * mag * (1 - 1im / (2Q))
+end
+
+# ╔═╡ 05ec38ea-3431-490c-bc38-24f8c1b2d54f
+begin
+    function conical_wave(k, ω, r, δz, layer, ωref)
+		c = causal_velocity(layer.vp, layer.Qp, ω, ωref)
+        kz = get_vertical_wavenumber(c, k, ω)
+        return Bessels.besselj0.(k .* r) .* exp.(-im .* kz .* δz) .* k ./ kz ./ im
+    end
+    # function conical_wave(p, ωgrid, x, y, z, c1, c2, h)
+    #     r = sqrt.(abs2.(x) + abs2.(y))
+    #     ξ = get_vertical_wavenumber(c1, p)
+    #     η = get_vertical_wavenumber(c2, p)
+    #     return Bessels.besselj0.(ωgrid .* p .* r) .* exp.(im .* ωgrid .* (ξ .* h .- η .* z)) .* p / ξ
+    # end
+end
+
+# ╔═╡ 7ca06983-11c1-4203-9bd0-0cc1a461b74f
+function vertical_slowness(v, p)
+    # Match Lamb's radiation-condition branch choice used in the Lamb notebook:
+    # - Propagating: negative real root (downward convention)
+    # - Evanescent: positive imaginary root (decay)
+    arg = (1 / abs2(v)) - abs2(p)
+    return arg >= 0 ? -sqrt(arg) : 1im * sqrt(-arg)
+end
+
+# ╔═╡ c9bf8e13-eee2-45ae-9ce5-4901c344c8f6
+function wavefield_components(p, qP, qS, λ, μ, mode::Symbol, direction::Symbol)
+    sign = direction == :down ? 1.0 : -1.0
+    if mode == :P
+        ux = 1im * p
+        uz = 1im * sign * qP
+        sxz = -2 * μ * p * qP * sign
+        szz = -(λ * (p^2 + qP^2) + 2 * μ * qP^2)
+    else
+        ux = -1im * sign * qS
+        uz = 1im * p
+        sxz = μ * (qS^2 - p^2)
+        szz = -2 * μ * sign * p * qS
+    end
+    return ux, uz, sxz, szz
+end
+
+# ╔═╡ e6bbca73-e59c-4b6a-854e-438222778110
+# Build modal basis matrix for P-SV (columns: P↓, P↑, SV↓, SV↑)
+function modal_basis_psv(layer::Layer, p, ω, ω_ref)
+    vp = causal_velocity(layer.vp, layer.Qp, ω, ω_ref)
+    vs = causal_velocity(layer.vs, layer.Qs, ω, ω_ref)
+    rho = layer.rho
+    qP = vertical_slowness(vp, p)
+    qS = vertical_slowness(vs, p)
+    λ, μ = rho * (vp^2 - 2vs^2), rho * vs^2
+
+    # Columns correspond to modal eigenvectors in displacement-stress space
+    col_Pd = collect(wavefield_components(p, qP, qS, λ, μ, :P, :down))
+    col_Pu = collect(wavefield_components(p, qP, qS, λ, μ, :P, :up))
+    col_Sd = collect(wavefield_components(p, qP, qS, λ, μ, :SV, :down))
+    col_Su = collect(wavefield_components(p, qP, qS, λ, μ, :SV, :up))
+
+    V = hcat(col_Pd, col_Pu, col_Sd, col_Su)
+    return V, qP, qS
+end
+
+# ╔═╡ d60d4d65-8896-40ee-b52f-17d66999c727
+"""
+    compound_matrix_psv(layer::Layer, p, ω, ω_ref; is_halfspace=false)
+
+Exact Dunkin-style propagator for P–SV using modal basis (P↓, P↑, SV↓, SV↑).
+Returns exponent `exa` (for potential scaling) and 4×4 propagator `D` such that
+state_out = D * state_in. Uses one-way phases with overflow clamping.
+"""
+function compound_matrix_psv(layer::Layer, p, ω, ω_ref; is_halfspace=false)
+    if is_halfspace || !isfinite(layer.thickness)
+        return 0.0, Matrix{ComplexF64}(I, 4, 4)
+    end
+
+    h = layer.thickness
+    V, qP, qS = modal_basis_psv(layer, p, ω, ω_ref)
+
+    # One-way phases for each mode (down/up)
+    # Downgoing: exp(+iqωh), Upgoing: exp(-iqωh) = conjugate for real q
+    phase_Pd = one_way_phase(qP, ω, h)
+    phase_Pu = one_way_phase(qP, ω, -h)  # upgoing = negative distance
+    phase_Sd = one_way_phase(qS, ω, h)
+    phase_Su = one_way_phase(qS, ω, -h)  # upgoing = negative distance
+
+    Phase = Diagonal([phase_Pd, phase_Pu, phase_Sd, phase_Su])
+
+    # Full propagator via eigenbasis similarity transform
+    D = V * Phase * inv(V)
+
+    # Exponent not pulled out explicitly (already in phases)
+    return 0.0, D
+end
+
+# ╔═╡ da2a2e26-f217-41e0-8485-6517af621d2a
+function solve_interface(l1::Layer, l2::Layer, p, incident_mode::Symbol, incident_side::Symbol, ω, ω_ref)
+    α1 = causal_velocity(l1.vp, l1.Qp, ω, ω_ref)
+    β1 = causal_velocity(l1.vs, l1.Qs, ω, ω_ref)
+    ρ1 = l1.rho
+    α2 = causal_velocity(l2.vp, l2.Qp, ω, ω_ref)
+    β2 = causal_velocity(l2.vs, l2.Qs, ω, ω_ref)
+    ρ2 = l2.rho
+    qP1, qS1 = vertical_slowness(α1, p), vertical_slowness(β1, p)
+    qP2, qS2 = vertical_slowness(α2, p), vertical_slowness(β2, p)
+    λ1, μ1 = ρ1 * (α1^2 - 2β1^2), ρ1 * β1^2
+    λ2, μ2 = ρ2 * (α2^2 - 2β2^2), ρ2 * β2^2
+
+    # incident side setup
+    inc_layer, ref_layer, tran_layer = incident_side == :top ? (l1, l1, l2) : (l2, l2, l1)
+    qP_inc, qS_inc = incident_side == :top ? (qP1, qS1) : (qP2, qS2)
+    λ_inc, μ_inc = incident_side == :top ? (λ1, μ1) : (λ2, μ2)
+    qP_tr, qS_tr = incident_side == :top ? (qP2, qS2) : (qP1, qS1)
+    λ_tr, μ_tr = incident_side == :top ? (λ2, μ2) : (λ1, μ1)
+    dir_inc = incident_side == :top ? :down : :up
+    dir_ref = incident_side == :top ? :up : :down
+    dir_tr = incident_side == :top ? :down : :up
+
+    inc = wavefield_components(p, qP_inc, qS_inc, λ_inc, μ_inc, incident_mode, dir_inc)
+    refP = wavefield_components(p, qP_inc, qS_inc, λ_inc, μ_inc, :P, dir_ref)
+    refS = wavefield_components(p, qP_inc, qS_inc, λ_inc, μ_inc, :SV, dir_ref)
+    trP = wavefield_components(p, qP_tr, qS_tr, λ_tr, μ_tr, :P, dir_tr)
+    trS = wavefield_components(p, qP_tr, qS_tr, λ_tr, μ_tr, :SV, dir_tr)
+
+    A = zeros(ComplexF64, 4, 4)
+    b = -collect(inc)
+    for (row, comps) in enumerate((refP, refS, trP, trS))
+        # columns: RP, RS, TP, TS
+    end
+    A[:, 1] = collect(refP)
+    A[:, 2] = collect(refS)
+    A[:, 3] = -collect(trP)
+    A[:, 4] = -collect(trS)
+
+    x = A \ b
+    R = x[1:2]
+    T = x[3:4]
+    return R, T
+end
+
+# ╔═╡ 43c34152-fc5f-4497-882f-7f42bd4e6b99
+function zoeppritz_interface(l1::Layer, l2::Layer, p, ω, ω_ref)
+    Rdown = zeros(ComplexF64, 2, 2)
+    Tdown = zeros(ComplexF64, 2, 2)
+    Rup = zeros(ComplexF64, 2, 2)
+    Tup = zeros(ComplexF64, 2, 2)
+    for (j, mode) in enumerate((:P, :SV))
+        r1, t1 = solve_interface(l1, l2, p, mode, :top, ω, ω_ref)
+        r2, t2 = solve_interface(l1, l2, p, mode, :bottom, ω, ω_ref)
+        Rdown[:, j] = r1
+        Tdown[:, j] = t1
+        Rup[:, j] = r2
+        Tup[:, j] = t2
+    end
+    return Rdown, Tdown, Rup, Tup
+end
+
+# ╔═╡ f25f798f-0ecc-4931-b8b5-9c958b83850f
+# ...existing code...
+
+"""
+    reflectivity_pp(layers::Vector{Layer}, p, ω, ω_ref)
+
+P→P reflectivity seen at the top of layer 1 (just below the free surface),
+for a unit downgoing P in layer 1. Uses Kennett-style R/T recursion.
+"""
+function reflectivity_pp(layers::Vector{Layer}, p, ω, ω_ref)
+    N = length(layers)
+    if N <= 1
+        return 0.0 + 0.0im  # no interface → no reflection
+    end
+	if(iszero(ω))
+		return 0.0
+	end
+    # Effective reflection matrix looking into stack below top of halfspace
+    Rplus = zeros(ComplexF64, 2, 2)  # at top of halfspace: no reflection
+
+    for ℓ in (N - 1):-1:1
+        # Propagate down and up through the lower layer (ℓ+1)
+        lay_dn = layers[ℓ + 1]
+        E = Matrix{ComplexF64}(I, 2, 2)
+        if isfinite(lay_dn.thickness)
+            vp = causal_velocity(lay_dn.vp, lay_dn.Qp, ω, ω_ref)
+            vs = causal_velocity(lay_dn.vs, lay_dn.Qs, ω, ω_ref)
+            qP = vertical_slowness(vp, p)
+            qS = vertical_slowness(vs, p)
+            eP = one_way_phase(qP, ω, lay_dn.thickness)
+            eS = one_way_phase(qS, ω, lay_dn.thickness)
+            E = Diagonal([eP, eS]) |> Matrix
+        end
+        Rbar = E * Rplus * E
+
+        # Interface ℓ ↔ ℓ+1 Zoeppritz blocks (2×2 each)
+        Rd, Td, Ru, Tu = zoeppritz_interface(layers[ℓ], layers[ℓ + 1], p, ω, ω_ref)
+
+        # Kennett recursion: R_top = Rd + Td * Rbar * (I - Ru*Rbar)^-1 * Tu
+        Den = I - Ru * Rbar
+        Rplus = Rd + Td * (Rbar * (Den \ Tu))
+    end
+
+    return Rplus[1, 1]  # P←P element at the top of layer 1
+end
+
+# ...existing code...
+
+# ╔═╡ dea0645d-cb7c-4488-913b-ba225595aceb
+begin
+	# // Test homogeneous halfspace
+	test_layers_homo = [Layer(Inf, 6.0, 3.5, 2.7)]
+	
+	# Test across different ray parameters and frequencies
+	p_test = [0.0, 0.05, 0.1, 0.15, 0.19]
+	f_test = 1.0
+	ω_test = 2π * f_test
+	
+	for p in p_test
+	    Rpp = reflectivity_pp(test_layers_homo, p, ω_test, ω_ref)
+	    println("p=$p: Rpp = $Rpp (should be ~0)")
+	end
+end
+
+# ╔═╡ 579cfd9f-e872-4ec5-b913-c90f8e183247
+begin
+	test_layers_2 = [
+	    Layer(40.0, 4.0, 3.0, 2.5), 
+		  Layer(10.0, 5.0, 3.0, 2.5),# Layer 1
+	    Layer(Inf, 6.0, 3.5, 2.7)     # Halfspace
+	]
+	
+	# Critical angle for P-wave: p_crit = 1/v_p = 1/6.0 ≈ 0.167
+	p_crit = 1.0 / 6.0
+	
+	p_range = range(0, p_crit * 1.2, length=50)
+	Rpp_vals = [angle(reflectivity_pp(test_layers_2, p, 2π*1.0, ω_ref)) for p in p_range]
+	
+	plot(p_range, Rpp_vals, xlabel="Ray Parameter p (s/km)", ylabel="|Rpp|")
+end
+
+# ╔═╡ a1e5796b-6f2f-44c6-b5bf-df6c9ee20960
+let
+	test_layers = [
+	    Layer(20.0, 5.0, 3.0, 2.5),
+		Layer(20.0, 5.0, 5.0, 2.5),
+	    Layer(Inf, 7.0, 4.0, 3.0)
+	]
+	
+	p_test = range(0, 0.19, length=100)
+	Rpp_test = [reflectivity_pp(test_layers, p, 2π*1.0, ω_ref) for p in p_test]
+	
+	max_abs = maximum(abs.(Rpp_test))
+	println("Max |Rpp| = $max_abs (should be ≤ 1.0)")
+end
+
+# ╔═╡ 55e64939-9298-4a15-a2b0-0d13c23d03dc
+let
+	# Normal incidence reflection coefficient
+	function normal_incidence_pp(layer1, layer2)
+	    z1 = layer1.rho * layer1.vp
+	    z2 = layer2.rho * layer2.vp
+	    return (z2 - z1) / (z2 + z1)
+	end
+	
+	test_layers = [
+	    Layer(10.0, 5.0, 3.0, 2.5),
+	    Layer(Inf, 6.0, 3.5, 2.7)
+	]
+	
+	# Analytical
+	R_analytical = normal_incidence_pp(test_layers[1], test_layers[2])
+	
+	# From reflectivity function
+	R_numerical = reflectivity_pp(test_layers, 0.0, 2π*1.0, ω_ref)
+	
+	println("Analytical Rpp(p=0) = $R_analytical")
+	println("Numerical Rpp(p=0) = $R_numerical")
+	println("Difference: $(abs(R_analytical - R_numerical))")
+end
+
+# ╔═╡ 1d49ebac-04a4-44a5-890c-f565d34246c1
+let
+	test_layers = [
+	    Layer(10.0, 5.0, 3.0, 2.5),
+		Layer(10.0, 4.0, 3.0, 2.5),
+	    Layer(Inf, 6.0, 3.5, 2.7)
+	]
+	
+	p_test = 0.1
+	freq_range = [0.1, 0.5, 1.0, 2.0, 5.0]
+	
+	for f in freq_range
+	    Rpp = reflectivity_pp(test_layers, p_test, 2π*f, ω_ref)
+	    println("f=$f Hz: Rpp = $Rpp")
+	end
+end
+
+# ╔═╡ 12104212-be60-42e8-85ba-518555ca31f2
+let
+	test_layers = [
+	    Layer(10.0, 5.0, 3.0, 2.5),
+	    Layer(Inf, 6.0, 3.5, 2.7)
+	]
+	
+	Rpp = reflectivity_pp(test_layers, 0.1, 2π*1.0, ω_ref)
+	
+	println("Rpp = $Rpp")
+	println("|Rpp| = $(abs(Rpp))")
+	println("Phase = $(angle(Rpp)) rad = $(rad2deg(angle(Rpp))) deg")
+end
+
 # ╔═╡ 3dfbfc66-8f87-4906-84f5-495bf113e4ef
-@variables ω::Real ξ₁ ν₁ ξ₂ ν₂ x::Real y::Real z::Real p r::Real λ₁::Real μ₁::Real λ₂::Real μ₂::Real t::Real
+
 
 # ╔═╡ 0de7835c-eb50-4de0-874b-e08270d988aa
 @syms α₁ β₁ ρ₁ α₂ β₂ ρ₂
@@ -208,15 +591,16 @@ end
 # ╔═╡ 239a50ff-3970-47ff-b772-fc3e0cb247fe
 function solve_linear_AB(media)
     constraints = [σzz_z0, σxz_z0, Ux_z0, Uz_z0]
-    # Avec = Symbolics.symbolic_linear_solve(constraints, [Aₚ, Bₚ, Aₛ, Bₛ])
-    Avec = Symbolics.symbolic_solve(constraints, [Aₚ, Bₚ, Aₛ, Bₛ])
+    Avec = Symbolics.symbolic_linear_solve(constraints, [Aₚ, Bₚ, Aₛ, Bₛ])
+	@show Avec
+    # Avec = Symbolics.symbolic_solve(constraints, [Aₚ, Bₚ, Aₛ, Bₛ])
     Avec_subs = Dict(string(key) => subs(Avec[1][key], media) for key in keys(Avec[1]))
 end
 
 # ╔═╡ fa4b8951-569e-4517-9b0a-f77a22a31fca
 begin
     Avec = solve_linear_AB(media)
-    Afunctions_vec = Dict(string(key) => build_function(Avec[key], p, ξ₁, ξ₂, ν₁, ν₂, expression=Val{false}) for key in keys(Avec))
+    # Afunctions_vec = Dict(string(key) => build_function(Avec[key], p, ξ₁, ξ₂, ν₁, ν₂, expression=Val{false}) for key in keys(Avec))
 end;
 
 # ╔═╡ f0a4c439-ee9b-4001-97db-66f6ac5afd5a
@@ -231,27 +615,26 @@ struct Preflect end
 # ╔═╡ 281a5cac-4e00-42d6-b331-ea5d80888f27
 struct Sreflect end
 
-# ╔═╡ 951a5946-ab54-4aff-be89-b8d5ea90fa1a
-begin
-    function get_phase(::Direct, p, param, media, h)
-        return conical_wave(p, param.Ω, param.X, param.Y, -param.Z, media.α₁ + 1e-3, 0.0)
-    end
-    function get_phase(::Preflect, p, param, media, h)
-        A = get_A(Afunctions_vec["Aₚ"], p, media)
-        return A * (conical_wave(p, param.Ω, param.X, param.Y, param.Z, media.α₁ + 1e-3, h))
-    end
-    function get_phase(::Sreflect, p, param, media, h)
-        A = get_A(Afunctions_vec["Aₛ"], p, media)
-        return A * (conical_wave(p, param.Ω, param.X, param.Y, param.Z, media.α₁ + 1e-3, media.β₁ + 1e-3, h))
-    end
-end
+# ╔═╡ 4e31b3c7-e7ab-4a10-ba04-292dd03a3732
+md"""Select the term $(@bind plot_phase confirm(Select([Direct() => "Direct", Preflect() => "Reflected P",  Sreflect() => "Reflected S"])))"""
 
-# ╔═╡ 2103d1d4-8041-455d-b513-02643762bd3a
-function get_wavefield(param, H1, media, phase)
-    U = im * param.Ω .* param.W .* quadgk(0, 3) do p
-        return get_phase(phase, p, param, media, H1)
-    end[1]
-    return U
+# ╔═╡ 089b0602-077a-4074-a424-0a6afab8bcf4
+"""
+    smooth_taper(p, p_max)
+
+Smooth cosine (Tukey-style) window near the upper limit p_max.
+Keeps full amplitude for p ≤ p_max(1-width), then tapers to 0 at p_max.
+"""
+function smooth_taper(p, p_max; width=0.3)
+    if p <= p_max * (1 - width)
+        return 1.0
+    elseif p < p_max
+        # Map [p_max(1-width), p_max] → [0, π]
+        t = π * (p - p_max * (1 - width)) / (width * p_max)
+        return 0.5 * (1.0 + cos(t))
+    else
+        return 0.0
+    end
 end
 
 # ╔═╡ 72aca1bf-3997-4be3-b316-921b45480c1a
@@ -259,27 +642,47 @@ md"## Seismograms"
 
 # ╔═╡ 12f7733a-edd6-481f-8166-ef967520b35a
 seismograms_param = let
-    Nt = 1024
+    Nt = 512
     freq_snapshot = 1.0
-    tgrid = range(0, 200, length=Nt)
-    ωgrid = collect(rfftfreq(Nt, inv(step(tgrid)))) * 2 * pi
+    tgrid = range(0, 100, length=Nt)
+    ωgrid = collect(rfftfreq(Nt, inv(step(tgrid)))) * 2.0 * pi
     f0 = freq_snapshot
-    ω0 = 2 * pi * f0
-    xgrid = collect(range(100, 500, length=10))
-    ΩX = collect(Iterators.product(ωgrid, xgrid))
-    Ω = vec(first.(ΩX))
-    X = vec(last.(ΩX))
-    Y = fill(0.0, length(X))
-    Z = fill(0, length(X))
+    ω0 = 2.0 * pi * f0
+    rgrid = collect(range(-100, 100, length=100))
+    # ΩR = collect(Iterators.product(ωgrid, rgrid))
+    Ω = reshape(ωgrid, :, 1)
+    R = reshape(rgrid, 1, :)
+    Z = fill(z, size(R))
     W = @. exp(-0.1(Ω - ω0)^2)
-    (; Nt, Ω, X, Y, Z, W, xgrid, tgrid, ωgrid, ω0, f0)
+    (; Nt, Ω, R, Z, W, rgrid, tgrid, ωgrid, ω0, f0)
 end;
+
+# ╔═╡ 210c693b-e0a2-4660-9389-bdc3e410080a
+Bessels.besselj0.(1.0 .* seismograms_param.R) .* exp.(im .* kz)
+
+# ╔═╡ 3f8684cb-03c7-4c86-86b5-0af2d9a32418
+@time conical_wave(0.0, seismograms_param.Ω, seismograms_param.X, seismograms_param.Y, seismograms_param.Z, media.α₁ + 1e-3)
+
+# ╔═╡ a88a10fe-2a02-458d-898a-25cdb0d15af4
+conical_wave(0.1, seismograms_param.Ω, seismograms_param.X, seismograms_param.Y, seismograms_param.Z, media.α₁)
+
+# ╔═╡ f73569cb-ef42-432a-8910-cbb0176cea18
+seismograms_param.Ω
+
+# ╔═╡ 37e33e90-0d44-4a9d-abeb-a7ee1cf9f977
+seismograms_param.Z
 
 # ╔═╡ 3693ffe9-979b-416a-85de-8438f00a6fc2
 H1 = 100.0
 
-# ╔═╡ 53a45db3-8571-4fc7-a855-5173030b7cb9
-seismograms = irfft(reshape(get_wavefield(seismograms_param, H1, media, plot_phase), length(seismograms_param.ωgrid), :), seismograms_param.Nt, 1);
+# ╔═╡ 765b90b8-060d-4b68-8201-309abe4adebc
+first.(Iterators.product(1:10, 11:20))
+
+# ╔═╡ 6923e13d-a4c5-45c9-a1b2-f0104932d709
+function remove_zero_frequency!(C)
+	C[1, :] .= 0.0
+	return C
+end
 
 # ╔═╡ 4b283a44-214a-4bc0-8eb9-031a0e124a82
 md"## Snapshot"
@@ -299,17 +702,223 @@ snapshot_param = let
     (; X, Y, Z, Ω, W, N, xgrid, zgrid)
 end;
 
-# ╔═╡ 423c7abb-f274-4010-bd08-95adc5890204
-snapshot = reshape(get_wavefield(snapshot_param, H1, media, plot_phase), snapshot_param.N, snapshot_param.N);
-
 # ╔═╡ c695e4d3-c49d-4587-8adc-cdd4c001325e
 md"## Appendix"
 
-# ╔═╡ 897afffa-77e8-11ef-1a54-c73d1df8f6a4
-using QuadGK, Bessels, PlutoPlotly, FFTW, Symbolics, SpecialFunctions, PlutoUI, ProgressLogging
+# ╔═╡ fbd2b939-c816-42dd-a65e-94abce3dc91a
+default_plotly_template(:plotly_dark)
 
-# ╔═╡ 4621f804-6a44-4c46-af37-3d364ba74cfe
-using Groebner, Nemo, Statistics
+# ╔═╡ af2ca94f-f684-4df7-90de-f1e699004e0f
+function layer_table_input(n_layers::Int, defaults::Vector{Layer}; vp_vs_ratio=1.73)
+    ui = PlutoUI.combine() do Child
+        header = @htl("""
+        <tr style=\"text-align:center;\">
+          <th style=\"padding:6px;\">#</th>
+          <th style=\"padding:6px;\">Thickness (km)</th>
+          <th style=\"padding:6px;\">Vp (km/s)</th>
+          <th style=\"padding:6px;\">Vs (km/s)</th>
+          <th style=\"padding:6px;\">Density (g/cc)</th>
+        </tr>
+        """)
+
+        rows = Any[]
+        for i in 1:n_layers
+            layer = i <= length(defaults) ? defaults[i] : defaults[end]
+            tw = i < n_layers ? Child("thickness_$i", Slider(0.25:0.25:60.0, default=layer.thickness, show_value=true)) : "∞"
+            vpw = Child("vp_$i", Slider(2.0:0.05:9.0, default=layer.vp, show_value=true))
+            vsw = Child("vs_$i", Slider(0.5:0.05:5.5, default=layer.vs, show_value=true))
+            rw = Child("rho_$i", Slider(1.5:0.05:4.0, default=layer.rho, show_value=true))
+
+            push!(rows, @htl("""
+                <tr>
+                  <td style=\"text-align:center; padding:6px;\"><b>Layer $i</b></td>
+                  <td style=\"padding:6px; text-align:center;\">$tw</td>
+                  <td style=\"padding:6px; text-align:center;\">$vpw</td>
+                  <td style=\"padding:6px; text-align:center;\">$vsw</td>
+                  <td style=\"padding:6px; text-align:center;\">$rw</td>
+                </tr>
+            """))
+        end
+
+        tbl = @htl("""
+        <table style=\"border-collapse:collapse; border:1px solid #ddd; width:100%;\">
+          <thead>$header</thead>
+          <tbody>
+            $(rows...)
+          </tbody>
+        </table>
+        """)
+
+        md"""
+        ### Layer Editor (slider mode)
+        Number of layers: **$n_layers**
+
+        $tbl
+        _Last layer is a half-space (∞ thickness)._"""
+    end
+
+    return PlutoUI.Experimental.transformed_value(ui) do vals
+        layers = [
+            begin
+                if i < n_layers
+                    t = vals[4*(i-1)+1]
+                    vp = vals[4*(i-1)+2]
+                    vs = vals[4*(i-1)+3]
+                    ρ = vals[4*(i-1)+4]
+                else
+                    t = Inf
+                    vp = vals[4*(i-1)+1]
+                    vs = vals[4*(i-1)+2]
+                    ρ = vals[4*(i-1)+3]
+                end
+                Layer(t, vp, vs, ρ)
+            end
+            for i in 1:n_layers
+        ]
+        return layers
+    end
+end
+
+
+
+# ╔═╡ 78d77dbb-1f2c-4b7c-a1ce-fa775ac7bd5c
+@bind layers_ui layer_table_input(n_layers, GUTENBERG_MODEL)
+
+# ╔═╡ d24ceb91-f463-497f-a914-5c6e90e766ee
+layers_ui
+
+# ╔═╡ ccec9a65-e249-4d28-bacb-6b53f8bfabf4
+reflectivity_pp(layers_ui, 0.0, 0.01, ω_ref)
+
+# ╔═╡ 00a3df8b-9642-461a-8d37-9342c121240e
+reflectivity_pp.(Ref(layers_ui), 0.1, seismograms_param.ωgrid, ω_ref)
+
+# ╔═╡ 84209251-8b66-4d63-ba8f-1b7c1a12b382
+layers_ui[1].vp
+
+# ╔═╡ 951a5946-ab54-4aff-be89-b8d5ea90fa1a
+begin
+    function get_phase(::Direct, k, kmax, param, layers)
+		taper = smooth_taper(k, kmax; width=0.2)
+		vp = causal_velocity(layers[1].vp, layers[1].Qp, )
+        C = taper * conical_wave(k, param.Ω, param.R, param.Z, layers[1].vp)
+		return C
+    end
+	function get_phase(::Preflect, p, p_max, param, media)
+    taper = smooth_taper(p, p_max; width=0.1)
+#     # frequency‑dependent reflectivity
+    A = cat(reflectivity_pp.(Ref(layers_ui), p, param.ωgrid, Ref(ω_ref)), dims=2)
+	C = conical_wave(p, param.Ω, param.R, param.Z, media.α₁)
+	C = reshape(C, length(param.ωgrid), length(param.rgrid))
+	return A .* C
+#     return A .* taper .* conical_wave(p, param.Ω, param.X, param.Y, param.Z, media.α₁, h)
+end
+	# ...existing code...
+# function get_phase(::Preflect, p, p_max, param, media, h)
+#     taper = smooth_taper(p, p_max; width=0.1)
+
+#     # Frequency‑dependent plane‑wave reflectivity of the stack at the top of layer 1
+#     # A = reflectivity_pp.(Ref(layers_ui), p, param.Ω, Ref(ω_ref))
+# 	A = reflectivity_pp(layers_ui, p, 1.0, 1.0)
+
+#     # Missing two‑way vertical phase in the top medium (P in layer 1):
+#     # down from source depth h to the free surface, then up to receiver depth z
+#     # -> exp(i ω q1 (h + z)).  With z = 0, this becomes exp(i ω q1 2h) when
+#     # combined with conical_wave’s exp(i ω q1 (h - z)).
+#     q1 = get_vertical_wavenumber(media.α₁, p)  # match conical_wave’s branch/convention
+#     extra_top_phase = exp.(1im .* param.Ω .* q1 .* (h .+ param.Z))
+
+#     return A .* taper .* extra_top_phase .* conical_wave(p, param.Ω, param.X, param.Y, param.Z, media.α₁, h)
+# end
+# ...existing code...
+
+	
+	
+  #   function get_phase(::Preflect, p, p_max, param, media, h)
+		# taper = smooth_taper(p, p_max; width=0.1)
+		
+  #       # A = get_A(Afunctions_vec["Aₚ"], p, media)
+  #       return A * taper * (conical_wave(p, param.Ω, param.X, param.Y, param.Z, media.α₁, h))
+  #   end
+
+	
+    function get_phase(::Sreflect, p, p_max, param, media, h)
+		taper = smooth_taper(p, p_max; width=0.1)
+        A = get_A(Afunctions_vec["Aₛ"], p, media)
+        return A * taper * (conical_wave(p, param.Ω, param.R, param.Z, media.α₁, media.β₁, h))
+    end
+end
+
+# ╔═╡ c246fdfc-321c-4856-8a4b-cf6cb4ba1594
+function get_wavefield(param, layers, phase; np=1024, pmargin=1.5)
+    # Discrete Riemann summation over horizontal wavenumber in [0, kmax]
+
+	vmax = maximum(getfield.(layers, :vs))
+    kmax = maximum(param.ωgrid) / vmax * 1.2
+    kgrid = range(0, kmax, length = np)
+
+    dk = step(kgrid)
+
+    # Accumulate vector result over all frequencies/receivers
+    integral_sum = zeros(ComplexF64, length(param.ωgrid), length(param.rgrid))
+
+    for k in kgrid
+        # get_phase broadcasts over param fields and returns a vector
+        integral_sum .+= get_phase(phase, k, kmax, param, layers) * dk
+    end
+
+    U = param.W .* integral_sum
+    return U
+end
+
+# ╔═╡ 423c7abb-f274-4010-bd08-95adc5890204
+# ╠═╡ disabled = true
+#=╠═╡
+snapshot = reshape(get_wavefield(snapshot_param, H1, media, plot_phase), snapshot_param.N, snapshot_param.N);
+  ╠═╡ =#
+
+# ╔═╡ a7b582ba-57fa-4f90-b017-5a9d059c30e5
+#=╠═╡
+plot(contour(x=snapshot_param.xgrid, y=snapshot_param.zgrid, z=log.(abs.(snapshot))), Layout(title="Radiation", yaxis_autorange="reversed", height=300, width=650))
+  ╠═╡ =#
+
+# ╔═╡ 9a9a1d8e-df81-4aa2-b0f3-49cb90f8a398
+layers_ui[1]
+
+# ╔═╡ 395d3a63-b7b8-44b5-97ab-740c4849db26
+begin
+	vmax = maximum(getfield.(layers_ui, :vs))
+	    kmax = maximum(seismograms_param.ωgrid) / vmax * 1.2
+	    # kgrid = range(0, kmax, length = 1024)
+end
+
+# ╔═╡ d297ea1c-e0ad-4fe7-bbc2-fc7d6269f8ba
+get_phase(Direct(), 1.0, 4.0, seismograms_param, layers_ui)
+
+# ╔═╡ 70ff038f-e684-4fde-8c93-0358b0181c01
+C = get_wavefield(seismograms_param, layers_ui, plot_phase)
+
+# ╔═╡ 77032c75-0cae-48a0-a5f0-7ca4de2ff3ea
+C
+
+# ╔═╡ 53a45db3-8571-4fc7-a855-5173030b7cb9
+seismograms = irfft(remove_zero_frequency!(get_wavefield(seismograms_param, layers_ui, plot_phase)), seismograms_param.Nt, 1);
+
+# ╔═╡ 96556fec-4bea-4132-946a-92d17372df54
+let
+    U = seismograms
+    Umaxclip = maximum(abs, U) * .1
+    plot(heatmap(y=seismograms_param.tgrid, x=seismograms_param.rgrid, z=U, zmin=-Umaxclip, zmax=Umaxclip, colorscale=:seismic,), Layout(title="Seismograms", width=300, yaxis_autorange="reversed", xaxis=attr(title="distance to receiver"), yaxis=attr(title="time (s)")))
+end
+
+# ╔═╡ 4ff2ef66-06eb-4df0-b491-10ab7a81d65d
+seismograms
+
+# ╔═╡ b3d2ba8e-7a02-4af1-9e4a-d9ab1b4676df
+plot(seismograms[:, 6])
+
+# ╔═╡ 47c0c813-08a2-4173-9853-f12874449b6e
+seismograms
 
 # ╔═╡ e7c1cbf4-7939-45a2-a754-b36ae9bdcab4
 md"""### To Do
@@ -331,6 +940,8 @@ PLUTO_PROJECT_TOML_CONTENTS = """
 Bessels = "0e736298-9ec6-45e8-9647-e4fc86a2fe38"
 FFTW = "7a1cc6ca-52ef-59f5-83cd-3a7055c09341"
 Groebner = "0b43b601-686d-58a3-8a1c-6623616c7cd4"
+HypertextLiteral = "ac1192a8-f4b3-4bfe-ba22-af5b92cd3ab2"
+LinearAlgebra = "37e2e46d-f89d-539d-b4ee-838fcccc9c8e"
 Nemo = "2edaba10-b0f1-5616-af89-8c11ac63239a"
 PlutoPlotly = "8e989ff0-3d88-8e9f-f020-2b208a939ff0"
 PlutoUI = "7f904dfe-b85e-4ff6-b463-dae2292396a8"
@@ -344,6 +955,7 @@ Symbolics = "0c5d862f-8b57-4792-8d23-62f2024744c7"
 Bessels = "~0.2.8"
 FFTW = "~1.10.0"
 Groebner = "~0.10.0"
+HypertextLiteral = "~0.9.5"
 Nemo = "~0.52.2"
 PlutoPlotly = "~0.6.5"
 PlutoUI = "~0.7.72"
@@ -357,9 +969,9 @@ Symbolics = "~6.56.0"
 PLUTO_MANIFEST_TOML_CONTENTS = """
 # This file is machine-generated - editing it directly is not advised
 
-julia_version = "1.11.7"
+julia_version = "1.12.1"
 manifest_format = "2.0"
-project_hash = "92d796d51b9c9727dca858a91288f562dccbdda6"
+project_hash = "8ba07bdbf4aab40a52233abcfc7f636bf7a1184d"
 
 [[deps.ADTypes]]
 git-tree-sha1 = "27cecae79e5cc9935255f90c53bb831cc3c870d7"
@@ -593,7 +1205,7 @@ weakdeps = ["Dates", "LinearAlgebra"]
 [[deps.CompilerSupportLibraries_jll]]
 deps = ["Artifacts", "Libdl"]
 uuid = "e66e0078-7015-5450-92f7-15fbd957f2ae"
-version = "1.1.1+0"
+version = "1.3.0+1"
 
 [[deps.CompositeTypes]]
 git-tree-sha1 = "bce26c3dab336582805503bed209faab1c279768"
@@ -778,7 +1390,7 @@ version = "1.11.0"
 [[deps.GMP_jll]]
 deps = ["Artifacts", "Libdl"]
 uuid = "781609d7-10c4-51f6-84f2-b8444358ff6d"
-version = "6.3.0+0"
+version = "6.3.0+2"
 
 [[deps.GPUArraysCore]]
 deps = ["Adapt"]
@@ -902,6 +1514,11 @@ git-tree-sha1 = "4255f0032eafd6451d707a51d5f0248b8a165e4d"
 uuid = "aacddb02-875f-59d6-b918-886e6ef4fbf8"
 version = "3.1.3+0"
 
+[[deps.JuliaSyntaxHighlighting]]
+deps = ["StyledStrings"]
+uuid = "ac6e5ff7-fb65-4e79-a425-ec3bc9c03011"
+version = "1.12.0"
+
 [[deps.LaTeXStrings]]
 git-tree-sha1 = "dda21b8cbd6a6c40d9d02a73230f9d70fed6918c"
 uuid = "b964fa9f-0449-5b57-a5c2-d3ea65f4040f"
@@ -936,24 +1553,24 @@ uuid = "b27032c2-a3e7-50c8-80cd-2d36dbcbfd21"
 version = "0.6.4"
 
 [[deps.LibCURL_jll]]
-deps = ["Artifacts", "LibSSH2_jll", "Libdl", "MbedTLS_jll", "Zlib_jll", "nghttp2_jll"]
+deps = ["Artifacts", "LibSSH2_jll", "Libdl", "OpenSSL_jll", "Zlib_jll", "nghttp2_jll"]
 uuid = "deac9b47-8bc7-5906-a0fe-35ac56dc84c0"
-version = "8.6.0+0"
+version = "8.11.1+1"
 
 [[deps.LibGit2]]
-deps = ["Base64", "LibGit2_jll", "NetworkOptions", "Printf", "SHA"]
+deps = ["LibGit2_jll", "NetworkOptions", "Printf", "SHA"]
 uuid = "76f85450-5226-5b5a-8eaa-529ad045b433"
 version = "1.11.0"
 
 [[deps.LibGit2_jll]]
-deps = ["Artifacts", "LibSSH2_jll", "Libdl", "MbedTLS_jll"]
+deps = ["Artifacts", "LibSSH2_jll", "Libdl", "OpenSSL_jll"]
 uuid = "e37daf67-58a4-590a-8e99-b0245dd2ffc5"
-version = "1.7.2+0"
+version = "1.9.0+0"
 
 [[deps.LibSSH2_jll]]
-deps = ["Artifacts", "Libdl", "MbedTLS_jll"]
+deps = ["Artifacts", "Libdl", "OpenSSL_jll"]
 uuid = "29816b5a-b9ab-546f-933c-edad1886dfa8"
-version = "1.11.0+1"
+version = "1.11.3+1"
 
 [[deps.Libdl]]
 uuid = "8f399da3-3557-5675-b5ff-fb832c97cbdb"
@@ -962,7 +1579,7 @@ version = "1.11.0"
 [[deps.LinearAlgebra]]
 deps = ["Libdl", "OpenBLAS_jll", "libblastrampoline_jll"]
 uuid = "37e2e46d-f89d-539d-b4ee-838fcccc9c8e"
-version = "1.11.0"
+version = "1.12.0"
 
 [[deps.LogExpFunctions]]
 deps = ["DocStringExtensions", "IrrationalConstants", "LinearAlgebra"]
@@ -998,7 +1615,7 @@ version = "2025.2.0+0"
 [[deps.MPFR_jll]]
 deps = ["Artifacts", "GMP_jll", "Libdl"]
 uuid = "3a97d323-0669-5f0c-9066-3539efd106a3"
-version = "4.2.1+0"
+version = "4.2.2+0"
 
 [[deps.MacroTools]]
 git-tree-sha1 = "1e0228a030642014fe5cfe68c2c0a818f9e3f522"
@@ -1006,14 +1623,9 @@ uuid = "1914dd2f-81c6-5fcd-8719-6d5c9610ff09"
 version = "0.5.16"
 
 [[deps.Markdown]]
-deps = ["Base64"]
+deps = ["Base64", "JuliaSyntaxHighlighting", "StyledStrings"]
 uuid = "d6f4376e-aef5-505a-96c1-9c027394607a"
 version = "1.11.0"
-
-[[deps.MbedTLS_jll]]
-deps = ["Artifacts", "Libdl"]
-uuid = "c8ffd9c3-330d-5841-b78e-0817d7145fa1"
-version = "2.28.6+0"
 
 [[deps.Missings]]
 deps = ["DataAPI"]
@@ -1033,7 +1645,7 @@ version = "0.3.7"
 
 [[deps.MozillaCACerts_jll]]
 uuid = "14a3606d-f60d-562e-9121-12d972cd8159"
-version = "2023.12.12"
+version = "2025.5.20"
 
 [[deps.MultivariatePolynomials]]
 deps = ["DataStructures", "LinearAlgebra", "MutableArithmetics"]
@@ -1065,7 +1677,7 @@ version = "0.52.2"
 
 [[deps.NetworkOptions]]
 uuid = "ca575930-c2e3-43a9-ace4-1e988b2c1908"
-version = "1.2.0"
+version = "1.3.0"
 
 [[deps.OffsetArrays]]
 git-tree-sha1 = "117432e406b5c023f665fa73dc26e79ec3630151"
@@ -1085,12 +1697,17 @@ version = "0.3.29+0"
 [[deps.OpenBLAS_jll]]
 deps = ["Artifacts", "CompilerSupportLibraries_jll", "Libdl"]
 uuid = "4536629a-c528-5b80-bd46-f80d51c5b363"
-version = "0.3.27+1"
+version = "0.3.29+0"
 
 [[deps.OpenLibm_jll]]
 deps = ["Artifacts", "Libdl"]
 uuid = "05823500-19ac-5b8b-9628-191a04bc5112"
-version = "0.8.5+0"
+version = "0.8.7+0"
+
+[[deps.OpenSSL_jll]]
+deps = ["Artifacts", "Libdl"]
+uuid = "458c3c95-2e84-50aa-8efc-19380b2a3a95"
+version = "3.5.1+0"
 
 [[deps.OpenSpecFun_jll]]
 deps = ["Artifacts", "CompilerSupportLibraries_jll", "JLLWrappers", "Libdl"]
@@ -1124,7 +1741,7 @@ version = "2.8.3"
 [[deps.Pkg]]
 deps = ["Artifacts", "Dates", "Downloads", "FileWatching", "LibGit2", "Libdl", "Logging", "Markdown", "Printf", "Random", "SHA", "TOML", "Tar", "UUIDs", "p7zip_jll"]
 uuid = "44cfe95a-1eb2-52ea-b672-e2afdf69b78f"
-version = "1.11.0"
+version = "1.12.0"
 weakdeps = ["REPL"]
 
     [deps.Pkg.extensions]
@@ -1231,7 +1848,7 @@ version = "2.11.2"
     Enzyme = "7da242da-08ed-463a-9acd-ee780be4f1d9"
 
 [[deps.REPL]]
-deps = ["InteractiveUtils", "Markdown", "Sockets", "StyledStrings", "Unicode"]
+deps = ["InteractiveUtils", "JuliaSyntaxHighlighting", "Markdown", "Sockets", "StyledStrings", "Unicode"]
 uuid = "3fa0cd96-eef1-5676-8a61-b3b8758bbffb"
 version = "1.11.0"
 
@@ -1417,7 +2034,7 @@ version = "1.2.2"
 [[deps.SparseArrays]]
 deps = ["Libdl", "LinearAlgebra", "Random", "Serialization", "SuiteSparse_jll"]
 uuid = "2f01184e-e22b-5df5-ae63-d93ebab69eaf"
-version = "1.11.0"
+version = "1.12.0"
 
 [[deps.SpecialFunctions]]
 deps = ["IrrationalConstants", "LogExpFunctions", "OpenLibm_jll", "OpenSpecFun_jll"]
@@ -1489,7 +2106,7 @@ uuid = "4607b0f0-06f3-5cda-b6b1-a6196a1729e9"
 [[deps.SuiteSparse_jll]]
 deps = ["Artifacts", "Libdl", "libblastrampoline_jll"]
 uuid = "bea87d4a-7f5b-5778-9afe-8cc45184846c"
-version = "7.7.0+0"
+version = "7.8.3+2"
 
 [[deps.SymbolicIndexingInterface]]
 deps = ["Accessors", "ArrayInterface", "RuntimeGeneratedFunctions", "StaticArraysCore"]
@@ -1636,17 +2253,17 @@ version = "0.3.0"
 [[deps.Zlib_jll]]
 deps = ["Libdl"]
 uuid = "83775a58-1f1d-513f-b197-d71354ab007a"
-version = "1.2.13+1"
+version = "1.3.1+2"
 
 [[deps.libblastrampoline_jll]]
 deps = ["Artifacts", "Libdl"]
 uuid = "8e850b90-86db-534c-a0d3-1478176c7d93"
-version = "5.11.0+0"
+version = "5.15.0+0"
 
 [[deps.nghttp2_jll]]
 deps = ["Artifacts", "Libdl"]
 uuid = "8e850ede-7688-5339-a07c-302acd2aaf8d"
-version = "1.59.0+0"
+version = "1.64.0+1"
 
 [[deps.oneTBB_jll]]
 deps = ["Artifacts", "JLLWrappers", "LazyArtifacts", "Libdl"]
@@ -1657,22 +2274,52 @@ version = "2022.0.0+1"
 [[deps.p7zip_jll]]
 deps = ["Artifacts", "Libdl"]
 uuid = "3f19e933-33d8-53b3-aaab-bd5110c3b7a0"
-version = "17.4.0+2"
+version = "17.5.0+2"
 """
 
 # ╔═╡ Cell order:
 # ╠═6188ff3e-cfd5-4c9c-aa39-619dc280d494
 # ╟─1bbedd43-9e69-4ba0-a251-855f1f63dcf8
 # ╟─4e31b3c7-e7ab-4a10-ba04-292dd03a3732
-# ╟─96556fec-4bea-4132-946a-92d17372df54
+# ╠═5d8719c8-4b50-435b-9c3e-aa8eee50df98
+# ╠═78d77dbb-1f2c-4b7c-a1ce-fa775ac7bd5c
+# ╠═d24ceb91-f463-497f-a914-5c6e90e766ee
+# ╠═d1f5e223-cc49-4fe8-9b2e-c1ccecf2315a
+# ╠═614a3832-7bc7-4bd3-a09d-50b76afdd7cf
+# ╠═dea0645d-cb7c-4488-913b-ba225595aceb
+# ╠═579cfd9f-e872-4ec5-b913-c90f8e183247
+# ╠═a1e5796b-6f2f-44c6-b5bf-df6c9ee20960
+# ╠═55e64939-9298-4a15-a2b0-0d13c23d03dc
+# ╠═1d49ebac-04a4-44a5-890c-f565d34246c1
+# ╠═12104212-be60-42e8-85ba-518555ca31f2
+# ╠═ccec9a65-e249-4d28-bacb-6b53f8bfabf4
+# ╠═9f5c360c-7699-4c78-8e4b-8a2d316bc304
+# ╠═d060f642-89bf-430d-a509-25133ab0aacd
+# ╠═cc9dbdc7-56a7-410e-9787-6ce75748596e
+# ╠═96556fec-4bea-4132-946a-92d17372df54
+# ╠═4ff2ef66-06eb-4df0-b491-10ab7a81d65d
+# ╠═b3d2ba8e-7a02-4af1-9e4a-d9ab1b4676df
 # ╟─a7b582ba-57fa-4f90-b017-5a9d059c30e5
 # ╟─7a3bd5df-0f9f-489c-b522-4098c325c0c0
 # ╠═29020170-3173-40a4-aac6-9d0fd1212aaf
+# ╠═add5414e-8a87-4164-9c2c-a3deeb13a864
+# ╠═210c693b-e0a2-4660-9389-bdc3e410080a
 # ╠═05ec38ea-3431-490c-bc38-24f8c1b2d54f
 # ╠═3f8684cb-03c7-4c86-86b5-0af2d9a32418
 # ╟─e2fea7d5-00a3-4796-ad51-26f2dcffa55b
+# ╠═5ea371a8-8035-4ba3-ab83-a9ffa2e3d504
 # ╠═d430c8ec-fa65-4e72-951e-987ba9f2f160
+# ╠═f047c190-0bf3-4763-9f31-b4272e837dd2
 # ╟─360de109-d7db-4402-bca8-5b39c6f17da9
+# ╠═f25f798f-0ecc-4931-b8b5-9c958b83850f
+# ╠═d60d4d65-8896-40ee-b52f-17d66999c727
+# ╠═e6bbca73-e59c-4b6a-854e-438222778110
+# ╠═687b7062-ee25-4498-948f-43b187e0ccfa
+# ╠═8902f19a-6b93-458a-9198-f2322b2f5ab5
+# ╠═7ca06983-11c1-4203-9bd0-0cc1a461b74f
+# ╠═c9bf8e13-eee2-45ae-9ce5-4901c344c8f6
+# ╠═43c34152-fc5f-4497-882f-7f42bd4e6b99
+# ╠═da2a2e26-f217-41e0-8485-6517af621d2a
 # ╠═3dfbfc66-8f87-4906-84f5-495bf113e4ef
 # ╠═0de7835c-eb50-4de0-874b-e08270d988aa
 # ╠═8ef12535-49a1-46fe-a26c-880358755a16
@@ -1707,18 +2354,36 @@ version = "17.4.0+2"
 # ╠═0e8564a1-d300-4ca1-84f3-93ebea6ad08a
 # ╠═e1908cc5-a4c1-4802-9f23-d9905a68cc36
 # ╠═281a5cac-4e00-42d6-b331-ea5d80888f27
+# ╠═089b0602-077a-4074-a424-0a6afab8bcf4
+# ╠═00a3df8b-9642-461a-8d37-9342c121240e
+# ╠═a88a10fe-2a02-458d-898a-25cdb0d15af4
+# ╠═f73569cb-ef42-432a-8910-cbb0176cea18
+# ╠═37e33e90-0d44-4a9d-abeb-a7ee1cf9f977
+# ╠═84209251-8b66-4d63-ba8f-1b7c1a12b382
 # ╠═951a5946-ab54-4aff-be89-b8d5ea90fa1a
-# ╠═2103d1d4-8041-455d-b513-02643762bd3a
+# ╠═9a9a1d8e-df81-4aa2-b0f3-49cb90f8a398
+# ╠═c246fdfc-321c-4856-8a4b-cf6cb4ba1594
+# ╠═395d3a63-b7b8-44b5-97ab-740c4849db26
+# ╠═d297ea1c-e0ad-4fe7-bbc2-fc7d6269f8ba
 # ╟─72aca1bf-3997-4be3-b316-921b45480c1a
 # ╠═12f7733a-edd6-481f-8166-ef967520b35a
 # ╠═3693ffe9-979b-416a-85de-8438f00a6fc2
+# ╠═765b90b8-060d-4b68-8201-309abe4adebc
+# ╠═47c0c813-08a2-4173-9853-f12874449b6e
+# ╠═70ff038f-e684-4fde-8c93-0358b0181c01
 # ╠═53a45db3-8571-4fc7-a855-5173030b7cb9
+# ╠═6923e13d-a4c5-45c9-a1b2-f0104932d709
+# ╠═77032c75-0cae-48a0-a5f0-7ca4de2ff3ea
 # ╟─4b283a44-214a-4bc0-8eb9-031a0e124a82
 # ╠═e91921c5-4600-4344-85c7-e35820ba2daa
 # ╠═423c7abb-f274-4010-bd08-95adc5890204
 # ╟─c695e4d3-c49d-4587-8adc-cdd4c001325e
 # ╠═897afffa-77e8-11ef-1a54-c73d1df8f6a4
+# ╠═aa38e7f6-b8d2-4270-9142-1aa688041eb4
 # ╠═4621f804-6a44-4c46-af37-3d364ba74cfe
+# ╠═fbd2b939-c816-42dd-a65e-94abce3dc91a
+# ╠═9b488729-aadc-4c1d-b971-6931d4bc9a08
+# ╠═af2ca94f-f684-4df7-90de-f1e699004e0f
 # ╟─e7c1cbf4-7939-45a2-a754-b36ae9bdcab4
 # ╟─9d10ab94-38d5-406e-8697-7f5bc0c11df2
 # ╟─00000000-0000-0000-0000-000000000001

@@ -1,0 +1,7 @@
+# Live Interactive Notebooks
+# These notebooks run on the VM via PlutoSliderServer
+# Add/remove notebooks by section to enable/disable live deployment
+
+sections:
+  Test:
+    - misc/geoid-kernel.jl

@@ -1,5 +1,5 @@
 ### A Pluto.jl notebook ###
-# v0.20.19
+# v0.20.21
 
 #> [frontmatter]
 #> title = "Normal Modes 1D"
@@ -20,6 +20,22 @@ macro bind(def, element)
         el
     end
     #! format: on
+end
+
+# ╔═╡ cd668fc4-7a21-49c3-b923-482f8779a73d
+begin
+    using PlutoUI
+    using Pluto
+    using PlutoTest
+    using PlutoTeachingTools
+    using Symbolics
+    using SymbolicUtils
+    using Plots
+    using LinearAlgebra
+    using FFTW
+    using Roots
+    using PlotThemes
+    theme(:dark)
 end
 
 # ╔═╡ dcbfa6fd-6ffa-4f38-8c72-4f65233c938b
@@ -53,45 +69,24 @@ Instructor: *Pawan Bharadwaj*,
 Indian Institute of Science, Bengaluru, India
 """
 
+# ╔═╡ 314ac446-3688-499f-a57a-4d99b24ccc7d
+@bind it Clock(0.05)
+
+# ╔═╡ 73d50ccc-9791-4b8b-8216-2041a3940357
+md"""
+### Records 
+We can measure eigenfrequencies and infer the velocity of the medium.
+"""
+
 # ╔═╡ 4a41c6f8-55e6-47ef-ac7f-876764c6b684
 md"""
 We begin with a solution of the form.
 """
 
-# ╔═╡ b899e9fe-b707-4a94-bb9c-4ca26842f311
-u(x, t) = U(x, ω) * cos(ω * t)
-
-# ╔═╡ b9b01f1b-92ca-4bfe-9d8c-2fcadbdcbf0f
-u(x, t)
-
-# ╔═╡ d8d39a7a-7f6c-41c2-8cf3-5ebefca14bff
-begin
-    Dx = Differential(x)
-    Dt = Differential(t)
-end
-
-# ╔═╡ a2261203-72f2-4b6e-8d5a-29b42691eaa4
-L(u, ρ, μ) = ρ * Dt(Dt(u)) - Dx(μ * Dx(u))
-
-# ╔═╡ 50cdd3ff-d53b-4477-8654-3cfbca8c3741
-Uex1 = expand_derivatives(L(u(x, t), ρ, μ))
-
-# ╔═╡ e1230cdd-c000-4f80-aabf-705cd47d7f05
-Ueq = simplify(Uex1 / cos(ω * t)) ~ 0
-
 # ╔═╡ 410bfa83-bbf0-4e05-a568-19416314ab87
 md"""
 The differential equation above is in Sturm–Liouville form. If the medium is homogeneous with constant velocity `c`, the solution is given by.
 """
-
-# ╔═╡ 7f70b9ad-9f4e-4ec9-ba3c-04fdd860e4b4
-Usol(x, c) = sin(x / c * ω)
-
-# ╔═╡ 8b5410b6-e7b8-4f2a-a8ce-b0572b7f7f52
-Usol(x, c)
-
-# ╔═╡ 8f1ddc1d-f03f-4a0b-b129-e6de48ecc51c
-substitute(Ueq.lhs, [U(x, ω) => Usol(x, c)]) |> expand_derivatives |> x -> substitute(x, [c^2 => μ / ρ]) |> simplify
 
 # ╔═╡ c7ac6da6-7e5b-4c14-a4aa-b3d83b469550
 md"""
@@ -118,30 +113,6 @@ md"""
 	"""
 end
 
-# ╔═╡ a8aba6f3-c212-4428-8458-6925c49524cd
-@bind medium confirm(medium_input(n_layers[1]))
-
-# ╔═╡ e464db0e-97fe-4a38-9309-8595b0c0420b
-@bind pa confirm(other_input())
-
-# ╔═╡ e4597db1-f92e-4513-824b-87c22ecb0f15
-plot_up(up,xgrid,pa,medium,n_layers[1])
-
-# ╔═╡ 73d50ccc-9791-4b8b-8216-2041a3940357
-md"""
-### Records 
-We can measure eigenfrequencies and infer the velocity of the medium.
-"""
-
-# ╔═╡ 9cda10ec-8e35-4b51-a0be-644c3be56f8e
-plot_record()
-
-# ╔═╡ 93dcf185-54d2-42de-832b-700c79705e66
-eigen_frequencies
-
-# ╔═╡ 72e45d51-da6d-4660-b0bd-1cb1fde913f6
-length(tgrid)
-
 # ╔═╡ 1ceaa0b2-0f10-493b-b760-658598e60931
 
 
@@ -155,22 +126,10 @@ md"""
 **Definition of spatial grid:** Spatial grid is defined using Chebyshev collocation points.
 """
 
-# ╔═╡ 48fdfc8f-c6ef-497d-aa76-37faf6bc335b
-xgrid = get_Chebyshev_grid(medium);
-
-# ╔═╡ 3710527e-1f16-4a77-9881-e5dfa71bceb3
-scatter(xgrid, [0], ylim=(-1, 1), title="Chebyshev Collocation Points", size=(600, 200))
-
 # ╔═╡ 95e0e53c-131e-4b83-91e1-1aefd3808b2c
 md"""
 **Interpolation of wave speeds:** Layer-wise wave speeds are interpolated to the spatial grid points by assuming that the wave speeds are invariant within the layer.
 """
-
-# ╔═╡ 8ffdd68b-5ee4-49ec-b2c5-83510d68822d
-cvec = get_wavespeed(medium, xgrid, n_layers[1]);
-
-# ╔═╡ c98ad9b1-863a-4bc3-8637-9b7242390524
-plot(xgrid, cvec, w=2, title="Wavespeed", label=nothing, size=(600, 200))
 
 # ╔═╡ c683d0a8-85a0-4ff9-a071-abbbf64e64bf
 @info "Integer multiples of the first Eigen frequencies."
@@ -180,37 +139,13 @@ md"""
 **Definition of matrix operator and Eigen decomposition:** The matrix operator that we are interested in is $c^2\frac{\partial^2}{\partial x^2}$. The spatial derivative is computed using the Chebyshev spectral method. We do the Eigen value decomposition of this matrix operator after applying the boundary condition.
 """
 
-# ╔═╡ 9afe5aa9-579f-4c56-8e7a-451efdd10a57
-D = Chebyshev_Diff_Matrix(xgrid, medium.nx - 1);
-
-# ╔═╡ 8b8b76d2-ac05-4160-8ceb-e9139908e53f
-Lop, LE = get_op(medium, cvec, D);
-
-# ╔═╡ 26935936-82fe-4eaa-96a1-72ebf39c67ed
-eigen_vectors, eigen_frequencies = get_eigen(LE, pa);
-
-# ╔═╡ 8cf920ec-97a2-4ae8-a0e4-2f094c8efbcf
-heatmap(eigen_vectors)
-
 # ╔═╡ b2fd6fed-99ce-4e54-a4cd-d81796daad3c
 md"It has been proven that all the eigen values of the second-order Chebyshev spectral differentiation matrix are real, distinct, and negative (Gottleib and Lustman). We shall now plot them."
-
-# ╔═╡ 6e399a13-7fd2-4fa7-99ad-bfec81f4c378
-scatter(eigen_frequencies, label="Eigen Frequencies")
 
 # ╔═╡ 5c299817-255b-4b27-8b1b-ef5a84d7a892
 md"""
 **Modeling the source as a delta function:** We model the source as a delta function placed at its grid location.
 """
-
-# ╔═╡ 7bb7fde1-f933-495a-b09b-351c7632ef34
-source = get_source(pa, medium);
-
-# ╔═╡ f8abaa6a-c85b-4ae9-adeb-e68d7d0eb26e
-begin
-	plot(source, label=nothing);
-	plot!(eigen_vectors * eigen_vectors' * source, label=nothing, size=(600, 200));
-end
 
 # ╔═╡ f2498b6b-2628-4beb-bee0-391bcfde2e1f
 md"""
@@ -221,39 +156,41 @@ $u(x,t) = U(x,\omega)cos(\omega t) = \Sigma_nU_n(x,\omega_n)cos(\omega_nt)$
 Here, $\omega_n$ are the eigen frequencies that we have computed and $U_n(x,\omega_n)$ are the corresponding eigen functions. The eigen functions also need to be scaled by the position of the source and the source-time function.
 """
 
-# ╔═╡ 1c6243ed-8025-4eeb-9088-530c742383cc
-begin
-	nt = 1000
-	dt = 0.01
-	tgrid = range(0, step=dt, length=nt)
-	up = normal_mode_summation(eigen_vectors, eigen_frequencies, source, tgrid)
-	nothing
-end
-
-# ╔═╡ 2ee412fe-5a38-4884-b745-4f9c7ca2287c
-heatmap(up, xlabel="x position", ylabel="time", title="Displacement", aspect_ratio=1, c=:seismic, size=(300, 600))
-
 # ╔═╡ e5911de3-df61-4eff-9125-e17e2b60635c
 md"## Appendix"
 
-# ╔═╡ cd668fc4-7a21-49c3-b923-482f8779a73d
-begin
-    using PlutoUI
-    using Pluto
-    using PlutoTest
-    using PlutoTeachingTools
-    using Symbolics
-    using SymbolicUtils
-    using Plots
-    using LinearAlgebra
-    using FFTW
-    using Roots
-    using PlotThemes
-    theme(:dark)
-end
-
 # ╔═╡ 49d1e6d1-acd0-4cf8-8373-3c9daf61cf6c
 @syms x::Real t::Real ω::Real U(::Real, ::Real)::Real c::Real μ::Real ρ::Real
+
+# ╔═╡ b899e9fe-b707-4a94-bb9c-4ca26842f311
+u(x, t) = U(x, ω) * cos(ω * t)
+
+# ╔═╡ b9b01f1b-92ca-4bfe-9d8c-2fcadbdcbf0f
+u(x, t)
+
+# ╔═╡ d8d39a7a-7f6c-41c2-8cf3-5ebefca14bff
+begin
+    Dx = Differential(x)
+    Dt = Differential(t)
+end
+
+# ╔═╡ a2261203-72f2-4b6e-8d5a-29b42691eaa4
+L(u, ρ, μ) = ρ * Dt(Dt(u)) - Dx(μ * Dx(u))
+
+# ╔═╡ 50cdd3ff-d53b-4477-8654-3cfbca8c3741
+Uex1 = expand_derivatives(L(u(x, t), ρ, μ))
+
+# ╔═╡ e1230cdd-c000-4f80-aabf-705cd47d7f05
+Ueq = simplify(Uex1 / cos(ω * t)) ~ 0
+
+# ╔═╡ 7f70b9ad-9f4e-4ec9-ba3c-04fdd860e4b4
+Usol(x, c) = sin(x / c * ω)
+
+# ╔═╡ 8b5410b6-e7b8-4f2a-a8ce-b0572b7f7f52
+Usol(x, c)
+
+# ╔═╡ 8f1ddc1d-f03f-4a0b-b129-e6de48ecc51c
+substitute(Ueq.lhs, [U(x, ω) => Usol(x, c)]) |> expand_derivatives |> x -> substitute(x, [c^2 => μ / ρ]) |> simplify
 
 # ╔═╡ ede6c92e-9fb8-4e25-b87a-6c6ef5ba30da
 md"""
@@ -352,9 +289,6 @@ md"""
 A simple test to check the differential operator `D`.
 """
 
-# ╔═╡ bef9146b-4965-4a74-87b3-09ddcf8ed3d9
-@test (3 .* cos.(3.0 .* xgrid)) ≈ D * sin.(3.0 .* xgrid)
-
 # ╔═╡ 9bbb4967-134c-4d6c-ac66-ff7ec993e8aa
 md"""
 Function to return the operator matrix on which Eigen value decomposition needs to be performed for the Strum-Louville formulation. The Eigen value equation is 
@@ -399,13 +333,50 @@ Function to get the eigen frequencies and eigen vectors for summation of normal 
 
 # ╔═╡ 1a37a04e-4d58-4b8c-b8d9-eca694270e66
 function get_eigen(LE, pa)
-    eigen_frequencies = sqrt.(-1 .* LE.values[end-pa.nω:end-2])
-    eigen_vectors = LE.vectors[:, end-pa.nω:end-2]
+    # Compute all eigenfrequencies (handling negative eigenvalues from spectral operator)
+    vals = LE.values
+    freqs = sqrt.(-1 .* vals)
+    # sort modes by increasing frequency
+    perm = sortperm(freqs)
+
+    if hasproperty(pa, :selected_modes) && !isempty(pa.selected_modes)
+        raw = pa.selected_modes
+        raw = isa(raw, AbstractVector) ? raw : [raw]
+        sel = Int[]
+        for v in raw
+            if isa(v, Integer)
+                push!(sel, Int(v))
+            elseif isa(v, AbstractString)
+                try
+                    push!(sel, parse(Int, v))
+                catch
+                    # ignore non-integer strings
+                end
+            else
+                try
+                    push!(sel, Int(v))
+                catch
+                    # ignore values that cannot be converted
+                end
+            end
+        end
+        if isempty(sel)
+            chosen = perm[1]
+        else
+            # clamp and deduplicate selections
+            sel = unique(clamp.(sel, 1, length(perm)))
+            chosen = perm[sel]
+        end
+    else
+        # fallback to previous behaviour: take the lowest pa.nω modes
+        nsel = clamp(get(pa, :nω, 40), 1, length(freqs))
+        chosen = perm[1:nsel]
+    end
+
+    eigen_frequencies = freqs[chosen]
+    eigen_vectors = LE.vectors[:, chosen]
     return eigen_vectors, eigen_frequencies
 end
-
-# ╔═╡ 3ce77047-5c1d-4288-929e-e51f307e0d69
-heatmap(eigen_vectors' * eigen_vectors)
 
 # ╔═╡ 6e44f4ab-52da-4198-a0ad-7f2120fccdd5
 @warn "Notice that the eigenvectors are not orthogonal to each other, as the operator matrix is not symmetric."
@@ -483,6 +454,30 @@ begin
 	nothing
 end
 
+# ╔═╡ a8aba6f3-c212-4428-8458-6925c49524cd
+@bind medium confirm(medium_input(n_layers[1]))
+
+# ╔═╡ 48fdfc8f-c6ef-497d-aa76-37faf6bc335b
+xgrid = get_Chebyshev_grid(medium);
+
+# ╔═╡ 3710527e-1f16-4a77-9881-e5dfa71bceb3
+scatter(xgrid, [0], ylim=(-1, 1), title="Chebyshev Collocation Points", size=(600, 200))
+
+# ╔═╡ 8ffdd68b-5ee4-49ec-b2c5-83510d68822d
+cvec = get_wavespeed(medium, xgrid, n_layers[1]);
+
+# ╔═╡ c98ad9b1-863a-4bc3-8637-9b7242390524
+plot(xgrid, cvec, w=2, title="Wavespeed", label=nothing, size=(600, 200))
+
+# ╔═╡ 9afe5aa9-579f-4c56-8e7a-451efdd10a57
+D = Chebyshev_Diff_Matrix(xgrid, medium.nx - 1);
+
+# ╔═╡ bef9146b-4965-4a74-87b3-09ddcf8ed3d9
+@test (3 .* cos.(3.0 .* xgrid)) ≈ D * sin.(3.0 .* xgrid)
+
+# ╔═╡ 8b8b76d2-ac05-4160-8ceb-e9139908e53f
+Lop, LE = get_op(medium, cvec, D);
+
 # ╔═╡ fdad8225-33db-41ad-a21e-06edd8ab3a9e
 md"""
 Function to define the source and receiver locations and the number of normal modes used in the summation.
@@ -503,10 +498,13 @@ function other_input()
             """,
         ]
 
-        eigen = [
+        eigen = begin
+            maxm = max(1, length(LE.values) - 2)
+            choices = [(string(i) => i) for i in 1:maxm]
             md"""
-           $(Child("nω", NumberField(1:100, default=40)))
-           	""",]
+           Select modes to include in the summation: $(Child("selected_modes", MultiCheckBox(choices[1:36], select_all=true, default=["1", "2", "3", "4", "5"])))
+            """
+        end
 
         md"""
    ### Modeling Parameters
@@ -525,6 +523,51 @@ $(eigen)
     end
 end
 
+# ╔═╡ e464db0e-97fe-4a38-9309-8595b0c0420b
+@bind pa confirm(other_input())
+
+# ╔═╡ 26935936-82fe-4eaa-96a1-72ebf39c67ed
+eigen_vectors, eigen_frequencies = get_eigen(LE, pa);
+
+# ╔═╡ 93dcf185-54d2-42de-832b-700c79705e66
+eigen_frequencies
+
+# ╔═╡ 8cf920ec-97a2-4ae8-a0e4-2f094c8efbcf
+heatmap(eigen_vectors)
+
+# ╔═╡ 6e399a13-7fd2-4fa7-99ad-bfec81f4c378
+scatter(eigen_frequencies, label="Eigen Frequencies")
+
+# ╔═╡ 3ce77047-5c1d-4288-929e-e51f307e0d69
+heatmap(eigen_vectors' * eigen_vectors)
+
+# ╔═╡ 7bb7fde1-f933-495a-b09b-351c7632ef34
+source = get_source(pa, medium);
+
+# ╔═╡ f8abaa6a-c85b-4ae9-adeb-e68d7d0eb26e
+begin
+	plot(source, label=nothing);
+	plot!(eigen_vectors * eigen_vectors' * source, label=nothing, size=(600, 200));
+end
+
+# ╔═╡ 1c6243ed-8025-4eeb-9088-530c742383cc
+begin
+	nt = 1000
+	dt = 0.01
+	tgrid = range(0, step=dt, length=nt)
+	up = normal_mode_summation(eigen_vectors, eigen_frequencies, source, tgrid)
+	nothing
+end
+
+# ╔═╡ 72e45d51-da6d-4660-b0bd-1cb1fde913f6
+length(tgrid)
+
+# ╔═╡ 2ee412fe-5a38-4884-b745-4f9c7ca2287c
+heatmap(up, xlabel="x position", ylabel="time", title="Displacement", aspect_ratio=1, c=:seismic, size=(300, 600))
+
+# ╔═╡ da93e876-249d-4367-bd11-a5f2efc0efb7
+[(string(i) => i) for i in 1:10]
+
 # ╔═╡ 2c4b1d89-906f-45f7-8360-d270d691fe12
 md"""
 ### Plots
@@ -533,19 +576,21 @@ Function to show the animation of displacements in the medium at different times
 
 # ╔═╡ 8a19be18-13dd-4bfb-a082-08e4fbe50603
 begin
-	function plot_up(up,xgrid,pa,medium,n_layers)
-    	ylim = (-maximum(abs.(up)), maximum(abs.(up)))
-    	@gif for it in 1:2:100
-        	plot(xgrid, up[it, :], ylim=ylim, label=nothing, title="Displacement of 1D Earth (it=$it)", ylabel="Amplitude", w=2)
-        	vline!([xgrid[pa.isx]], label="source", w=2)
-        	vline!([xgrid[pa.irx]], label="receiver", w=2)
-			for i = 1:n_layers-1
-				vline!([xgrid[argmin(abs.(xgrid .- medium[n_layers+i]))]], label="boundary", w=2)
-			end
-    	end
-	end
-	nothing
+    function plot_up_frame(up, xgrid, pa, medium, n_layers, it)
+        ylim = (-maximum(abs.(up)), maximum(abs.(up)))
+        p = plot(xgrid, up[it, :], ylim=ylim, label=nothing, title="Displacement of 1D Earth (it=$it)", ylabel="Amplitude", w=2, size=(900, 400))
+        vline!(p, [xgrid[pa.isx]], label="source", w=2)
+        vline!(p, [xgrid[pa.irx]], label="receiver", w=2)
+        for i = 1:n_layers-1
+            vline!(p, [xgrid[argmin(abs.(xgrid .- medium[n_layers+i]))]], label="boundary", w=2)
+        end
+        return p
+    end
+    nothing
 end
+
+# ╔═╡ 1308cac7-8c91-4bc6-b440-0da2a468377b
+WideCell(plot_up_frame(up, xgrid, pa, medium, n_layers[1], it))
 
 # ╔═╡ 28aaf613-3041-4ede-b8f3-ebfb955ef5cc
 md"""
@@ -559,6 +604,9 @@ function plot_record()
     vline!(p2, eigen_frequencies ./ 2 ./ pi, label="Eigen Frequencies")
     plot(p1, p2, layout=(2, 1))
 end
+
+# ╔═╡ 9cda10ec-8e35-4b51-a0be-644c3be56f8e
+plot_record()
 
 # ╔═╡ 4a584b5c-61c5-4f6d-a53e-6adae435c85e
 md"""
@@ -583,14 +631,14 @@ SymbolicUtils = "d1185830-fcd6-423d-90d6-eec64667417b"
 Symbolics = "0c5d862f-8b57-4792-8d23-62f2024744c7"
 
 [compat]
-FFTW = "~1.7.1"
+FFTW = "~1.7.2"
 PlotThemes = "~3.3.0"
 Plots = "~1.41.1"
 Pluto = "~0.20.19"
-PlutoTeachingTools = "~0.2.13"
+PlutoTeachingTools = "~0.2.15"
 PlutoTest = "~0.2.2"
-PlutoUI = "~0.7.53"
-Roots = "~2.0.20"
+PlutoUI = "~0.7.72"
+Roots = "~2.0.22"
 SymbolicUtils = "~3.32.0"
 Symbolics = "~6.56.0"
 """
@@ -599,9 +647,9 @@ Symbolics = "~6.56.0"
 PLUTO_MANIFEST_TOML_CONTENTS = """
 # This file is machine-generated - editing it directly is not advised
 
-julia_version = "1.11.7"
+julia_version = "1.12.4"
 manifest_format = "2.0"
-project_hash = "726aaa9f5d63b2c5e99b8fa1698c037eabcf510d"
+project_hash = "c352fd668a3b52b81c5c302a3845021a9650841f"
 
 [[deps.ADTypes]]
 git-tree-sha1 = "27cecae79e5cc9935255f90c53bb831cc3c870d7"
@@ -836,7 +884,7 @@ version = "0.1.1"
 [[deps.CompilerSupportLibraries_jll]]
 deps = ["Artifacts", "Libdl"]
 uuid = "e66e0078-7015-5450-92f7-15fbd957f2ae"
-version = "1.1.1+0"
+version = "1.3.0+1"
 
 [[deps.CompositeTypes]]
 git-tree-sha1 = "bce26c3dab336582805503bed209faab1c279768"
@@ -962,7 +1010,7 @@ version = "0.7.16"
 [[deps.Downloads]]
 deps = ["ArgTools", "FileWatching", "LibCURL", "NetworkOptions"]
 uuid = "f43a241f-c20a-4ad4-852c-f6b1247861c6"
-version = "1.6.0"
+version = "1.7.0"
 
 [[deps.DynamicPolynomials]]
 deps = ["Future", "LinearAlgebra", "MultivariatePolynomials", "MutableArithmetics", "Reexport", "Test"]
@@ -1271,6 +1319,11 @@ git-tree-sha1 = "277779adfedf4a30d66b64edc75dc6bb6d52a16e"
 uuid = "aa1ae85d-cabe-5617-a682-6adf51b2e16a"
 version = "0.10.6"
 
+[[deps.JuliaSyntaxHighlighting]]
+deps = ["StyledStrings"]
+uuid = "ac6e5ff7-fb65-4e79-a425-ec3bc9c03011"
+version = "1.12.0"
+
 [[deps.LAME_jll]]
 deps = ["Artifacts", "JLLWrappers", "Libdl"]
 git-tree-sha1 = "059aabebaa7c82ccb853dd4a0ee9d17796f7e1bc"
@@ -1343,24 +1396,24 @@ uuid = "b27032c2-a3e7-50c8-80cd-2d36dbcbfd21"
 version = "0.6.4"
 
 [[deps.LibCURL_jll]]
-deps = ["Artifacts", "LibSSH2_jll", "Libdl", "MbedTLS_jll", "Zlib_jll", "nghttp2_jll"]
+deps = ["Artifacts", "LibSSH2_jll", "Libdl", "OpenSSL_jll", "Zlib_jll", "nghttp2_jll"]
 uuid = "deac9b47-8bc7-5906-a0fe-35ac56dc84c0"
-version = "8.6.0+0"
+version = "8.15.0+0"
 
 [[deps.LibGit2]]
-deps = ["Base64", "LibGit2_jll", "NetworkOptions", "Printf", "SHA"]
+deps = ["LibGit2_jll", "NetworkOptions", "Printf", "SHA"]
 uuid = "76f85450-5226-5b5a-8eaa-529ad045b433"
 version = "1.11.0"
 
 [[deps.LibGit2_jll]]
-deps = ["Artifacts", "LibSSH2_jll", "Libdl", "MbedTLS_jll"]
+deps = ["Artifacts", "LibSSH2_jll", "Libdl", "OpenSSL_jll"]
 uuid = "e37daf67-58a4-590a-8e99-b0245dd2ffc5"
-version = "1.7.2+0"
+version = "1.9.0+0"
 
 [[deps.LibSSH2_jll]]
-deps = ["Artifacts", "Libdl", "MbedTLS_jll"]
+deps = ["Artifacts", "Libdl", "OpenSSL_jll"]
 uuid = "29816b5a-b9ab-546f-933c-edad1886dfa8"
-version = "1.11.0+1"
+version = "1.11.3+1"
 
 [[deps.Libdl]]
 uuid = "8f399da3-3557-5675-b5ff-fb832c97cbdb"
@@ -1405,7 +1458,7 @@ version = "2.41.2+0"
 [[deps.LinearAlgebra]]
 deps = ["Libdl", "OpenBLAS_jll", "libblastrampoline_jll"]
 uuid = "37e2e46d-f89d-539d-b4ee-838fcccc9c8e"
-version = "1.11.0"
+version = "1.12.0"
 
 [[deps.LogExpFunctions]]
 deps = ["DocStringExtensions", "IrrationalConstants", "LinearAlgebra"]
@@ -1462,7 +1515,7 @@ uuid = "36869731-bdee-424d-aa32-cab38c994e3b"
 version = "1.3.0"
 
 [[deps.Markdown]]
-deps = ["Base64"]
+deps = ["Base64", "JuliaSyntaxHighlighting", "StyledStrings"]
 uuid = "d6f4376e-aef5-505a-96c1-9c027394607a"
 version = "1.11.0"
 
@@ -1473,7 +1526,8 @@ uuid = "739be429-bea8-5141-9913-cc70e7f3736d"
 version = "1.1.9"
 
 [[deps.MbedTLS_jll]]
-deps = ["Artifacts", "Libdl"]
+deps = ["Artifacts", "JLLWrappers", "Libdl"]
+git-tree-sha1 = "926c6af3a037c68d02596a44c22ec3595f5f760b"
 uuid = "c8ffd9c3-330d-5841-b78e-0817d7145fa1"
 version = "2.28.6+0"
 
@@ -1500,7 +1554,7 @@ version = "0.3.7"
 
 [[deps.MozillaCACerts_jll]]
 uuid = "14a3606d-f60d-562e-9121-12d972cd8159"
-version = "2023.12.12"
+version = "2025.11.4"
 
 [[deps.MsgPack]]
 deps = ["Serialization"]
@@ -1532,7 +1586,7 @@ version = "1.1.3"
 
 [[deps.NetworkOptions]]
 uuid = "ca575930-c2e3-43a9-ace4-1e988b2c1908"
-version = "1.2.0"
+version = "1.3.0"
 
 [[deps.OffsetArrays]]
 git-tree-sha1 = "117432e406b5c023f665fa73dc26e79ec3630151"
@@ -1552,12 +1606,12 @@ version = "1.3.6+0"
 [[deps.OpenBLAS_jll]]
 deps = ["Artifacts", "CompilerSupportLibraries_jll", "Libdl"]
 uuid = "4536629a-c528-5b80-bd46-f80d51c5b363"
-version = "0.3.27+1"
+version = "0.3.29+0"
 
 [[deps.OpenLibm_jll]]
 deps = ["Artifacts", "Libdl"]
 uuid = "05823500-19ac-5b8b-9628-191a04bc5112"
-version = "0.8.5+0"
+version = "0.8.7+0"
 
 [[deps.OpenSSL]]
 deps = ["BitFlags", "Dates", "MozillaCACerts_jll", "OpenSSL_jll", "Sockets"]
@@ -1566,8 +1620,7 @@ uuid = "4d8831e6-92b7-49fb-bdf8-b643e874388c"
 version = "1.5.0"
 
 [[deps.OpenSSL_jll]]
-deps = ["Artifacts", "JLLWrappers", "Libdl"]
-git-tree-sha1 = "f19301ae653233bc88b1810ae908194f07f8db9d"
+deps = ["Artifacts", "Libdl"]
 uuid = "458c3c95-2e84-50aa-8efc-19380b2a3a95"
 version = "3.5.4+0"
 
@@ -1591,7 +1644,7 @@ version = "1.8.1"
 [[deps.PCRE2_jll]]
 deps = ["Artifacts", "Libdl"]
 uuid = "efcefdf7-47ab-520b-bdef-62a2eaa19f15"
-version = "10.42.0+1"
+version = "10.44.0+1"
 
 [[deps.PDMats]]
 deps = ["LinearAlgebra", "SparseArrays", "SuiteSparse"]
@@ -1620,7 +1673,7 @@ version = "0.44.2+0"
 [[deps.Pkg]]
 deps = ["Artifacts", "Dates", "Downloads", "FileWatching", "LibGit2", "Libdl", "Logging", "Markdown", "Printf", "Random", "SHA", "TOML", "Tar", "UUIDs", "p7zip_jll"]
 uuid = "44cfe95a-1eb2-52ea-b672-e2afdf69b78f"
-version = "1.11.0"
+version = "1.12.1"
 weakdeps = ["REPL"]
 
     [deps.Pkg.extensions]
@@ -1786,7 +1839,7 @@ version = "2.11.2"
     Enzyme = "7da242da-08ed-463a-9acd-ee780be4f1d9"
 
 [[deps.REPL]]
-deps = ["InteractiveUtils", "Markdown", "Sockets", "StyledStrings", "Unicode"]
+deps = ["InteractiveUtils", "JuliaSyntaxHighlighting", "Markdown", "Sockets", "StyledStrings", "Unicode"]
 uuid = "3fa0cd96-eef1-5676-8a61-b3b8758bbffb"
 version = "1.11.0"
 
@@ -2017,7 +2070,7 @@ version = "1.2.2"
 [[deps.SparseArrays]]
 deps = ["Libdl", "LinearAlgebra", "Random", "Serialization", "SuiteSparse_jll"]
 uuid = "2f01184e-e22b-5df5-ae63-d93ebab69eaf"
-version = "1.11.0"
+version = "1.12.0"
 
 [[deps.SpecialFunctions]]
 deps = ["IrrationalConstants", "LogExpFunctions", "OpenLibm_jll", "OpenSpecFun_jll"]
@@ -2095,7 +2148,7 @@ uuid = "4607b0f0-06f3-5cda-b6b1-a6196a1729e9"
 [[deps.SuiteSparse_jll]]
 deps = ["Artifacts", "Libdl", "libblastrampoline_jll"]
 uuid = "bea87d4a-7f5b-5778-9afe-8cc45184846c"
-version = "7.7.0+0"
+version = "7.8.3+2"
 
 [[deps.SymbolicIndexingInterface]]
 deps = ["Accessors", "ArrayInterface", "RuntimeGeneratedFunctions", "StaticArraysCore"]
@@ -2410,7 +2463,7 @@ version = "1.6.0+0"
 [[deps.Zlib_jll]]
 deps = ["Libdl"]
 uuid = "83775a58-1f1d-513f-b197-d71354ab007a"
-version = "1.2.13+1"
+version = "1.3.1+2"
 
 [[deps.Zstd_jll]]
 deps = ["Artifacts", "JLLWrappers", "Libdl"]
@@ -2445,7 +2498,7 @@ version = "0.17.4+0"
 [[deps.libblastrampoline_jll]]
 deps = ["Artifacts", "Libdl"]
 uuid = "8e850b90-86db-534c-a0d3-1478176c7d93"
-version = "5.11.0+0"
+version = "5.15.0+0"
 
 [[deps.libdecor_jll]]
 deps = ["Artifacts", "Dbus_jll", "JLLWrappers", "Libdl", "Libglvnd_jll", "Pango_jll", "Wayland_jll", "xkbcommon_jll"]
@@ -2492,7 +2545,7 @@ version = "1.1.7+0"
 [[deps.nghttp2_jll]]
 deps = ["Artifacts", "Libdl"]
 uuid = "8e850ede-7688-5339-a07c-302acd2aaf8d"
-version = "1.59.0+0"
+version = "1.64.0+1"
 
 [[deps.oneTBB_jll]]
 deps = ["Artifacts", "JLLWrappers", "LazyArtifacts", "Libdl"]
@@ -2501,9 +2554,9 @@ uuid = "1317d2d5-d96f-522e-a858-c73665f53c3e"
 version = "2022.0.0+1"
 
 [[deps.p7zip_jll]]
-deps = ["Artifacts", "Libdl"]
+deps = ["Artifacts", "CompilerSupportLibraries_jll", "Libdl"]
 uuid = "3f19e933-33d8-53b3-aaab-bd5110c3b7a0"
-version = "17.4.0+2"
+version = "17.7.0+0"
 
 [[deps.x264_jll]]
 deps = ["Artifacts", "JLLWrappers", "Libdl"]
@@ -2528,7 +2581,12 @@ version = "1.9.2+0"
 # ╠═dcbfa6fd-6ffa-4f38-8c72-4f65233c938b
 # ╠═46d9831d-2b46-4030-bb15-cdc732d72e68
 # ╟─ba25df6d-fdc8-4b19-8f83-2578d89dc128
+# ╟─e464db0e-97fe-4a38-9309-8595b0c0420b
+# ╟─314ac446-3688-499f-a57a-4d99b24ccc7d
+# ╟─1308cac7-8c91-4bc6-b440-0da2a468377b
+# ╟─73d50ccc-9791-4b8b-8216-2041a3940357
 # ╟─4a41c6f8-55e6-47ef-ac7f-876764c6b684
+# ╟─9cda10ec-8e35-4b51-a0be-644c3be56f8e
 # ╠═b899e9fe-b707-4a94-bb9c-4ca26842f311
 # ╠═b9b01f1b-92ca-4bfe-9d8c-2fcadbdcbf0f
 # ╠═d8d39a7a-7f6c-41c2-8cf3-5ebefca14bff
@@ -2545,10 +2603,6 @@ version = "1.9.2+0"
 # ╟─0d74cf59-6dea-43ac-a5c8-d060eec21936
 # ╟─b74bec20-f8a7-4ebf-93bf-13ac8bec8f44
 # ╠═a8aba6f3-c212-4428-8458-6925c49524cd
-# ╟─e464db0e-97fe-4a38-9309-8595b0c0420b
-# ╟─e4597db1-f92e-4513-824b-87c22ecb0f15
-# ╟─73d50ccc-9791-4b8b-8216-2041a3940357
-# ╠═9cda10ec-8e35-4b51-a0be-644c3be56f8e
 # ╠═93dcf185-54d2-42de-832b-700c79705e66
 # ╠═72e45d51-da6d-4660-b0bd-1cb1fde913f6
 # ╠═1ceaa0b2-0f10-493b-b760-658598e60931
@@ -2598,6 +2652,7 @@ version = "1.9.2+0"
 # ╠═d48d5df6-6329-4bf5-9048-e11f05216076
 # ╟─fdad8225-33db-41ad-a21e-06edd8ab3a9e
 # ╠═38c37772-7610-469f-9ae5-d9c73160b132
+# ╠═da93e876-249d-4367-bd11-a5f2efc0efb7
 # ╟─2c4b1d89-906f-45f7-8360-d270d691fe12
 # ╠═8a19be18-13dd-4bfb-a082-08e4fbe50603
 # ╟─28aaf613-3041-4ede-b8f3-ebfb955ef5cc

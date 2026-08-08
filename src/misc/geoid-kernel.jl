@@ -703,16 +703,27 @@ begin
     const c = [0,1,2].map(i => Math.round(bg[i] + (hi[i]-bg[i])*a))
     return 'rgb('+c[0]+','+c[1]+','+c[2]+')'
   }
-  // Geoid ramp for the outer surface. Deliberately the SAME blue and red endpoints
-  // as densityColor above, so that "blue" and "red" mean a consistent sign across
-  // the whole figure -- only the quantity differs (density inside, geoid outside).
-  // White at zero rather than dark grey, so the surface still reads as a lit globe.
+  // Geoid ramp for the outer surface, following the usual GEODESY convention:
+  // highs warm (yellow → red), lows cool (blue → indigo), near-white at zero.
+  //
+  // Deliberately a DIFFERENT palette from densityColor above, not merely an inverted
+  // one. The two quantities use opposite sign conventions by community habit — warm =
+  // geoid high, but blue = dense in tomography — so if they shared endpoint colours
+  // the same red would mean "geoid high" outside and "light material" inside. Making
+  // the ramps visually distinct (warm/cool with light midpoint vs saturated blue/red
+  // on dark) keeps them from being confused for one another.
   function signColor(v, mx){
     const t = Math.max(-1, Math.min(1, v/mx))
-    const mid = [236, 240, 246]
-    const hi = t >= 0 ? [59, 130, 246] : [239, 68, 68]
+    const mid = [246, 246, 240]                     // near-white at the reference geoid
+    // warm limb: yellow at moderate highs deepening to red; cool limb: cyan-blue to indigo
+    const warm = [[250, 204, 21], [220, 38, 38]]
+    const cool = [[56, 189, 248], [49, 46, 129]]
     const a = Math.abs(t)
-    const c = [0,1,2].map(i => Math.round(mid[i] + (hi[i]-mid[i])*a))
+    const stops = t >= 0 ? warm : cool
+    // two-segment ramp: mid -> stops[0] over the first half, stops[0] -> stops[1] after
+    const c = a <= 0.5
+      ? [0,1,2].map(i => Math.round(mid[i] + (stops[0][i]-mid[i]) * (a/0.5)))
+      : [0,1,2].map(i => Math.round(stops[0][i] + (stops[1][i]-stops[0][i]) * ((a-0.5)/0.5)))
     return 'rgb('+c[0]+','+c[1]+','+c[2]+')'
   }
 
