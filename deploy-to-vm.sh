@@ -2,11 +2,13 @@
 # Deploy complete site to VM with selective notebook interactivity
 # VM serves identical site to GitHub Pages, but selected notebooks are LIVE
 
-set -e  # Exit on error
+set -euo pipefail
 
 REPO_DIR="${1:-.}"
 SERVICE_NAME="pluto-slider-server"
-EXPORT_DIR="${SITE_DIR:-${HOME}/_site}"
+EXPORT_DIR="${SITE_DIR:-/var/lib/interactive-seismology/_site-serving}"
+BASE_PATH="${BASE_PATH:-/~interactive-seismology/}"
+DEPOT_PATH="${JULIA_DEPOT_PATH:-/var/lib/interactive-seismology/.julia-depot}"
 
 if [ -z "$EXPORT_DIR" ] || [ "$EXPORT_DIR" = "/" ]; then
     echo "❌ SITE_DIR must name a specific directory, not the filesystem root" >&2
@@ -20,12 +22,13 @@ cd "$REPO_DIR"
 
 # Pull latest from git
 echo "📦 Pulling latest from git..."
-git pull origin main
+git pull --ff-only origin main
 
 # Generate the complete static site using PlutoPages
 # This exports ALL notebooks from both live-notebooks.yml and static-notebooks.yml
 echo "🔧 Generating complete static site via PlutoPages.jl..."
-PLUTO_SLIDER_SERVER_URL="${PLUTO_SLIDER_SERVER_URL:-/}" \
+JULIA_DEPOT_PATH="$DEPOT_PATH" \
+PLUTO_SLIDER_SERVER_URL="${PLUTO_SLIDER_SERVER_URL:-$BASE_PATH}" \
 julia --project=pluto-deployment-environment -e "
     import Pkg
     Pkg.instantiate()
@@ -56,9 +59,10 @@ fi
 
 # Restart PlutoSliderServer (for live notebook interactivity)
 echo "🔄 Restarting PlutoSliderServer (for live interactivity)..."
-sudo systemctl restart $SERVICE_NAME || echo "⚠️  Could not restart service (may require manual restart)"
+sudo systemctl restart "$SERVICE_NAME"
+sudo systemctl is-active --quiet "$SERVICE_NAME"
 
 echo "✅ Deployment complete!"
-echo "📍 Site available at: http://localhost:8080/"
+echo "📍 Site available at: $BASE_PATH"
 echo "ℹ️  Live notebooks (from live-notebooks.yml) are interactive"
 echo "ℹ️  Static notebooks appear as regular HTML pages"

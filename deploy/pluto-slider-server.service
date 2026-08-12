@@ -1,0 +1,16 @@
+[Unit]
+Description=Pluto Slider Server for Interactive Seismology
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=ceasnewadm
+WorkingDirectory=/var/lib/interactive-seismology
+Environment=JULIA_DEPOT_PATH=/var/lib/interactive-seismology/.julia-depot
+ExecStart=/usr/local/bin/julia --project=/var/lib/interactive-seismology/pluto-deployment-environment /var/lib/interactive-seismology/serve_live_notebooks.jl --host 127.0.0.1 --port 1234
+Restart=on-failure
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target

@@ -5,5 +5,9 @@ notebooks/week9/testCSVwrite.csv
 
 _cache
 _site
+_site-serving
+_site.empty.previous
+.julia-depot
+.deployed-main-revision
 generation_report.html
 src/week9/testCSVwrite.csv

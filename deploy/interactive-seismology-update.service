@@ -1,0 +1,13 @@
+[Unit]
+Description=Update the Interactive Seismology website from origin/main
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=oneshot
+User=ceasnewadm
+WorkingDirectory=/var/lib/interactive-seismology
+Environment=HOME=/home/ceasnewadm
+Environment=JULIA_DEPOT_PATH=/var/lib/interactive-seismology/.julia-depot
+ExecStart=/usr/bin/flock -n /tmp/interactive-seismology-update.lock /bin/bash /var/lib/interactive-seismology/deploy/update-if-needed.sh
+TimeoutStartSec=2h
