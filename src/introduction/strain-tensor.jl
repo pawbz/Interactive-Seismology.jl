@@ -24,12 +24,7 @@ macro bind(def, element)
 end
 
 # ╔═╡ 13a3429e-12f6-11ed-326f-c154f5debceb
-begin
-    using PlutoUI
-    using Symbolics
-    using SymbolicUtils
-    using Einsum
-end
+using PlutoUI
 
 # ╔═╡ 3f1bc2d1-2327-48cc-984a-df09c936da87
 TableOfContents()
@@ -67,6 +62,39 @@ Instructor: *Pawan Bharadwaj*,
 Indian Institute of Science, Bengaluru, India
 """
 
+# ╔═╡ 4d860dc6-4944-44da-81f2-14b4aa018694
+md"""
+## Configurations, Bodies, and the Lagrangian Description
+
+Everything in this notebook describes a **body** — a piece of material made of some fixed set of
+particles — as it moves and deforms. We single out one instant as the **reference
+configuration**, where each particle sits at its reference position ``\mathbf{x}`` (the same
+``\mathbf{x}`` used throughout this notebook); at any later time ``t`` the body occupies its
+**deformed** (or *current*) **configuration**, where that same particle has moved to
+``\mathbf{x}+\mathbf{u}(\mathbf{x},t)``.
+
+Tracking a property by *which particle* carries it — rather than by *which spatial point*
+currently happens to hold it — is the **Lagrangian description**, and it's what every
+``\mathbf{u}(\mathbf{x},t)`` in this notebook means: the displacement of the *particle labeled*
+``\mathbf{x}``, not of "whatever is currently at some fixed spatial location." (The alternative —
+tracking properties at fixed spatial points as different particles pass through them — is the
+*Eulerian* description: more natural for fluids in motion than for a solid Earth we mostly care
+about at rest between earthquakes.)
+
+The widget below drags **a part of the body** — a small region of four labeled particles — from
+its reference configuration to any deformed configuration you like, by hand. Two things to watch
+as you drag:
+
+- The numeric labels stay attached to their own particle — dragging relabels nothing, exactly
+  the Lagrangian point above.
+- **Mass** is an **extensive** property: however you deform the region, the *same* particles are
+  still in it, so its mass ``M=\rho_0 A_0`` never changes. **Density** ``\rho=M/A`` is not — it's
+  mass per unit *current* area, so it changes the instant the region's area does, in exactly the
+  way that keeps ``\rho A=\rho_0 A_0`` (the region's mass) constant. This is the 2-D statement of
+  mass conservation, ``\rho_0\,dA_0=\rho\,dA``, behind the continuity equation used throughout
+  continuum seismology.
+"""
+
 # ╔═╡ 174e1f52-bf7a-4201-b579-c784115d15f1
 md"""
 ## Displacement
@@ -74,72 +102,87 @@ Particle displacement is a function of space and time
 ```math
 𝐮 = 𝐮(𝐱, t).
 ```
-Here, 𝐱 denotes the position the particle occupies at a reference time t=0, which means, a particle at position 𝐱 will be moved to position 𝐮(𝐱, t) at time t. The particle velocity and particle acceleration are given by
+Here, 𝐱 denotes the position the particle occupies at a reference time t=0, which means, a particle at position 𝐱 will be moved to position 𝐱+𝐮(𝐱, t) at time t — Lagrangian, since it's the *same particle* 𝐱 being tracked. The particle velocity and particle acceleration are given by
 ∂ₜ𝐮 and ∂ₜ²𝐮, respectively.
 """
-
-# ╔═╡ 94c2d557-68f3-4c36-85b0-5428e8b217dc
-@variables x₁, x₂, x₃
-
-# ╔═╡ e8049366-ef8a-4adb-8b3b-d5d94b6f6475
-𝐱 = [x₁, x₂, x₃]
-
-# ╔═╡ a03858ff-f63f-459d-a463-702ccffe78d9
-@syms u₁(x₁, x₂, x₃) u₂(x₁, x₂, x₃) u₃(x₁, x₂, x₃)
-
-# ╔═╡ 26d75f4e-d4b3-4254-809e-a3b5e37ebadd
-𝐮 = [u₁(x₁, x₂, x₃), u₂(x₁, x₂, x₃), u₃(x₁, x₂, x₃)]
 
 # ╔═╡ b2cf2af1-564e-4a3f-a846-a50042883a7a
 md"""
 ## Distortion
-Distortion of the medium is liable to change in the relative position of the particles. In other words, they are related to the gradients of 𝐮.
+Distortion of the medium changes the relative position of nearby particles — it's therefore
+related to the *gradients* of ``\mathbf{u}``, not ``\mathbf{u}`` itself (a spatially-uniform
+``\mathbf{u}`` is just a translation, no distortion at all). For two nearby particles separated
+by a small vector ``\delta\mathbf{x}`` in the reference configuration, their relative
+displacement to first order is
+```math
+\delta u_i = \frac{\partial u_i}{\partial x_j}\,\delta x_j = J_{ij}\,\delta x_j,
+\qquad J_{ij} = \frac{\partial u_i}{\partial x_j},
+```
+so the two particles end up separated by ``\delta\mathbf{x}+\delta\mathbf{u} =
+(I+J)\,\delta\mathbf{x}`` — the deformation gradient ``I+J`` acting on their original
+separation. Everything below is about what this matrix ``J`` (the Jacobian of ``\mathbf{u}``)
+does to that separation.
 """
 
-# ╔═╡ 7c32c7a3-4bb5-4654-aa19-8ceea607e984
-∇ = Symbolics.Differential.(𝐱)
+# ╔═╡ bbb43caf-32a4-4f70-a263-246953076d84
+md"""
+## Finite vs. Infinitesimal Strain
 
-# ╔═╡ 56657c39-cb42-4529-a8a8-bb58eceffff6
-@variables δx₁, δx₂, δx₃
+The **deformation gradient** ``\mathbf{F}=\mathbf{I}+\nabla_0\mathbf{u}`` (the gradient taken
+with respect to the *reference* position) maps a reference line element exactly onto its
+deformed image, ``d\mathbf{x}=\mathbf{F}\,d\mathbf{x}_0``, with no restriction on how large the
+deformation is. Splitting it into "rotation + stretch" *exactly*, for any size deformation, needs
+a **polar decomposition** ``\mathbf{F}=\mathbf{R}\mathbf{U}`` — ``\mathbf{R}`` a genuine (finite)
+rotation matrix, ``\mathbf{U}`` a genuine (finite) stretch — and ``\mathbf{R}``, ``\mathbf{U}``
+do *not* simply add or subtract from ``\mathbf{F}``.
 
-# ╔═╡ cfaf2ea9-c227-470b-9ea6-fe429d656b22
-δ𝐱 = [δx₁, δx₂, δx₃]
+Seismology almost never needs that. Real elastic strains in the Earth are tiny (the
+introduction's "How tiny" note above: ``10^{-8}`` to ``10^{-4}``), so
+``\|\nabla\mathbf{u}\|\ll1``, and to first order in that small number:
 
-# ╔═╡ 49d5162f-22ea-412f-b3fa-fec8a9c5a005
-@einsum δ𝐮[i] := ∇[j](𝐮[i]) * δ𝐱[j]
+- The reference and current configurations are close enough that it no longer matters which one
+  you differentiate with respect to — ``\nabla_0\mathbf{u}\approx\nabla\mathbf{u}`` — so this
+  notebook never has to distinguish them, and just writes ``J=\nabla\mathbf{u}``.
+- The exact multiplicative decomposition collapses to the simple **additive** one used
+  throughout this notebook, ``J=e+\Omega``, with ``e=\tfrac12(J+J^T)`` symmetric and
+  ``\Omega=\tfrac12(J-J^T)`` antisymmetric — the **infinitesimal strain tensor** and the
+  **infinitesimal rotation tensor**.
+- ``\mathbf{I}+\Omega`` is only the *linearized* rotation matrix (correct to first order in
+  ``\Omega``), not a true finite rotation — already visible below in **Dilatation vs.
+  Distortion**, where a pure rotation preserves area only to first order, not exactly.
 
-# ╔═╡ 4c496bae-7d72-48cd-8f24-c3dde9e16a3f
-𝐮 + δ𝐮
+Every result in this notebook — the strain ellipse, the Mohr circle, the dilatation/deviatoric
+split — is this infinitesimal theory, valid because real seismic strains stay in that tiny
+regime; it is *not* the general finite-strain theory needed for, say, mantle convection over
+geologic time.
+"""
 
 # ╔═╡ a660a926-0835-4ed2-a2a6-615e3dba3088
 md"""
 ## Strain Tensor
-We use a strain tensor to analyze the distortion of the medium, whether it is solid or fluid, elastic or inelastic. The Jacobian ``J = \nabla𝐮`` above is completely general — it holds for any displacement field. The interactive widget at the top of this notebook explores one important special case: a **spatially-uniform** ``J`` (every particle in the square is stretched/rotated by the *same* constant matrix), which is exactly what a small enough neighborhood of *any* smooth deformation looks like.
+We use a strain tensor to analyze the distortion of the medium, whether it is solid or fluid,
+elastic or inelastic. The Jacobian ``J=\nabla\mathbf{u}`` above is completely general — it holds
+for any displacement field. The interactive widget below explores one important special case: a
+**spatially-uniform** ``J`` (every particle in the square is stretched/rotated by the *same*
+constant matrix), which is exactly what a small enough neighborhood of *any* smooth displacement
+field looks like.
+
+Any matrix splits uniquely into a symmetric and an antisymmetric part (the **Toeplitz
+decomposition**) — the symmetric part is the **strain tensor**, the antisymmetric part the
+**(infinitesimal) rotation tensor**:
+```math
+J = e + \Omega,\qquad
+e = \tfrac12\!\left(J+J^T\right)\ \text{(symmetric)},\qquad
+\Omega = \tfrac12\!\left(J-J^T\right)\ \text{(antisymmetric)}.
+```
+Acting separately on the same small separation ``\delta\mathbf{x}``, the two parts do genuinely
+different things: ``e\,\delta\mathbf{x}`` stretches/shears ``\delta\mathbf{x}`` with *no*
+rotation (it's the part responsible for elastic restoring forces), while
+``\Omega\,\delta\mathbf{x}`` is a pure infinitesimal *rotation* of ``\delta\mathbf{x}`` with *no*
+change in length at all — a rigid spin that costs a deforming solid nothing. Splitting ``J`` this
+way is exactly what lets the widget below decompose a general deformation into rotation,
+dilatation, and deviatoric strain.
 """
-
-# ╔═╡ 7bb1db67-5401-43f4-aff8-fcc00a9040b3
-J = [∇[j](𝐮[i]) for i in 1:3, j in 1:3]
-
-# ╔═╡ 832f75d1-64b6-4ed8-bdd9-94cbf29e42a2
-Jt = [∇[i](𝐮[j]) for i in 1:3, j in 1:3]
-
-# ╔═╡ 06be73a7-f185-4e72-816c-79cf56b59f30
-md"Let's construct the strain tensor — the symmetric part of ``J``, via the Toeplitz decomposition ``J = e + \Omega``."
-
-# ╔═╡ 7fac2221-2a36-4a4c-9151-1b7c3c59914f
-e = 0.5 * (J + Jt)
-
-# ╔═╡ a13ff96e-1885-40e4-88ed-cb5dcbad22ee
-md"The residual, antisymmetric part is the (infinitesimal) spin/rotation tensor:"
-
-# ╔═╡ 1d3716a1-fe01-4cd5-bb1d-88aa3c2710b5
-Ω = J - e
-
-# ╔═╡ 731e1777-eb47-4180-86f4-faf31e8e6cd2
-e * δ𝐱
-
-# ╔═╡ 7cabd325-30d7-4882-86c5-3195ac496264
-Ω * δ𝐱
 
 # ╔═╡ d8f1ceea-1968-4e59-93ae-a21f035b2a09
 md"""
@@ -164,9 +207,6 @@ watch the ellipse become a circle again, just a bigger or smaller one — the el
 grows "lopsided" when the two principal strains differ.
 """
 
-# ╔═╡ 182b4b24-ee3c-44a2-b799-28bb2bd5a511
-@syms je1 je2 je jd jom
-
 # ╔═╡ 6400c97b-9f07-4f52-9002-e8b5f11aa182
 md"""
 ## Dilatation vs. Distortion
@@ -181,41 +221,13 @@ oscillation) versus S waves (purely deviatoric — a shape oscillation with no v
 at all): the "Dilatation only" and "Deviatoric only" panels in the widget above show these
 in isolation, and the **Δ** readout is exactly ``\operatorname{tr}(e)``.
 
-We can check this claim symbolically, the same way the notebook already checks that rotation
-preserves area exactly: deform a unit square by a purely isotropic matrix
-``J_\Delta = \begin{bmatrix}j_\Delta&0\\0&j_\Delta\end{bmatrix}`` and by a general symmetric
-(strain) matrix, and compare their areas to a pure rotation's.
+We can check this claim numerically: deform a unit square by a purely isotropic matrix
+``J_\Delta = \begin{bmatrix}j_\Delta&0\\0&j_\Delta\end{bmatrix}``, by a general symmetric
+(strain) matrix, and by a pure rotation, and compare their areas.
 """
-
-# ╔═╡ 4ca30efc-0f95-4fba-b0ae-139b21d9820d
-Je = [je1 je; je je2]   # a general symmetric (strain) matrix
-
-# ╔═╡ 7f00862f-64f8-4c42-9d78-a466cd5bd9c1
-Jdil = [jd 0; 0 jd]     # a purely isotropic (dilatation-only) matrix
-
-# ╔═╡ 451c250d-1d40-49d5-a508-4668b5cfaaad
-Jom = [0 jom; -jom 0]   # a general antisymmetric (rotation) matrix
 
 # ╔═╡ a759772e-a5b4-4f35-9150-c17627b58c4a
 corners = [[0, 0], [1, 0], [1, 1], [0, 1]]
-
-# ╔═╡ 668a0698-cfe3-4027-b190-17d0ec0366af
-new_corners_strain = map(c -> Je * c + c, corners)
-
-# ╔═╡ 0ebff5dc-4ee6-4480-a546-6ca0cc99ca39
-new_corners_dilatation = map(c -> Jdil * c + c, corners)
-
-# ╔═╡ aeb75efa-10e0-4a6b-b24e-63a09f252d22
-new_corners_rotation = map(c -> Jom * c + c, corners)
-
-# ╔═╡ 9eeeac07-c2f6-4759-a328-4dee9d576723
-md"Area after a **general symmetric (strain)** deformation — depends on both `je1+je2` (the dilatation) *and* `je` (the deviatoric shear), so it's not simply `1+je1+je2`:"
-
-# ╔═╡ 0861fe54-b9c4-4d00-a5f0-ebd60e87f671
-md"Area after a **purely isotropic (dilatation-only)** deformation — depends *only* on `jd`, exactly `(1+jd)²`, confirming dilatation alone controls the area change:"
-
-# ╔═╡ 63e14d52-c500-4942-92ec-05533206a649
-md"Area after a **pure (infinitesimal) rotation** — `1+jom²`, which is `1` to *first order* in `jom`. The `jom²` left over is exactly the reminder that `I+Jom` is only the *linearized* rotation matrix (valid for the small `jom` this whole notebook assumes), not a finite one — an exact finite rotation `[cos θ, -sin θ; sin θ, cos θ]` would give area `1` identically. Either way, rotation contributes nothing to first order, which is the only order that matters for infinitesimal strain:"
 
 # ╔═╡ f4b45b1b-b7f8-4f2b-a580-98def9cc8fbc
 md"""
@@ -271,7 +283,7 @@ md"### Layer 1: Area-Change Helper"
     calculate_area(corner_vectors)
 
 Shoelace-formula area of the quadrilateral with the 4 given corner points (in order around
-the perimeter) — used above to check, symbolically, exactly which part of a deformation
+the perimeter) — used above to check, numerically, exactly which part of a deformation
 (dilatation, deviatoric strain, or rotation) actually changes a material element's area.
 Splits the quadrilateral into the two triangles `ABC` and `ACD` sharing diagonal `AC` and
 sums their (signed) areas via the cross product.
@@ -286,14 +298,36 @@ function calculate_area(corner_vectors)
                      (C[1] - A[1]) * (D[2] - A[2]) - (D[1] - A[1]) * (C[2] - A[2]))
 end
 
-# ╔═╡ 21aa8907-b2f2-4ee6-9080-4299d1d2ce78
-calculate_area(new_corners_strain) |> simplify
+# ╔═╡ 9eeeac07-c2f6-4759-a328-4dee9d576723
+let
+    je1, je2, je, jd, jom = 0.35, -0.15, 0.22, 0.18, 0.12
+    Je = [je1 je; je je2]      # a general symmetric (strain) matrix
+    Jdil = [jd 0; 0 jd]        # a purely isotropic (dilatation-only) matrix
+    Jom = [0 jom; -jom 0]      # a general antisymmetric (rotation) matrix
+    A_strain = calculate_area(map(c -> Je * c + c, corners))
+    A_dilatation = calculate_area(map(c -> Jdil * c + c, corners))
+    A_rotation = calculate_area(map(c -> Jom * c + c, corners))
+    md"""
+    Plugging in one representative numeric case (``j_{e1}=$(je1)``, ``j_{e2}=$(je2)``,
+    ``j_e=$(je)``, ``j_\Delta=$(jd)``, ``j_\omega=$(jom)``):
 
-# ╔═╡ 5533c0ec-bcc3-484f-81fd-4dadbdb7aacb
-calculate_area(new_corners_dilatation) |> simplify
-
-# ╔═╡ c91e830a-a276-4fc9-9da1-787cc0adbac7
-calculate_area(new_corners_rotation) |> simplify
+    - **general symmetric (strain)** ``J_e``: computed area = **$(round(A_strain, digits=5))**,
+      *not* simply ``1+j_{e1}+j_{e2}=$(round(1+je1+je2, digits=5))`` — it depends on both the
+      dilatation *and* the deviatoric shear ``j_e``.
+    - **purely isotropic (dilatation-only)** ``J_\Delta``: computed area =
+      **$(round(A_dilatation, digits=5))**, matching
+      ``(1+j_\Delta)^2=$(round((1+jd)^2, digits=5))`` exactly — confirming dilatation alone
+      controls the area change.
+    - **pure (infinitesimal) rotation** ``J_\omega``: computed area =
+      **$(round(A_rotation, digits=5))**, matching ``1+j_\omega^2=$(round(1+jom^2, digits=5))``
+      — equal to `1` only to *first order* in ``j_\omega``. That leftover ``j_\omega^2`` is
+      exactly the reminder from **Finite vs. Infinitesimal Strain** above that ``I+\Omega`` is
+      only the *linearized* rotation matrix, not a finite one — an exact finite rotation
+      ``\begin{bmatrix}\cos\theta&-\sin\theta\\\sin\theta&\cos\theta\end{bmatrix}`` would give
+      area `1` identically. Either way, rotation contributes nothing to first order, which is
+      the only order that matters for infinitesimal strain.
+    """
+end
 
 # ╔═╡ 3f45f0c5-e672-4780-a2c6-006e49fecfb8
 md"### Layer 2: Earthquake Recurrence"
@@ -312,6 +346,191 @@ let
     - estimated recurrence interval ``T = \Delta\epsilon / \dot\epsilon \approx``
       **$(round(T, sigdigits=3)) years**
     """
+end
+
+# ╔═╡ 6b829564-d656-4c81-885f-212d1b8d6d91
+md"### The Configuration Widget"
+
+# ╔═╡ 0168e21c-7af1-491d-be1b-7b3f458f9ad3
+begin
+    """
+        ConfigurationInput(; rho0=1.0)
+
+    A body's **reference configuration** ℛ₀ (dashed, fixed) and its **deformed configuration**
+    ℛ (solid, draggable) shown at once. The four corner handles carry a persistent numeric
+    label attached to *that* material point — dragging a handle moves the deformed position
+    `x` of the *same* labeled particle, never relabels which particle is which. That labeling
+    is the Lagrangian description: properties are tracked by which material point they belong
+    to, not by which fixed spatial location currently holds them.
+
+    Mass is an **extensive** property: `M = ρ₀·A₀` is fixed by the reference configuration and
+    the `ρ₀` slider alone, unaffected by how the region is subsequently dragged/deformed
+    (that's what "extensive" means — conservation of mass under the mapping ℛ₀→ℛ). Density
+    `ρ = M/A` is **intensive**: it changes as the region's *current* area `A` changes, exactly
+    compensating so `ρ·A = ρ₀·A₀` always holds.
+    """
+    struct ConfigurationInput
+        rho0::Float64
+    end
+
+    ConfigurationInput(; rho0=1.0) = ConfigurationInput(Float64(rho0))
+
+    Base.get(w::ConfigurationInput) = Dict{String,Any}("rho0" => w.rho0)
+
+    function Base.show(io::IO, ::MIME"text/html", w::ConfigurationInput)
+        write(io, """
+<div id="cfgwidget" style="display:flex;flex-direction:column;align-items:center;width:100%;color:#9ca3af">
+  <style>
+    pluto-cell:has(#cfgwidget){width:min(70vw,1100px)!important;margin-left:calc((100% - min(70vw,1100px))/2)!important}
+    #cfgwidget .cfg-title{width:100%;box-sizing:border-box;text-align:center;margin-bottom:10px;background:#0a0f18;border:1px solid #3b5c85;border-radius:6px;padding:10px 14px}
+    #cfgwidget .cfg-title-desc{font-size:17px;font-weight:700;color:#e5e7eb}
+    #cfgwidget .cfg-title-hint{font-size:13px;color:#9ca3af;margin-top:3px}
+    #cfgwidget canvas{cursor:crosshair;background:#000;border:1px solid #374151;border-radius:6px;display:block;max-width:100%}
+    #cfgwidget .cfg-controls{display:flex;gap:10px;flex-wrap:wrap;width:100%;margin-top:12px}
+    #cfgwidget .cfg-control-group{box-sizing:border-box;background:#050505;border:1px solid #2f3744;border-radius:6px;padding:10px 12px;flex:1 1 220px;min-width:220px}
+    #cfgwidget .cfg-control-title{font-weight:700;color:#e5e7eb;margin-bottom:8px;font-size:18px}
+    #cfgwidget .cfg-readout{font-size:13px;line-height:1.8}
+    #cfgwidget .cfg-readout b{font-variant-numeric:tabular-nums}
+    #cfgwidget button{border-radius:4px;border:1px solid #9ca3af;background:#606060;color:#f3f4f6;padding:6px 12px;font-size:14px;cursor:pointer}
+    #cfgwidget input[type=range]{width:100%}
+  </style>
+  <div class="cfg-title">
+    <div class="cfg-title-desc">A body's part (region) has a reference configuration and a deformed one &mdash; drag the labeled particles to deform it.</div>
+    <div class="cfg-title-hint">drag a numbered handle &middot; labels are Lagrangian tags, fixed to the particle &middot; ρ&#8320; slider sets the reference density</div>
+  </div>
+  <canvas id="cfgMain" width="420" height="420"></canvas>
+  <div class="cfg-controls">
+    <div class="cfg-control-group">
+      <div class="cfg-control-title">Reference Density</div>
+      <label>ρ&#8320; <input type="range" id="cfg-rho0" min="0.2" max="5" step="0.1" value="$(w.rho0)"><span id="cfg-rho0-v">$(w.rho0)</span></label>
+      <div style="margin-top:8px"><button id="cfg-reset" type="button">Reset to reference</button></div>
+    </div>
+    <div class="cfg-control-group" style="flex:1 1 260px">
+      <div class="cfg-control-title">Readouts</div>
+      <div class="cfg-readout" id="cfg-readout"></div>
+    </div>
+    <div class="cfg-control-group" style="flex:1 1 260px">
+      <div class="cfg-control-title">Legend</div>
+      <div class="cfg-readout">
+        <span style="color:#6b7280">dashed</span> = reference configuration ℛ&#8320; (fixed)<br>
+        <span style="color:#38bdf8">solid</span> = deformed configuration ℛ (drag it)<br>
+        <span style="color:#facc15">1..4</span> = Lagrangian labels, attached to their own particle<br>
+        <b>M</b> = ρ&#8320;·A&#8320; is extensive (fixed) &middot; <b>ρ</b> = M/A is intensive (changes)
+      </div>
+    </div>
+  </div>
+</div>
+<script>
+  const par = currentScript.previousElementSibling
+  const availW = Math.min(window.innerWidth*0.6, par.clientWidth || window.innerWidth*0.6)
+  const SEC = Math.round(Math.min(availW, 460, Math.max(280, window.innerHeight-560)))
+  const DPR = Math.min(window.devicePixelRatio || 1, 2)
+  const cvs = par.querySelector('#cfgMain'), ctx = cvs.getContext('2d')
+  cvs.width = Math.round(SEC*DPR); cvs.height = Math.round(SEC*DPR)
+  cvs.style.width = SEC+'px'; cvs.style.height = SEC+'px'
+  ctx.setTransform(DPR,0,0,DPR,0,0)
+
+  // Fixed logical data range -- the canvas shows a window onto a much larger continuum, of
+  // which the labeled quadrilateral below is only "a part of the body".
+  const VMIN = 0, VMAX = 4
+  const to = (x,y) => [(x-VMIN)/(VMAX-VMIN)*SEC, SEC-(y-VMIN)/(VMAX-VMIN)*SEC]
+  const invTo = (px,py) => [px/SEC*(VMAX-VMIN)+VMIN, (SEC-py)/SEC*(VMAX-VMIN)+VMIN]
+
+  // Reference configuration ℛ₀ -- fixed for the lifetime of the widget. The deformed
+  // configuration ℛ starts out coincident with it (undeformed) and is what dragging changes.
+  const refPts = [[1,1],[3,1],[3,3],[1,3]]
+  let curPts = refPts.map(p=>p.slice())
+  let rho0 = $(w.rho0)
+  let dragIdx = -1
+
+  function shoelaceArea(pts){
+    let a = 0
+    for(let i=0;i<pts.length;i++){
+      const [x1,y1] = pts[i], [x2,y2] = pts[(i+1)%pts.length]
+      a += x1*y2 - x2*y1
+    }
+    return Math.abs(a)/2
+  }
+  const A0 = shoelaceArea(refPts)
+
+  function drawLattice(){
+    ctx.strokeStyle = 'rgba(156,163,175,0.18)'; ctx.lineWidth = 1
+    for(let i=0;i<=8;i++){
+      const t = VMIN + i*(VMAX-VMIN)/8
+      let a=to(t,VMIN), b=to(t,VMAX); ctx.beginPath(); ctx.moveTo(a[0],a[1]); ctx.lineTo(b[0],b[1]); ctx.stroke()
+      a=to(VMIN,t); b=to(VMAX,t); ctx.beginPath(); ctx.moveTo(a[0],a[1]); ctx.lineTo(b[0],b[1]); ctx.stroke()
+    }
+  }
+  function drawPoly(pts, color, dashed){
+    ctx.setLineDash(dashed ? [5,4] : [])
+    ctx.strokeStyle = color; ctx.lineWidth = dashed ? 1.5 : 2.5
+    ctx.beginPath()
+    pts.forEach((p,i)=>{ const q=to(p[0],p[1]); i===0?ctx.moveTo(q[0],q[1]):ctx.lineTo(q[0],q[1]) })
+    ctx.closePath(); ctx.stroke()
+    ctx.setLineDash([])
+  }
+
+  function drawAll(){
+    ctx.clearRect(0,0,SEC,SEC); ctx.fillStyle='#000'; ctx.fillRect(0,0,SEC,SEC)
+    drawLattice()
+    drawPoly(refPts, '#6b7280', true)
+    drawPoly(curPts, '#38bdf8', false)
+    curPts.forEach((p,i)=>{
+      const q = to(p[0],p[1])
+      ctx.beginPath(); ctx.arc(q[0],q[1],8,0,2*Math.PI)
+      ctx.fillStyle = '#facc15'; ctx.fill()
+      ctx.strokeStyle = '#0a0f18'; ctx.lineWidth = 1.5; ctx.stroke()
+      ctx.fillStyle = '#0a0f18'; ctx.font = 'bold 12px sans-serif'; ctx.textAlign='center'; ctx.textBaseline='middle'
+      ctx.fillText(String(i+1), q[0], q[1]+1)
+      ctx.textAlign='left'; ctx.textBaseline='alphabetic'
+    })
+    const A = shoelaceArea(curPts)
+    const M = rho0*A0
+    const rho = M/A
+    par.querySelector('#cfg-readout').innerHTML =
+      'reference area A&#8320; = <b>'+A0.toFixed(2)+'</b><br>'+
+      'current area A = <b>'+A.toFixed(2)+'</b><br>'+
+      'mass M = ρ&#8320;·A&#8320; = <b>'+M.toFixed(2)+'</b> <span style="color:#6b7280">(fixed)</span><br>'+
+      'density ρ = M/A = <b>'+rho.toFixed(2)+'</b> <span style="color:#38bdf8">(live)</span>'
+  }
+  drawAll()
+
+  cvs.addEventListener('mousedown', e=>{
+    const mx=e.offsetX, my=e.offsetY
+    dragIdx = -1
+    for(let i=0;i<curPts.length;i++){
+      const q = to(curPts[i][0], curPts[i][1])
+      if(Math.hypot(q[0]-mx,q[1]-my) < 14){ dragIdx = i; break }
+    }
+  })
+  cvs.addEventListener('mousemove', e=>{
+    if(dragIdx<0) return
+    const [x,y] = invTo(e.offsetX, e.offsetY)
+    curPts[dragIdx] = [x,y]
+    drawAll()
+  })
+  window.addEventListener('mouseup', ()=>{ dragIdx = -1 })
+
+  par.querySelector('#cfg-rho0').addEventListener('input', e=>{
+    rho0 = parseFloat(e.target.value)
+    par.querySelector('#cfg-rho0-v').textContent = rho0.toFixed(1)
+    drawAll()
+  })
+  par.querySelector('#cfg-reset').addEventListener('click', ()=>{
+    curPts = refPts.map(p=>p.slice())
+    drawAll()
+  })
+</script>
+""")
+    end
+
+    const _cfg_ready = true
+end
+
+# ╔═╡ 11966694-3009-4016-be5b-2a4eb1be6be2
+begin
+    _cfg_ready
+    @bind cfg ConfigurationInput()
 end
 
 # ╔═╡ 906d8e1c-67c5-46ca-ad8d-0e087561690c
@@ -367,19 +586,43 @@ begin
     #stwidget select{width:100%;background:#111827;color:#e5e7eb;border:1px solid #374151;border-radius:4px;padding:5px 6px;font-size:14px}
     #stwidget .st-readout{font-size:13px;line-height:1.7}
     #stwidget .st-mat{font-variant-numeric:tabular-nums;white-space:pre}
+    #stwidget .st-jcol{flex:0 0 auto;padding-top:22px}
+    #stwidget .st-jmatrix{display:inline-grid;grid-template-columns:auto auto;gap:6px 8px;padding:6px 12px;position:relative}
+    #stwidget .st-jmatrix::before, #stwidget .st-jmatrix::after{content:'';position:absolute;top:3px;bottom:3px;width:7px;border:2px solid #9ca3af}
+    #stwidget .st-jmatrix::before{left:0;border-right:none}
+    #stwidget .st-jmatrix::after{right:0;border-left:none}
+    #stwidget .st-jmatrix input{width:58px;background:#111827;color:#e5e7eb;border:1px solid #374151;border-radius:4px;padding:5px 4px;font-size:14px;text-align:center;font-variant-numeric:tabular-nums}
+    #stwidget .st-jmatrix input:focus{outline:2px solid #38bdf8;border-color:#38bdf8}
+    #stwidget .st-jhint{font-size:11px;color:#6b7280;margin-top:10px;text-align:center;max-width:150px}
+    #stwidget .st-mat2{display:inline-grid;grid-template-columns:auto auto;gap:2px 6px;padding:3px 9px;position:relative;vertical-align:middle;margin:2px 0}
+    #stwidget .st-mat2::before, #stwidget .st-mat2::after{content:'';position:absolute;top:1px;bottom:1px;width:5px;border:1.5px solid currentColor}
+    #stwidget .st-mat2::before{left:0;border-right:none}
+    #stwidget .st-mat2::after{right:0;border-left:none}
+    #stwidget .st-mat2 span{min-width:38px;text-align:center;font-size:13px;font-variant-numeric:tabular-nums}
     @media (max-width: 900px){
       #stwidget .st-panels{flex-direction:column;align-items:center}
       #stwidget .st-col{width:100%;max-width:520px}
+      #stwidget .st-jcol{padding-top:0}
     }
   </style>
   <div class="st-title">
     <div class="st-title-desc">A uniform deformation splits exactly into rotation, dilatation, and shape-changing shear &mdash; drag to see how much of each.</div>
-    <div class="st-title-hint">drag a corner handle to deform &middot; drag the Mohr circle's marker to pick a cut plane &middot; pick a preset below</div>
+    <div class="st-title-hint">drag a corner handle, or edit J directly, to deform &middot; drag the Mohr circle's marker to pick a cut plane &middot; pick a preset below</div>
   </div>
   <div class="st-panels">
     <div class="st-col">
       <div class="st-panel-label">Deformation (drag A / B)</div>
       <canvas id="stMain" width="480" height="480"></canvas>
+    </div>
+    <div class="st-col st-jcol">
+      <div class="st-panel-label">Displacement Gradient J</div>
+      <div class="st-jmatrix">
+        <input type="number" step="0.05" id="st-j11" value="$(w.j11)">
+        <input type="number" step="0.05" id="st-j12" value="$(w.j12)">
+        <input type="number" step="0.05" id="st-j21" value="$(w.j21)">
+        <input type="number" step="0.05" id="st-j22" value="$(w.j22)">
+      </div>
+      <div class="st-jhint">edit directly, or drag A/B on the square &mdash; both stay in sync</div>
     </div>
     <div class="st-col">
       <div class="st-panel-label">Mohr circle for strain (drag the marker)</div>
@@ -417,7 +660,10 @@ begin
   const par = currentScript.previousElementSibling
   const availW = Math.min(window.innerWidth*0.8, par.clientWidth || window.innerWidth*0.8)
   const heightBudget = Math.max(320, window.innerHeight - 520)
-  const SEC = Math.round(Math.min((availW-14)/2, heightBudget, 480))
+  // A third, narrow column (the editable J matrix) now sits between the two square canvases --
+  // two gaps instead of one, and its own fixed width, come out of the same available space.
+  const JCOLW = 170
+  const SEC = Math.round(Math.min((availW-28-JCOLW)/2, heightBudget, 480))
   const STRIP = Math.round(Math.min((availW-30)/4, 190))
   const DPR = Math.min(window.devicePixelRatio || 1, 2)
 
@@ -446,6 +692,21 @@ begin
   function invxform(sizePx){
     const scale = sizePx/(VMAX-VMIN)
     return (px,py) => [px/scale+VMIN, (sizePx-py)/scale+VMIN]
+  }
+
+  // Fixed axis range for the Mohr circle too -- the circle itself moves/grows/shrinks as J
+  // changes, rather than the axes continuously rescaling to hug it. A rescaling axis makes it
+  // hard to tell "did the circle actually change, or did the frame just rezoom" at a glance;
+  // a fixed frame makes size/position changes directly readable. ±2.6 comfortably covers the
+  // circle's reachable center/radius across the full A/B drag range (VMIN..VMAX above), with
+  // headroom to spare for the four small presets; a circle from a hand-typed extreme J value
+  // can legitimately run off the fixed frame, same as dragging A/B off the main canvas.
+  const MOHR_HALF = 2.6
+  function mohrXform(x,y){
+    return [(x+MOHR_HALF)/(2*MOHR_HALF)*SEC, SEC-(y+MOHR_HALF)/(2*MOHR_HALF)*SEC]
+  }
+  function mohrInvXform(px,py){
+    return [(px/SEC)*(2*MOHR_HALF)-MOHR_HALF, ((SEC-py)/SEC)*(2*MOHR_HALF)-MOHR_HALF]
   }
 
   let j11 = $(w.j11), j12 = $(w.j12), j21 = $(w.j21), j22 = $(w.j22)
@@ -599,21 +860,12 @@ begin
     const d = decompose()
     const {A,B,c,R} = mohrGeom(d.e)
     mohrCtx.clearRect(0,0,SEC,SEC)
-    const pad = Math.max(R*0.5, 0.3)
-    const lo = c-R-pad, hi = c+R+pad
-    const span = Math.max(hi-lo, 2*(R+pad), 0.6)
-    const mid = (lo+hi)/2
-    const half = span/2
-    const to = (x,y) => {
-      const sx = (x-(mid-half))/(2*half)*SEC
-      const sy = SEC - (y-(-half))/(2*half)*SEC
-      return [sx,sy]
-    }
+    const to = (x,y) => mohrXform(x,y)
 
-    // axes
+    // axes -- fixed at the frame's own origin, independent of the circle's own center/radius
     mohrCtx.strokeStyle = 'rgba(156,163,175,0.4)'; mohrCtx.lineWidth = 1
-    let a0=to(mid-half,0), a1=to(mid+half,0); mohrCtx.beginPath(); mohrCtx.moveTo(a0[0],a0[1]); mohrCtx.lineTo(a1[0],a1[1]); mohrCtx.stroke()
-    a0=to(0,-half); a1=to(0,half); mohrCtx.beginPath(); mohrCtx.moveTo(a0[0],a0[1]); mohrCtx.lineTo(a1[0],a1[1]); mohrCtx.stroke()
+    let a0=to(-MOHR_HALF,0), a1=to(MOHR_HALF,0); mohrCtx.beginPath(); mohrCtx.moveTo(a0[0],a0[1]); mohrCtx.lineTo(a1[0],a1[1]); mohrCtx.stroke()
+    a0=to(0,-MOHR_HALF); a1=to(0,MOHR_HALF); mohrCtx.beginPath(); mohrCtx.moveTo(a0[0],a0[1]); mohrCtx.lineTo(a1[0],a1[1]); mohrCtx.stroke()
 
     // the circle itself
     mohrCtx.beginPath()
@@ -644,30 +896,50 @@ begin
     mohrCtx.fillStyle = '#9ca3af'; mohrCtx.font = '12px sans-serif'
     mohrCtx.fillText('normal strain →', 10, SEC-10)
     mohrCtx.save(); mohrCtx.translate(14,20); mohrCtx.fillText('↑ shear strain', 0, 0); mohrCtx.restore()
-
-    return {lo:mid-half, hi:mid+half, toInv:(px,py)=>[ (px/SEC)*(2*half)+(mid-half), ((SEC-py)/SEC)*(2*half)-half ]}
   }
 
   function fmt(v){ return (v>=0?'+':'') + v.toFixed(2) }
-  function matStr(M){ return '['+fmt(M.m11)+'  '+fmt(M.m12)+']\\n['+fmt(M.m21)+'  '+fmt(M.m22)+']' }
+  // Real HTML bracket-grid matrix (reuses the same visual trick as the editable .st-jmatrix
+  // panel above, read-only here) instead of a monospace ASCII-bracket string -- `color` tints
+  // the brackets to match the matrix's own strip-panel accent, so e/Ω stay visually associated
+  // with the "Strain only"/"Rotation only" panels at a glance.
+  function matHTML(M, color){
+    return '<span class="st-mat2" style="color:'+color+'">'+
+      '<span style="color:#e5e7eb">'+fmt(M.m11)+'</span><span style="color:#e5e7eb">'+fmt(M.m12)+'</span>'+
+      '<span style="color:#e5e7eb">'+fmt(M.m21)+'</span><span style="color:#e5e7eb">'+fmt(M.m22)+'</span>'+
+      '</span>'
+  }
 
   function updateReadouts(){
     const d = decompose()
     const pr = principal(d.e)
     par.querySelector('#stReadout').innerHTML =
-      '<b>J</b> (total)<br><span class="st-mat">'+matStr({m11:j11,m12:j12,m21:j21,m22:j22})+'</span><br>'+
-      '<b>e</b> (strain)<br><span class="st-mat">'+matStr(d.e)+'</span><br>'+
+      '<b style="color:#38bdf8">e</b> (strain) '+matHTML(d.e, '#38bdf8')+'<br>'+
+      '<b style="color:#c084fc">Ω</b> (rotation) '+matHTML(d.Om, '#c084fc')+'<br>'+
       'dilatation &Delta; = tr(e) = <b>'+fmt(d.delta)+'</b><br>'+
       'principal strains: <b>'+fmt(pr.l1)+'</b>, <b>'+fmt(pr.l2)+'</b> at '+Math.round(pr.angle*180/Math.PI)+'&deg;<br>'+
       'cut-plane &theta; = '+Math.round(theta*180/Math.PI)+'&deg;'
     par.querySelector('#stLegend').innerHTML =
-      '<span style="color:#facc15">A</span>/<span style="color:#f472b6">B</span> handles set columns 1/2 of J directly<br>'+
+      '<span style="color:#facc15">A</span>/<span style="color:#f472b6">B</span> handles, or the <b>J</b> boxes above, set the same matrix &mdash; both stay in sync<br>'+
       '<span style="color:#38bdf8">strain</span> &middot; <span style="color:#c084fc">rotation</span> &middot; '+
       '<span style="color:#facc15">dilatation</span> &middot; <span style="color:#4ade80">deviatoric</span><br>'+
       'dashed = reference cut &middot; <span style="color:#22d3ee">cyan</span> = same fiber after deformation'
   }
 
-  function drawAll(){ drawMain(); drawStrip(); drawMohr(); updateReadouts() }
+  // The four J entry boxes mirror j11..j22 both ways: dragging A/B (or picking a preset) updates
+  // the boxes here, and typing in a box updates j11..j22 (registered below, next to the drag
+  // handlers) -- skip overwriting whichever box currently has focus so a live edit's cursor/
+  // selection isn't clobbered out from under the person typing.
+  const jBoxes = {j11:par.querySelector('#st-j11'), j12:par.querySelector('#st-j12'),
+                  j21:par.querySelector('#st-j21'), j22:par.querySelector('#st-j22')}
+  function syncJBoxes(){
+    const vals = {j11,j12,j21,j22}
+    for(const k in jBoxes){
+      if(document.activeElement !== jBoxes[k]) jBoxes[k].value = Math.round(vals[k]*1000)/1000
+    }
+  }
+
+  function drawAll(){ drawMain(); drawStrip(); drawMohr(); updateReadouts(); syncJBoxes() }
 
   function setCustom(){
     if(currentPreset !== 'custom'){ currentPreset = 'custom'; par.querySelector('#stPreset').value = 'custom' }
@@ -692,20 +964,18 @@ begin
   })
   window.addEventListener('mouseup', ()=>{ dragMode = null; mohrDrag = false })
 
+  jBoxes.j11.addEventListener('input', e=>{ const v=parseFloat(e.target.value); if(Number.isFinite(v)){ j11=v; setCustom(); drawMain(); drawStrip(); drawMohr(); updateReadouts() } })
+  jBoxes.j12.addEventListener('input', e=>{ const v=parseFloat(e.target.value); if(Number.isFinite(v)){ j12=v; setCustom(); drawMain(); drawStrip(); drawMohr(); updateReadouts() } })
+  jBoxes.j21.addEventListener('input', e=>{ const v=parseFloat(e.target.value); if(Number.isFinite(v)){ j21=v; setCustom(); drawMain(); drawStrip(); drawMohr(); updateReadouts() } })
+  jBoxes.j22.addEventListener('input', e=>{ const v=parseFloat(e.target.value); if(Number.isFinite(v)){ j22=v; setCustom(); drawMain(); drawStrip(); drawMohr(); updateReadouts() } })
+
   let mohrDrag = false
   mohrCvs.addEventListener('mousedown', ()=>{ mohrDrag = true })
   mohrCvs.addEventListener('mousemove', e=>{
     if(!mohrDrag) return
     const d = decompose()
     const {A,B,c} = mohrGeom(d.e)
-    // reuse the same viewport math drawMohr() just used, recomputed identically here
-    const R = Math.hypot(A,B)
-    const pad = Math.max(R*0.5, 0.3)
-    const lo = c-R-pad, hi = c+R+pad
-    const span = Math.max(hi-lo, 2*(R+pad), 0.6)
-    const mid=(lo+hi)/2, half=span/2
-    const dataX = (e.offsetX/SEC)*(2*half)+(mid-half)
-    const dataY = ((SEC-e.offsetY)/SEC)*(2*half)-half
+    const [dataX,dataY] = mohrInvXform(e.offsetX, e.offsetY)
     const arg0 = Math.atan2(B, A)
     const phi = Math.atan2(dataY, dataX - c)
     theta = (arg0 - phi)/2
@@ -737,16 +1007,10 @@ end
 # ╔═╡ 00000000-0000-0000-0000-000000000001
 PLUTO_PROJECT_TOML_CONTENTS = """
 [deps]
-Einsum = "b7d42ee7-0b51-5a75-98ca-779d3107e4c0"
 PlutoUI = "7f904dfe-b85e-4ff6-b463-dae2292396a8"
-SymbolicUtils = "d1185830-fcd6-423d-90d6-eec64667417b"
-Symbolics = "0c5d862f-8b57-4792-8d23-62f2024744c7"
 
 [compat]
-Einsum = "~0.4.1"
 PlutoUI = "~0.7.83"
-SymbolicUtils = "~1.7.1"
-Symbolics = "~5.5.3"
 """
 
 # ╔═╡ 00000000-0000-0000-0000-000000000002
@@ -755,7 +1019,7 @@ PLUTO_MANIFEST_TOML_CONTENTS = """
 
 julia_version = "1.12.4"
 manifest_format = "2.0"
-project_hash = "bf694d5b590d74c8146a93591f333ef7bcbfa3ca"
+project_hash = "40c9f1cac973d64f8ca3ef3a09f769ff947e80f3"
 
 [[deps.AbstractAlgebra]]
 deps = ["GroupsCore", "InteractiveUtils", "LinearAlgebra", "MacroTools", "Preferences", "Random", "RandomExtensions", "SparseArrays", "Test"]
@@ -1754,43 +2018,17 @@ version = "17.7.0+0"
 # ╔═╡ Cell order:
 # ╠═3f1bc2d1-2327-48cc-984a-df09c936da87
 # ╟─fd14256d-8c69-4d8a-91b5-924a32479866
-# ╟─8b707bb1-f496-4d94-b81d-8a5fbb69a7f7
+# ╟─4d860dc6-4944-44da-81f2-14b4aa018694
+# ╟─11966694-3009-4016-be5b-2a4eb1be6be2
 # ╟─174e1f52-bf7a-4201-b579-c784115d15f1
-# ╠═94c2d557-68f3-4c36-85b0-5428e8b217dc
-# ╠═e8049366-ef8a-4adb-8b3b-d5d94b6f6475
-# ╠═a03858ff-f63f-459d-a463-702ccffe78d9
-# ╠═26d75f4e-d4b3-4254-809e-a3b5e37ebadd
 # ╟─b2cf2af1-564e-4a3f-a846-a50042883a7a
-# ╠═7c32c7a3-4bb5-4654-aa19-8ceea607e984
-# ╠═56657c39-cb42-4529-a8a8-bb58eceffff6
-# ╠═cfaf2ea9-c227-470b-9ea6-fe429d656b22
-# ╠═49d5162f-22ea-412f-b3fa-fec8a9c5a005
-# ╠═4c496bae-7d72-48cd-8f24-c3dde9e16a3f
+# ╟─bbb43caf-32a4-4f70-a263-246953076d84
 # ╟─a660a926-0835-4ed2-a2a6-615e3dba3088
-# ╠═7bb1db67-5401-43f4-aff8-fcc00a9040b3
-# ╠═832f75d1-64b6-4ed8-bdd9-94cbf29e42a2
-# ╟─06be73a7-f185-4e72-816c-79cf56b59f30
-# ╠═7fac2221-2a36-4a4c-9151-1b7c3c59914f
-# ╟─a13ff96e-1885-40e4-88ed-cb5dcbad22ee
-# ╠═1d3716a1-fe01-4cd5-bb1d-88aa3c2710b5
-# ╠═731e1777-eb47-4180-86f4-faf31e8e6cd2
-# ╠═7cabd325-30d7-4882-86c5-3195ac496264
+# ╟─8b707bb1-f496-4d94-b81d-8a5fbb69a7f7
 # ╟─d8f1ceea-1968-4e59-93ae-a21f035b2a09
-# ╟─182b4b24-ee3c-44a2-b799-28bb2bd5a511
 # ╟─6400c97b-9f07-4f52-9002-e8b5f11aa182
-# ╠═4ca30efc-0f95-4fba-b0ae-139b21d9820d
-# ╠═7f00862f-64f8-4c42-9d78-a466cd5bd9c1
-# ╠═451c250d-1d40-49d5-a508-4668b5cfaaad
 # ╠═a759772e-a5b4-4f35-9150-c17627b58c4a
-# ╠═668a0698-cfe3-4027-b190-17d0ec0366af
-# ╠═0ebff5dc-4ee6-4480-a546-6ca0cc99ca39
-# ╠═aeb75efa-10e0-4a6b-b24e-63a09f252d22
-# ╟─9eeeac07-c2f6-4759-a328-4dee9d576723
-# ╠═21aa8907-b2f2-4ee6-9080-4299d1d2ce78
-# ╟─0861fe54-b9c4-4d00-a5f0-ebd60e87f671
-# ╠═5533c0ec-bcc3-484f-81fd-4dadbdb7aacb
-# ╟─63e14d52-c500-4942-92ec-05533206a649
-# ╠═c91e830a-a276-4fc9-9da1-787cc0adbac7
+# ╠═9eeeac07-c2f6-4759-a328-4dee9d576723
 # ╟─f4b45b1b-b7f8-4f2b-a580-98def9cc8fbc
 # ╟─31eb56b0-25dd-4335-bc17-f89431d79b22
 # ╟─a4ec2280-8bac-4e65-a849-909441cee0b6
@@ -1801,6 +2039,8 @@ version = "17.7.0+0"
 # ╠═962355bc-2e2e-4bba-b293-aefdca8f3627
 # ╟─3f45f0c5-e672-4780-a2c6-006e49fecfb8
 # ╠═3f7a0102-597e-49cc-978b-39ad7fcb3015
+# ╟─6b829564-d656-4c81-885f-212d1b8d6d91
+# ╠═0168e21c-7af1-491d-be1b-7b3f458f9ad3
 # ╟─906d8e1c-67c5-46ca-ad8d-0e087561690c
 # ╠═e2c19bc6-e3df-4c93-aded-b9fda77247ec
 # ╟─00000000-0000-0000-0000-000000000001

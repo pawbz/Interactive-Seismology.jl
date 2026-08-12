@@ -84,9 +84,10 @@ User=pluto
 WorkingDirectory=/home/pluto/Interactive-Seismology.jl
 Environment="PATH=/home/pluto/.julia/bin:/usr/local/bin:/usr/bin"
 
-# Run PlutoSliderServer
+# Run only the notebooks in live-notebooks.yml.
+# Keep this port private; nginx serves the generated _site directory separately.
 ExecStart=/usr/bin/julia --project=pluto-deployment-environment \
-  -e "import PlutoSliderServer; PlutoSliderServer.run_directory(\".\"; port=8080, host=\"0.0.0.0\", exclude=[\"**/hw*.jl\"])"
+  serve_live_notebooks.jl --host 127.0.0.1 --port 1234
 
 Restart=always
 RestartSec=10s
@@ -110,6 +111,36 @@ sudo systemctl status pluto-slider-server
 # View logs
 sudo journalctl -u pluto-slider-server -f
 ```
+
+### 2.3 Serve the generated site with nginx
+
+Install nginx and point its document root to the directory used by
+`deploy-to-vm.sh` (`/home/pluto/_site` by default). Proxy only the two
+PlutoSliderServer action endpoints; the rest of the site remains static.
+
+```nginx
+server {
+    listen 80;
+    server_name notebooks.example.edu;
+    root /home/pluto/_site;
+
+    location /staterequest/ {
+        proxy_pass http://127.0.0.1:1234;
+    }
+
+    location /bondconnections/ {
+        proxy_pass http://127.0.0.1:1234;
+    }
+
+    location / {
+        try_files $uri $uri/ =404;
+    }
+}
+```
+
+With this configuration, `deploy-to-vm.sh` exports live pages with `/` as their
+slider-server URL, so they use the same public domain while PlutoSliderServer
+remains private on port 1234. Add TLS before making the site public.
 
 ## Step 3: Configure GitHub Secrets
 
@@ -218,12 +249,12 @@ git push origin main
 sudo journalctl -u pluto-slider-server -n 50
 
 # Check if port 8080 is already in use
-sudo lsof -i :8080
+sudo lsof -i :1234
 
 # Try starting manually
 cd /home/pluto/Interactive-Seismology.jl
 julia --project=pluto-deployment-environment \
-  -e "import PlutoSliderServer; PlutoSliderServer.run_directory(\".\"; port=8080)"
+  serve_live_notebooks.jl --host 127.0.0.1 --port 1234
 ```
 
 ### Notebooks Not Appearing

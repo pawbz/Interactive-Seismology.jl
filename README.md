@@ -16,6 +16,25 @@ A [collection](https://pawbz.github.io/Interactive-Seismology.jl/) of *reactive 
 
 **Setup guide:** See [VM_DEPLOYMENT_SETUP.md](VM_DEPLOYMENT_SETUP.md) for complete instructions
 
+### Local deployment preview
+
+`static-notebooks.yml` and `live-notebooks.yml` are the single source of truth for
+which Pluto notebooks appear on the site. To build and test that exact selection
+locally, run:
+
+```bash
+./local_serve_test
+```
+
+The static site is available at <http://127.0.0.1:8000/> and the live notebook
+service at <http://127.0.0.1:1234/>. Stop the command with `Ctrl+C`. If either
+port is occupied, choose replacements, for example
+`STATIC_PORT=8100 LIVE_PORT=17321 ./local_serve_test`.
+
+For GitHub Pages exports, set the repository variable
+`PLUTO_SLIDER_SERVER_URL` only when the live notebooks should connect to a
+publicly reachable slider-server endpoint. Otherwise they remain static there.
+
 **Quick start:**
 ```bash
 # Edit which notebooks are live

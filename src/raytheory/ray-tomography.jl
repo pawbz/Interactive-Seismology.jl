@@ -1,5 +1,5 @@
 ### A Pluto.jl notebook ###
-# v0.20.21
+# v0.2.6
 
 #> [frontmatter]
 #> title = "Ray Tomography"
@@ -142,10 +142,16 @@ md"[Scree plot](https://en.wikipedia.org/wiki/Scree_plot#:~:text=In%20multivaria
 # ╔═╡ 70e78f3d-a261-43b1-a590-966c7c96021c
 md"Slider to choose the row of the Hessian matrix."
 
+# ╔═╡ fe682b63-2a06-4c32-8dc0-2f99ba48a873
+@bind irowm Slider(1:(length(xgrid_inv)-1)*(length(zgrid_inv)-1), show_value=true, default=div(length(xgrid_inv) * length(zgrid_inv), 4))
+
 # ╔═╡ ae30bfd8-6b42-4aa7-90f2-e7303b359b94
 md"""
 We will now vis. rows of data and model resolution matrices.
 """
+
+# ╔═╡ 1807eb3a-ce0b-46fe-8c70-fa4af3d9ebad
+@bind irowd Slider(1:acq.nr*acq.ns, show_value=true)
 
 # ╔═╡ 010a12e2-1abc-4471-a81b-005c30578e63
 md"## Appendix"
@@ -153,8 +159,42 @@ md"## Appendix"
 # ╔═╡ 6a0e653c-5a60-48d6-a3de-2c9409558b71
 import PlutoUIExtra
 
+# ╔═╡ 3b3342fd-e1f9-4bb0-ac0e-580b2ec2af2b
+PlutoUIExtra.Sidebar(
+	(@bind acq confirm(acq_input())), location="center left"
+)
+
+# ╔═╡ 81f6f055-fd51-455a-9dae-bc8a03b0d94f
+PlutoUIExtra.Sidebar(
+	(@bind pert confirm(perturbation_input(xgrid, zgrid))),
+	md"---",
+	(@bind regenerate_medium CounterButton("Regenerate Medium")), location="upper left"
+)
+
+# ╔═╡ bd08b641-e332-4b9b-9a44-2aea39d80b6c
+PlutoUIExtra.Sidebar(
+	md"#### Inversion Parameters",
+	(@bind res confirm(resolution_input())),
+	md"---",
+	md"Choose the regularization parameter", (@bind λ Slider(λrange, show_value=true)),
+	
+	location="lower left"
+)
+
 # ╔═╡ 442255bc-4d49-4602-b0d4-a935871a9fe8
 # define a for modelling and inversion
+
+# ╔═╡ da873791-517d-4ac3-80f8-ceae5808be24
+begin
+    xgrid = range(-1000, stop=1000, length=floor(Int, 2000 / res.ds))
+    zgrid = range(-1000, stop=1000, length=floor(Int, 2000 / res.ds))
+end;
+
+# ╔═╡ 322d1562-2197-4131-bd17-93aed063e55c
+begin
+    xgrid_inv = range(-1000, stop=1000, length=floor(Int, 2000 / res.ds_inv))
+    zgrid_inv = range(-1000, stop=1000, length=floor(Int, 2000 / res.ds_inv))
+end;
 
 # ╔═╡ cf99206b-8a78-40de-bd0d-20bb37ec0b09
 md"""
@@ -192,6 +232,12 @@ function get_medium(xgrid, zgrid, pert=nothing)
 end
 
 
+# ╔═╡ 092331da-31a4-403d-b0cb-6e7705c6d81b
+begin
+	regenerate_medium
+	ctrue, strue = get_medium(xgrid, zgrid, pert);
+end
+
 # ╔═╡ 3d1cd3b5-66f5-44a8-805a-496e801be858
 md"""
 ### Methods for straight-ray tracing
@@ -209,6 +255,9 @@ function get_source_receivers_outer_edge(xgrid, zgrid, ns, nr)
     recx = fill(xgrid[end], nr)
     return srcz, srcx, recx, recz
 end
+
+# ╔═╡ aa9782b5-88be-43a2-b1e1-d68f289a8fec
+srcz, srcx, recx, recz = get_source_receivers_outer_edge(xgrid, zgrid, acq.ns, acq.nr);
 
 # ╔═╡ 565af43c-8b85-4ab4-b72d-ac9560efd4fc
 # find intersect b/w two segments
@@ -270,6 +319,83 @@ function get_forw_operator(xgrid, zgrid, srcx, srcz, recx, recz)
     return G
 end
 
+# ╔═╡ 7df1cd87-40fa-45c1-9d85-1d491c414a18
+Gtrue = get_forw_operator(xgrid, zgrid, srcx, srcz, recx, recz);
+
+# ╔═╡ 3d201819-788b-4d90-b3a6-5483fc16ca81
+dobs = Gtrue * strue;
+
+# ╔═╡ dce75e41-274b-4e6a-8949-5caaeef7238a
+G = get_forw_operator(xgrid_inv, zgrid_inv, srcx, srcz, recx, recz);
+
+# ╔═╡ ad441089-505f-4da2-a345-548e8c4dd7d2
+plot(heatmap(z=G), Layout(xaxis_title="model vector index", yaxis_autorange="reversed", yaxis_title="data vector index", width=450, title="Forward Operator"))
+
+# ╔═╡ 2713503d-165f-47f9-8ece-4cd5ddc0bb21
+λ1 = inv(tr(G' * G))
+
+# ╔═╡ a60daaa3-d5da-4ac5-b40b-65bbbffdae55
+H = spdiagm(ones(size(G, 2)));
+
+# ╔═╡ 464f5a71-d820-4300-b062-e2eb9491f612
+λ2 = inv(tr(H' * H))
+
+# ╔═╡ 774ebdcf-3d88-47b8-aa66-f59822b18321
+Gi = pinv(G); # compute Moore-Penrose pseudoinverse
+
+# ╔═╡ 80910abe-97df-4283-bc18-d8c8e876174e
+sprior = fill(inv(2000.), size(G, 2));
+
+# ╔═╡ fc4be0cb-5531-4432-a265-30f0cc27494d
+function get_tikhonov_solution(dobs)
+	return inv(λ1 * G' * G + λ2 * λ * H' * H) * (
+    λ1 * G' * dobs + λ2 * λ * H' * sprior)
+end
+
+# ╔═╡ e4d99869-844e-4c1b-a64c-9cbf1eabab99
+sest1 = get_tikhonov_solution(dobs)
+
+# ╔═╡ 68b24556-4731-4b8f-b8a6-7aa7ffa38a92
+cest1 = reshape((inv.(sest1)), length(zgrid_inv) - 1, length(xgrid_inv) - 1);
+
+# ╔═╡ a26fd943-dd6c-4e42-b6b0-5c9a17f31b19
+plot([scatter(y=dobs, name="observed"), scatter(y=G * sest1, name="predicted")], Layout(title="Data Residual (Observed Vs. Predicted Traveltimes)", xaxis_title="# raypath", yaxis_title="traveltime"))
+
+# ╔═╡ 58867c8d-af21-48e9-ab0c-4472711e8eb0
+begin
+    tt_analytic = vec([(sqrt(sum(abs2.([srcx[is] - recx[ir], srcz[is] - recz[ir]])))) * inv(2000) for ir in 1:acq.nr, is in 1:acq.ns])
+    tt_G = G * inv.(fill(2000, (length(zgrid_inv) - 1) * (length(xgrid_inv) - 1)))
+    @test tt_analytic ≈ tt_G
+end
+
+# ╔═╡ 0bf44317-45cf-4899-8b1b-dfa1fe018db4
+data_residual = tt_G - dobs;
+
+# ╔═╡ 461859c0-5f94-469c-a054-4553045bac17
+grad_slowness = reshape(G' * data_residual, length(zgrid_inv) - 1, length(xgrid_inv) - 1);
+
+# ╔═╡ acc8d4d0-a332-478f-8630-b22a10e7063b
+function plot_G_scree()
+    s = svd(G)
+    plot(s.S, Layout(title="Singular values of G"))
+end
+
+# ╔═╡ aa36d8d7-a7d4-4aa4-b0ee-b07d36cc453b
+plot_G_scree()
+
+# ╔═╡ 3c7cddb2-72c6-45d1-a902-f66cb67d2835
+plot(heatmap(z=transpose(G) * G), Layout(yaxis_autorange="reversed", title="the Hessian matrix", xaxis_title="model index", yaxis_title="model index", width=450))
+
+# ╔═╡ f408a310-fce3-4876-819e-3457037bd48f
+plot(heatmap(x=xgrid_inv, y=zgrid_inv, z=reshape((transpose(G)*G)[irowm, :], length(zgrid_inv) - 1, length(xgrid_inv) - 1)), Layout(yaxis_autorange="reversed", title="row of the Hessian matrix", width=450))
+
+# ╔═╡ 5bdd9d83-3911-4ab5-aefb-5ead429ac5a5
+plot(heatmap(x=xgrid_inv, y=zgrid_inv, z=reshape((Gi*G)[irowm, :], length(zgrid_inv) - 1, length(xgrid_inv) - 1)),
+    Layout(yaxis_autorange="reversed", title="Row of Model Resolution Matrix", width=450))
+
+# ╔═╡ a3bf8549-fff8-4423-8a87-a81cb21f9eb1
+plot((G*Gi)[irowd, :], Layout(title="Row of data resolution matrix", xaxis_title="raypath index"))
+
 # ╔═╡ 4daad9cb-5651-4757-a390-27bbbfa5d4c9
 
 """
@@ -314,6 +440,30 @@ function vertical_differencing_operator(rows, cols)
 
     return sparse(row_indices, col_indices, data, num_pixels, num_pixels)
 end
+
+# ╔═╡ 272428e7-f865-4d9e-9df1-9fb45dec6a96
+Dv = vertical_differencing_operator(length(zgrid_inv) - 1, length(xgrid_inv) - 1,)
+
+# ╔═╡ 0ac7a1d4-f9c4-4e9a-a1fd-ff7629022fad
+Dh = horizontal_differencing_operator(length(zgrid_inv) - 1, length(xgrid_inv) - 1,)
+
+# ╔═╡ 59c0e9a2-ab43-45b8-83a8-e0e865b1895d
+λ3 = inv(tr(Dh' * Dh))
+
+# ╔═╡ 11ffa65f-6c38-48bd-b22b-07c238596473
+function get_first_difference_regularized_solution(dobs)
+	return inv(λ1 * G' * G + λ3 * λ * Dh' * Dh + λ3 * λ * Dv' * Dv) * (
+    λ1 * G' * dobs)
+end
+
+# ╔═╡ 0a336d04-b2c5-45d6-b2a4-7f03666cb597
+sest2 = get_first_difference_regularized_solution(dobs)
+
+# ╔═╡ 9dfe9cd4-9baa-4808-9b7a-d01c62ee6d40
+cest2 = reshape((inv.(sest2)), length(zgrid_inv) - 1, length(xgrid_inv) - 1);
+
+# ╔═╡ ffb59613-e16b-4d38-9c36-c778f92842e0
+plot([scatter(y=dobs, name="observed"), scatter(y=G * sest2, name="predicted")], Layout(title="Data Residual (Observed Vs. Predicted Traveltimes)", xaxis_title="# raypath", yaxis_title="traveltime"))
 
 # ╔═╡ 4dd5df1f-f0bc-49ec-a533-4498ed17d223
 md"""
@@ -361,53 +511,6 @@ Resolution (m) of true $(Child("ds", Slider(range(10,stop=200), default=25, show
     end
 end
 
-# ╔═╡ bd08b641-e332-4b9b-9a44-2aea39d80b6c
-PlutoUIExtra.Sidebar(
-	md"#### Inversion Parameters",
-	(@bind res confirm(resolution_input())),
-	md"---",
-	md"Choose the regularization parameter", (@bind λ Slider(λrange, show_value=true)),
-	
-	location="lower left"
-)
-
-# ╔═╡ da873791-517d-4ac3-80f8-ceae5808be24
-begin
-    xgrid = range(-1000, stop=1000, length=floor(Int, 2000 / res.ds))
-    zgrid = range(-1000, stop=1000, length=floor(Int, 2000 / res.ds))
-end;
-
-# ╔═╡ 81f6f055-fd51-455a-9dae-bc8a03b0d94f
-PlutoUIExtra.Sidebar(
-	(@bind pert confirm(perturbation_input(xgrid, zgrid))),
-	md"---",
-	(@bind regenerate_medium CounterButton("Regenerate Medium")), location="upper left"
-)
-
-# ╔═╡ 092331da-31a4-403d-b0cb-6e7705c6d81b
-begin
-	regenerate_medium
-	ctrue, strue = get_medium(xgrid, zgrid, pert);
-end
-
-# ╔═╡ 322d1562-2197-4131-bd17-93aed063e55c
-begin
-    xgrid_inv = range(-1000, stop=1000, length=floor(Int, 2000 / res.ds_inv))
-    zgrid_inv = range(-1000, stop=1000, length=floor(Int, 2000 / res.ds_inv))
-end;
-
-# ╔═╡ fe682b63-2a06-4c32-8dc0-2f99ba48a873
-@bind irowm Slider(1:(length(xgrid_inv)-1)*(length(zgrid_inv)-1), show_value=true, default=div(length(xgrid_inv) * length(zgrid_inv), 4))
-
-# ╔═╡ 272428e7-f865-4d9e-9df1-9fb45dec6a96
-Dv = vertical_differencing_operator(length(zgrid_inv) - 1, length(xgrid_inv) - 1,)
-
-# ╔═╡ 0ac7a1d4-f9c4-4e9a-a1fd-ff7629022fad
-Dh = horizontal_differencing_operator(length(zgrid_inv) - 1, length(xgrid_inv) - 1,)
-
-# ╔═╡ 59c0e9a2-ab43-45b8-83a8-e0e865b1895d
-λ3 = inv(tr(Dh' * Dh))
-
 # ╔═╡ 6702fde2-8847-407b-9d69-8e099374d6ce
 function acq_input()
     return PlutoUI.combine() do Child
@@ -426,109 +529,6 @@ function acq_input()
   """
     end
 end
-
-# ╔═╡ 3b3342fd-e1f9-4bb0-ac0e-580b2ec2af2b
-PlutoUIExtra.Sidebar(
-	(@bind acq confirm(acq_input())), location="center left"
-)
-
-# ╔═╡ aa9782b5-88be-43a2-b1e1-d68f289a8fec
-srcz, srcx, recx, recz = get_source_receivers_outer_edge(xgrid, zgrid, acq.ns, acq.nr);
-
-# ╔═╡ 7df1cd87-40fa-45c1-9d85-1d491c414a18
-Gtrue = get_forw_operator(xgrid, zgrid, srcx, srcz, recx, recz);
-
-# ╔═╡ 3d201819-788b-4d90-b3a6-5483fc16ca81
-dobs = Gtrue * strue;
-
-# ╔═╡ dce75e41-274b-4e6a-8949-5caaeef7238a
-G = get_forw_operator(xgrid_inv, zgrid_inv, srcx, srcz, recx, recz);
-
-# ╔═╡ ad441089-505f-4da2-a345-548e8c4dd7d2
-plot(heatmap(z=G), Layout(xaxis_title="model vector index", yaxis_autorange="reversed", yaxis_title="data vector index", width=450, title="Forward Operator"))
-
-# ╔═╡ 2713503d-165f-47f9-8ece-4cd5ddc0bb21
-λ1 = inv(tr(G' * G))
-
-# ╔═╡ a60daaa3-d5da-4ac5-b40b-65bbbffdae55
-H = spdiagm(ones(size(G, 2)));
-
-# ╔═╡ 464f5a71-d820-4300-b062-e2eb9491f612
-λ2 = inv(tr(H' * H))
-
-# ╔═╡ 774ebdcf-3d88-47b8-aa66-f59822b18321
-Gi = pinv(G); # compute Moore-Penrose pseudoinverse
-
-# ╔═╡ 80910abe-97df-4283-bc18-d8c8e876174e
-sprior = fill(inv(2000.), size(G, 2));
-
-# ╔═╡ fc4be0cb-5531-4432-a265-30f0cc27494d
-function get_tikhonov_solution(dobs)
-	return inv(λ1 * G' * G + λ2 * λ * H' * H) * (
-    λ1 * G' * dobs + λ2 * λ * H' * sprior)
-end
-
-# ╔═╡ e4d99869-844e-4c1b-a64c-9cbf1eabab99
-sest1 = get_tikhonov_solution(dobs)
-
-# ╔═╡ 68b24556-4731-4b8f-b8a6-7aa7ffa38a92
-cest1 = reshape((inv.(sest1)), length(zgrid_inv) - 1, length(xgrid_inv) - 1);
-
-# ╔═╡ 11ffa65f-6c38-48bd-b22b-07c238596473
-function get_first_difference_regularized_solution(dobs)
-	return inv(λ1 * G' * G + λ3 * λ * Dh' * Dh + λ3 * λ * Dv' * Dv) * (
-    λ1 * G' * dobs)
-end
-
-# ╔═╡ 0a336d04-b2c5-45d6-b2a4-7f03666cb597
-sest2 = get_first_difference_regularized_solution(dobs)
-
-# ╔═╡ 9dfe9cd4-9baa-4808-9b7a-d01c62ee6d40
-cest2 = reshape((inv.(sest2)), length(zgrid_inv) - 1, length(xgrid_inv) - 1);
-
-# ╔═╡ a26fd943-dd6c-4e42-b6b0-5c9a17f31b19
-plot([scatter(y=dobs, name="observed"), scatter(y=G * sest1, name="predicted")], Layout(title="Data Residual (Observed Vs. Predicted Traveltimes)", xaxis_title="# raypath", yaxis_title="traveltime"))
-
-# ╔═╡ ffb59613-e16b-4d38-9c36-c778f92842e0
-plot([scatter(y=dobs, name="observed"), scatter(y=G * sest2, name="predicted")], Layout(title="Data Residual (Observed Vs. Predicted Traveltimes)", xaxis_title="# raypath", yaxis_title="traveltime"))
-
-# ╔═╡ acc8d4d0-a332-478f-8630-b22a10e7063b
-function plot_G_scree()
-    s = svd(G)
-    plot(s.S, Layout(title="Singular values of G"))
-end
-
-# ╔═╡ aa36d8d7-a7d4-4aa4-b0ee-b07d36cc453b
-plot_G_scree()
-
-# ╔═╡ 3c7cddb2-72c6-45d1-a902-f66cb67d2835
-plot(heatmap(z=transpose(G) * G), Layout(yaxis_autorange="reversed", title="the Hessian matrix", xaxis_title="model index", yaxis_title="model index", width=450))
-
-# ╔═╡ f408a310-fce3-4876-819e-3457037bd48f
-plot(heatmap(x=xgrid_inv, y=zgrid_inv, z=reshape((transpose(G)*G)[irowm, :], length(zgrid_inv) - 1, length(xgrid_inv) - 1)), Layout(yaxis_autorange="reversed", title="row of the Hessian matrix", width=450))
-
-# ╔═╡ 5bdd9d83-3911-4ab5-aefb-5ead429ac5a5
-plot(heatmap(x=xgrid_inv, y=zgrid_inv, z=reshape((Gi*G)[irowm, :], length(zgrid_inv) - 1, length(xgrid_inv) - 1)),
-    Layout(yaxis_autorange="reversed", title="Row of Model Resolution Matrix", width=450))
-
-# ╔═╡ 58867c8d-af21-48e9-ab0c-4472711e8eb0
-begin
-    tt_analytic = vec([(sqrt(sum(abs2.([srcx[is] - recx[ir], srcz[is] - recz[ir]])))) * inv(2000) for ir in 1:acq.nr, is in 1:acq.ns])
-    tt_G = G * inv.(fill(2000, (length(zgrid_inv) - 1) * (length(xgrid_inv) - 1)))
-    @test tt_analytic ≈ tt_G
-end
-
-# ╔═╡ 0bf44317-45cf-4899-8b1b-dfa1fe018db4
-data_residual = tt_G - dobs;
-
-# ╔═╡ 461859c0-5f94-469c-a054-4553045bac17
-grad_slowness = reshape(G' * data_residual, length(zgrid_inv) - 1, length(xgrid_inv) - 1);
-
-# ╔═╡ 1807eb3a-ce0b-46fe-8c70-fa4af3d9ebad
-@bind irowd Slider(1:acq.nr*acq.ns, show_value=true)
-
-# ╔═╡ a3bf8549-fff8-4423-8a87-a81cb21f9eb1
-plot((G*Gi)[irowd, :], Layout(title="Row of data resolution matrix", xaxis_title="raypath index"))
 
 # ╔═╡ b338591d-cc11-4e9e-827e-7fcee5b2d38b
 md"### Plots"

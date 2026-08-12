@@ -1,5 +1,5 @@
 ### A Pluto.jl notebook ###
-# v0.20.19
+# v0.2.6
 
 #> [frontmatter]
 #> title = "Seismic Source Theory"
@@ -22,6 +22,19 @@ macro bind(def, element)
     #! format: on
 end
 
+# ╔═╡ 1df6b4f0-4485-11ee-1284-4967e4928ca8
+begin
+    using PlutoUI
+    using PlutoTeachingTools
+    using Symbolics
+    using SymbolicUtils
+    using LinearAlgebra
+    using Einsum
+    using PlutoHooks
+    using PlutoPlotly
+    using TikzPictures
+end
+
 # ╔═╡ 5f6e65e0-48c8-46d8-bc2f-460b93eb64fe
 ChooseDisplayMode()
 
@@ -42,12 +55,6 @@ internal to a volume.
 
 # ╔═╡ 9aaa0c16-9322-4873-bf3b-363cc2261381
 md"The displacement field in the second state is given by integrating the moment tensor density over the source region, which constitutes of geologic faults or underground volume explosions."
-
-# ╔═╡ c12bd922-7acc-4501-b7eb-191b8eed344b
-v[iv_comp] ~ ∬(Bs1_sub)
-
-# ╔═╡ e762644d-807a-4a31-9b07-cf59b13e0302
-two_state_tikz()
 
 # ╔═╡ e2a789a9-0c20-4475-a4c7-4e6de420167f
 md"""
@@ -82,13 +89,13 @@ The elastic constants for an isotropic medium are $\lambda$ and $\mu$. These con
 # ╔═╡ e5ae04e6-f9af-447b-90ae-0a594addfb9d
 Ciso = [[λ + 2μ, λ, λ, 0, 0, 0];; [λ, λ + 2μ, λ, 0, 0, 0];; [λ, λ, λ + 2μ, 0, 0, 0];; [0, 0, 0, μ, 0, 0];; [0, 0, 0, 0, μ, 0];; [0, 0, 0, 0, 0, μ]]
 
-# ╔═╡ fb5fd18b-f21d-42d3-abbd-86a66549469d
-ciso = get_cijkl(Ciso);
-
 # ╔═╡ 352fccff-dd16-4cbe-8b41-d93654ea99c2
 function get_cijkl(C)
     [C[i*(isequal(i, j))+(1-isequal(i, j))*(9-i-j), k*isequal(k, l)+(1-isequal(k, l))*(9-k-l)] for i in 1:3, j in 1:3, k in 1:3, l in 1:3]
 end
+
+# ╔═╡ fb5fd18b-f21d-42d3-abbd-86a66549469d
+ciso = get_cijkl(Ciso);
 
 # ╔═╡ e515a71a-82d4-41fd-a271-21066821285a
 md"### Strain Tensors"
@@ -121,15 +128,6 @@ Bv1 = dot(u, h)
 
 # ╔═╡ 26b671cd-fbc6-4e9e-895b-dc3a3bcfcdd9
 Bv2 = dot(v, f)
-
-# ╔═╡ a0d9be72-dfea-4081-b0e6-c1625d22c587
-Bs1 = dot(v, σᵤ * fault_normal) |> simplify
-
-# ╔═╡ cc6c1397-862a-4b0a-a3c1-ed244530c267
-Bs2 = dot(u, σᵥ * fault_normal) |> simplify
-
-# ╔═╡ 4db54c1f-d60c-4583-ae70-f0486dbc96b3
-∭(Bv1 - Bv2) ~ ∬(Bs1 - Bs2)
 
 # ╔═╡ 68581620-11a0-458b-8288-1ffea41b5d6c
 md"""
@@ -168,30 +166,8 @@ md"""
 # ╔═╡ 99e4c5c0-d957-44eb-a8a1-5dd5b6616c82
 @variables v⁺[1:3] v⁻[1:3]
 
-# ╔═╡ bbf7d3fa-d752-455f-823c-dbe74085927e
-iv_comp = findfirst(measured_component)
-
-# ╔═╡ e3e9e883-c0d4-48cc-ac60-5943d87109cc
-Bv1_sub = substitute(Bv1, [[u[k] => G[k, iv_comp] for k in 1:3]...]) |> expand_derivatives
-
-# ╔═╡ baeca205-2658-4060-9f21-c7a4206a8839
-Bs1_sub = substitute(Bs1, [[v[k] => slip_component[k] * (v⁺[k] - v⁻[k]) for k in 1:3]..., [u[k] => G[k, iv_comp] for k in 1:3]...]) |> expand_derivatives
-
 # ╔═╡ 3f9657b3-9b1c-43b5-89ac-30374c861c70
 md"## Appendix"
-
-# ╔═╡ 1df6b4f0-4485-11ee-1284-4967e4928ca8
-begin
-    using PlutoUI
-    using PlutoTeachingTools
-    using Symbolics
-    using SymbolicUtils
-    using LinearAlgebra
-    using Einsum
-    using PlutoHooks
-    using PlutoPlotly
-    using TikzPictures
-end
 
 # ╔═╡ 9c448d50-8528-4293-a31d-183e9fcc5e15
 tikz = @ingredients("tikz.jl")
@@ -205,26 +181,40 @@ md"### UI"
 # ╔═╡ ceb932f5-b378-41cc-8b1e-71b270294224
 fault_normal = map(x -> isequal(x, fault_input), ["1", "2", "3"])
 
+# ╔═╡ a0d9be72-dfea-4081-b0e6-c1625d22c587
+Bs1 = dot(v, σᵤ * fault_normal) |> simplify
+
+# ╔═╡ cc6c1397-862a-4b0a-a3c1-ed244530c267
+Bs2 = dot(u, σᵥ * fault_normal) |> simplify
+
+# ╔═╡ 4db54c1f-d60c-4583-ae70-f0486dbc96b3
+∭(Bv1 - Bv2) ~ ∬(Bs1 - Bs2)
+
 # ╔═╡ 3ad231b9-f397-489f-bdaa-add6ef22b58c
 slip_component = map(x -> isequal(x, slip_input), ["1", "2", "3"])
 
 # ╔═╡ 7c1fa279-9c2a-4a50-88ac-6e74a55ad2b6
 measured_component = map(x -> isequal(x, measurement_input), ["1", "2", "3"])
 
+# ╔═╡ bbf7d3fa-d752-455f-823c-dbe74085927e
+iv_comp = findfirst(measured_component)
+
+# ╔═╡ e3e9e883-c0d4-48cc-ac60-5943d87109cc
+Bv1_sub = substitute(Bv1, [[u[k] => G[k, iv_comp] for k in 1:3]...]) |> expand_derivatives
+
+# ╔═╡ baeca205-2658-4060-9f21-c7a4206a8839
+Bs1_sub = substitute(Bs1, [[v[k] => slip_component[k] * (v⁺[k] - v⁻[k]) for k in 1:3]..., [u[k] => G[k, iv_comp] for k in 1:3]...]) |> expand_derivatives
+
+# ╔═╡ c12bd922-7acc-4501-b7eb-191b8eed344b
+v[iv_comp] ~ ∬(Bs1_sub)
+
 # ╔═╡ 3784a77f-b718-4122-8cdd-eb03cb32313f
 md"""
 ### Plots
 """
 
-# ╔═╡ 8164e70a-c3af-4deb-9816-6fea1996403e
-plot_moment_tensor([1, 1, 1])
-
 # ╔═╡ e322f25e-e798-4af4-ac79-f2ed382a0fc9
 xyz = Iterators.product([:X, :Y, :Z], [:X, :Y, :Z]); # need an iterator for elements of moment tensor
-
-# ╔═╡ a6131176-8851-4504-a9ff-884543438109
-# collect forces (just for plotting)
-srclocs = reshape(cat([body_force_locations(eval(x[2])()) for x in xyz]..., dims=1), 1, 1, 9 * 2);
 
 # ╔═╡ 5cbbefc7-4287-46cf-9987-0666cacc14b2
 begin
@@ -243,6 +233,10 @@ begin
     body_force_locations(::Y) = [[0.0, dcouple, 0.0], [0.0, -dcouple, 0.0]]
     body_force_locations(::Z) = [[0.0, 0.0, dcouple], [0.0, 0.0, -dcouple]]
 end
+
+# ╔═╡ a6131176-8851-4504-a9ff-884543438109
+# collect forces (just for plotting)
+srclocs = reshape(cat([body_force_locations(eval(x[2])()) for x in xyz]..., dims=1), 1, 1, 9 * 2);
 
 # ╔═╡ 9887499c-0ec0-4086-838b-a4c5c1542e73
 function plot_moment_tensor(normal)
@@ -293,6 +287,9 @@ function plot_moment_tensor(normal)
     return plot(ps)
 end
 
+# ╔═╡ 8164e70a-c3af-4deb-9816-6fea1996403e
+plot_moment_tensor([1, 1, 1])
+
 # ╔═╡ 74617983-46c6-4558-b0c4-282a1622821c
 function plot_volume(u=" ", G=false)
     L1 = L"""
@@ -330,6 +327,9 @@ function two_state_tikz()
      $(plot_volume(L"\mathrm{State\,II}: v, \sigma_v, h", false))
      """)
 end
+
+# ╔═╡ e762644d-807a-4a31-9b07-cf59b13e0302
+two_state_tikz()
 
 # ╔═╡ 00000000-0000-0000-0000-000000000001
 PLUTO_PROJECT_TOML_CONTENTS = """

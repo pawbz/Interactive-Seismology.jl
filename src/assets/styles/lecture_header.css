@@ -1,6 +1,7 @@
 .lecture-header {
-    background: #282936;
-    color: white;
+    background: #2c2820;
+    border: 1px solid #3a352d;
+    color: #f6f1e9;
     padding: 1rem;
     /* min-height: 500px; */
     /* width: 100%; */
@@ -10,7 +11,7 @@
 }
 
 .lecture-header * {
-    color: white;
+    color: #f6f1e9;
 }
 
 .lecture-header,

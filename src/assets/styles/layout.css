@@ -2,17 +2,21 @@
 
 #pages-layout {
     /* --bg-color: set by pluto */
-    --sidebar-bg: #fafafa;
-    --sidebar-color: rgb(82, 82, 82);
-    --sidebar-li-active-bg: rgb(235, 235, 235);
-    --sidebar-li-hover-bg: rgb(247, 240, 190);
+    --sidebar-bg: #fbf7f0;
+    --sidebar-color: #3a342c;
+    --sidebar-li-active-bg: #ede6d8;
+    --sidebar-li-hover-bg: #f4e7d1;
+    --sidebar-accent-1: #a6763d;
+    --fg: #3a342c;
 }
 @media (prefers-color-scheme: dark) {
     #pages-layout {
-        --sidebar-bg: #303030;
-        --sidebar-color: rgb(255, 255, 255);
-        --sidebar-li-active-bg: rgb(82, 82, 82);
-        --sidebar-li-hover-bg: rgb(108, 94, 70);
+        --sidebar-bg: #fbf7f0;
+        --sidebar-color: #3a342c;
+        --sidebar-li-active-bg: #ede6d8;
+        --sidebar-li-hover-bg: #f4e7d1;
+        --sidebar-accent-1: #a6763d;
+        --fg: #3a342c;
     }
 }
 
@@ -28,7 +32,7 @@
 #pages-sidebar {
     font-family: system-ui, sans-serif;
     flex: 0 0 auto;
-    width: 15rem;
+    width: 18rem;
     font-weight: 400;
     z-index: 1900;
 }
@@ -40,13 +44,14 @@
 }
 
 #pages-sidebar > div {
-    margin: 1rem;
+    margin: 1.25rem 0 1.25rem 1.25rem;
     margin-right: 0;
-    padding: 0.5rem;
-    /* padding-bottom: 2rem; */
-    border-radius: 1rem;
+    padding: 1rem 0.8rem;
+    border: 1px solid #e4dacb;
+    border-radius: 2px 0 0 2px;
     background: var(--sidebar-bg);
     color: var(--sidebar-color);
+    box-shadow: 0 14px 35px rgb(0 0 0 / 14%);
 }
 
 #toggle-nav {
@@ -145,7 +150,7 @@
 #pages-sidebar li h3 {
     color: var(--sidebar-accent-1);
     font-variant-caps: all-petite-caps;
-    margin-block-start: 3rem;
+    margin-block-start: 2.1rem;
     margin-block-end: 0;
 }
 
@@ -173,7 +178,8 @@
 }
 
 #pages-sidebar li li a {
-    margin: 0.2em 0;
+    margin: 0.1em 0;
+    transition: background-color 150ms ease, color 150ms ease, transform 150ms ease;
 }
 
 #pages-sidebar li li.homework a {
@@ -196,9 +202,12 @@
 
 #pages-sidebar li li.active a {
     background-color: var(--sidebar-li-active-bg);
+    color: #6f491f;
+    font-weight: 700;
 }
 #pages-sidebar li li:hover a {
     background-color: var(--sidebar-li-hover-bg);
+    transform: translateX(2px);
 }
 #pages-sidebar li li.not_in_track {
     opacity: 0.4;

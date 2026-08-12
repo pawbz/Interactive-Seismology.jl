@@ -27,9 +27,6 @@ end
 begin
 	using LinearAlgebra
 	using PlutoUI
-	using Symbolics
-	using SymbolicUtils
-	using Einsum
 
 	# Forces TableOfContents() below to depend on this cell -- a bare call to a
 	# PlutoUI-exported function carries no argument for Pluto's static analysis to detect,
@@ -105,21 +102,6 @@ the **shear traction** — the part that actually drives slip. The widget above 
 exactly these two quantities live, for whichever plane you're currently dragging: the red/blue
 arrow is ``\sigma_n\mathbf{n}``, the orange arrow is ``\boldsymbol\tau``.
 """
-
-# ╔═╡ 50eb4916-b3d7-4f2a-90c6-8661cbbd8e7a
-@variables σ[1:3, 1:3]
-
-# ╔═╡ 88b33835-d993-4396-8605-bb3456200eb1
-@variables n[1:3]
-
-# ╔═╡ b1a10001-0000-4000-8000-000000000002
-@einsum t[i] := σ[i, j] * n[j]
-
-# ╔═╡ b1a10001-0000-4000-8000-000000000003
-σₙ = sum(n .* t)
-
-# ╔═╡ b1a10001-0000-4000-8000-000000000004
-τvec = Symbolics.scalarize(t .- σₙ .* n)
 
 # ╔═╡ b1a10001-0000-4000-8000-000000000005
 md"""
@@ -309,7 +291,17 @@ begin
     #stswidget .sts-control-row input[type=range]{width:100%;min-width:0;vertical-align:middle}
     #stswidget .sts-value{color:#d1d5db;text-align:left;font-variant-numeric:tabular-nums;font-size:13px}
     #stswidget .sts-readout{font-size:13px;line-height:1.7}
-    #stswidget .sts-mat{font-variant-numeric:tabular-nums;white-space:pre}
+    #stswidget .sts-mat3{display:inline-grid;grid-template-columns:repeat(3,auto);gap:5px 6px;padding:6px 12px;position:relative;margin-bottom:8px}
+    #stswidget .sts-mat3::before, #stswidget .sts-mat3::after{content:'';position:absolute;top:3px;bottom:3px;width:7px;border:2px solid #9ca3af}
+    #stswidget .sts-mat3::before{left:0;border-right:none}
+    #stswidget .sts-mat3::after{right:0;border-left:none}
+    #stswidget .sts-mat3 input{width:46px;background:#111827;color:#e5e7eb;border:1px solid #374151;border-radius:4px;padding:4px 3px;font-size:13px;text-align:center;font-variant-numeric:tabular-nums}
+    #stswidget .sts-mat3 input:focus{outline:2px solid #38bdf8;border-color:#38bdf8}
+    #stswidget .sts-matro{display:inline-grid;grid-template-columns:repeat(3,auto);gap:2px 6px;padding:3px 9px;position:relative;vertical-align:middle;margin:2px 0}
+    #stswidget .sts-matro::before, #stswidget .sts-matro::after{content:'';position:absolute;top:1px;bottom:1px;width:5px;border:1.5px solid currentColor}
+    #stswidget .sts-matro::before{left:0;border-right:none}
+    #stswidget .sts-matro::after{right:0;border-left:none}
+    #stswidget .sts-matro span{min-width:34px;text-align:center;font-size:12px;font-variant-numeric:tabular-nums}
     @media (max-width: 900px){
       #stswidget .sts-panels{flex-direction:column;align-items:center}
       #stswidget .sts-col{width:100%;max-width:520px}
@@ -317,7 +309,7 @@ begin
   </style>
   <div class="sts-title">
     <div class="sts-title-desc">Traction on a plane splits exactly into the normal stress clamping a fault shut and the shear stress driving it to slip.</div>
-    <div class="sts-title-hint">drag the white handle to set the plane normal n &middot; drag empty space to rotate &middot; tune &mu;, c&#8320;, P&#8346; below</div>
+    <div class="sts-title-hint">drag the white handle to set the plane normal n &middot; edit &sigma; directly or drag its sliders &middot; drag empty space to rotate &middot; tune &mu;, c&#8320;, P&#8346; below</div>
   </div>
   <div class="sts-panels">
     <div class="sts-col">
@@ -340,6 +332,17 @@ begin
         <option value="hydro">Hydrostatic (confining)</option>
         <option value="crit">Critically stressed</option>
       </select>
+      <div class="sts-mat3">
+        <input type="number" step="0.02" id="sts-mat-11" value="$(w.s11)">
+        <input type="number" step="0.02" id="sts-mat-12" value="$(w.s12)">
+        <input type="number" step="0.02" id="sts-mat-13" value="$(w.s13)">
+        <input type="number" step="0.02" id="sts-mat-21" value="$(w.s12)">
+        <input type="number" step="0.02" id="sts-mat-22" value="$(w.s22)">
+        <input type="number" step="0.02" id="sts-mat-23" value="$(w.s23)">
+        <input type="number" step="0.02" id="sts-mat-31" value="$(w.s13)">
+        <input type="number" step="0.02" id="sts-mat-32" value="$(w.s23)">
+        <input type="number" step="0.02" id="sts-mat-33" value="$(w.s33)">
+      </div>
       <label class="sts-control-row"><span>s&#8321;&#8321;</span><input type="range" id="sts-s11" min="-1" max="1" step="0.02" value="$(w.s11)"><span id="sts-s11-v" class="sts-value">$(w.s11)</span></label>
       <label class="sts-control-row"><span>s&#8322;&#8322;</span><input type="range" id="sts-s22" min="-1" max="1" step="0.02" value="$(w.s22)"><span id="sts-s22-v" class="sts-value">$(w.s22)</span></label>
       <label class="sts-control-row"><span>s&#8323;&#8323;</span><input type="range" id="sts-s33" min="-1" max="1" step="0.02" value="$(w.s33)"><span id="sts-s33-v" class="sts-value">$(w.s33)</span></label>
@@ -544,8 +547,26 @@ begin
     sctx.beginPath(); sctx.arc(CX,CY,RPIX,0,2*Math.PI); sctx.strokeStyle='#4b5563'; sctx.lineWidth=1.2; sctx.stroke()
   }
 
+  // fixed x1/x2/x3 reference frame the stress components (s11, s12, ...) are actually defined
+  // against -- without this the wireframe sphere has no visible orientation cue at all, so
+  // there's no way to tell which direction on screen is "1" vs "2" vs "3".
+  function drawAxes(){
+    const AXLEN = 1.18
+    const axes = [ [[1,0,0],'x₁'], [[0,1,0],'x₂'], [[0,0,1],'x₃'] ]
+    sctx.lineWidth = 1
+    sctx.font = '13px sans-serif'; sctx.fillStyle = '#9ca3af'
+    sctx.textAlign = 'center'; sctx.textBaseline = 'middle'
+    for(const [v,label] of axes){
+      drawLine3(sctx, [-v[0]*AXLEN,-v[1]*AXLEN,-v[2]*AXLEN], [v[0]*AXLEN,v[1]*AXLEN,v[2]*AXLEN], 'rgba(156,163,175,0.55)', 1)
+      const s1 = toScreen([v[0]*AXLEN, v[1]*AXLEN, v[2]*AXLEN])
+      sctx.fillText(label, s1[0], s1[1])
+    }
+    sctx.textAlign = 'left'; sctx.textBaseline = 'alphabetic'
+  }
+
   function drawSphere(){
     drawSphereWire()
+    drawAxes()
     const pr = principal()
     for(let k=0;k<3;k++){
       const v = pr.vectors[k], val = pr.values[k]
@@ -636,10 +657,12 @@ begin
   }
 
   function fmt(v){ return (v>=0?'+':'') + v.toFixed(2) }
-  function matStr3(S){
-    return '['+fmt(S[0][0])+'  '+fmt(S[0][1])+'  '+fmt(S[0][2])+']\\n'+
-           '['+fmt(S[1][0])+'  '+fmt(S[1][1])+'  '+fmt(S[1][2])+']\\n'+
-           '['+fmt(S[2][0])+'  '+fmt(S[2][1])+'  '+fmt(S[2][2])+']'
+  // Real HTML bracket-grid matrix (same visual trick as the editable .sts-mat3 panel above,
+  // read-only here) instead of a monospace ASCII-bracket string.
+  function matHTML3(S, color){
+    let html = '<span class="sts-matro" style="color:'+color+'">'
+    for(let i=0;i<3;i++) for(let j=0;j<3;j++) html += '<span style="color:#e5e7eb">'+fmt(S[i][j])+'</span>'
+    return html + '</span>'
   }
 
   function updateReadouts(){
@@ -654,7 +677,7 @@ begin
     const vd = verdict(pt.xEff, pt.y)
 
     par.querySelector('#stsReadout').innerHTML =
-      '<b>&sigma;</b><br><span class="sts-mat">'+matStr3(S)+'</span><br>'+
+      '<b style="color:#38bdf8">&sigma;</b> '+matHTML3(S, '#38bdf8')+'<br>'+
       'principal: <b>'+fmt(pr.values[0])+'</b>, <b>'+fmt(pr.values[1])+'</b>, <b>'+fmt(pr.values[2])+'</b><br>'+
       'mean stress p = <b>'+fmt(p)+'</b> &middot; &Vert;dev&Vert; = <b>'+devNorm.toFixed(2)+'</b><br>'+
       'plane: n = ('+d.n.map(v=>v.toFixed(2)).join(', ')+')<br>'+
@@ -669,8 +692,45 @@ begin
       '<span style="color:#c084fc">purple</span> shift = pore pressure'
   }
 
-  function drawAll(){ drawSphere(); drawMohr(); updateReadouts() }
+  // The nine σ matrix boxes mirror s11..s13 both ways: dragging a slider (or picking a preset)
+  // updates the boxes here, and typing in a box updates the underlying variable + its slider
+  // (registered below, next to bindSlider) -- symmetric off-diagonal pairs (12/21, 13/31,
+  // 23/32) share one variable, so editing either box updates both. Skip overwriting whichever
+  // box currently has focus so a live edit isn't clobbered mid-keystroke.
+  const matBoxIds = {s11:['sts-mat-11'], s22:['sts-mat-22'], s33:['sts-mat-33'],
+                      s12:['sts-mat-12','sts-mat-21'], s13:['sts-mat-13','sts-mat-31'], s23:['sts-mat-23','sts-mat-32']}
+  function syncMatBoxes(){
+    const vals = {s11,s22,s33,s12,s13,s23}
+    for(const k in matBoxIds) for(const id of matBoxIds[k]){
+      const el = par.querySelector('#'+id)
+      if(document.activeElement !== el) el.value = Math.round(vals[k]*1000)/1000
+    }
+  }
+
+  function drawAll(){ drawSphere(); drawMohr(); updateReadouts(); syncMatBoxes() }
   function setCustom(){ if(currentPreset !== 'custom'){ currentPreset='custom'; par.querySelector('#stsPreset').value='custom' } }
+
+  function wireMatBoxes(ids, sliderId, setter){
+    const els = ids.map(id => par.querySelector('#'+id))
+    function handle(v){
+      setter(v)
+      const sl = par.querySelector('#'+sliderId)
+      sl.value = v
+      par.querySelector('#'+sliderId+'-v').textContent = v.toFixed(2)
+      setCustom()
+      drawAll()
+    }
+    els.forEach(el => el.addEventListener('input', e=>{
+      const v = parseFloat(e.target.value)
+      if(Number.isFinite(v)) handle(v)
+    }))
+  }
+  wireMatBoxes(['sts-mat-11'], 'sts-s11', v=>s11=v)
+  wireMatBoxes(['sts-mat-22'], 'sts-s22', v=>s22=v)
+  wireMatBoxes(['sts-mat-33'], 'sts-s33', v=>s33=v)
+  wireMatBoxes(['sts-mat-12','sts-mat-21'], 'sts-s12', v=>s12=v)
+  wireMatBoxes(['sts-mat-13','sts-mat-31'], 'sts-s13', v=>s13=v)
+  wireMatBoxes(['sts-mat-23','sts-mat-32'], 'sts-s23', v=>s23=v)
 
   drawAll()
 
@@ -756,17 +816,11 @@ end
 # ╔═╡ 00000000-0000-0000-0000-000000000001
 PLUTO_PROJECT_TOML_CONTENTS = """
 [deps]
-Einsum = "b7d42ee7-0b51-5a75-98ca-779d3107e4c0"
 LinearAlgebra = "37e2e46d-f89d-539d-b4ee-838fcccc9c8e"
 PlutoUI = "7f904dfe-b85e-4ff6-b463-dae2292396a8"
-SymbolicUtils = "d1185830-fcd6-423d-90d6-eec64667417b"
-Symbolics = "0c5d862f-8b57-4792-8d23-62f2024744c7"
 
 [compat]
-Einsum = "~0.4.1"
 PlutoUI = "~0.7.83"
-SymbolicUtils = "~4.44.0"
-Symbolics = "~7.35.0"
 """
 
 # ╔═╡ 00000000-0000-0000-0000-000000000002
@@ -775,115 +829,16 @@ PLUTO_MANIFEST_TOML_CONTENTS = """
 
 julia_version = "1.12.4"
 manifest_format = "2.0"
-project_hash = "3956ebaae45e166ac285d2101d18e357833d57bf"
-
-[[deps.ADTypes]]
-git-tree-sha1 = "9b38b82a9fe131f3d331a53b7203d9d1a2a4602c"
-uuid = "47edcb42-4c32-4615-8424-f2b9edc5f35b"
-version = "1.22.4"
-
-    [deps.ADTypes.extensions]
-    ADTypesChainRulesCoreExt = "ChainRulesCore"
-    ADTypesConstructionBaseExt = "ConstructionBase"
-    ADTypesEnzymeCoreExt = "EnzymeCore"
-
-    [deps.ADTypes.weakdeps]
-    ChainRulesCore = "d360d2e6-b24c-11e9-a2a3-2a2ae2dbcce4"
-    ConstructionBase = "187b0558-2788-49d3-abe0-74a17ed4e7c9"
-    EnzymeCore = "f151be2c-9106-41f4-ab19-57ee4f262869"
+project_hash = "9bbb622e4cd9995606b539e0b3f2495d359cd8e4"
 
 [[deps.AbstractPlutoDingetjes]]
 git-tree-sha1 = "6c3913f4e9bdf6ba3c08041a446fb1332716cbc2"
 uuid = "6e696c72-6542-2067-7265-42206c756150"
 version = "1.4.0"
 
-[[deps.AbstractTrees]]
-git-tree-sha1 = "2d9c9a55f9c93e8887ad391fbae72f8ef55e1177"
-uuid = "1520ce14-60c1-5f80-bbc7-55ef81b5835c"
-version = "0.4.5"
-
-[[deps.Accessors]]
-deps = ["CompositionsBase", "ConstructionBase", "Dates", "InverseFunctions", "MacroTools"]
-git-tree-sha1 = "7063ad1083578215c7c4bf410368150abe8d5524"
-uuid = "7d9f7c33-5ae7-4f3b-8dc6-eff91059b697"
-version = "0.1.45"
-
-    [deps.Accessors.extensions]
-    AxisKeysExt = "AxisKeys"
-    IntervalSetsExt = "IntervalSets"
-    LinearAlgebraExt = "LinearAlgebra"
-    StaticArraysExt = "StaticArrays"
-    StructArraysExt = "StructArrays"
-    TestExt = "Test"
-    UnitfulExt = "Unitful"
-
-    [deps.Accessors.weakdeps]
-    AxisKeys = "94b1ba4f-4ee9-5380-92f1-94cde586c3c5"
-    IntervalSets = "8197267c-284f-5f27-9208-e0e47529a953"
-    LinearAlgebra = "37e2e46d-f89d-539d-b4ee-838fcccc9c8e"
-    StaticArrays = "90137ffa-7385-5640-81b9-e52037218182"
-    StructArrays = "09ab397b-f2b6-538f-b94a-2f83cf4a842a"
-    Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
-    Unitful = "1986cc42-f94f-5a68-af5c-568840ba703d"
-
-[[deps.Adapt]]
-deps = ["LinearAlgebra"]
-git-tree-sha1 = "daa72978cd7a624246e894a4f4f067706d4e17e2"
-uuid = "79e6a3ab-5dfb-504d-930d-738a2a938a0e"
-version = "4.7.0"
-weakdeps = ["SparseArrays", "StaticArrays"]
-
-    [deps.Adapt.extensions]
-    AdaptSparseArraysExt = "SparseArrays"
-    AdaptStaticArraysExt = "StaticArrays"
-
 [[deps.ArgTools]]
 uuid = "0dad84c5-d112-42e6-8d28-ef12dabb789f"
 version = "1.1.2"
-
-[[deps.ArnoldiMethod]]
-deps = ["LinearAlgebra", "Random", "StaticArrays"]
-git-tree-sha1 = "d57bd3762d308bded22c3b82d033bff85f6195c6"
-uuid = "ec485272-7323-5ecc-a04f-4719b315124d"
-version = "0.4.0"
-
-[[deps.ArrayInterface]]
-deps = ["Adapt", "LinearAlgebra"]
-git-tree-sha1 = "60f11b38ebeabd984f5535838d91e197d97202f0"
-uuid = "4fba245c-0d91-5ea0-9b3e-6abc04ee57a9"
-version = "7.28.1"
-
-    [deps.ArrayInterface.extensions]
-    ArrayInterfaceAMDGPUExt = "AMDGPU"
-    ArrayInterfaceBandedMatricesExt = "BandedMatrices"
-    ArrayInterfaceBlockBandedMatricesExt = "BlockBandedMatrices"
-    ArrayInterfaceCUDAExt = "CUDA"
-    ArrayInterfaceCUDSSExt = ["CUDSS", "CUDA"]
-    ArrayInterfaceChainRulesCoreExt = "ChainRulesCore"
-    ArrayInterfaceChainRulesExt = "ChainRules"
-    ArrayInterfaceFillArraysExt = "FillArrays"
-    ArrayInterfaceGPUArraysCoreExt = "GPUArraysCore"
-    ArrayInterfaceMetalExt = "Metal"
-    ArrayInterfaceReverseDiffExt = "ReverseDiff"
-    ArrayInterfaceSparseArraysExt = "SparseArrays"
-    ArrayInterfaceStaticArraysCoreExt = "StaticArraysCore"
-    ArrayInterfaceTrackerExt = "Tracker"
-
-    [deps.ArrayInterface.weakdeps]
-    AMDGPU = "21141c5a-9bdb-4563-92ae-f87d6854732e"
-    BandedMatrices = "aae01518-5342-5314-be14-df237901396f"
-    BlockBandedMatrices = "ffab5731-97b5-5995-9138-79e8c1846df0"
-    CUDA = "052768ef-5323-5732-b1bb-66c8b64840ba"
-    CUDSS = "45b445bb-4962-46a0-9369-b4df9d0f772e"
-    ChainRules = "082447d4-558c-5d27-93f4-14fc19e9eca2"
-    ChainRulesCore = "d360d2e6-b24c-11e9-a2a3-2a2ae2dbcce4"
-    FillArrays = "1a297f60-69ca-5386-bcde-b61e274b549b"
-    GPUArraysCore = "46192b85-c4d5-4398-a991-12ede77f4527"
-    Metal = "dde4c033-4e86-420c-a63e-0dd931031962"
-    ReverseDiff = "37e2e3b7-166d-5795-8a7a-e32c996b4267"
-    SparseArrays = "2f01184e-e22b-5df5-ae63-d93ebab69eaf"
-    StaticArraysCore = "1e83bf80-4336-4d27-bf5d-d5a4f845583c"
-    Tracker = "9f7883ad-71c0-57eb-9f7f-b5c9e6d3789c"
 
 [[deps.Artifacts]]
 uuid = "56f22d72-fd6d-98f1-02f0-08ddc0907c33"
@@ -892,11 +847,6 @@ version = "1.11.0"
 [[deps.Base64]]
 uuid = "2a0f44e3-6c83-55bd-87e4-b1978d98bd5f"
 version = "1.11.0"
-
-[[deps.Bijections]]
-git-tree-sha1 = "a2d308fcd4c2fb90e943cf9cd2fbfa9c32b69733"
-uuid = "e2ed5e7c-b2de-5872-ae92-c73ca462fb04"
-version = "0.2.2"
 
 [[deps.ColorTypes]]
 deps = ["FixedPointNumbers", "Random"]
@@ -908,123 +858,20 @@ weakdeps = ["StyledStrings"]
     [deps.ColorTypes.extensions]
     StyledStringsExt = "StyledStrings"
 
-[[deps.Combinatorics]]
-git-tree-sha1 = "08c8b6831dc00bfea825826be0bc8336fc369860"
-uuid = "861a8166-3701-5b0c-9a16-15d98fcdc6aa"
-version = "1.0.2"
-
-[[deps.CommonWorldInvalidations]]
-git-tree-sha1 = "ef2022bff55342a8c9846cdf218f62e475f0444d"
-uuid = "f70d9fcc-98c5-4d4a-abd7-e4cdeebd8ca8"
-version = "1.1.2"
-
-[[deps.Compat]]
-deps = ["TOML", "UUIDs"]
-git-tree-sha1 = "9d8a54ce4b17aa5bdce0ea5c34bc5e7c340d16ad"
-uuid = "34da2185-b29b-5c13-b0c7-acf172513d20"
-version = "4.18.1"
-weakdeps = ["Dates", "LinearAlgebra"]
-
-    [deps.Compat.extensions]
-    CompatLinearAlgebraExt = "LinearAlgebra"
-
 [[deps.CompilerSupportLibraries_jll]]
 deps = ["Artifacts", "Libdl"]
 uuid = "e66e0078-7015-5450-92f7-15fbd957f2ae"
 version = "1.3.0+1"
-
-[[deps.CompositeTypes]]
-git-tree-sha1 = "bce26c3dab336582805503bed209faab1c279768"
-uuid = "b152e2b5-7a66-4b01-a709-34e65c35f657"
-version = "0.1.4"
-
-[[deps.CompositionsBase]]
-git-tree-sha1 = "802bb88cd69dfd1509f6670416bd4434015693ad"
-uuid = "a33af91c-f02d-484b-be07-31d278c5ca2b"
-version = "0.1.2"
-weakdeps = ["InverseFunctions"]
-
-    [deps.CompositionsBase.extensions]
-    CompositionsBaseInverseFunctionsExt = "InverseFunctions"
-
-[[deps.ConstructionBase]]
-git-tree-sha1 = "b4b092499347b18a015186eae3042f72267106cb"
-uuid = "187b0558-2788-49d3-abe0-74a17ed4e7c9"
-version = "1.6.0"
-weakdeps = ["IntervalSets", "LinearAlgebra", "StaticArrays"]
-
-    [deps.ConstructionBase.extensions]
-    ConstructionBaseIntervalSetsExt = "IntervalSets"
-    ConstructionBaseLinearAlgebraExt = "LinearAlgebra"
-    ConstructionBaseStaticArraysExt = "StaticArrays"
-
-[[deps.DataStructures]]
-deps = ["OrderedCollections"]
-git-tree-sha1 = "b0bc6d2cad1fed8b7fd59a1551a991cb3d2809e6"
-uuid = "864edb3b-99cc-5e75-8d2d-829cb0a9cfe8"
-version = "0.19.6"
 
 [[deps.Dates]]
 deps = ["Printf"]
 uuid = "ade2ca70-3891-5945-98fb-dc099432e06a"
 version = "1.11.0"
 
-[[deps.DiffRules]]
-deps = ["IrrationalConstants", "LogExpFunctions", "NaNMath", "Random", "SpecialFunctions"]
-git-tree-sha1 = "79a2aca180a85c690c58a020d47b426954b590f8"
-uuid = "b552c78f-8df3-52c6-915a-8e097449b14b"
-version = "1.16.0"
-
-[[deps.DocStringExtensions]]
-git-tree-sha1 = "7442a5dfe1ebb773c29cc2962a8980f47221d76c"
-uuid = "ffbed154-4ef7-542d-bbb7-c09d3a79fcae"
-version = "0.9.5"
-
-[[deps.DomainSets]]
-deps = ["CompositeTypes", "FunctionMaps", "IntervalSets", "LinearAlgebra", "StaticArrays"]
-git-tree-sha1 = "c0f576ae49bd2d1bc904b9946f4783db8f0ef530"
-uuid = "5b8099bc-c8ec-5219-889f-1d9e522a28bf"
-version = "0.8.1"
-
-    [deps.DomainSets.extensions]
-    DomainSetsMakieExt = "Makie"
-    DomainSetsRandomExt = "Random"
-
-    [deps.DomainSets.weakdeps]
-    Makie = "ee78f7c6-11fb-53f2-987a-cfe4a2b5a57a"
-    Random = "9a3f8284-a2c9-5f02-9a11-845980a1fd5c"
-
 [[deps.Downloads]]
 deps = ["ArgTools", "FileWatching", "LibCURL", "NetworkOptions"]
 uuid = "f43a241f-c20a-4ad4-852c-f6b1247861c6"
 version = "1.7.0"
-
-[[deps.DynamicPolynomials]]
-deps = ["LinearAlgebra", "MultivariatePolynomials", "MutableArithmetics", "Reexport", "StarAlgebras", "Test"]
-git-tree-sha1 = "5bfabc3827dfdd164359bad6800c115a81280c00"
-uuid = "7c1d4256-1411-5781-91ec-d7bc3513ac07"
-version = "0.6.6"
-
-[[deps.Einsum]]
-deps = ["Compat"]
-git-tree-sha1 = "4a6b3eee0161c89700b6c1949feae8b851da5494"
-uuid = "b7d42ee7-0b51-5a75-98ca-779d3107e4c0"
-version = "0.4.1"
-
-[[deps.EnumX]]
-git-tree-sha1 = "c49898e8438c828577f04b92fc9368c388ac783c"
-uuid = "4e289a0a-7415-4d19-859d-a7e5c4648b56"
-version = "1.0.7"
-
-[[deps.ExprTools]]
-git-tree-sha1 = "d2e49e7efd29719d6f28b891b0e0e159daa9d2b4"
-uuid = "e2ba6199-217a-4e67-a87a-7c52f15ade04"
-version = "0.1.11"
-
-[[deps.ExproniconLite]]
-git-tree-sha1 = "c13f0b150373771b0fdc1713c97860f8df12e6c2"
-uuid = "55351af7-c7e9-48d6-89ff-24e801d99491"
-version = "0.10.14"
 
 [[deps.FileWatching]]
 uuid = "7b1f6079-737a-58dc-b8bc-7a2ca5c1b5ee"
@@ -1035,30 +882,6 @@ deps = ["Random", "Statistics"]
 git-tree-sha1 = "59af96b98217c6ef4ae0dfe065ac7c20831d1a84"
 uuid = "53c48c17-4a7d-5ca2-90c5-79b7896eea93"
 version = "0.8.6"
-
-[[deps.FunctionMaps]]
-deps = ["CompositeTypes", "LinearAlgebra", "StaticArrays"]
-git-tree-sha1 = "31bd99a57edf98990d1c21486032963955450e8d"
-uuid = "a85aefff-f8ca-4649-a888-c8e5398bc76c"
-version = "0.1.2"
-
-[[deps.Future]]
-deps = ["Random"]
-uuid = "9fa8497b-333b-5362-9e8d-4d0656e87820"
-version = "1.11.0"
-
-[[deps.Graphs]]
-deps = ["ArnoldiMethod", "DataStructures", "Inflate", "LinearAlgebra", "Random", "SimpleTraits", "SparseArrays", "Statistics"]
-git-tree-sha1 = "7eb45fe833a5b7c51cf6d89c5a841d5967e44be3"
-uuid = "86223c79-3864-5bf0-83f7-82e725a168b6"
-version = "1.14.0"
-
-    [deps.Graphs.extensions]
-    GraphsSharedArraysExt = "SharedArrays"
-
-    [deps.Graphs.weakdeps]
-    Distributed = "8ba89e20-285c-5b6f-9357-94700520ee1b"
-    SharedArrays = "1a1011a3-84de-559e-8e89-a11a2f7dc383"
 
 [[deps.Hyperscript]]
 deps = ["Test"]
@@ -1078,58 +901,10 @@ git-tree-sha1 = "0ee181ec08df7d7c911901ea38baf16f755114dc"
 uuid = "b5f81e59-6552-4d32-b1f0-c071b021bf89"
 version = "1.0.0"
 
-[[deps.Inflate]]
-git-tree-sha1 = "d1b1b796e47d94588b3757fe84fbf65a5ec4a80d"
-uuid = "d25df0c9-e2be-5dd7-82c8-3ad0b3e990b9"
-version = "0.1.5"
-
-[[deps.IntegerMathUtils]]
-git-tree-sha1 = "c72458f1962faeb003bf23cbdb75164fe6280906"
-uuid = "18e54dd8-cb9d-406c-a71d-865a43cbb235"
-version = "0.1.4"
-
 [[deps.InteractiveUtils]]
 deps = ["Markdown"]
 uuid = "b77e0a4c-d291-57a0-90e8-8db25a27a240"
 version = "1.11.0"
-
-[[deps.IntervalSets]]
-git-tree-sha1 = "79d6bd28c8d9bccc2229784f1bd637689b256377"
-uuid = "8197267c-284f-5f27-9208-e0e47529a953"
-version = "0.7.14"
-weakdeps = ["Random", "RecipesBase", "Statistics"]
-
-    [deps.IntervalSets.extensions]
-    IntervalSetsRandomExt = "Random"
-    IntervalSetsRecipesBaseExt = "RecipesBase"
-    IntervalSetsStatisticsExt = "Statistics"
-
-[[deps.InverseFunctions]]
-git-tree-sha1 = "a779299d77cd080bf77b97535acecd73e1c5e5cb"
-uuid = "3587e190-3f89-42d0-90ee-14403ec27112"
-version = "0.1.17"
-weakdeps = ["Dates", "Test"]
-
-    [deps.InverseFunctions.extensions]
-    InverseFunctionsDatesExt = "Dates"
-    InverseFunctionsTestExt = "Test"
-
-[[deps.IrrationalConstants]]
-git-tree-sha1 = "b2d91fe939cae05960e760110b328288867b5758"
-uuid = "92d709cd-6900-40b7-9082-c6be49f344b6"
-version = "0.2.6"
-
-[[deps.JLLWrappers]]
-deps = ["Artifacts", "Preferences"]
-git-tree-sha1 = "7204148362dafe5fe6a273f855b8ccbe4df8173e"
-uuid = "692b3bcd-3c85-4b1f-b108-f13ce0eb3210"
-version = "1.8.0"
-
-[[deps.Jieko]]
-deps = ["ExproniconLite"]
-git-tree-sha1 = "2f05ed29618da60c06a87e9c033982d4f71d0b6c"
-uuid = "ae98c720-c025-4a4a-838c-29b094483192"
-version = "0.2.1"
 
 [[deps.JuliaSyntaxHighlighting]]
 deps = ["StyledStrings"]
@@ -1160,22 +935,6 @@ deps = ["Libdl", "OpenBLAS_jll", "libblastrampoline_jll"]
 uuid = "37e2e46d-f89d-539d-b4ee-838fcccc9c8e"
 version = "1.12.0"
 
-[[deps.LogExpFunctions]]
-deps = ["DocStringExtensions", "IrrationalConstants", "LinearAlgebra"]
-git-tree-sha1 = "bba2d9aa057d8f126415de240573e86a8f39d2a1"
-uuid = "2ab3a3ac-af41-5b50-aa03-7779005ae688"
-version = "1.0.1"
-
-    [deps.LogExpFunctions.extensions]
-    LogExpFunctionsChainRulesCoreExt = "ChainRulesCore"
-    LogExpFunctionsChangesOfVariablesExt = "ChangesOfVariables"
-    LogExpFunctionsInverseFunctionsExt = "InverseFunctions"
-
-    [deps.LogExpFunctions.weakdeps]
-    ChainRulesCore = "d360d2e6-b24c-11e9-a2a3-2a2ae2dbcce4"
-    ChangesOfVariables = "9e997f8a-9a97-42d5-a9f1-ce6bfc15e2c0"
-    InverseFunctions = "3587e190-3f89-42d0-90ee-14403ec27112"
-
 [[deps.Logging]]
 uuid = "56ddb016-857b-54e1-b83d-db4d58db5568"
 version = "1.11.0"
@@ -1185,49 +944,14 @@ git-tree-sha1 = "c64d943587f7187e751162b3b84445bbbd79f691"
 uuid = "6c6e2e6c-3030-632d-7369-2d6c69616d65"
 version = "1.1.0"
 
-[[deps.MacroTools]]
-git-tree-sha1 = "1e0228a030642014fe5cfe68c2c0a818f9e3f522"
-uuid = "1914dd2f-81c6-5fcd-8719-6d5c9610ff09"
-version = "0.5.16"
-
 [[deps.Markdown]]
 deps = ["Base64", "JuliaSyntaxHighlighting", "StyledStrings"]
 uuid = "d6f4376e-aef5-505a-96c1-9c027394607a"
 version = "1.11.0"
 
-[[deps.Moshi]]
-deps = ["ExproniconLite", "Jieko"]
-git-tree-sha1 = "60beb0717782a3bbe0f7df56decad0ef89048c23"
-uuid = "2e0e35c7-a2e4-4343-998d-7ef72827ed2d"
-version = "0.3.12"
-
 [[deps.MozillaCACerts_jll]]
 uuid = "14a3606d-f60d-562e-9121-12d972cd8159"
 version = "2025.11.4"
-
-[[deps.MultivariatePolynomials]]
-deps = ["DataStructures", "LinearAlgebra", "MutableArithmetics", "StarAlgebras"]
-git-tree-sha1 = "4838893d9b035c2f6967c0d533350e1755b58a70"
-uuid = "102ac46a-7ee4-5c85-9060-abc95bfdeaa3"
-version = "0.5.19"
-
-    [deps.MultivariatePolynomials.extensions]
-    MultivariatePolynomialsChainRulesCoreExt = "ChainRulesCore"
-
-    [deps.MultivariatePolynomials.weakdeps]
-    ChainRulesCore = "d360d2e6-b24c-11e9-a2a3-2a2ae2dbcce4"
-
-[[deps.MutableArithmetics]]
-deps = ["LinearAlgebra", "SparseArrays", "Test"]
-git-tree-sha1 = "dc5b2c4c111c46bc79ac4405eeb563523b39c004"
-uuid = "d8a4904e-b15c-11e9-3269-09a3773c0cb0"
-version = "1.8.0"
-
-[[deps.NaNMath]]
-deps = ["OpenLibm_jll"]
-git-tree-sha1 = "dbd2e8cd2c1c27f0b584f6661b4309609c5a685e"
-uuid = "77ba4419-2d1f-58cd-9bb1-8ffee604a2e3"
-version = "1.1.4"
 
 [[deps.NetworkOptions]]
 uuid = "ca575930-c2e3-43a9-ace4-1e988b2c1908"
@@ -1238,50 +962,16 @@ deps = ["Artifacts", "CompilerSupportLibraries_jll", "Libdl"]
 uuid = "4536629a-c528-5b80-bd46-f80d51c5b363"
 version = "0.3.29+0"
 
-[[deps.OpenLibm_jll]]
-deps = ["Artifacts", "Libdl"]
-uuid = "05823500-19ac-5b8b-9628-191a04bc5112"
-version = "0.8.7+0"
-
 [[deps.OpenSSL_jll]]
 deps = ["Artifacts", "Libdl"]
 uuid = "458c3c95-2e84-50aa-8efc-19380b2a3a95"
 version = "3.5.4+0"
-
-[[deps.OpenSpecFun_jll]]
-deps = ["Artifacts", "CompilerSupportLibraries_jll", "JLLWrappers", "Libdl"]
-git-tree-sha1 = "1346c9208249809840c91b26703912dff463d335"
-uuid = "efe28fd5-8261-553b-a9e1-b2916fc3738e"
-version = "0.5.6+0"
-
-[[deps.OrderedCollections]]
-git-tree-sha1 = "05f45c2e0de6259db764adbfd2f1dc6d3f8de13c"
-uuid = "bac558e1-5e72-5ebc-8fee-abe8a469f55d"
-version = "2.0.1"
 
 [[deps.PlutoUI]]
 deps = ["AbstractPlutoDingetjes", "Base64", "ColorTypes", "Dates", "Downloads", "FixedPointNumbers", "Hyperscript", "HypertextLiteral", "IOCapture", "InteractiveUtils", "Logging", "MIMEs", "Markdown", "Random", "Reexport", "URIs", "UUIDs"]
 git-tree-sha1 = "e189d0623e7ce9c37389bac17e80aac3b0302e75"
 uuid = "7f904dfe-b85e-4ff6-b463-dae2292396a8"
 version = "0.7.83"
-
-[[deps.PrecompileTools]]
-deps = ["Preferences"]
-git-tree-sha1 = "edbeefc7a4889f528644251bdb5fc9ab5348bc2c"
-uuid = "aea7be01-6a6a-4083-8856-8a6e6704d82a"
-version = "1.3.4"
-
-[[deps.Preferences]]
-deps = ["TOML"]
-git-tree-sha1 = "8b770b60760d4451834fe79dd483e318eee709c4"
-uuid = "21216c6a-2e73-6563-6e65-726566657250"
-version = "1.5.2"
-
-[[deps.Primes]]
-deps = ["IntegerMathUtils"]
-git-tree-sha1 = "25cdd1d20cd005b52fc12cb6be3f75faaf59bb9b"
-uuid = "27ebfcd6-29c5-5fa9-bf4b-fb8fc14df3ae"
-version = "0.5.7"
 
 [[deps.Printf]]
 deps = ["Unicode"]
@@ -1293,195 +983,34 @@ deps = ["SHA"]
 uuid = "9a3f8284-a2c9-5f02-9a11-845980a1fd5c"
 version = "1.11.0"
 
-[[deps.ReadOnlyArrays]]
-git-tree-sha1 = "e6f7ddf48cf141cb312b078ca21cb2d29d0dc11d"
-uuid = "988b38a3-91fc-5605-94a2-ee2116b3bd83"
-version = "0.2.0"
-
-[[deps.RecipesBase]]
-deps = ["PrecompileTools"]
-git-tree-sha1 = "5c3d09cc4f31f5fc6af001c250bf1278733100ff"
-uuid = "3cdcf5f2-1ef4-517c-9805-6587b60abb01"
-version = "1.3.4"
-
 [[deps.Reexport]]
 git-tree-sha1 = "45e428421666073eab6f2da5c9d310d99bb12f9b"
 uuid = "189a3867-3050-52da-a836-e630ba90ab69"
 version = "1.2.2"
 
-[[deps.RuntimeGeneratedFunctions]]
-deps = ["ExprTools", "SHA", "Serialization"]
-git-tree-sha1 = "65c9e1142f0372bfc16ba14b9edd57737fe0039f"
-uuid = "7e49a35a-f44a-4d26-94aa-eba1b4ca6b47"
-version = "0.5.24"
-
 [[deps.SHA]]
 uuid = "ea8e919c-243c-51af-8825-aaa63cd721ce"
 version = "0.7.0"
 
-[[deps.SciMLPublic]]
-git-tree-sha1 = "cf9aaf8b9ed5db993259ea8b24cf2b7ba9bd3b79"
-uuid = "431bcebd-1456-4ced-9d72-93c2757fff0b"
-version = "1.2.4"
-
 [[deps.Serialization]]
 uuid = "9e88b42a-f829-5b0c-bbe9-9e923198166b"
 version = "1.11.0"
-
-[[deps.Setfield]]
-deps = ["ConstructionBase", "Future", "MacroTools", "StaticArraysCore"]
-git-tree-sha1 = "c5391c6ace3bc430ca630251d02ea9687169ca68"
-uuid = "efcf1570-3423-57d1-acb7-fd33fddbac46"
-version = "1.1.2"
-
-[[deps.SimpleTraits]]
-deps = ["InteractiveUtils", "MacroTools"]
-git-tree-sha1 = "7ddb0b49c109481b046972c0e4ab02b2127d6a75"
-uuid = "699a6c99-e7fa-54fc-8d76-47d257e15c1d"
-version = "0.9.6"
-
-[[deps.SparseArrays]]
-deps = ["Libdl", "LinearAlgebra", "Random", "Serialization", "SuiteSparse_jll"]
-uuid = "2f01184e-e22b-5df5-ae63-d93ebab69eaf"
-version = "1.12.0"
-
-[[deps.SpecialFunctions]]
-deps = ["IrrationalConstants", "LogExpFunctions", "OpenLibm_jll", "OpenSpecFun_jll"]
-git-tree-sha1 = "cd4b115137894ced9830a92bcdb95a6bd8f38880"
-uuid = "276daf66-3868-5448-9aa4-cd146d93841b"
-version = "2.8.2"
-
-    [deps.SpecialFunctions.extensions]
-    SpecialFunctionsChainRulesCoreExt = "ChainRulesCore"
-
-    [deps.SpecialFunctions.weakdeps]
-    ChainRulesCore = "d360d2e6-b24c-11e9-a2a3-2a2ae2dbcce4"
-
-[[deps.StarAlgebras]]
-deps = ["LinearAlgebra", "MutableArithmetics", "SparseArrays"]
-git-tree-sha1 = "235b1f9d287bbf34083b3d0829343a7942c0ad1c"
-uuid = "0c0c59c1-dc5f-42e9-9a8b-b5dc384a6cd1"
-version = "0.3.0"
-
-[[deps.StaticArrays]]
-deps = ["LinearAlgebra", "PrecompileTools", "Random", "StaticArraysCore"]
-git-tree-sha1 = "246a8bb2e6667f832eea063c3a56aef96429a3db"
-uuid = "90137ffa-7385-5640-81b9-e52037218182"
-version = "1.9.18"
-
-    [deps.StaticArrays.extensions]
-    StaticArraysChainRulesCoreExt = "ChainRulesCore"
-    StaticArraysStatisticsExt = "Statistics"
-
-    [deps.StaticArrays.weakdeps]
-    ChainRulesCore = "d360d2e6-b24c-11e9-a2a3-2a2ae2dbcce4"
-    Statistics = "10745b16-79ce-11e8-11f9-7d13ad32a3b2"
-
-[[deps.StaticArraysCore]]
-git-tree-sha1 = "6ab403037779dae8c514bad259f32a447262455a"
-uuid = "1e83bf80-4336-4d27-bf5d-d5a4f845583c"
-version = "1.4.4"
 
 [[deps.Statistics]]
 deps = ["LinearAlgebra"]
 git-tree-sha1 = "ae3bb1eb3bba077cd276bc5cfc337cc65c3075c0"
 uuid = "10745b16-79ce-11e8-11f9-7d13ad32a3b2"
 version = "1.11.1"
-weakdeps = ["SparseArrays"]
 
     [deps.Statistics.extensions]
     SparseArraysExt = ["SparseArrays"]
 
+    [deps.Statistics.weakdeps]
+    SparseArrays = "2f01184e-e22b-5df5-ae63-d93ebab69eaf"
+
 [[deps.StyledStrings]]
 uuid = "f489334b-da3d-4c2e-b8f0-e476e12c162b"
 version = "1.11.0"
-
-[[deps.SuiteSparse_jll]]
-deps = ["Artifacts", "Libdl", "libblastrampoline_jll"]
-uuid = "bea87d4a-7f5b-5778-9afe-8cc45184846c"
-version = "7.8.3+2"
-
-[[deps.SymbolicIndexingInterface]]
-deps = ["Accessors", "ArrayInterface", "RuntimeGeneratedFunctions", "StaticArraysCore"]
-git-tree-sha1 = "6c7e35e1984e98f6e314dcd4c92cd68842af5456"
-uuid = "2efcf032-c050-4f8e-a9bb-153293bab1f5"
-version = "0.3.52"
-
-    [deps.SymbolicIndexingInterface.extensions]
-    SymbolicIndexingInterfacePrettyTablesExt = "PrettyTables"
-
-    [deps.SymbolicIndexingInterface.weakdeps]
-    PrettyTables = "08abe8d2-0d0c-5749-adfa-8a2ac140af0d"
-
-[[deps.SymbolicLimits]]
-deps = ["SymbolicUtils", "TermInterface"]
-git-tree-sha1 = "ab885203e8395593d65b629bd4023de089e6997b"
-uuid = "19f23fe9-fdab-4a78-91af-e7b7767979c3"
-version = "1.1.4"
-
-[[deps.SymbolicUtils]]
-deps = ["AbstractTrees", "ArrayInterface", "Combinatorics", "ConstructionBase", "DataStructures", "DocStringExtensions", "DynamicPolynomials", "EnumX", "ExproniconLite", "Graphs", "LinearAlgebra", "MacroTools", "Moshi", "MultivariatePolynomials", "MutableArithmetics", "NaNMath", "PrecompileTools", "ReadOnlyArrays", "SciMLPublic", "Setfield", "SparseArrays", "SpecialFunctions", "StaticArraysCore", "SymbolicIndexingInterface", "TaskLocalValues", "TermInterface", "WeakCacheSets"]
-git-tree-sha1 = "03bbe242c7433bfca3660050d0b0cc3b4be8df71"
-uuid = "d1185830-fcd6-423d-90d6-eec64667417b"
-version = "4.44.0"
-
-    [deps.SymbolicUtils.extensions]
-    SymbolicUtilsChainRulesCoreExt = "ChainRulesCore"
-    SymbolicUtilsDistributionsExt = "Distributions"
-    SymbolicUtilsLabelledArraysExt = "LabelledArrays"
-    SymbolicUtilsReverseDiffExt = "ReverseDiff"
-
-    [deps.SymbolicUtils.weakdeps]
-    ChainRulesCore = "d360d2e6-b24c-11e9-a2a3-2a2ae2dbcce4"
-    Distributions = "31c24e10-a181-5473-b8eb-7969acd0382f"
-    LabelledArrays = "2ee39098-c373-598a-b85f-a56591580800"
-    ReverseDiff = "37e2e3b7-166d-5795-8a7a-e32c996b4267"
-
-[[deps.Symbolics]]
-deps = ["ADTypes", "AbstractPlutoDingetjes", "ArrayInterface", "Bijections", "CommonWorldInvalidations", "ConstructionBase", "DataStructures", "DiffRules", "DocStringExtensions", "DomainSets", "DynamicPolynomials", "IntervalSets", "Libdl", "LinearAlgebra", "LogExpFunctions", "MacroTools", "Markdown", "Moshi", "MultivariatePolynomials", "MutableArithmetics", "NaNMath", "PrecompileTools", "Preferences", "Primes", "RecipesBase", "Reexport", "RuntimeGeneratedFunctions", "SciMLPublic", "Setfield", "SparseArrays", "SpecialFunctions", "StaticArraysCore", "SymbolicIndexingInterface", "SymbolicLimits", "SymbolicUtils", "TermInterface"]
-git-tree-sha1 = "2a8387ae58e5c1afbd8820b5c3ddb300d15ae27f"
-uuid = "0c5d862f-8b57-4792-8d23-62f2024744c7"
-version = "7.35.0"
-
-    [deps.Symbolics.extensions]
-    SymbolicsD3TreesExt = "D3Trees"
-    SymbolicsDistributionsExt = "Distributions"
-    SymbolicsForwardDiffExt = "ForwardDiff"
-    SymbolicsGroebnerExt = "Groebner"
-    SymbolicsHypergeometricFunctionsExt = "HypergeometricFunctions"
-    SymbolicsLatexifyExt = ["Latexify", "LaTeXStrings"]
-    SymbolicsNemoExt = "Nemo"
-    SymbolicsPreallocationToolsExt = ["PreallocationTools", "ForwardDiff"]
-    SymbolicsSymPyExt = "SymPy"
-    SymbolicsSymPyPythonCallExt = "SymPyPythonCall"
-
-    [deps.Symbolics.weakdeps]
-    D3Trees = "e3df1716-f71e-5df9-9e2d-98e193103c45"
-    Distributions = "31c24e10-a181-5473-b8eb-7969acd0382f"
-    ForwardDiff = "f6369f11-7733-5829-9624-2563aa707210"
-    Groebner = "0b43b601-686d-58a3-8a1c-6623616c7cd4"
-    HypergeometricFunctions = "34004b35-14d8-5ef3-9330-4cdb6864b03a"
-    LaTeXStrings = "b964fa9f-0449-5b57-a5c2-d3ea65f4040f"
-    Latexify = "23fbe1c1-3f47-55db-b15f-69d7ec21a316"
-    Nemo = "2edaba10-b0f1-5616-af89-8c11ac63239a"
-    PreallocationTools = "d236fae5-4411-538c-8e31-a6e3d9e00b46"
-    SymPy = "24249f21-da20-56a4-8eb1-6a02cf4ae2e6"
-    SymPyPythonCall = "bc8888f7-b21e-4b7c-a06a-5d9c9496438c"
-
-[[deps.TOML]]
-deps = ["Dates"]
-uuid = "fa267f1f-6049-4f14-aa54-33bafae1ed76"
-version = "1.0.3"
-
-[[deps.TaskLocalValues]]
-git-tree-sha1 = "67e469338d9ce74fc578f7db1736a74d93a49eb8"
-uuid = "ed4db957-447d-4319-bfb6-7fa9ae7ecf34"
-version = "0.1.3"
-
-[[deps.TermInterface]]
-git-tree-sha1 = "d673e0aca9e46a2f63720201f55cc7b3e7169b16"
-uuid = "8ea1fca8-c5ef-4a55-8b96-4e9afe9c9a3c"
-version = "2.0.0"
 
 [[deps.Test]]
 deps = ["InteractiveUtils", "Logging", "Random", "Serialization"]
@@ -1507,11 +1036,6 @@ version = "1.11.0"
 uuid = "4ec0a83e-493e-50e2-b9ac-8f72acf5a8f5"
 version = "1.11.0"
 
-[[deps.WeakCacheSets]]
-git-tree-sha1 = "386050ae4353310d8ff9c228f83b1affca2f7f38"
-uuid = "d30d5f5c-d141-4870-aa07-aabb0f5fe7d5"
-version = "0.1.0"
-
 [[deps.Zlib_jll]]
 deps = ["Libdl"]
 uuid = "83775a58-1f1d-513f-b197-d71354ab007a"
@@ -1533,11 +1057,6 @@ version = "1.64.0+1"
 # ╟─fd14256d-8c69-4d8a-91b5-924a32479866
 # ╟─b1a10001-0000-4000-8000-00000000000e
 # ╟─b1a10001-0000-4000-8000-000000000001
-# ╠═50eb4916-b3d7-4f2a-90c6-8661cbbd8e7a
-# ╠═88b33835-d993-4396-8605-bb3456200eb1
-# ╠═b1a10001-0000-4000-8000-000000000002
-# ╠═b1a10001-0000-4000-8000-000000000003
-# ╠═b1a10001-0000-4000-8000-000000000004
 # ╟─b1a10001-0000-4000-8000-000000000005
 # ╠═ca99052e-ff24-4e8a-9d06-74bc24974873
 # ╠═987d9253-2f7d-4ca8-8eef-aae8e8d53bc6

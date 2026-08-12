@@ -22,7 +22,9 @@ let
                     <h3>$(name)</h3>
                     <img src=$(image)>
                 </a>""")
-            end for other_page in collections[section_id].pages
+            end for other_page in let collection = get(collections, section_id, nothing)
+                collection === nothing ? Any[] : collection.pages
+            end
         ])
         """)
         for (section_id, section_name) in sections

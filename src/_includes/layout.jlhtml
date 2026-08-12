@@ -89,8 +89,10 @@ $(pluto_head)
                     </form>
                 </div>
             </li>
-        $(let
-            sections = metadata["sidebar"]
+            $(let
+                # A YAML-limited build may intentionally omit every notebook in
+                # some sidebar sections. Only render sections that have pages.
+                sections = filter(section -> haskey(collections, first(section)), metadata["sidebar"])
             [
                 @htl("""
                 <li>
@@ -123,7 +125,9 @@ $(pluto_head)
                         else
                             @htl("""<li class=$(class)><a href=$(href) title=$(desc)><span class="entry-number">Homework $(homework_number):</span> $(name)</a></li>""")
                         end
-                    end for other_page in collections[section_id].pages
+                    end for other_page in let collection = get(collections, section_id, nothing)
+                        collection === nothing ? Any[] : collection.pages
+                    end
                 ])
                 </ul>
                 </li>
@@ -135,16 +139,18 @@ $(pluto_head)
             <li class="sidebar-about">
                 <div class="semester-details">
                     <a href="$(root_url)/semesters/">$(metadata["course_info"]["semester"])</a>
-                    <div class="course-numbers"><span>$(metadata["course_info"]["code"])</span></div>
+                <div class="course-numbers"><span>$(metadata["course_info"]["code"])</span></div>
                 </div>
                 <div class="logos">
-                    <picture title="$(metadata["course_info"]["institution"])">
-                        <img src="$(root_url)/assets/$(metadata["course_info"]["institution_logo"])">
-                    </picture>
-                    <picture title="Julia Programming Language">
-                        <source srcset="$(root_url)/assets/julia-logo-dark.svg" media="(prefers-color-scheme: dark)" />
-                        <img src="$(root_url)/assets/julia-logo-color.svg">
-                    </picture>
+                    <a class="institution-logo" href="https://ceas.iisc.ac.in/" title="Centre for Earth Sciences" aria-label="Centre for Earth Sciences">
+                        <img src="$(root_url)/assets/CEAS.png" alt="Centre for Earth Sciences logo">
+                    </a>
+                    <a class="institution-logo" href="https://iisc.ac.in/" title="$(metadata["course_info"]["institution"])" aria-label="$(metadata["course_info"]["institution"])">
+                        <img src="$(root_url)/assets/$(metadata["course_info"]["institution_logo"])" alt="$(metadata["course_info"]["institution"]) logo">
+                    </a>
+                    <a class="institution-logo" href="https://julialang.org/" title="Julia Programming Language" aria-label="Julia Programming Language">
+                        <img src="$(root_url)/assets/julia-logo-color.svg" alt="Julia Programming Language logo">
+                    </a>
                 </div>
             </li>
         </ul>

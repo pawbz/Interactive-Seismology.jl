@@ -4,11 +4,27 @@ layout: "layout.jlhtml"
 
 <link rel="stylesheet" href="$(root_url)/assets/styles/homepage.css" type="text/css" />
 
-<div id="title" class="banner">
-    <h1>$(metadata["homepage"]["title"])</h1>
-</div>
+<header class="seismo-hero">
+    <div class="hero-copy">
+        <p class="eyebrow"><span></span> ES 218 · Indian Institute of Science</p>
+        <h1><span>Interactive</span> Seismology</h1>
+        <p class="hero-lede">Learn to read the Earth in motion: explore waves, earthquakes, and the planet’s interior through notebooks you can touch, change, and run.</p>
+        <div class="hero-actions">
+            <a class="button button-primary" href="#explore">Explore the notebooks <span aria-hidden="true">↓</span></a>
+            <a class="button button-secondary" href="$(root_url)/misc/seismic-interferometry/">Open a notebook <span aria-hidden="true">→</span></a>
+        </div>
+        <dl class="hero-metrics" aria-label="What you can explore">
+            <div><dt>01</dt><dd>Wave motion</dd></div>
+            <div><dt>02</dt><dd>Earth structure</dd></div>
+            <div><dt>03</dt><dd>Real data</dd></div>
+        </dl>
+    </div>
+</header>
 
-$(isempty(get(metadata["homepage"], "disclaimer", "")) ? nothing : @htl("""<blockquote class="banner"><p>$(metadata["homepage"]["disclaimer"])</p></blockquote>"""))
+<section class="site-introduction">
+    <p class="section-kicker">A computational field notebook</p>
+    <p>These short, reactive notebooks make the invisible visible: change a model, watch the wavefield respond, and build physical intuition one experiment at a time.</p>
+</section>
 
 <main class="homepage">
 $(Base.include(@__MODULE__, joinpath(@__DIR__, "..", "assets", "scripts", "get_highlights.jl")))

@@ -6,7 +6,12 @@ set -e  # Exit on error
 
 REPO_DIR="${1:-.}"
 SERVICE_NAME="pluto-slider-server"
-EXPORT_DIR="${HOME}/_site"
+EXPORT_DIR="${SITE_DIR:-${HOME}/_site}"
+
+if [ -z "$EXPORT_DIR" ] || [ "$EXPORT_DIR" = "/" ]; then
+    echo "❌ SITE_DIR must name a specific directory, not the filesystem root" >&2
+    exit 2
+fi
 
 echo "🚀 Deploying site to VM (with live notebooks from live-notebooks.yml)..."
 
@@ -20,6 +25,7 @@ git pull origin main
 # Generate the complete static site using PlutoPages
 # This exports ALL notebooks from both live-notebooks.yml and static-notebooks.yml
 echo "🔧 Generating complete static site via PlutoPages.jl..."
+PLUTO_SLIDER_SERVER_URL="${PLUTO_SLIDER_SERVER_URL:-/}" \
 julia --project=pluto-deployment-environment -e "
     import Pkg
     Pkg.instantiate()
@@ -29,11 +35,20 @@ julia --project=pluto-deployment-environment -e "
     exit 1
 }
 
-# Copy generated site to serving directory
+# Replace the served site atomically, so removing a notebook from either YAML
+# registry removes its old page too.
 echo "📂 Deploying static site..."
-mkdir -p "$EXPORT_DIR"
 if [ -d "_site" ]; then
-    cp -r _site/* "$EXPORT_DIR/" 2>/dev/null || true
+    STAGING_DIR="${EXPORT_DIR}.next"
+    PREVIOUS_DIR="${EXPORT_DIR}.previous"
+    rm -rf "$STAGING_DIR" "$PREVIOUS_DIR"
+    mkdir -p "$STAGING_DIR"
+    cp -R _site/. "$STAGING_DIR/"
+    if [ -e "$EXPORT_DIR" ]; then
+        mv "$EXPORT_DIR" "$PREVIOUS_DIR"
+    fi
+    mv "$STAGING_DIR" "$EXPORT_DIR"
+    rm -rf "$PREVIOUS_DIR"
     echo "✅ Static site deployed to $EXPORT_DIR"
 else
     echo "⚠️  _site directory not found"

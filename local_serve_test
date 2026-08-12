@@ -1,0 +1,39 @@
+#!/usr/bin/env bash
+# Build the YAML-selected site and serve it with its YAML-selected live notebooks.
+
+set -euo pipefail
+
+ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+STATIC_HOST="${STATIC_HOST:-127.0.0.1}"
+STATIC_PORT="${STATIC_PORT:-8000}"
+LIVE_HOST="${LIVE_HOST:-127.0.0.1}"
+LIVE_PORT="${LIVE_PORT:-1234}"
+
+if [[ "$STATIC_PORT" == "$LIVE_PORT" ]]; then
+    echo "STATIC_PORT and LIVE_PORT must be different." >&2
+    exit 2
+fi
+
+cd "$ROOT_DIR"
+
+cleanup() {
+    if [[ -n "${STATIC_SERVER_PID:-}" ]]; then
+        kill "$STATIC_SERVER_PID" 2>/dev/null || true
+    fi
+}
+trap cleanup EXIT INT TERM
+
+echo "Building notebooks selected by static-notebooks.yml and live-notebooks.yml..."
+PLUTO_SLIDER_SERVER_URL="http://${LIVE_HOST}:${LIVE_PORT}" \
+    julia --project=pluto-deployment-environment -e 'include("generate.jl")'
+
+echo
+echo "Site preview: http://${STATIC_HOST}:${STATIC_PORT}/"
+echo "The live service on http://${LIVE_HOST}:${LIVE_PORT}/ is an internal API; do not open it directly."
+python3 -m http.server "$STATIC_PORT" --bind "$STATIC_HOST" --directory _site &
+STATIC_SERVER_PID=$!
+
+echo "Starting live service at http://${LIVE_HOST}:${LIVE_PORT}/"
+echo "Press Ctrl+C to stop both servers."
+julia --project=pluto-deployment-environment serve_live_notebooks.jl \
+    --host "$LIVE_HOST" --port "$LIVE_PORT"

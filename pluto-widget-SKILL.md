@@ -161,6 +161,46 @@ canvas/canvases), `.{p}-controls` (the control grid), `.{p}-control-group` (one 
 grid), `.{p}-control-title`, `.{p}-control-row` (label / input / value, 3-column grid), `.{p}-value`
 (the readout span), `.{p}-actions` (flex-wrap row of checkboxes/buttons).
 
+## Marker shapes: source = star, receiver = downward triangle
+
+When a widget draws a seismic **source** and **receiver** as draggable canvas markers (as opposed to a
+generic drag handle for some other quantity), use a filled **star** for the source and a filled
+**downward-pointing triangle** for the receiver, instead of a plain circle. This is the convention
+`lame-theorem.jl`'s `PointForceRadiationInput` widget uses (`drawStarMarker`/`drawTriangleDownMarker`,
+defined right next to `drawArrowHead2D`) — copy those two functions verbatim into a new widget rather than
+reinventing the shape math:
+
+```js
+function drawStarMarker(cx, cy, r, fill, stroke){
+  const spikes = 5, rOuter = r, rInner = r * 0.45;
+  ctx.beginPath();
+  for(let i=0; i<spikes*2; i++){
+    const rad = i % 2 === 0 ? rOuter : rInner;
+    const ang = -Math.PI/2 + i*Math.PI/spikes;
+    const x = cx + rad*Math.cos(ang), y = cy + rad*Math.sin(ang);
+    i===0 ? ctx.moveTo(x,y) : ctx.lineTo(x,y);
+  }
+  ctx.closePath();
+  ctx.fillStyle = fill; ctx.fill();
+  ctx.strokeStyle = stroke; ctx.lineWidth = 1; ctx.stroke();
+}
+function drawTriangleDownMarker(cx, cy, r, fill, stroke){
+  ctx.beginPath();
+  for(let i=0; i<3; i++){
+    const ang = Math.PI/2 + i*2*Math.PI/3; // first vertex points down (canvas y grows downward)
+    const x = cx + r*Math.cos(ang), y = cy + r*Math.sin(ang);
+    i===0 ? ctx.moveTo(x,y) : ctx.lineTo(x,y);
+  }
+  ctx.closePath();
+  ctx.fillStyle = fill; ctx.fill();
+  ctx.strokeStyle = stroke; ctx.lineWidth = 1.5; ctx.stroke();
+}
+```
+
+This matches the marker shapes seismologists actually use on maps/cross-sections (a star for the
+event, an inverted triangle for the station), so a reader who's seen a real epicenter map recognizes
+the widget's markers instantly instead of having to learn an arbitrary circle-means-what convention.
+
 ## Title bar: orient the viewer before they touch anything
 
 Every widget opens with a two-line header, centered, sitting above `.{p}-workspace`, boxed like the

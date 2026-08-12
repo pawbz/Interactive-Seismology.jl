@@ -1,11 +1,11 @@
 ### A Pluto.jl notebook ###
-# v0.20.19
+# v0.2.6
 
 #> [frontmatter]
 #> title = "Lamé's Theorem"
 #> layout = "layout.jlhtml"
 #> tags = ["pointsource"]
-#> description = "Are you in the near-field with P- and S-wave radiation? Don't worry, the response at your station has a higher-order discontinuity than in the far-field."
+#> description = "A point force radiates P and S waves in one shot. Drag the force direction, drag a receiver, and watch the near-field, far-field-P, and far-field-S terms separate."
 
 using Markdown
 using InteractiveUtils
@@ -22,896 +22,2041 @@ macro bind(def, element)
     #! format: on
 end
 
-# ╔═╡ 4bdd2493-70dd-4cf7-bcd4-b2a32aaff474
-ChooseDisplayMode()
+# ╔═╡ 021492fb-0d1a-4f6e-a656-bdf6a8e74a90
+begin
+    using PlutoUI
+    using LinearAlgebra
+    using SpecialFunctions
+end
 
-# ╔═╡ bccd3c27-2f9f-4dea-9d81-83cd6ba0ed9e
+# ╔═╡ cbc8f361-986c-424d-a649-6e841c072e72
 TableOfContents()
 
-# ╔═╡ d6c09c3c-7fb6-4598-8897-a8f93b3c725e
+# ╔═╡ dfaa5e67-7d3d-492a-8b56-a66bd0cd3970
 md"""
 # Lamé's Theorem
-The elastic wave equation turns into simpler equations for potentials in the case of an unbounded, isotropic and homogeneous medium.
-This interactive notebook delves into the fundamental concepts of near-field and far-field elastic wave radiation that emerge from seismic sources.
+
+Hit an elastic whole-space with a single point force and it doesn't radiate one kind of wave —
+it radiates two, a longitudinal P wave and a transverse S wave, from the same source at the same
+instant. Lamé's theorem is the reason: any displacement field solving the elastic wave equation
+splits, exactly, into a curl-free part and a divergence-free part, and those two parts turn out
+to obey their *own* simple scalar/vector wave equations at speeds `` \alpha `` and `` \beta ``.
+This notebook builds the complete time-domain solution for a single point force and hands you a
+widget to explore it: drag the force direction, drag a receiver, and watch the near-field,
+far-field-P, and far-field-S terms trade off as you move.
 
 ##### [Interactive Seismology Notebooks](https://pawbz.github.io/Interactive-Seismology.jl/)
-
 
 Instructor: *Pawan Bharadwaj*,
 Indian Institute of Science, Bengaluru, India
 """
 
-# ╔═╡ 280472ec-50db-49b6-9c96-5f9d5c80b3bb
-Markdown.MD(Markdown.Admonition("warning", "Theorem",
-    [TwoColumnWideLeft(md"""
-If the displacement field $\bf{u} = \bf{u}(\bf{x}, t)$ satisfies,
-$\rho\ddot{\bf{u}} = {\bf{f}} + (\lambda+2\mu)\nabla(\nabla\cdot\bf{u}) - \mu\nabla \times (\nabla \times \bf{u})$, then
-∃ potentials $\phi$ and $\psi$ for $\bf{u}$ with properties
-* ${\bf{u}} = \nabla\phi + \nabla \times \psi$
-* $\nabla\cdot\psi = 0$
-* $\rho\ddot{\phi} = f_1 + (\lambda+2\mu)\nabla^2\phi$
-* $\rho\ddot{\psi} = \mathbf{f}_2 + (\mu)\nabla^2\psi$
-""", md"""
-###### Helmholtz potentials 
-the body force and initial values of $\bf{u}$ and $\dot{\bf{u}}$ satisfy
-${\bf{f}} = ∇f_1 + ∇ × \bf{f}_2$, $\nabla\cdot\bf{f}_2=0$
-${\bf{u}}({\bf{x}}, 0) = ∇ u_1 + ∇ × \bf{u}_2$
-${\bf{\dot{u}}}({\bf{x}}, 0) = ∇ \dot{u}_1 + ∇ × \bf{\dot{u}}_2$
-$\nabla\cdot\bf{f}_2=0$,
-$\nabla\cdot\bf{u}_2=0$,
-$\nabla\cdot\bf{\dot{u}}_2=0$
-		
-	""")]))
-
-# ╔═╡ d502d260-c562-476f-9e05-5dc1a2ce26b9
+# ╔═╡ f80221b6-eec6-4044-896b-68cca2bfcb6d
 md"""
-**Customize Radiation Visualization:** Adjust the visualization by modifying these parameters: Choose the component of the displacement field with $(@bind plot_rc Select([X() => "X", Y() => "Y", Z() => "Z"])), select the force density component using $(@bind plot_sc Select([X() => "X", Y() => "Y", Z() => "Z"])), set the forcing (source) type via $(@bind plot_source_type Select([Monochromatic()=>"Monochromatic", Gaussian()=>"Gaussian"], default=Gaussian())), pick the field type with $(@bind plot_field_type Select([Pfar() => "P", Sfar() => "S", Near() => "Near Field"])), adjust angular frequency for monochromatic sources with 
-$(@bind ω1 Slider(range(0.2, stop=1, length=9), show_value=true, default=0.5)), and modify the time instance using $(@bind t_forw Slider(5:length(tgrid), default=7, show_value=true)). These controls allow you to explore different radiation patterns below.
+!!! note "Lamé's Theorem — Helmholtz Potentials"
+	If the displacement field `` \mathbf u = \mathbf u(\mathbf x, t) `` satisfies the elastic wave equation
+	```math
+	\rho\ddot{\mathbf u} = \mathbf f + (\lambda+2\mu)\nabla(\nabla\cdot\mathbf u) - \mu\,\nabla\times(\nabla\times\mathbf u),
+	```
+	then there exist potentials `` \phi `` and `` \boldsymbol\psi `` such that
+	```math
+	\mathbf u = \nabla\phi + \nabla\times\boldsymbol\psi, \qquad \nabla\cdot\boldsymbol\psi = 0,
+	```
+	each obeying its own wave equation, sourced by the matching split of the body force
+	`` \mathbf f = \nabla f_1 + \nabla\times\mathbf f_2 ``:
+	```math
+	\rho\ddot\phi = f_1 + (\lambda+2\mu)\nabla^2\phi, \qquad \rho\ddot{\boldsymbol\psi} = \mathbf f_2 + \mu\,\nabla^2\boldsymbol\psi.
+	```
+	In words: **any** elastic wave, however complicated, is exactly a sum of a curl-free piece
+	(P waves, speed `` \alpha=\sqrt{(\lambda+2\mu)/\rho} ``) and a divergence-free piece (S waves,
+	speed `` \beta=\sqrt{\mu/\rho} ``) — the split this whole notebook is built around.
 """
 
-# ╔═╡ 17f3f3b5-0632-431f-8081-ae5c386171ed
-plot(
-    cone(
-        x=cone_plot.x,
-        y=cone_plot.y,
-        z=cone_plot.z,
-        u=cone_plot.u,
-        v=cone_plot.v,
-        w=cone_plot.w,
-        sizeref=2,
-		showscale=false,
-		colorscale=colors.Blues_8,
-    ),
-    Layout(
-        scene=attr(
-        domain_x=[0, 1],
-        camera_eye=attr(x=-1.57, y=1.36, z=0.58))
-    )
-)
-
-# ╔═╡ 7917e7eb-ecef-4efe-9cca-606895199a7d
-plot(plot_ex_wavefronts3D(wavefield))
-
-# ╔═╡ 44c900ad-e9bf-4bc3-b456-898899ccd36b
-md"The wavefield's analytical expression (which dynamically adjusts based on the chosen parameters above) is"
-
-# ╔═╡ 25f3761a-3f94-4aa8-9fb8-0fbbe32fe095
-wavefield = get_displacement(plot_source_type, nothing, plot_field_type, x, y, z, 0, 0, 0, plot_rc, plot_sc, ρ, 1e20)
-
-# ╔═╡ 2957f6f0-7314-4340-9062-b6da2f1a7089
-ThreeColumn(md"""
-$(@bind sample_receiver Button("Sample a receiver"))
-within radius
-""",
-md"""$(@bind rmax_plot Slider(round.(range(0, stop=maximum(abs, xgrid), length=100), digits=2), show_value=true, default=maximum(xgrid)/2))
-and plot 
-""",
-	md"""
-$(@bind plot_seismogram_field_type MultiCheckBox([Pfar()=>"P", Sfar()=>"S", Near()=>"Near"], default=[Pfar(), Sfar(), Near()], select_all=true))
-""")
-
-# ╔═╡ 3d43de3c-d60f-4997-aff8-f8027319485c
-plot_seismogram(seismogram)
-
-# ╔═╡ 24d2fecb-fe04-41f5-ab59-e5681e8cdca8
-md"""
-## Notation
-To begin, we will introduce the variables that will be utilized throughout this notebook, and we will construct spatial and temporal differential operators.
-"""
-
-# ╔═╡ 25f04c16-a107-4f72-bf64-40ee7db3e24f
-@syms x::Real y::Real z::Real  # spatial coordinates
-
-# ╔═╡ 0c748592-b599-4ac2-9370-f3175c09c23c
-𝐱 = [x, y, z] # spatial coordinate vector
-
-# ╔═╡ a768aa28-7486-4d2f-9dee-a2f9be58a0e0
-@syms t::Real ω::Real # time and angular frequency
-
-# ╔═╡ ed35749b-88fd-428e-889c-95d20b9edd36
-@syms α β ρ # P and S wave velocities, mass density
-
-# ╔═╡ 5b649a90-fd7b-4cf3-82c2-b9168273e7f2
-r = sqrt(sum(𝐱 .^ 2)) # distance from the origin, where the source is placed
-
-# ╔═╡ 93cd7c3a-e1bf-45f0-9ab8-47980cbbc9c5
-begin
-    Dx = Differential(x)
-    Dy = Differential(y)
-    Dz = Differential(z)
-    Dt = Differential(t)
-    Dr = Differential(r)
-end
-
-# ╔═╡ e5addb67-5710-464b-b88f-9aa432df1829
-∇ = [Dx, Dy, Dz]
-
-# ╔═╡ b0a98128-4b78-471d-85c6-218c304b9578
+# ╔═╡ baf5aa58-0d0f-4e2c-803e-b1a8d98580a4
 md"""
 ## P Radiation
-We shall now study P far-field radiation due to body force, e.g., an impulsive force in the x direction.
-We now recall that one of the components of the displacement field is $\nabla \phi$,
-$\phi$ is the P potential.
+
+Drag the receiver dot around the widget above while watching the **P** field. Its displacement
+always points exactly along the line from the source to the receiver — push in the direction the
+force points, pull behind it:
+
+```math
+\boxed{u_i^{\rm P}(\mathbf x,t) = \frac{\gamma_i\gamma_1}{4\pi\rho\alpha^2 r}\,X_0\!\left(t-\frac r\alpha\right)}
+```
+
+where `` \gamma_i=\partial r/\partial x_i `` is the unit vector from source to receiver and
+`` X_0(t) `` is the force's time history. The `` \gamma_i\gamma_1 `` factor is exactly
+`` \cos\theta ``, `` \theta `` being the angle between the receiver direction and the force —
+plotted against angle it is the classic **dumbbell** lobe: maximal along the force axis, zero
+perpendicular to it, and sign-flipped behind the source.
+
+!!! note "Longitudinal waves"
+	The far-field P displacement at any receiver has a direction *parallel* to the direction from
+	the source — this is what "longitudinal" means. It is only exactly true far from the source;
+	see the curl check in the Appendix for how "far" that has to be.
 """
 
-# ╔═╡ 12e0afd1-559e-4f22-b76c-c1aa6469f693
-upx = get_displacement(nothing, Pfar(), x, y, z, 0, 0, 0, X(), Y(), ρ, 1.0)
-
-# ╔═╡ d98b20d0-853a-4f24-b089-101517d3cc78
-upy = get_displacement(nothing, Pfar(), x, y, z, 0, 0, 0, Y(), Y(), ρ, 1.0)
-
-# ╔═╡ f4ad875f-cffd-41cd-8f1f-02b62df5950f
-upz = get_displacement(nothing, Pfar(), x, y, z, 0, 0, 0, Z(), Y(), ρ, 1.0)
-
-# ╔═╡ a5a9db82-18df-4bef-9378-7cdcb1af95a1
-up = [upx, upy, upz]
-
-# ╔═╡ 91108dff-5a8b-42d2-85b7-5cda6a946406
-curl(up)
-
-# ╔═╡ 58dae178-1e8f-4c90-baac-ed8ca53aee99
-Markdown.MD(Markdown.Admonition("warning", "",
-    [md"""
-* The curl of the P component of the displacement field is zero only when $\frac{1}{r^2}$ terms can be ignored, i.e., far away from the source.
-	"""]))
-
-# ╔═╡ 257d6706-bd8b-4dae-8bab-20900c1684d3
-pradiation = sqrt(sum(abs2.([upx, upy, upz])))
-
-# ╔═╡ cc80bf4e-ba95-4201-a077-e66f2bf79746
-md"""
- Now, let's check if this component of the displacement field is like "P waves" with particle motion along the radial direction.
-When the source is at the origin, 𝐱 is a vector in the direction from the source.
-"""
-
-# ╔═╡ c465a6dd-c103-4b97-ba9b-b1b22bb23c78
-cross(𝐱, up)
-
-# ╔═╡ be8f0cc1-83ed-458b-9a0b-75fabd15c701
-Markdown.MD(Markdown.Admonition("warning", "Longitudinal Waves",
-    [md"""
-* The far-field P displacement field at any given location 𝐱 has a direction parallel to the direction from the source.
-	"""]))
-
-# ╔═╡ d4c329e6-52e7-4ba7-8941-a5724a038d05
+# ╔═╡ b954f277-9840-465e-926e-5c4963751487
 md"""
 ## S Radiation
-We shall now study S far-field radiation due to body force.
+
+Now watch the **S** field instead. Its displacement is always *perpendicular* to the
+source-receiver line:
+
+```math
+\boxed{u_i^{\rm S}(\mathbf x,t) = \frac{\delta_{i1}-\gamma_i\gamma_1}{4\pi\rho\beta^2 r}\,X_0\!\left(t-\frac r\beta\right)}
+```
+
+`` \delta_{i1}-\gamma_i\gamma_1 `` has magnitude `` \sin\theta `` — zero along the force axis,
+maximal at 90° from it, the **donut** lobe that exactly complements P's dumbbell. Between the two,
+every direction around the source is covered: wherever P is weak, S is strong, and vice versa.
+
+!!! note "Transverse waves"
+	The far-field S displacement at any receiver has a direction *perpendicular* to the direction
+	from the source — the same "far enough" caveat as the P term above applies.
 """
 
-# ╔═╡ f4aee41d-d63a-4a90-bfb1-a77d721a576b
-usx = get_displacement(nothing, Sfar(), x, y, z, 0, 0, 0, X(), X(), ρ, 1.0)
-
-# ╔═╡ 94adb048-f5c2-485e-833c-921c9a87814e
-usy = get_displacement(nothing, Sfar(), x, y, z, 0, 0, 0, Y(), X(), ρ, 1.0)
-
-# ╔═╡ f41ce900-88b5-479b-b7f0-b3cab5ab7bba
-usz = get_displacement(nothing, Sfar(), x, y, z, 0, 0, 0, Z(), X(), ρ, 1.0)
-
-# ╔═╡ 87e12020-0e28-46a3-814c-7660fc8c5745
-sradiation = sqrt(sum(abs2.([usx, usy, usz])))
-
-# ╔═╡ ccc20f79-1b54-43c7-a759-488a6fc53b0d
-us = [usx, usy, usz]
-
-# ╔═╡ 10535763-8613-49fc-b59e-997236109ba7
-Dx(usx) |> expand_derivatives
-
-# ╔═╡ e01bfb56-031c-4f6b-9835-45111e09f043
-divergence(us) |> Symbolics.simplify
-
-# ╔═╡ fbbc5151-7726-4793-9ee2-05662631b3e1
-Markdown.MD(Markdown.Admonition("warning", "",
-    [md"""
-* The divergence of the S component of the displacement field is zero only when $\frac{1}{r^2}$ terms can be ignored, i.e., far away from the source.
-	"""]))
-
-# ╔═╡ 0f88f2b0-294a-47e7-8753-f9450c7e722d
-dot(𝐱, us) |> Symbolics.simplify
-
-# ╔═╡ 99e4676f-a469-4243-afbd-7be1b587914a
-substitute(dot(𝐱, us), sqrt(x^2+y^2+z^2)^2=>x^2+y^2+z^2) |> Symbolics.simplify
-
-# ╔═╡ ec7a4506-698d-421d-a7d1-ae61136883f7
-Markdown.MD(Markdown.Admonition("warning", "Transverse Waves",
-    [md"""
-* The far-field S displacement field at any given location 𝐱 has a direction perpendicular to the direction from the source.
-	"""]))
-
-# ╔═╡ aef669b3-4492-4487-a587-d6ffa20bd4f5
-function curl(v)
-    vx = v[1]
-    vy = v[2]
-    vz = v[3]
-    curl_field = [
-        Dy(vz) - Dz(vy),
-        Dz(vx) - Dx(vz),
-        Dx(vy) - Dy(vx)
-    ]
-    return Symbolics.simplify.(expand_derivatives.(curl_field))
-end
-
-# ╔═╡ 3bdae723-c32d-4264-bd57-184b73cddb3d
-function divergence(v)
-    vx = v[1]
-    vy = v[2]
-    vz = v[3]
-    div_field = Dx(vx) + Dz(vz) + Dy(vy)
-    return Symbolics.simplify.(expand_derivatives.(div_field))
-end
-
-# ╔═╡ c570f122-2b06-478d-a66e-6ea0b9871446
+# ╔═╡ fc71ba84-35f3-4269-b8c9-3308782ae9df
 md"""
-## Understanding Nearfield Radiation
-We shall now look at the derivative w.r.t. the radial distance $r$ of the monochromatic potential field.
+## Near Field vs. Far Field
+
+The P and S terms above both decay as `` 1/r `` — pure geometric spreading. But they are not the
+whole story: there is a third term, the **near field**, that decays as `` 1/r^3 `` (through a time
+integral of the source rather than a simple time-shift) and carries *both* P- and S-type motion
+at once. It falls off much faster with distance, so it only matters close to the source — drag the
+receiver toward the source in the widget above and watch the near-field contribution (toggle it
+off/on with the checkbox) grow relative to the far-field terms.
+
+The crossover is set by comparing the receiver distance `` r `` to a wavelength: the **ratio**
+readout in the widget is `` \omega r/\alpha ``, using the pulse's characteristic frequency
+`` \omega = 2\pi/T ``, where `` T `` is the **period** slider -- i.e. `` 2\pi\times `` the
+number of wavelengths between source and receiver. Drag it to see the crossover shift: a short
+period (high frequency) pushes the far field to dominate close in; a long period keeps the near
+field significant out to much larger distances.
+
+```math
+\boxed{\text{ratio}\gg1 \Rightarrow \text{far field dominates}\qquad \text{ratio}\ll1 \Rightarrow \text{near field dominates}}
+```
+
+!!! warning "The crossover is further out than `` \text{ratio}\sim1 `` suggests"
+	Don't take "``\gg1``" too literally here: because of a `` 1/r^2 ``, not `` 1/r^3 ``, effective
+	decay of this specific near-field kernel at large `` r `` (the integration window widens with
+	`` r ``, partly canceling the formal `` 1/r^3 `` prefactor), the near field is still
+	several times *stronger* than far-field P out to `` \text{ratio}\approx10 ``, and only clearly
+	subdominant past `` \text{ratio}\approx20 \text{--} 30 ``. The inequality is real, just slower
+	to kick in than the formula's exponents alone would suggest — drag the receiver far out and
+	watch the near-field checkbox's effect on the seismogram shrink to confirm.
+
+This is exactly the same near/far tradeoff that shows up in the Appendix's numerical check of the
+"P is curl-free / S is divergence-free" claims above — both are only exactly true in the
+`` \text{ratio}\to\infty `` limit.
 """
 
-# ╔═╡ ac7a947f-283f-4743-a42b-082a0eb0c42e
+# ╔═╡ 7f488eb9-9372-41b4-95ec-69abb753ef96
 md"""
-**Customize Radiation Visualization:** Adjust the visualization by modifying these parameters: Choose the forcing (source) type via $(@bind plot_source_type2 Select([Monochromatic()=>"Monochromatic", Gaussian()=>"Gaussian"])), adjust angular frequency for monochromatic sources with 
-$(@bind ω2 Slider(range(0.2, stop=1, length=9), show_value=true, default=0.5)), and modify the time instance using $(@bind t_forw2 Slider(5:length(tgrid), default=7, show_value=true)). These controls allow you to explore the differences between near-field and far-field terms.
+## Beyond a Single Force: A General Moment Tensor
+
+A single point force is a useful teaching example, but it isn't what an earthquake actually looks
+like. A fault slipping past itself exerts no net force on the surrounding rock — for every push
+there's an equal and opposite pull, so the source can't be represented by a vector (a force) at
+all. It takes a symmetric second-rank tensor, the **moment tensor** `` M ``.
+
+Remarkably, Lamé's theorem still holds exactly unchanged: the far-field response of *any* point
+source in a homogeneous, isotropic medium splits into a purely radial P part and a purely
+tangential S part. For a moment-tensor source (Aki & Richards eq. 4.29), the radiation pattern
+generalizes from `` \cos\theta ``/`` \sin\theta `` to
+
+```math
+R^P(\hat\gamma) = \hat\gamma^{\!\top} M \hat\gamma, \qquad
+\vec{R}^S(\hat\gamma) = M\hat\gamma - \left(\hat\gamma^{\!\top} M \hat\gamma\right)\hat\gamma,
+```
+
+where `` \hat\gamma `` is the unit vector from source to receiver. `` R^P `` is a signed scalar —
+push or pull, exactly like `` \cos\theta `` was for the point force. `` \vec{R}^S `` is a genuine
+vector, lying in the plane perpendicular to `` \hat\gamma `` (still purely tangential, still
+divergence-free).
+
+Edit the moment tensor matrix directly below, or drag the strike/dip/rake sliders to generate a
+pure double-couple — the mechanism of an ordinary shear-slip earthquake, and exactly the
+four-lobed "beachball" pattern seismologists read a fault's orientation from.
 """
 
-# ╔═╡ 4019938e-defe-4024-a7cd-28f34660e46d
-plot_ex_wavefronts2D(first(arguments(example_field)), last(arguments(example_field)))
+# ╔═╡ e62a5517-0584-42fd-9372-07d6d0dc8119
+_mt_ntheta, _mt_nphi = 18, 28
 
-# ╔═╡ 8c79d25c-589e-4198-b2b0-b2fcaab91b0c
-ϕ = 1/r*sin(ω*(t-r/α))
+# ╔═╡ 672e6bb6-90a8-4a18-85a8-d854e797aa00
+_mt_tgrid_wave = range(-30.0, 30.0; length=800)
 
-# ╔═╡ 23395f6e-4a12-4550-b536-bb85881dfc81
-Dx(ϕ) |> expand_derivatives
-
-# ╔═╡ 65e2b15c-c646-4148-82c8-707350e0e112
-example_field = expand_derivatives(Dr(f(plot_source_type2, t - r / α) / r))
-
-# ╔═╡ b0c536eb-9ec9-4745-82fe-50b94330a5c9
-md"""
-Notice that `example_field`, has two terms: one that decays as $\frac{1}{r^2}$ (near-field term) and the far-field term that decays as $\frac{1}{r}$.
-
-* ...at a distance of $r=100$, the far-field term is stronger by a factor of **$(round((ω2/α1*100), digits=3))**, which is *2π × number of wavelengths between the source and the receiver*. Weak enough? Let's plot the near-field and far-field terms separately after building the necessary functions.
-"""
-
-# ╔═╡ 9e00e076-1306-451b-a9d2-a80c48a7fb13
-md"""
-Notice that the far-field term contains a time-derivative of the forcing term. Lets plot the time series.
-"""
-
-# ╔═╡ bcc3a6c2-ece8-464d-985a-1e3dabae778f
+# ╔═╡ ad81924a-96a4-486c-a24e-34fe50ca9fd3
 md"""
 ## Appendix
 """
 
-# ╔═╡ 086e74ac-30c6-11ed-3260-cb96ffde4e5c
-begin
-    using Symbolics
-    using SpecialFunctions
-    using SymbolicUtils
-    using LinearAlgebra
-    using PlutoTeachingTools
-    using PlutoPlotly
-    using PlutoTest
-    using Latexify
-    using PlutoUI
-    using StatsBase
-	using Distributions
-	using Meshes
-end
-
-# ╔═╡ e5ef408e-bbe4-4bac-b155-cf860d91807e
-default_plotly_template(:plotly_dark)
-
-# ╔═╡ 8d7fbc8f-2b78-4708-8d3d-be9d4324c8ad
-md"Need some structs for multiple dispatch"
-
-# ╔═╡ a8eebe3a-0a95-4811-94de-615a04f3f3bf
-begin
-    struct X end
-    struct Y end
-    struct Z end
-    struct Pfar end
-    struct Sfar end
-    struct Near end
-    struct Gaussian end
-    struct Monochromatic end
-    SourceType = Union{Gaussian,Monochromatic}
-end;
-
-# ╔═╡ e98402cf-3d2a-4471-8628-61cb83e4aa26
-begin
-    derivative(::X, ex) = expand_derivatives(Dx(ex))
-    derivative(::Y, ex) = expand_derivatives(Dy(ex))
-    derivative(::Z, ex) = expand_derivatives(Dz(ex))
-end
-
-# ╔═╡ 3975cbd0-2e48-4dcc-a0a2-57db172d14a6
+# ╔═╡ b32d43d5-7b7e-4c90-8660-a0328ef6bb60
 md"""
-### Displacement Field
-The displacement due to, for example, a body force $X_{0}(t)$ applied in the $x_{1}$ direction at the origin is composed of 3 terms: the first term is the near field term which is composed of both P and S-wave motions, the second term is the P-wave far field term and the third term is the S-wave far-field term. The $i$th component of the field is given by:
-
-```math
-{u_i}(\mathbf{x},t)=\frac{1}{4\pi\rho}\left(\frac{\partial^2}{\partial x_i \partial x_1}\frac{1}{r}\right)\int_{r/\alpha}^{r/\beta} \tau X_0(t-\tau) \,d\tau+\frac{1}{4\pi\rho\alpha^2r}\left(\frac{\partial r}{\partial x_i}\frac{\partial r}{\partial x_1}\right)X_0\left(t-\frac{r}{\alpha}\right)+
-```
-```math
-\frac{1}{4\pi\rho\beta^2r}\left(\delta_{i1}-\frac{\partial r}{\partial x_i}\frac{\partial r}{\partial x_1}\right)X_0\left(t-\frac{r}{\beta}\right),
-```
-where, ${\rho}$ is the density of the medium, ${\alpha}$ is the P-wave velocity, ${\beta}$ is the S-wave velocity, ${r}$ is the distance between the source and receiver, ${\tau}$ is the convolution variable for time and ${\delta}_{i1}$ is the Kronecker Delta function.
+### Geometry & Angular Patterns
 """
 
-# ╔═╡ 30cc4084-b410-4f3d-b9e7-1ee6783295d9
+# ╔═╡ 9d59cfce-5ac4-46d9-bf66-4defb8a03546
 begin
-    # compute distance r, given receiver at [xr, yr, zr] and source at [xs, ys, zs]
-    rad(xr, yr, zr, xs, ys, zs) = sqrt((xr - xs)^2 + (yr - ys)^2 + (zr - zs)^2)
-    invrad(xr, yr, zr, xs, ys, zs) = inv(rad(xr, yr, zr, xs, ys, zs))
-
-    # derivative of r w.r.t. x
-    drad(::X, xr, yr, zr, xs, ys, zs,) = (xr - xs) / rad(xr, yr, zr, xs, ys, zs,)
-    # derivative of r w.r.t. y
-    drad(::Y, xr, yr, zr, xs, ys, zs,) = (yr - ys) / rad(xr, yr, zr, xs, ys, zs,)
-    # derivative of r w.r.t. z
-    drad(::Z, xr, yr, zr, xs, ys, zs,) = (zr - zs) / rad(xr, yr, zr, xs, ys, zs,)
-
-    # far-field P-wave
-    function get_displacement(::Nothing, ::Pfar, xr, yr, zr, xs, ys, zs, rc::Union{X,Y,Z}, sc::Union{X,Y,Z}, ρ, strength=1.0)
-        return drad(rc, xr, yr, zr, xs, ys, zs,) * drad(sc, xr, yr, zr, xs, ys, zs,) * invrad(xr, yr, zr, xs, ys, zs,) * strength * inv(4 * pi * ρ * α * α)
-    end
-    # far-field S-wave
-    function get_displacement(::Nothing, ::Sfar, xr, yr, zr, xs, ys, zs, rc::Union{X,Y,Z}, sc::Union{X,Y,Z}, ρ, strength=1.0)
-        return (isequal(rc, sc) - drad(rc, xr, yr, zr, xs, ys, zs,) * drad(sc, xr, yr, zr, xs, ys, zs,)) * invrad(xr, yr, zr, xs, ys, zs,) * strength * inv(4.0 * pi * ρ * β * β)
-    end
-    # dc is derivative component of Pfar and Sfar (useful for moment-tensor solutions)
-    # get_displacement(dc::Union{X,Y,Z}, ps::Union{Pfar,Sfar}, xr, yr, zr, xs, ys, zs, rc, sc, ρ, c, strength) = get_displacement(nothing, ps, xr, yr, zr, xs, ys, zs, rc, sc, ρ, c, strength) * drad(dc, xr, yr, zr, xs, ys, zs,)
-
-    # near-field 
-    function get_displacement(::Nothing, ::Near, xr, yr, zr, xs, ys, zs, rc::Union{X,Y,Z}, sc::Union{X,Y,Z}, ρ, strength=1.0)
-        return derivative(rc, derivative(sc, invrad(xr, yr, zr, xs, ys, zs))) * strength * inv(4 * pi * ρ)
-    end
-end
-
-# ╔═╡ 307416f3-54d6-4f9f-b29b-5a424d1f8451
-md"""
-### Forcing
-We consider two types of sources in this notebook 1) monochromatic source 2) Gaussian pulse.
-"""
-
-# ╔═╡ 96753808-7580-4502-8084-a57642809089
-begin
-	σ2 = 5 # control std for Gaussian source
-    f(::Gaussian, t) = exp(-t^2 / σ2) # work with retarded time later
-    f(::Monochromatic, t) = sin(ω * t)
-    f1(::Monochromatic, t) = cos(ω * t)
-    function f(st::Gaussian, ::Near, t, xr, yr, zr, xs, ys, zs) # computes retarded times for P and S internally, using α and β
-        tp = rad(xr, yr, zr, xs, ys, zs) / α
-        ts = rad(xr, yr, zr, xs, ys, zs) / β
-        return 0.5 * sqrt(σ2 * pi) * (erf((t - tp) / sqrt(σ2)) - erf((t - tp) / sqrt(σ2))) + 0.5 * σ2 * (f(st, t - tp) - f(st, t - ts))
-    end
-    function f(st::Monochromatic, ::Near, t, xr, yr, zr, xs, ys, zs) # computes retarded times for P and S internally, using α and β
-        tp = rad(xr, yr, zr, xs, ys, zs) / α
-        ts = rad(xr, yr, zr, xs, ys, zs) / β
-        return (-f(st, t - tp) - tp * ω * f1(st, t - tp) + f(st, t - ts) + ts * ω * f1(st, t - ts)) * inv(ω) * inv(ω)
-    end
-    function f(st::SourceType, ::Pfar, t, xr, yr, zr, xs, ys, zs)
-        tp = rad(xr, yr, zr, xs, ys, zs) / α
-        f(st, t - tp)
-    end
-    function f(st::SourceType, ::Sfar, t, xr, yr, zr, xs, ys, zs)
-        ts = rad(xr, yr, zr, xs, ys, zs) / β
-        f(st, t - ts)
-    end
-	# include the sourcing in g 
-    function get_displacement(sourcetype, dc, ps::Union{Pfar,Sfar,Near}, xr, yr, zr, xs, ys, zs, rc::Union{X,Y,Z}, sc::Union{X,Y,Z}, ρ, strength)
-        return get_displacement(dc, ps, xr, yr, zr, xs, ys, zs, rc, sc, ρ, strength) * f(sourcetype, ps, t, xr, yr, zr, xs, ys, zs)
-    end
-end
-
-# ╔═╡ 8b707d16-c6b5-4a86-9156-f847ed265334
-md"### Seismogram"
-
-# ╔═╡ 1d0d7290-e561-4cb1-80d2-fd72c43d774a
-begin
-	sample_receiver
-	rx_plot = rand(Uniform(-rmax_plot, rmax_plot))
-	ry_plot = rand(Uniform(-rmax_plot, rmax_plot))
-	rz_plot = rand(Uniform(-rmax_plot, rmax_plot))
-end;
-
-# ╔═╡ 24901509-9dcc-4af7-b708-dcc277565ebb
-get_displacement(plot_source_type, nothing, Near(), x, y, z, 0, 0, 0, X(), plot_sc, ρ, 1) |> Symbolics.simplify
-
-# ╔═╡ 2b31fe24-347d-4c0e-85e9-4fd8b9cb0e16
-rz_plot
-
-# ╔═╡ b90575c9-0e86-48a1-b656-954a0dd71968
-plot_seismogram_field_type
-
-# ╔═╡ 1df1eea7-b5cb-477c-991a-14ac21aea154
-function get_seismogram(tgrid, sourcetype, dc, xr, yr, zr, xs, ys, zs,  sc::Union{X,Y,Z}, strength, plot_seismogram_field_type)
-	ex = map([X(), Y(), Z()]) do rc  
-		mapreduce(+, plot_seismogram_field_type) do ps
-			get_displacement(sourcetype, nothing, ps, x, y, z, xs, ys, zs, rc, sc, ρ, strength)
-		end
-	end
-
-	return map(ex) do exp
-	map(tgrid) do t1
-		substitute(exp,[t=>t1,ρ=>ρ1,α=>α1,β=>β1, ω=>ω1, x=>xr, y=>yr, z=>zr])
-	end
-	end
-end
-
-# ╔═╡ eeff59bb-b32f-423f-ba4a-0c193958a79a
-seismogram = get_seismogram(tgrid_seismogram, plot_source_type, nothing, rx_plot, ry_plot, rz_plot, 0, 0, 0,  plot_sc, 1e20, plot_seismogram_field_type) # choosing ry=1, rz=1 to avoid source location (0,0,0)
-
-# ╔═╡ 68d4c48c-3bf5-49f5-ac32-0012b372eec4
-md"### UI"
-
-# ╔═╡ 7ba6bb60-4b0c-450a-af25-76a7b100f8d6
-md"Some constants which are not in the main UI"
-
-# ╔═╡ c9a6acbb-bbfa-42d9-ad9f-f511375df4d9
-α1 = 4 # in km/s
-
-# ╔═╡ b7e46a19-7273-4717-a737-b94b968e7250
-β1 = 2 # in km/s
-
-# ╔═╡ f021e0c8-0938-474f-a418-bb29c0a92052
-ρ1 = 5e12 # kg/km3 
-
-# ╔═╡ f2551112-c619-42ff-8b09-ec1271971781
-md"### Discretize"
-
-# ╔═╡ a80b0e95-d028-483e-a733-88d31422bd6b
-md"Before plotting, we should discretize the space/time and ensure a small length to render 3D plots faster, especially when making changes."
-
-# ╔═╡ 0f4defd4-f0d6-4ff1-8d02-138d5b4b8a99
-begin
-    # distances are in km
-    # Don't choose an odd number of grid points here, due to nan values at (0,0,0)
-    xgrid = range(-100, stop=100, length=26)
-    zgrid = xgrid
-    ygrid = xgrid
-end;
-
-# ╔═╡ 24c0331a-f479-4f29-b87d-cfabb75528cb
-begin
-	
-    Xgrid3D = first.(Iterators.product(xgrid, ygrid, zgrid))
-    Ygrid3D = map(x -> x[2], (Iterators.product(xgrid, ygrid, zgrid)))
-    Zgrid3D = last.(Iterators.product(xgrid, ygrid, zgrid))
-
-	xgrid2 = range(-100, stop=100, length=100)
-	Xgrid2D = first.(Iterators.product(xgrid2, xgrid2))
-	Zgrid2D = last.(Iterators.product(xgrid2, xgrid2))
-end;
-
-# ╔═╡ 6d953350-48c8-412c-930b-617b235e71c0
-vertices(boundary(Meshes.Box(Meshes.Point(-1,-1,-1), Meshes.Point(1,1,1))))
-
-# ╔═╡ e7669838-f9f9-4c05-b6d3-f5361725f81b
-begin
-		# define a cube in R^3
-		points_cube=Meshes.Point3.(coordinates.(vertices(boundary(Meshes.Box(Meshes.Point(-1,-1,-1), Meshes.Point(1,1,1))))))
-	
-		connec_cube = connect.([(1,4,3,2),(5,6,7,8),(1,2,6,5),(3,4,8,7),(1,5,8,4),(2,3,7,6)])
-		sphmesh = refine(refine(SimpleMesh(points_cube, connec_cube), CatmullClark()), CatmullClark());
-		sphpts = broadcast(coordinates ∘ centroid, collect(elements(sphmesh)))
-	
-	
-	    n3 = length(sphpts);
-end
-
-# ╔═╡ 1f666fbb-942d-41e9-86bd-a41f173a6c56
-sphpts[1][1]
-
-# ╔═╡ 6edf6598-8e51-4cb8-9c29-7759c17a52ae
-tgrid = range(0, stop=100.0 * inv(α1), length=10)
-
-# ╔═╡ c497d1b0-4b29-4938-bdad-3de63e6cd022
-tgrid_seismogram = range(-50.0 * inv(β1), stop=300.0 * inv(β1), length=1000)
-
-# ╔═╡ df67edac-e750-4ea8-a131-796f1ee9f86f
-md"These functions build and discretize a given expression over spatial and temporal grids.
-Arguments: `ex`: A symbolic expression representing the function to be discretized.
-Returns: A 3D array representing the discretized field of the provided expression over spatial and temporal grids. P and S wave velocities and angular frequency will be substituted before discretizing."
-
-# ╔═╡ 6dcaa88e-7191-4d6d-bcbf-8195c3f863cf
-function build_and_discretize3D(ex)
-    test_plot = build_function(ex, x, y, z, t, α, β, ρ, ω, expression=Val{false})
-    field = map(tgrid) do t1
-        map(Xgrid3D, Ygrid3D, Zgrid3D) do x, y, z
-            test_plot(x, y, z, t1, α1, β1, ρ1, ω1) # ω1 is used for 3D
-        end
-    end
-    return field
-end
-
-# ╔═╡ dbe87c18-347a-4373-890a-8a0c51fc1ff0
-function build_and_discretize2D(ex) # fix y=0
-    test_plot = build_function(ex, x, y, z, t, α, β, ρ, ω, expression=Val{false})
-    field = map(tgrid) do t1
-        map(Xgrid2D, Zgrid2D) do x, z
-            test_plot(x, 0.0, z, t1, α1, β1, ρ1, ω2) # ω2 is used for 2D
-        end
-    end
-    return field
-end
-
-# ╔═╡ 767543ee-152d-499a-8690-7dba8e28ae88
-md"### Plots"
-
-# ╔═╡ 10897515-6242-47b5-8407-22ddbf15f0d6
-md"This is a function that creates a 3D volume plot after discretizing the wavefield expression at a given time instance global variable `t_forw`."
-
-# ╔═╡ 6b8c1b92-55d6-4f99-9363-76fb058f345a
-cone_plot = let
-	r = div(maximum(xgrid), 2)
-	c = (plot_field_type == Pfar()) ? α1 : β1
-	t = r / c
-	sphpts1 = r * sphpts
-	seismograms = map(sphpts1) do sphpt
-		get_seismogram([t], Monochromatic(), nothing, sphpt[1], sphpt[2], sphpt[3], 0, 0, 0,  plot_sc, 1e20, [plot_field_type])
-	end
-	u = map(seismograms) do s
-		s[1][1]
-	end
-	v = map(seismograms) do s
-		s[2][1]
-	end
-	w = map(seismograms) do s
-		s[3][1]
-	end
-	x = getindex.(sphpts1, 1)
-	y = getindex.(sphpts1, 2)
-	z = getindex.(sphpts1, 3)
-	(; x, y, z, u, v, w)
-end
-
-# ╔═╡ 5dde0ad0-926d-4326-9564-12efc7141edc
-function plot_ex_wavefronts3D(ex, title="Elastic-wave Radiation")
-    field = build_and_discretize3D(ex)
-    layout = Layout(
-		uirevision = 1,
-        scene=attr(
-            xaxis=attr(
-                nticks=3,
-                range=[-100, 100]
-            ),
-            yaxis=attr(
-                nticks=3,
-                range=[-100, 100]
-            ),
-            zaxis=attr(
-                nticks=3,
-                range=[-100, 100]
-            ),
-        ),
-        width=650,
-        margin=attr(
-            r=20,
-            l=10,
-            b=10,
-            t=10
-        ),
-        title=attr(
-            text=title,
-            y=0.9,
-            x=0.15,)
-    )
-    fig = Plot(layout)
-    add_field!(fig, field, t_forw)
-
-N=10
-	add_trace!(fig, scatter3d(x = [rx_plot], y = [ry_plot], z = [rz_plot], mode="markers+text", marker_color="black", marker_size=3, text="receiver"))
-	add_trace!(fig, scatter3d(x = [0], y = [0], z = [0], mode="markers+text", marker_color="black", marker_size=3, text="source"))
-	
-    return fig
-end
-
-
-
-# ╔═╡ e0cf9350-325c-4edd-9f77-dcf18c4c8b04
-function add_field!(fig, field, t_forw)
-    # colorbar axis lims are chosen keeping all the time steps in mind, so that 
-    # the attenuation can be observed
-    cmax = maximum(map(field) do f
-        return maximum(abs, f)
-	end) * 0.1
-
-    # select time instance
-    values = field[t_forw]
-
-
-    add_trace!(fig, PlutoPlotly.volume(
-        x=Xgrid3D[:],
-        y=Ygrid3D[:],
-        z=Zgrid3D[:],
-        value=values[:],
-        isomin=-cmax,
-        isomax=cmax,
-        colorscale="RdBu",
-        opacity=0.1, # needs to be small to see through all surfaces
-        surface_count=30,# needs to be a large number for good volume rendering
-        caps=attr(x_show=false, y_show=false, z_show=false, x_fill=1),
-        opacityscale="extremes"
-    ))
-end;
-
-# ╔═╡ f2f6bbc8-6c05-4b09-82fd-b4f1ed76da12
-function plot_ex_wavefronts2D(nearex, farex)
-	nearfield = build_and_discretize2D(nearex)
-	farfield = build_and_discretize2D(farex)
-
-	cmax_near = maximum(map(nearfield) do f
-        return maximum(abs, f)
-	end) * 0.006
-	cmax_far = maximum(map(farfield) do f
-        return maximum(abs, f)
-	end) * 0.1
-
-    fig = Plot(Layout(yaxis_autorange="reversed", height=300, width=650, 
-		title=attr(font_size=12,), font=attr(
-            size=10), yaxis=attr(scaleanchor="x"), Subplots(horizontal_spacing=0.3, rows=1, cols=2, subplot_titles=["Near Field" "Far Field"])))
-    add_trace!(fig, heatmap(
-            x=xgrid2,
-            y=xgrid2,
-            z=nearfield[t_forw2], zmin=-cmax_far,
-        zmax=cmax_far, colorscale="seismic", showscale=true, colorbar_x=0.35), row=1, col=1)
-    add_trace!(fig, heatmap(
-            x=xgrid2,
-            y=xgrid2,
-            z=farfield[t_forw2], zmin=-cmax_far,
-        zmax=cmax_far, colorscale="seismic", showscale=true, colorbar_x=1.0), row=1, col=2)
-
-    return PlutoPlotly.plot(fig)
-
-end
-
-# ╔═╡ 2f140a6e-4775-441c-9f53-a1f33b897251
-function plot_seismogram(seismogram)
-fig=PlutoPlotly.Plot(Layout(height=200, width=500, 
-		title="Displacement at (x, y, z)=($(round(rx_plot, digits=3)), $(round(ry_plot, digits=3)),$(round(rz_plot, digits=3)))", show_legend=true, font=attr(
-            size=10)))
-	tgrid=tgrid_seismogram
-add_trace!(fig,PlutoPlotly.scatter(x=tgrid,y=seismogram[1],line_width=2,mode="lines",line_color="red",name="X"))
-	add_trace!(fig,PlutoPlotly.scatter(x=tgrid,y=seismogram[2],line_width=2,mode="lines",line_color="blue",name="Y"))
-	add_trace!(fig,PlutoPlotly.scatter(x=tgrid,y=seismogram[3],line_width=2,mode="lines",line_color="yellow",name="Z"))
-PlutoPlotly.plot(fig)
-end
-
-# ╔═╡ 3d86326e-735f-4bcd-86b8-d31b132ee036
-md"""
-Inhomogeneous wave equation
-We can now define the wave operator of a scalar wave equation in three dimensions.
-"""
-
-# ╔═╡ 01ac68da-a533-4fba-ad5d-8d12c2014ae1
-L(ϕ, α) = Dt(Dt(ϕ)) / α^2 - (Dx(Dx(ϕ)) + Dy(Dy(ϕ)) + Dz(Dz(ϕ)))
-
-# ╔═╡ 854072b0-68c0-4492-b56a-d630fbb4d82a
-# print the scalar wave equation 
-# latexify(L(u, α) ~ δ(x)δ(y)δ(z) * f(t))
-
-# ╔═╡ 3c2300c5-770b-42ad-a182-d274158b9923
-md""" Spherical waves
-We will now consider a monochromatic source sin function of space and time with amplitude $A$ and parameters $\omega$ and $K$.
-"""
-
-# ╔═╡ 4eb8d905-0ac1-45eb-9543-9dbfc4bad709
-Dt(sin(ω * t)) |> expand_derivatives
-
-# ╔═╡ 3c6835b0-bd1c-4e99-b8e1-156e700033fa
-sphwav = build_function(ϕ, r, t, α, ω, expression=Val{false})
-
-# ╔═╡ 5629a75b-a436-4127-a880-7bc3fce811a5
-gif_Ppotential = plot_ex_wavefronts3D(ϕ, "ϕ");
-
-# ╔═╡ 316460ee-fafc-4057-a0a8-3885335569cf
-md"""
-Similarly, along $y$ and $z$.
-"""
-
-# ╔═╡ 2077aa71-9a0f-4b46-97b2-3157e857fcda
-
-
-# ╔═╡ 89722347-66ba-4b11-ac95-92ba735e58a0
-@bind body_forces confirm(PlutoUI.combine() do Child
-    components = ["x", "y", "z"]
-    s2 = [md"""
-       "x" $(
-       	Child(NumberField(range(-1, step=0.1, stop=1), default=1))
-       ) "y" $( 
-       	Child(NumberField(range(-1, step=0.1, stop=1), default=0))
-       ) "z" $(
-       	Child(NumberField(range(-1, step=0.1, stop=1), default=0))
-       )""" for is in 1:2]
-
-    md"""
-    	
-    Input Body Force
-    Until now, we have considered a spherically symmetric field $ϕ$ as P-potential.
-    According to Lame's theorem, the P-potential should be generated using a curl-free component of the forcing field. We refer the reader to Eq. 4.23 Aki Richards for a detailed derivation. Here we will just write down the final expressions.
-    	
-    $(s2[1])
     """
-end)
+    	radial_pattern(::Val{:P}, θrel)
+    	radial_pattern(::Val{:S}, θrel)
+    	radial_pattern(::Val{:Near}, θrel)
+
+    Radiation-pattern factor for the component of displacement *along* the source-receiver
+    direction, as a function of the angle `θrel` between the receiver and the force direction.
+    Far-field P is purely radial (`cos θrel`); far-field S has no radial component at all; the
+    near field has both, with a `2cos θrel` radial part -- derived from
+    `` \\partial_i\\partial_1(1/r) = (3\\gamma_i\\gamma_1-\\delta_{i1})/r^3 `` projected onto the
+    radial direction (verified against finite differences of `1/r` in the check below).
+    """
+    radial_pattern(::Val{:P}, θrel) = cos(θrel)
+    radial_pattern(::Val{:S}, θrel) = 0.0
+    radial_pattern(::Val{:Near}, θrel) = 2 * cos(θrel)
+
+    """
+    	transverse_pattern(::Val{:P}, θrel)
+    	transverse_pattern(::Val{:S}, θrel)
+    	transverse_pattern(::Val{:Near}, θrel)
+
+    Radiation-pattern factor for the component of displacement *perpendicular* to the
+    source-receiver direction. Far-field S is purely transverse (`sin θrel`); far-field P has
+    none; the near field has both (see [`radial_pattern`](@ref)).
+    """
+    transverse_pattern(::Val{:P}, θrel) = 0.0
+    transverse_pattern(::Val{:S}, θrel) = sin(θrel)
+    transverse_pattern(::Val{:Near}, θrel) = sin(θrel)
+end
+
+# ╔═╡ 0b0ea15d-957e-467a-beea-961284f67c63
+md"""
+### Source Time Functions
+"""
+
+# ╔═╡ cbc35a5e-0cc7-4ece-aac0-8520759d70fa
+begin
+    """
+    	sourcewave(::Val{:gaussian}, t, σ²)
+
+    Unit-strength source time function `` X_0(t) `` : a Gaussian pulse of width `σ²`.
+    """
+    sourcewave(::Val{:gaussian}, t, σ²) = exp(-t^2 / σ²)
+
+    """
+    	sourcewave_deriv(::Val{:gaussian}, t, σ²)
+
+    `` \\dot{X}_0(t) ``, the time derivative of [`sourcewave`](@ref). Aki & Richards eq. (4.23)
+    uses `` X_0 `` itself in the near-field integral but `` \\dot{X}_0 `` in the far-field P and S
+    terms -- the classic tell is a step-force (`` X_0=H(t) ``): its far field is then an impulsive
+    `` \\delta(t) `` pulse riding on top of a near field that builds smoothly to a permanent static
+    offset, which is exactly the textbook picture.
+    """
+    sourcewave_deriv(::Val{:gaussian}, t, σ²) = -2t / σ² * exp(-t^2 / σ²)
+
+    """
+    	nearfield_kernel(::Val{:gaussian}, t, r, α, β, σ²)
+
+    The near-field time integral `` K(t,r)=\\int_{r/\\alpha}^{r/\\beta}\\tau\\,X_0(t-\\tau)\\,d\\tau ``
+    in closed form. The integration window `[r/α, r/β]` is exactly the time it takes the P and S
+    fronts to sweep past a point at distance `r` -- everything in between is the near field.
+
+    !!! note "A bug this fixes"
+    	An earlier version of this notebook wrote the Gaussian case with the same `erf(...)` term
+    	twice (`tp` where the second occurrence should have read `ts`), which silently evaluated
+    	to exactly zero for every input. The corrected closed form below was verified against
+    	direct numerical quadrature of the defining integral before shipping.
+    """
+    function nearfield_kernel(::Val{:gaussian}, t, r, α, β, σ²)
+        tp, ts = r / α, r / β
+        t * 0.5 * sqrt(σ² * π) * (erf((t - tp) / sqrt(σ²)) - erf((t - ts) / sqrt(σ²))) +
+        0.5 * σ² * (sourcewave(Val(:gaussian), t - tp, σ²) - sourcewave(Val(:gaussian), t - ts, σ²))
+    end
+end
+
+# ╔═╡ 9b7a2e1c-4c1a-4a6e-8f3a-6a8c1d2f5e01
+md"""
+!!! correct "Checking `sourcewave_deriv` against a finite difference"
+	`sourcewave_deriv` is compared below to a centered finite difference of `sourcewave` itself,
+	at several sample times -- the exact check that would have caught the far-field terms
+	silently using `` X_0 `` instead of `` \dot{X}_0 ``.
+"""
+
+# ╔═╡ 9b7a2e1c-4c1a-4a6e-8f3a-6a8c1d2f5e02
+let
+    h = 1e-6
+    for t in (-3.0, -0.7, 0.0, 0.4, 2.1)
+        fd_gauss = (sourcewave(Val(:gaussian), t + h, 5.0) - sourcewave(Val(:gaussian), t - h, 5.0)) / 2h
+        @assert isapprox(sourcewave_deriv(Val(:gaussian), t, 5.0), fd_gauss; atol=1e-6)
+    end
+    "sourcewave_deriv matches a finite-difference derivative of sourcewave at every sample point ✓"
+end
+
+# ╔═╡ 18b1d5bd-de79-41a4-9324-963d17a145f7
+md"""
+### Displacement Green's Functions
+"""
+
+# ╔═╡ 153caeb6-34d2-4fa6-a0f5-7c76f101a04a
+begin
+    const RHO = 5e12 # kg/km^3 -- a representative crustal density, in this notebook's km/(km/s) units
+    const SIGMA2_DEFAULT = 5.0 # fixed Gaussian pulse width for the moment-tensor widget (no period control there)
+
+    """
+    	period_to_sigma2(T)
+
+    Convert a dominant period `T` (seconds) to the Gaussian pulse-width parameter `σ²` used by
+    [`sourcewave`](@ref), via the same characteristic frequency `` \\omega=1/\\sqrt{\\sigma^2} ``
+    already used for the near/far-field ratio readout -- i.e. `` T = 2\\pi\\sqrt{\\sigma^2} ``.
+    Letting the user set a period directly is far more intuitive than exposing `σ²` itself, and
+    it's exactly the knob that controls how far out the near field stays significant relative to
+    the far field (see the "Near Field vs. Far Field" section above).
+    """
+    period_to_sigma2(T) = (T / (2π))^2
+
+    """
+    	pfar_displacement(θrel, r, t, α, sourcetype, params...)
+
+    Far-field P displacement (a signed scalar along the purely radial direction), Aki & Richards
+    eq. (4.23)'s middle term. Uses [`sourcewave_deriv`](@ref) (`` \\dot{X}_0 ``), not `sourcewave`
+    itself -- see that function's docstring for why.
+    """
+    pfar_displacement(θrel, r, t, α, sourcetype, params...) =
+        radial_pattern(Val(:P), θrel) / (4π * RHO * α^2 * r) * sourcewave_deriv(sourcetype, t - r / α, params...)
+
+    """
+    	sfar_displacement(θrel, r, t, β, sourcetype, params...)
+
+    Far-field S displacement (a signed scalar along the purely transverse direction), Aki &
+    Richards eq. (4.23)'s last term. Uses [`sourcewave_deriv`](@ref), not `sourcewave` itself.
+    """
+    sfar_displacement(θrel, r, t, β, sourcetype, params...) =
+        transverse_pattern(Val(:S), θrel) / (4π * RHO * β^2 * r) * sourcewave_deriv(sourcetype, t - r / β, params...)
+
+    """
+    	near_displacement(θrel, r, t, α, β, sourcetype, params...)
+
+    Near-field displacement, returned as `(radial, transverse)` -- unlike the far-field terms it
+    has both components at once, scaled by [`nearfield_kernel`](@ref) and decaying as `1/r³`.
+    """
+    function near_displacement(θrel, r, t, α, β, sourcetype, params...)
+        K = nearfield_kernel(sourcetype, t, r, α, β, params...)
+        scale = K / (4π * RHO * r^3)
+        return (radial_pattern(Val(:Near), θrel) * scale, transverse_pattern(Val(:Near), θrel) * scale)
+    end
+end
+
+# ╔═╡ 92539fa5-60db-4e54-b02c-79da24b2d9b9
+md"""
+### Verifying the Radiation Patterns
+
+The claims above -- P is exactly curl-free, S is exactly divergence-free -- are only exactly
+true in the far-field *limit*. The full closed-form expressions (evaluated at real, finite `r`)
+also pick up a small correction from differentiating the `1/r` geometric-spreading factor itself,
+which is the *same* near/far tradeoff the rest of this notebook is about. So a fair numerical
+check should show `curl(P)/|P|` and `div(S)/|S|` as small but **nonzero**, shrinking as
+`` \omega r/\alpha `` grows -- not exactly zero.
+"""
+
+# ╔═╡ ed9930ba-ba7b-4295-a4c7-beb820fd2d66
+let
+    α, β = 4.0, 2.0
+    # a Gaussian source (never exactly zero) rather than a monochromatic one, so this check
+    # can't accidentally land on a sin(...)=0 zero-crossing and divide by a near-zero norm
+    st, σ² = Val(:gaussian), 5.0
+    force = [1.0, 0.0, 0.0] # unit force along x -- a plain Cartesian frame just for this check
+
+    pfar_vec(x, y, z, t) = begin
+        r = norm([x, y, z])
+        γ = [x, y, z] ./ r
+        (γ .* dot(γ, force)) ./ (4π * RHO * α^2 * r) .* sourcewave(st, t - r / α, σ²)
+    end
+    sfar_vec(x, y, z, t) = begin
+        r = norm([x, y, z])
+        γ = [x, y, z] ./ r
+        (force .- γ .* dot(γ, force)) ./ (4π * RHO * β^2 * r) .* sourcewave(st, t - r / β, σ²)
+    end
+    function curl_fd(F, x, y, z, t; h=1e-3)
+        [(F(x, y + h, z, t)[3] - F(x, y - h, z, t)[3]) / 2h - (F(x, y, z + h, t)[2] - F(x, y, z - h, t)[2]) / 2h,
+            (F(x, y, z + h, t)[1] - F(x, y, z - h, t)[1]) / 2h - (F(x + h, y, z, t)[3] - F(x - h, y, z, t)[3]) / 2h,
+            (F(x + h, y, z, t)[2] - F(x - h, y, z, t)[2]) / 2h - (F(x, y + h, z, t)[1] - F(x, y - h, z, t)[1]) / 2h]
+    end
+    div_fd(F, x, y, z, t; h=1e-3) =
+        (F(x + h, y, z, t)[1] - F(x - h, y, z, t)[1]) / 2h + (F(x, y + h, z, t)[2] - F(x, y - h, z, t)[2]) / 2h +
+        (F(x, y, z + h, t)[3] - F(x, y, z - h, t)[3]) / 2h
+
+    map([15.0, 40.0, 100.0]) do r
+        # evaluate right at the P pulse's own peak (retarded time zero, never a zero-crossing)
+        x, y, z, t = r / sqrt(3), r / sqrt(3), r / sqrt(3), r / α
+        curlP_rel = norm(curl_fd(pfar_vec, x, y, z, t)) / max(norm(pfar_vec(x, y, z, t)), 1e-300)
+        divS_rel = abs(div_fd(sfar_vec, x, y, z, t)) / max(norm(sfar_vec(x, y, z, t)), 1e-300)
+        effω = 1 / sqrt(σ²)
+        (; r, ωr_over_α=round(effω * r / α; digits=2), curlP_rel=round(curlP_rel; sigdigits=3), divS_rel=round(divS_rel; sigdigits=3))
+    end
+end
+
+# ╔═╡ 54313d17-0de1-4d94-a9ed-948eadff5cf2
+md"""
+### Field Sampling
+"""
+
+# ╔═╡ 6787dae7-467b-4bf6-a643-5f318b109a32
+"""
+	pointforce_seismogram(fhat, rhat, r, α, β, sourcetype, params, tgrid)
+
+Evaluate the radial/transverse displacement time series at a receiver in direction `rhat`
+(a 3D unit vector from the source) at distance `r`, for a point force along direction `fhat`
+(also a unit vector) -- decomposed into near-field, far-field-P, and far-field-S contributions
+*separately* -- so the widget can toggle each on/off without a further Julia call. Only the
+angle between `fhat` and `rhat` matters (the radiation is axisymmetric about the force axis),
+computed here as `θrel = acos(fhat·rhat)`.
+
+Returns a named tuple `(near_radial, near_transverse, pfar_radial, sfar_transverse)`, each a
+vector the same length as `tgrid`.
+"""
+function pointforce_seismogram(fhat, rhat, r, α, β, sourcetype, params, tgrid)
+    θrel = acos(clamp(dot(fhat, rhat), -1.0, 1.0))
+    near_radial = Vector{Float64}(undef, length(tgrid))
+    near_transverse = Vector{Float64}(undef, length(tgrid))
+    pfar_radial = Vector{Float64}(undef, length(tgrid))
+    sfar_transverse = Vector{Float64}(undef, length(tgrid))
+    for (i, t) in enumerate(tgrid)
+        nr, nt = near_displacement(θrel, r, t, α, β, sourcetype, params...)
+        near_radial[i] = nr
+        near_transverse[i] = nt
+        pfar_radial[i] = pfar_displacement(θrel, r, t, α, sourcetype, params...)
+        sfar_transverse[i] = sfar_displacement(θrel, r, t, β, sourcetype, params...)
+    end
+    return (; near_radial, near_transverse, pfar_radial, sfar_transverse)
+end
+
+# ╔═╡ 27257ff9-d835-476a-923b-fa8dc57cbd69
+"""
+	sourcewave_deriv_table(sourcetype, params, tgrid)
+
+Sample `` \\dot{X}_0(t) `` (see [`sourcewave_deriv`](@ref)) on `tgrid` -- a small 1D lookup table
+the widget interpolates client-side to animate the far-field wavefronts. It's the derivative, not
+`sourcewave` itself, because the far-field P/S terms it's driving are `` \\dot{X}_0 `` (see
+[`pfar_displacement`](@ref)). The angular pattern and `1/r` geometric spreading are simple enough
+to compute directly in JS; the source waveform is the one piece of real physics worth pushing
+over from Julia.
+"""
+sourcewave_deriv_table(sourcetype, params, tgrid) = [sourcewave_deriv(sourcetype, t, params...) for t in tgrid]
+
+# ╔═╡ 970be60f-3c20-4f57-909d-c163b388a9dc
+_mt_wave = sourcewave_deriv_table(Val(:gaussian), (SIGMA2_DEFAULT,), _mt_tgrid_wave)
+
+# ╔═╡ 757a080d-c03f-4d8f-9bb8-e0eb8aa4eca0
+md"""
+### The Interactive Widget
+"""
+
+# ╔═╡ a3154298-98dd-4625-b8b0-f60d1070c31a
+begin
+    struct PointForceRadiationInput
+        fx::Float64
+        fy::Float64
+        fz::Float64
+        rdx::Float64
+        rdy::Float64
+        rdz::Float64
+        rdist::Float64
+        alpha::Float64
+        beta::Float64
+        period::Float64
+    end
+    function PointForceRadiationInput(; fx=0.0, fy=0.0, fz=1.0, rdx=0.6, rdy=0.3, rdz=0.74,
+        rdist=60.0, alpha=4.0, beta=2.0, period=10.0)
+        fn = hypot(fx, fy, fz)
+        fx, fy, fz = fx / fn, fy / fn, fz / fn
+        rn = hypot(rdx, rdy, rdz)
+        rdx, rdy, rdz = rdx / rn, rdy / rn, rdz / rn
+        PointForceRadiationInput(fx, fy, fz, rdx, rdy, rdz, rdist, alpha, beta, period)
+    end
+
+    Base.get(w::PointForceRadiationInput) = Dict{String,Any}(
+        "fx" => w.fx, "fy" => w.fy, "fz" => w.fz,
+        "rdx" => w.rdx, "rdy" => w.rdy, "rdz" => w.rdz, "rdist" => w.rdist,
+        "alpha" => w.alpha, "beta" => w.beta, "period" => w.period)
+
+    function Base.show(io::IO, ::MIME"text/html", w::PointForceRadiationInput)
+        write(io, """
+        <div id="pfrwidget">
+        <style>
+        pluto-cell:has(#pfrwidget) { width: min(80vw, 1500px) !important;
+          margin-left: calc((100% - min(80vw, 1500px)) / 2) !important; }
+        #pfrwidget{font-family:sans-serif;color:#e5e7eb;width:100%;box-sizing:border-box}
+        #pfrwidget .pfr-title{width:100%;box-sizing:border-box;text-align:center;margin-bottom:10px;
+          background:#0a0f18;border:1px solid #3b5c85;border-radius:6px;padding:10px 14px}
+        #pfrwidget .pfr-title-desc{font-size:17px;font-weight:700;color:#e5e7eb}
+        #pfrwidget .pfr-title-hint{font-size:13px;color:#9ca3af;margin-top:3px}
+        #pfrwidget .pfr-workspace{display:flex;gap:16px;flex-wrap:wrap;justify-content:center;align-items:flex-start}
+        #pfrwidget .pfr-panel{background:#000;border:1px solid #374151;border-radius:6px;padding:8px}
+        #pfrwidget .pfr-caption{font-size:13px;color:#9ca3af;text-align:center;margin-top:4px}
+        #pfrwidget canvas{display:block}
+        #pfrwidget #pfr-radiation{cursor:grab}
+        #pfrwidget .pfr-controls{flex:0 0 260px;width:260px;display:flex;flex-direction:column;
+          gap:8px;font:14px sans-serif}
+        #pfrwidget .pfr-control-group{background:#050505;border:1px solid #2f3744;border-radius:6px;padding:10px 12px}
+        #pfrwidget .pfr-control-title{font-size:15px;font-weight:700;color:#e5e7eb;margin-bottom:6px}
+        #pfrwidget .pfr-control-row{display:grid;grid-template-columns:70px minmax(0,1fr) 52px;gap:6px;align-items:center;margin:5px 0}
+        #pfrwidget .pfr-control-row label{font-size:13px;color:#9ca3af}
+        #pfrwidget .pfr-control-row input[type=range]{width:100%;min-width:0}
+        #pfrwidget .pfr-value{font-size:13px;color:#e5e7eb;text-align:right;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+        #pfrwidget .pfr-check-row{display:flex;align-items:center;gap:6px;margin:5px 0;font-size:13px;color:#d1d5db}
+        #pfrwidget .pfr-actions{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+        #pfrwidget .pfr-readout{font-size:13px;color:#d1d5db;line-height:1.6}
+        #pfrwidget .pfr-readout b{color:#e5e7eb}
+        #pfrwidget button{border-radius:4px;border:1px solid #9ca3af;background:#606060;color:#f3f4f6;padding:6px 12px;font-size:13px;cursor:pointer}
+        #pfrwidget button.active{background:#2563eb;border-color:#93c5fd}
+        #pfrwidget .pfr-seis-panel{width:100%;box-sizing:border-box;margin-top:14px}
+        </style>
+
+        <div class="pfr-title">
+          <div class="pfr-title-desc">A point force radiates P and S waves at once — watch the wavefronts expand, painted by their own particle motion.</div>
+          <div class="pfr-title-hint">press Play to expand the P/S wavefronts, their surfaces arrowed by push/pull polarity &middot; drag empty space to rotate &middot; drag the yellow arrow to set the force direction &middot; drag the white dot to set the receiver direction</div>
+        </div>
+
+        <div class="pfr-workspace">
+          <div>
+            <div class="pfr-panel"><canvas id="pfr-radiation"></canvas></div>
+            <div class="pfr-caption" id="pfr-caption"></div>
+          </div>
+          <div class="pfr-controls">
+            <div class="pfr-control-group">
+              <div class="pfr-control-title">View</div>
+              <div class="pfr-actions">
+                <button id="pfr-view-anim" type="button">Wavefront animation</button>
+                <button id="pfr-view-pattern" type="button">Radiation pattern</button>
+              </div>
+            </div>
+            <div class="pfr-control-group">
+              <div class="pfr-control-title">Medium</div>
+              <div class="pfr-control-row"><label>α (km/s)</label><input type="range" id="pfr-alpha" min="2" max="8" step="0.1" value="$(w.alpha)"><span class="pfr-value" id="pfr-alpha-v"></span></div>
+              <div class="pfr-control-row"><label>β (km/s)</label><input type="range" id="pfr-beta" min="1" max="5" step="0.1" value="$(w.beta)"><span class="pfr-value" id="pfr-beta-v"></span></div>
+              <div class="pfr-control-row"><label>period T</label><input type="range" id="pfr-period" min="2" max="30" step="0.5" value="$(w.period)"><span class="pfr-value" id="pfr-period-v"></span></div>
+            </div>
+            <div class="pfr-control-group">
+              <div class="pfr-control-title">Wavefront</div>
+              <div class="pfr-actions"><button id="pfr-play" type="button">Play</button><button id="pfr-reset" type="button">Reset</button></div>
+            </div>
+            <div class="pfr-control-group">
+              <div class="pfr-control-title">Seismogram terms</div>
+              <div class="pfr-check-row"><input type="checkbox" id="pfr-chk-near" checked><label for="pfr-chk-near">Near field</label></div>
+              <div class="pfr-check-row"><input type="checkbox" id="pfr-chk-pfar" checked><label for="pfr-chk-pfar">Far-field P</label></div>
+              <div class="pfr-check-row"><input type="checkbox" id="pfr-chk-sfar" checked><label for="pfr-chk-sfar">Far-field S</label></div>
+            </div>
+            <div class="pfr-control-group">
+              <div class="pfr-control-title">Readouts</div>
+              <div class="pfr-readout" id="pfr-readout"></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="pfr-seis-panel">
+          <div class="pfr-panel"><canvas id="pfr-seismogram"></canvas></div>
+          <div class="pfr-caption">displacement at the receiver &middot; click a legend label to show/hide that series</div>
+        </div>
+        </div>
+
+        <script>
+        {
+        const par = currentScript.previousElementSibling;
+        const WORLD_HALF = 100; // km -- must match pointforce_seismogram/sourcewave_deriv_table's implicit domain in the Appendix
+
+        let fx=$(w.fx), fy=$(w.fy), fz=$(w.fz);
+        let rdx=$(w.rdx), rdy=$(w.rdy), rdz=$(w.rdz), rdist=$(w.rdist);
+        let alpha=$(w.alpha), beta=$(w.beta), period=$(w.period);
+        let effOmega = 0; // set from the first 'pfr-update' push (Julia computes it from period/σ², not JS)
+
+        const availW = Math.min(window.innerWidth*0.8, par.clientWidth || window.innerWidth*0.8, 1500);
+        const CONTROLS_W = 260+16;
+        const SEC = Math.max(400, Math.min(availW - CONTROLS_W, 575));
+        const DPR = window.devicePixelRatio || 1;
+
+        const cv = par.querySelector('#pfr-radiation');
+        const ctx = cv.getContext('2d');
+        function hidpi(canvas, context, w, h){
+          canvas.width = Math.round(w*DPR); canvas.height = Math.round(h*DPR);
+          canvas.style.width = w+'px'; canvas.style.height = h+'px';
+          context.setTransform(DPR,0,0,DPR,0,0);
+        }
+        hidpi(cv, ctx, SEC, SEC);
+
+        const seisCv = par.querySelector('#pfr-seismogram');
+        const sctx = seisCv.getContext('2d');
+        const SEIS_W = SEC + CONTROLS_W - 16, SEIS_H = 190;
+        hidpi(seisCv, sctx, SEIS_W, SEIS_H);
+
+        // ---- 3D camera: orthographic drag-to-rotate, same rot/unrot/proj/screenToXYZ family
+        // as StressTensorInput in stress-tensor.jl -- p here is in NORMALIZED units, where a
+        // vector of length 1 is the outer reference sphere (radius WORLD_HALF km).
+        let yaw = -0.6, pitch = 0.35;
+        const CX = SEC/2, CY = SEC/2, RPIX = SEC*0.36;
+        function rot(p){
+          const x = p[0]*Math.cos(yaw) - p[1]*Math.sin(yaw);
+          const y = p[0]*Math.sin(yaw) + p[1]*Math.cos(yaw);
+          const z = p[2];
+          return [x, y*Math.cos(pitch) - z*Math.sin(pitch), y*Math.sin(pitch) + z*Math.cos(pitch)];
+        }
+        function unrot(P){
+          const y1 = P[1]*Math.cos(pitch) + P[2]*Math.sin(pitch);
+          const z1 = -P[1]*Math.sin(pitch) + P[2]*Math.cos(pitch);
+          const px = P[0]*Math.cos(yaw) + y1*Math.sin(yaw);
+          const py = -P[0]*Math.sin(yaw) + y1*Math.cos(yaw);
+          return [px, py, z1];
+        }
+        function projUnit(p){ const r = rot(p); return [CX + r[0]*RPIX, CY - r[2]*RPIX]; }
+        function projKm(pkm){ return projUnit([pkm[0]/WORLD_HALF, pkm[1]/WORLD_HALF, pkm[2]/WORLD_HALF]); }
+        // inverse of projUnit, restricted to the front hemisphere of the unit sphere -- used to
+        // set a DIRECTION (force or receiver) by dragging, independent of display radius
+        function screenToXYZ(mx, my){
+          let px = (mx-CX)/RPIX, pz = (CY-my)/RPIX;
+          let r2 = px*px + pz*pz;
+          if(r2 > 1){ const s = 1/Math.sqrt(r2); px *= s; pz *= s; r2 = 1; }
+          const py = Math.sqrt(Math.max(0, 1-r2));
+          const v = unrot([px, py, pz]);
+          const n = Math.hypot(v[0], v[1], v[2]) || 1;
+          return [v[0]/n, v[1]/n, v[2]/n];
+        }
+
+        // ---- data pushed from Julia: source waveform lookup table + seismogram arrays ----
+        let waveData = null; // {tgridWave, wave}
+        let seisData = null; // {tgridSeis, nearRadial, nearTransverse, pfarRadial, sfarTransverse}
+
+        function lookupWave(t){
+          if(!waveData) return 0;
+          const {tgridWave, wave} = waveData;
+          const n = tgridWave.length;
+          const t0 = tgridWave[0], t1 = tgridWave[n-1];
+          if(t <= t0) return wave[0];
+          if(t >= t1) return wave[n-1];
+          const frac = (t-t0)/(t1-t0)*(n-1);
+          const i0 = Math.floor(frac), i1 = Math.min(n-1, i0+1);
+          const f = frac - i0;
+          return wave[i0]*(1-f) + wave[i1]*f;
+        }
+
+        // the wavefront shells sample the source waveform at retarded time 0 (the front's own
+        // arrival instant) -- but this is now Ẋ (see sourcewave_deriv's docstring), and Ẋ is an
+        // ODD function of t for a symmetric pulse like a Gaussian, so it's exactly zero AT t=0.
+        // Sampling literally at the front would make every arrow invisible. Instead take the
+        // largest-magnitude sample anywhere in the already-pushed waveform array -- Julia builds
+        // that array to span the physically relevant window at fixed resolution regardless of
+        // the pulse's width, so scanning all of it (not a fixed-width/fixed-sample-count local
+        // window) is correct for any period the user picks, not just the one it was tuned for.
+        function peakWaveNear(){
+          if(!waveData) return 0;
+          let best = 0, bestAbs = -1;
+          for(let i=0; i<waveData.wave.length; i++){
+            const v = waveData.wave[i];
+            if(Math.abs(v) > bestAbs){ bestAbs = Math.abs(v); best = v; }
+          }
+          return best;
+        }
+
+        let playing = false, rafId = null, tPhase = 0;
+        let viewMode = 'anim'; // 'anim' | 'pattern'
+        function tLoopMax(){ return 1.3*WORLD_HALF/Math.min(alpha,beta); }
+
+        // ---- Fibonacci sphere: an evenly-spaced set of sample directions, reused both for the
+        // static radiation-pattern glyph and for the animated per-point vector arrows ----
+        function fibonacciSphere(n){
+          const pts = [];
+          const golden = Math.PI*(3-Math.sqrt(5));
+          for(let i=0;i<n;i++){
+            const yv = 1 - (n===1?0:(i/(n-1))*2);
+            const rr = Math.sqrt(Math.max(0,1-yv*yv));
+            const theta = golden*i;
+            pts.push([Math.cos(theta)*rr, yv, Math.sin(theta)*rr]);
+          }
+          return pts;
+        }
+        const FIB_PTS = fibonacciSphere(84);
+
+        // decompose the force direction fhat relative to a receiver direction gamma into the
+        // radial (cosT = cosThetaRel) and transverse (that, a genuine 3D unit vector) parts --
+        // this is the JS-side geometry counterpart of near_displacement/pfar/sfar_displacement's
+        // (radial,transverse) split in the Appendix, just evaluated per sample point here
+        function basisAt(gamma, fhat){
+          let c = gamma[0]*fhat[0] + gamma[1]*fhat[1] + gamma[2]*fhat[2];
+          c = Math.max(-1, Math.min(1, c));
+          let tx = fhat[0]-c*gamma[0], ty = fhat[1]-c*gamma[1], tz = fhat[2]-c*gamma[2];
+          let tn = Math.hypot(tx,ty,tz);
+          if(tn < 1e-6){
+            const arb = Math.abs(gamma[1])<0.9 ? [0,1,0] : [1,0,0];
+            const d = arb[0]*gamma[0]+arb[1]*gamma[1]+arb[2]*gamma[2];
+            tx = arb[0]-d*gamma[0]; ty = arb[1]-d*gamma[1]; tz = arb[2]-d*gamma[2];
+            tn = Math.hypot(tx,ty,tz) || 1;
+          }
+          return {cosT: c, that: [tx/tn, ty/tn, tz/tn]};
+        }
+
+        // Marker conventions shared across this repo's widgets (see the pluto-widget-style
+        // skill): a source is drawn as a star, a receiver as a downward-pointing triangle.
+        function drawStarMarker(cx, cy, r, fill, stroke){
+          const spikes = 5, rOuter = r, rInner = r * 0.45;
+          ctx.beginPath();
+          for(let i=0; i<spikes*2; i++){
+            const rad = i % 2 === 0 ? rOuter : rInner;
+            const ang = -Math.PI/2 + i*Math.PI/spikes;
+            const x = cx + rad*Math.cos(ang), y = cy + rad*Math.sin(ang);
+            i===0 ? ctx.moveTo(x,y) : ctx.lineTo(x,y);
+          }
+          ctx.closePath();
+          ctx.fillStyle = fill; ctx.fill();
+          ctx.strokeStyle = stroke; ctx.lineWidth = 1; ctx.stroke();
+        }
+        function drawTriangleDownMarker(cx, cy, r, fill, stroke){
+          ctx.beginPath();
+          for(let i=0; i<3; i++){
+            const ang = Math.PI/2 + i*2*Math.PI/3; // first vertex points down (canvas y grows downward)
+            const x = cx + r*Math.cos(ang), y = cy + r*Math.sin(ang);
+            i===0 ? ctx.moveTo(x,y) : ctx.lineTo(x,y);
+          }
+          ctx.closePath();
+          ctx.fillStyle = fill; ctx.fill();
+          ctx.strokeStyle = stroke; ctx.lineWidth = 1.5; ctx.stroke();
+        }
+
+        // arrowhead-only helper for the (already screen-projected) force handle line
+        function drawArrowHead2D(x0, y0, x1, y1, color, size){
+          size = size || 10;
+          const ang = Math.atan2(y1-y0, x1-x0);
+          ctx.beginPath(); ctx.moveTo(x1,y1);
+          ctx.lineTo(x1-size*Math.cos(ang-0.4), y1-size*Math.sin(ang-0.4));
+          ctx.lineTo(x1-size*Math.cos(ang+0.4), y1-size*Math.sin(ang+0.4));
+          ctx.closePath(); ctx.fillStyle = color; ctx.fill();
+        }
+
+        // ---- Radiation-pattern view: a smooth SHADED SURFACE (not a point cloud) for the P
+        // dumbbell (radius |cosThetaRel|, red=push/theta<90, blue=pull/theta>90) and the S donut
+        // (radius sinThetaRel, cyan, magnitude-shaded), built on a (theta,phi) grid whose pole is
+        // aligned with the live force direction -- gives each lobe real connectivity so it can be
+        // filled as a mesh of quads instead of a scatter of dots. Both lobes are collected into
+        // one depth-sorted painter's-algorithm pass so they occlude each other correctly no matter
+        // how the camera is rotated.
+        function forceFrame(fhat){
+          const arb = Math.abs(fhat[1]) < 0.9 ? [0,1,0] : [1,0,0];
+          const d = arb[0]*fhat[0]+arb[1]*fhat[1]+arb[2]*fhat[2];
+          let e1 = [arb[0]-d*fhat[0], arb[1]-d*fhat[1], arb[2]-d*fhat[2]];
+          const n = Math.hypot(e1[0],e1[1],e1[2]) || 1;
+          e1 = [e1[0]/n, e1[1]/n, e1[2]/n];
+          const e2 = [fhat[1]*e1[2]-fhat[2]*e1[1], fhat[2]*e1[0]-fhat[0]*e1[2], fhat[0]*e1[1]-fhat[1]*e1[0]];
+          return {e1, e2};
+        }
+
+        const LOBE_NTHETA = 26, LOBE_NPHI = 40;
+        function lobeVertex(theta, phi, fhat, e1, e2, radiusFn){
+          const st = Math.sin(theta), ct = Math.cos(theta);
+          const g = [
+            e1[0]*st*Math.cos(phi) + e2[0]*st*Math.sin(phi) + fhat[0]*ct,
+            e1[1]*st*Math.cos(phi) + e2[1]*st*Math.sin(phi) + fhat[1]*ct,
+            e1[2]*st*Math.cos(phi) + e2[2]*st*Math.sin(phi) + fhat[2]*ct,
+          ];
+          const r = radiusFn(ct);
+          return [g[0]*r, g[1]*r, g[2]*r];
+        }
+
+        function collectLobeQuads(fhat, e1, e2, radiusFn, colorFn, quads){
+          const grid = [];
+          for(let i=0;i<=LOBE_NTHETA;i++){
+            const theta = Math.PI*i/LOBE_NTHETA;
+            const row = [];
+            for(let j=0;j<=LOBE_NPHI;j++){
+              const phi = 2*Math.PI*j/LOBE_NPHI;
+              row.push(lobeVertex(theta, phi, fhat, e1, e2, radiusFn));
+            }
+            grid.push(row);
+          }
+          for(let i=0;i<LOBE_NTHETA;i++){
+            for(let j=0;j<LOBE_NPHI;j++){
+              const v00=grid[i][j], v01=grid[i][j+1], v11=grid[i+1][j+1], v10=grid[i+1][j];
+              const ctr = [(v00[0]+v01[0]+v11[0]+v10[0])/4, (v00[1]+v01[1]+v11[1]+v10[1])/4, (v00[2]+v01[2]+v11[2]+v10[2])/4];
+              quads.push({ verts: [v00,v01,v11,v10], depth: rot(ctr)[1], color: colorFn(ctr) });
+            }
+          }
+        }
+
+        function drawRadiationSurfaces(){
+          const fhat = [fx,fy,fz];
+          const {e1, e2} = forceFrame(fhat);
+          const quads = [];
+          collectLobeQuads(fhat, e1, e2,
+            ct => 0.08 + Math.abs(ct)*0.62,
+            ctr => {
+              const n = Math.hypot(ctr[0],ctr[1],ctr[2]) || 1;
+              const cosT = (ctr[0]*fhat[0]+ctr[1]*fhat[1]+ctr[2]*fhat[2])/n;
+              const mag = Math.min(1, n/0.7);
+              return cosT >= 0
+                ? 'rgba(239,68,68,' + (0.25+0.65*mag) + ')'
+                : 'rgba(59,130,246,' + (0.25+0.65*mag) + ')';
+            }, quads);
+          collectLobeQuads(fhat, e1, e2,
+            ct => 0.08 + Math.sqrt(Math.max(0,1-ct*ct))*0.52,
+            ctr => {
+              const n = Math.hypot(ctr[0],ctr[1],ctr[2]) || 1;
+              const mag = Math.min(1, n/0.6);
+              return 'rgba(34,211,238,' + (0.20+0.55*mag) + ')';
+            }, quads);
+          quads.sort((a,b)=>a.depth-b.depth);
+          for(const q of quads){
+            ctx.beginPath();
+            const [x0,y0] = projUnit(q.verts[0]); ctx.moveTo(x0,y0);
+            for(let k=1;k<4;k++){ const [x,y] = projUnit(q.verts[k]); ctx.lineTo(x,y); }
+            ctx.closePath();
+            ctx.fillStyle = q.color; ctx.fill();
+          }
+        }
+
+        // animated expanding P/S wavefronts: each front is drawn as an actual spherical SURFACE
+        // (radius alpha*tPhase for P, beta*tPhase for S -- true geometric wavefronts, not a
+        // stand-in silhouette) carrying a DENSE field of displacement-direction arrows sampled
+        // on that surface -- radial for P (longitudinal), tangential for S (transverse) --
+        // colored red/blue by the sign of the particle motion (push/outward vs. pull/inward for
+        // P; the two shear senses for S). Because each shell's radius is defined to be exactly
+        // v*tPhase, every point on it is at its own retarded time zero -- i.e. the front has
+        // JUST arrived there -- so the arrows always show the wave's leading-edge motion, with
+        // no artificial fade-in needed (unlike a fixed-position particle, a point exactly on the
+        // expanding front is never "not yet reached").
+        const SHELL_ARROW_DIRS = fibonacciSphere(140);
+
+        // a FIXED (not per-frame) amplitude reference, set once whenever fresh Julia data
+        // arrives -- normalizing arrow length/color against a value that itself changed every
+        // frame is what made an earlier version of this animation flicker.
+        let refAmp = 1e-12;
+        const REF_R = 0.5*WORLD_HALF;
+
+        // one expanding shell: wireframe surface (front hemisphere only, so the far side of the
+        // sphere doesn't clutter the view) plus its dense arrow field.
+        function drawWavefrontShell(R, fhat, wireColor, radial){
+          if(!(R > 1 && R < WORLD_HALF*1.05)) return;
+          const Rn = Math.min(1, R/WORLD_HALF);
+
+          ctx.strokeStyle = wireColor; ctx.lineWidth = 1;
+          const NLAT=4, NLON=6, NSEG=32;
+          for(let i=1;i<NLAT;i++){
+            const theta = Math.PI*i/NLAT;
+            ctx.beginPath(); let started=false;
+            for(let j=0;j<=NSEG;j++){
+              const phi = 2*Math.PI*j/NSEG;
+              const p = [Math.sin(theta)*Math.cos(phi)*Rn, Math.sin(theta)*Math.sin(phi)*Rn, Math.cos(theta)*Rn];
+              if(rot(p)[1] < 0){ started=false; continue; }
+              const s = projUnit(p);
+              if(!started){ ctx.moveTo(s[0],s[1]); started=true; } else ctx.lineTo(s[0],s[1]);
+            }
+            ctx.stroke();
+          }
+          for(let j=0;j<NLON;j++){
+            const phi = Math.PI*j/NLON;
+            ctx.beginPath(); let started=false;
+            for(let i=0;i<=NSEG;i++){
+              const theta = Math.PI*i/NSEG;
+              const p = [Math.sin(theta)*Math.cos(phi)*Rn, Math.sin(theta)*Math.sin(phi)*Rn, Math.cos(theta)*Rn];
+              if(rot(p)[1] < 0){ started=false; continue; }
+              const s = projUnit(p);
+              if(!started){ ctx.moveTo(s[0],s[1]); started=true; } else ctx.lineTo(s[0],s[1]);
+            }
+            ctx.stroke();
+          }
+
+          const srcAtFront = peakWaveNear();
+          const ARROW_LEN_MAX = WORLD_HALF*0.11;
+          for(const g of SHELL_ARROW_DIRS){
+            if(rot(g)[1] < 0.02) continue; // front hemisphere only -- avoids an occluded ball of arrows
+            const {cosT, that} = basisAt(g, fhat);
+            let amp, dir;
+            if(radial){
+              amp = cosT*srcAtFront/R;
+              dir = g;
+            } else {
+              const sinT = Math.sqrt(Math.max(0, 1-cosT*cosT));
+              amp = sinT*srcAtFront/R;
+              dir = that;
+            }
+            const mag = Math.min(1, Math.abs(amp)/refAmp);
+            if(mag < 0.05) continue;
+            const len = mag*ARROW_LEN_MAX*Math.sign(amp);
+            const base = [g[0]*R, g[1]*R, g[2]*R];
+            const tip = [base[0]+dir[0]*len, base[1]+dir[1]*len, base[2]+dir[2]*len];
+            const [x0,y0] = projKm(base), [x1,y1] = projKm(tip);
+            const color = amp >= 0
+              ? 'rgba(239,68,68,' + (0.4+0.55*mag) + ')'
+              : 'rgba(59,130,246,' + (0.4+0.55*mag) + ')';
+            ctx.strokeStyle = color; ctx.lineWidth = 1.6;
+            ctx.beginPath(); ctx.moveTo(x0,y0); ctx.lineTo(x1,y1); ctx.stroke();
+            drawArrowHead2D(x0,y0,x1,y1,color,5);
+          }
+        }
+
+        function drawWavefronts(){
+          if(!waveData) return;
+          const fhat = [fx,fy,fz];
+          drawWavefrontShell(alpha*tPhase, fhat, 'rgba(249,115,22,0.22)', true);
+          drawWavefrontShell(beta*tPhase, fhat, 'rgba(34,211,238,0.22)', false);
+        }
+
+        // fixed x1/x2/x3 reference frame the force/receiver direction cosines are actually
+        // defined against -- without this there's no visible cue for which screen direction is
+        // "1" vs "2" vs "3" (same convention as StressTensorInput in stress-tensor.jl).
+        function drawAxes(){
+          const AXLEN = 1.18;
+          const axes = [ [[1,0,0],'x₁'], [[0,1,0],'x₂'], [[0,0,1],'x₃'] ];
+          ctx.lineWidth = 1;
+          ctx.font = '13px sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+          for(const [v,label] of axes){
+            ctx.strokeStyle = 'rgba(156,163,175,0.55)';
+            const [x0,y0] = projUnit([-v[0]*AXLEN,-v[1]*AXLEN,-v[2]*AXLEN]);
+            const [x1,y1] = projUnit([v[0]*AXLEN,v[1]*AXLEN,v[2]*AXLEN]);
+            ctx.beginPath(); ctx.moveTo(x0,y0); ctx.lineTo(x1,y1); ctx.stroke();
+            ctx.fillStyle = '#9ca3af'; ctx.fillText(label, x1, y1);
+          }
+          ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic';
+        }
+
+        function draw(){
+          ctx.clearRect(0,0,SEC,SEC);
+          drawAxes();
+
+          // near-field zone indicator: a translucent disk (screen-facing billboard) sized by a
+          // characteristic wavelength, centered on the source
+          // effOmega pushed from Julia (computed from the period slider) -- see 'pfr-update' below
+          const nearR = Math.min(alpha,beta)/effOmega;
+          const [ncx,ncy] = projUnit([0,0,0]);
+          ctx.beginPath(); ctx.arc(ncx, ncy, Math.max(4, (nearR/WORLD_HALF)*RPIX), 0, 2*Math.PI);
+          ctx.fillStyle = 'rgba(250,204,21,0.10)'; ctx.fill();
+          ctx.strokeStyle = 'rgba(250,204,21,0.35)'; ctx.lineWidth = 1; ctx.stroke();
+
+          if(viewMode === 'pattern'){ drawRadiationSurfaces(); } else { drawWavefronts(); }
+
+          // force arrow -- fixed display length, direction only, drag anywhere on the sphere
+          const FORCE_DISP_R = 0.30;
+          const [sx0,sy0] = projUnit([0,0,0]);
+          const [sx1,sy1] = projUnit([fx*FORCE_DISP_R, fy*FORCE_DISP_R, fz*FORCE_DISP_R]);
+          ctx.strokeStyle = '#111827'; ctx.lineWidth = 6;
+          ctx.beginPath(); ctx.moveTo(sx0,sy0); ctx.lineTo(sx1,sy1); ctx.stroke();
+          ctx.strokeStyle = '#facc15'; ctx.lineWidth = 3;
+          ctx.beginPath(); ctx.moveTo(sx0,sy0); ctx.lineTo(sx1,sy1); ctx.stroke();
+          drawArrowHead2D(sx0,sy0,sx1,sy1, '#facc15');
+
+          // source marker
+          drawStarMarker(sx0, sy0, 7, '#e5e7eb', '#000');
+          ctx.fillStyle = '#9ca3af'; ctx.font = '12px sans-serif'; ctx.textAlign='left';
+          ctx.fillText('source', sx0+10, sy0-8);
+
+          // receiver -- direction (and, since a recent change, distance too) set by dragging
+          const RECV_DISP_R = rdist / WORLD_HALF;
+          const [rpx,rpy] = projUnit([rdx*RECV_DISP_R, rdy*RECV_DISP_R, rdz*RECV_DISP_R]);
+          drawTriangleDownMarker(rpx, rpy, 7, '#f5f3ef', '#0a0f18');
+          ctx.fillStyle = '#e5e7eb'; ctx.font = '12px sans-serif';
+          ctx.fillText('receiver', rpx+9, rpy-8);
+
+          par.querySelector('#pfr-caption').textContent = 'drag to rotate  ·  r = ' + rdist.toFixed(0) + ' km';
+
+          updateReadout();
+          drawSeismogram();
+        }
+
+        function updateReadout(){
+          const r = rdist;
+          const tp = r/alpha, ts = r/beta;
+          // effOmega pushed from Julia (computed from the period slider) -- see 'pfr-update' below
+          const ratio = effOmega*r/alpha;
+          par.querySelector('#pfr-readout').innerHTML =
+            'distance <b>' + r.toFixed(1) + '</b> km<br>' +
+            'P arrival <b>' + tp.toFixed(2) + '</b> s<br>' +
+            'S arrival <b>' + ts.toFixed(2) + '</b> s<br>' +
+            'S&minus;P <b>' + (ts-tp).toFixed(2) + '</b> s<br>' +
+            'ratio ωr/α <b>' + ratio.toFixed(2) + '</b> (' + (ratio>3?'far field':(ratio<0.5?'near field':'transition')) + ')<br>' +
+            '<span style="color:#ef4444">&#9679;</span> push/forward &nbsp; <span style="color:#3b82f6">&#9679;</span> pull/back';
+        }
+
+        function niceSeisY(v, vmax, h, pad){
+          return h/2 - (vmax>0 ? v/vmax : 0)*(h/2-pad);
+        }
+
+        // which seismogram series are currently plotted -- clicking a legend label toggles its
+        // entry, same interaction as the comparison-panel legend in seismic-interferometry.jl
+        let seisShow = { radial: true, transverse: true, u1: false, u2: false, u3: false };
+        let seisLegendHits = [];
+        const SEIS_SERIES = [
+          { key: 'radial', label: 'radial', color: '#f97316', dash: null },
+          { key: 'transverse', label: 'transverse', color: '#38bdf8', dash: [6,3] },
+          { key: 'u1', label: 'u₁', color: '#facc15', dash: null },
+          { key: 'u2', label: 'u₂', color: '#4ade80', dash: null },
+          { key: 'u3', label: 'u₃', color: '#c084fc', dash: null },
+        ];
+        function seisLegendHit(px, py){
+          return seisLegendHits.find(h => px>=h.x0 && px<=h.x1 && py>=h.y0 && py<=h.y1);
+        }
+
+        function drawSeismogram(){
+          sctx.clearRect(0,0,SEIS_W,SEIS_H);
+          sctx.strokeStyle = '#374151'; sctx.lineWidth = 1; sctx.strokeRect(0.5,0.5,SEIS_W-1,SEIS_H-1);
+          seisLegendHits = [];
+          if(!seisData){
+            sctx.fillStyle = '#6b7280'; sctx.font = '12px sans-serif'; sctx.fillText('computing...', 10, 18);
+            return;
+          }
+          const {tgridSeis, nearRadial, nearTransverse, pfarRadial, sfarTransverse} = seisData;
+          const n = tgridSeis.length;
+          const showNear = par.querySelector('#pfr-chk-near').checked;
+          const showP = par.querySelector('#pfr-chk-pfar').checked;
+          const showS = par.querySelector('#pfr-chk-sfar').checked;
+
+          // radial/transverse are scalars along rhat/that; u1,u2,u3 are the same physical
+          // displacement re-expressed in the fixed x1/x2/x3 lab frame -- pure recombination of
+          // already-computed physics, no new Green's-function evaluation needed here.
+          const {that} = basisAt([rdx,rdy,rdz], [fx,fy,fz]);
+          const radial = new Array(n), transverse = new Array(n);
+          const u1 = new Array(n), u2 = new Array(n), u3 = new Array(n);
+          for(let i=0;i<n;i++){
+            radial[i] = (showNear?nearRadial[i]:0) + (showP?pfarRadial[i]:0);
+            transverse[i] = (showNear?nearTransverse[i]:0) + (showS?sfarTransverse[i]:0);
+            u1[i] = radial[i]*rdx + transverse[i]*that[0];
+            u2[i] = radial[i]*rdy + transverse[i]*that[1];
+            u3[i] = radial[i]*rdz + transverse[i]*that[2];
+          }
+          const seriesValues = { radial, transverse, u1, u2, u3 };
+
+          let vmax = 1e-300;
+          for(const s of SEIS_SERIES){
+            if(!seisShow[s.key]) continue;
+            const arr = seriesValues[s.key];
+            for(let i=0;i<n;i++) vmax = Math.max(vmax, Math.abs(arr[i]));
+          }
+
+          const t0 = tgridSeis[0], t1 = tgridSeis[n-1];
+          const PAD = 30;
+          function xOf(t){ return PAD + (t-t0)/(t1-t0)*(SEIS_W-PAD-10); }
+
+          sctx.strokeStyle = '#2f3744'; sctx.beginPath();
+          sctx.moveTo(PAD, SEIS_H/2); sctx.lineTo(SEIS_W-10, SEIS_H/2); sctx.stroke();
+
+          for(const s of SEIS_SERIES){
+            if(!seisShow[s.key]) continue;
+            const arr = seriesValues[s.key];
+            sctx.strokeStyle = s.color; sctx.lineWidth = 1.8; sctx.setLineDash(s.dash||[]);
+            sctx.beginPath();
+            for(let i=0;i<n;i++){
+              const x = xOf(tgridSeis[i]), y = niceSeisY(arr[i], vmax, SEIS_H, 14);
+              i===0 ? sctx.moveTo(x,y) : sctx.lineTo(x,y);
+            }
+            sctx.stroke(); sctx.setLineDash([]);
+          }
+
+          // time cursor synced to the wavefront animation
+          const cxp = xOf(tPhase);
+          if(cxp>=PAD && cxp<=SEIS_W-10){
+            sctx.strokeStyle = '#e5e7eb'; sctx.lineWidth = 1;
+            sctx.beginPath(); sctx.moveTo(cxp, 6); sctx.lineTo(cxp, SEIS_H-6); sctx.stroke();
+          }
+
+          sctx.fillStyle = '#6b7280'; sctx.font = '11px sans-serif'; sctx.textAlign='left';
+          sctx.fillText('t=' + t0.toFixed(0) + 's', 2, SEIS_H-2);
+          sctx.textAlign='right'; sctx.fillText('t=' + t1.toFixed(0) + 's', SEIS_W-2, SEIS_H-2);
+
+          // clickable legend -- toggles seisShow[key] and redraws, exactly like the comparison
+          // panel's legendItem/comparisonLegendHit pattern in seismic-interferometry.jl
+          sctx.font = '12px sans-serif'; sctx.textAlign = 'left';
+          let lx = PAD;
+          for(const s of SEIS_SERIES){
+            const active = seisShow[s.key];
+            sctx.fillStyle = active ? s.color : 'rgba(156,163,175,0.45)';
+            sctx.fillText(s.label, lx, 12);
+            const w = sctx.measureText(s.label).width;
+            seisLegendHits.push({ key: s.key, x0: lx-3, y0: 2, x1: lx+w+3, y1: 16 });
+            lx += w + 14;
+          }
+        }
+
+        function syncControls(){
+          par.querySelector('#pfr-view-anim').classList.toggle('active', viewMode==='anim');
+          par.querySelector('#pfr-view-pattern').classList.toggle('active', viewMode==='pattern');
+          par.querySelector('#pfr-play').style.display = viewMode==='anim' ? '' : 'none';
+          par.querySelector('#pfr-alpha').value = alpha; par.querySelector('#pfr-alpha-v').textContent = alpha.toFixed(1);
+          par.querySelector('#pfr-beta').value = beta; par.querySelector('#pfr-beta-v').textContent = beta.toFixed(1);
+          par.querySelector('#pfr-period').value = period; par.querySelector('#pfr-period-v').textContent = period.toFixed(1)+' s';
+        }
+
+        let commitInFlight = false;
+        function commit(){
+          commitInFlight = true;
+          par.value = { fx, fy, fz, rdx, rdy, rdz, rdist, alpha, beta, period };
+          par.dispatchEvent(new CustomEvent('input'));
+        }
+        function throttledCommit(){ if(!commitInFlight) commit(); }
+
+        par.addEventListener('pfr-update', e=>{
+          seisData = { tgridSeis: e.detail.tgridSeis, nearRadial: e.detail.nearRadial,
+            nearTransverse: e.detail.nearTransverse, pfarRadial: e.detail.pfarRadial, sfarTransverse: e.detail.sfarTransverse };
+          waveData = { tgridWave: e.detail.tgridWave, wave: e.detail.wave };
+          effOmega = e.detail.effOmega;
+          const maxAbsWave = Math.max(1e-12, ...waveData.wave.map(Math.abs));
+          refAmp = maxAbsWave / REF_R;
+          commitInFlight = false;
+          draw();
+        });
+
+        // ---- dragging: force direction, receiver direction, or (empty space) rotate the
+        // camera -- closest-handle-wins hit test, since the two handles can land close
+        // together on screen depending on orientation ----
+        let dragMode = null, lastX = 0, lastY = 0;
+        cv.addEventListener('mousedown', e=>{
+          const rect = cv.getBoundingClientRect();
+          const px = e.clientX-rect.left, py = e.clientY-rect.top;
+          const FORCE_DISP_R = 0.30;
+          const RECV_DISP_R = rdist / WORLD_HALF;
+          const [fpx,fpy] = projUnit([fx*FORCE_DISP_R, fy*FORCE_DISP_R, fz*FORCE_DISP_R]);
+          const [rpx,rpy] = projUnit([rdx*RECV_DISP_R, rdy*RECV_DISP_R, rdz*RECV_DISP_R]);
+          const dArrow = Math.hypot(px-fpx, py-fpy), dRecv = Math.hypot(px-rpx, py-rpy);
+          let best = null, bestD = 14;
+          if(dArrow < bestD){ bestD = dArrow; best = 'force'; }
+          if(dRecv < bestD){ bestD = dRecv; best = 'receiver'; }
+          dragMode = best || 'rotate';
+          lastX = px; lastY = py;
+        });
+        window.addEventListener('mousemove', e=>{
+          if(!dragMode) return;
+          const rect = cv.getBoundingClientRect();
+          const px = e.clientX-rect.left, py = e.clientY-rect.top;
+          if(dragMode==='rotate'){
+            const dx = px-lastX, dy = py-lastY;
+            yaw += dx*0.008;
+            pitch = Math.max(-1.4, Math.min(1.4, pitch - dy*0.008));
+            lastX = px; lastY = py;
+            draw();
+            return;
+          }
+          const v = screenToXYZ(px, py);
+          if(dragMode==='force'){ fx=v[0]; fy=v[1]; fz=v[2]; }
+          else if(dragMode==='receiver'){
+            rdx=v[0]; rdy=v[1]; rdz=v[2];
+            // radial screen-space distance from the source sets rdist too, so one drag
+            // controls both direction and distance -- no separate slider needed
+            const [sx0,sy0] = projUnit([0,0,0]);
+            const pixelDist = Math.hypot(px-sx0, py-sy0);
+            rdist = Math.max(5, Math.min(95, (pixelDist/RPIX)*WORLD_HALF));
+          }
+          draw(); throttledCommit();
+        });
+        window.addEventListener('mouseup', ()=>{
+          if(dragMode==='force' || dragMode==='receiver') commit();
+          dragMode = null;
+        });
+
+        // ---- controls ----
+        par.addEventListener('input', e=>{
+          if(e.target===par) return;
+          e.stopImmediatePropagation();
+          const id = e.target.id, v = e.target.value;
+          if(id==='pfr-alpha'){ alpha=+v; par.querySelector('#pfr-alpha-v').textContent=alpha.toFixed(1); }
+          else if(id==='pfr-beta'){ beta=+v; par.querySelector('#pfr-beta-v').textContent=beta.toFixed(1); }
+          else if(id==='pfr-period'){ period=+v; par.querySelector('#pfr-period-v').textContent=period.toFixed(1)+' s'; }
+          else return;
+          draw(); throttledCommit();
+        }, true);
+
+        par.addEventListener('change', e=>{
+          if(e.target===par) return;
+          e.stopImmediatePropagation();
+          const id = e.target.id;
+          if(id==='pfr-chk-near'||id==='pfr-chk-pfar'||id==='pfr-chk-sfar'){ drawSeismogram(); return; }
+          if(id==='pfr-alpha'||id==='pfr-beta'||id==='pfr-period'){ draw(); commit(); return; }
+        }, true);
+
+        // simulated time-units advanced per REAL second of wall-clock playback -- tied to the
+        // animation's own rAF timestamp rather than a fixed per-frame increment, so playback
+        // speed no longer depends on (and stutters with) the actual frame rate
+        const SIM_SPEED = tLoopMax() / 13;
+        const playBtn = par.querySelector('#pfr-play');
+        let lastTs = null;
+        function stepAnim(ts){
+          if(lastTs === null) lastTs = ts;
+          const dt = Math.min(0.1, (ts-lastTs)/1000); // clamp so a stalled/backgrounded tab can't leap
+          lastTs = ts;
+          tPhase += dt*SIM_SPEED;
+          if(tPhase > tLoopMax()) tPhase = 0;
+          draw();
+          rafId = requestAnimationFrame(stepAnim);
+        }
+        playBtn.addEventListener('click', ()=>{
+          playing = !playing;
+          playBtn.textContent = playing ? 'Pause' : 'Play';
+          if(playing){ lastTs = null; rafId = requestAnimationFrame(stepAnim); }
+          else if(rafId){ cancelAnimationFrame(rafId); rafId = null; }
+        });
+
+        function stopAnim(){
+          playing = false; playBtn.textContent = 'Play';
+          if(rafId){ cancelAnimationFrame(rafId); rafId = null; }
+        }
+        par.querySelector('#pfr-view-anim').addEventListener('click', ()=>{
+          if(viewMode==='anim') return;
+          viewMode = 'anim'; syncControls(); draw();
+        });
+        par.querySelector('#pfr-view-pattern').addEventListener('click', ()=>{
+          if(viewMode==='pattern') return;
+          stopAnim(); viewMode = 'pattern'; syncControls(); draw();
+        });
+
+        par.querySelector('#pfr-reset').addEventListener('click', ()=>{
+          fx=$(w.fx); fy=$(w.fy); fz=$(w.fz);
+          rdx=$(w.rdx); rdy=$(w.rdy); rdz=$(w.rdz); rdist=$(w.rdist);
+          alpha=$(w.alpha); beta=$(w.beta); period=$(w.period); tPhase=0;
+          syncControls(); draw(); commit();
+        });
+
+        // clickable seismogram legend -- toggle a series on/off, or hover for a pointer cursor
+        seisCv.addEventListener('click', e=>{
+          const rect = seisCv.getBoundingClientRect();
+          const hit = seisLegendHit(e.clientX-rect.left, e.clientY-rect.top);
+          if(hit){ seisShow[hit.key] = !seisShow[hit.key]; drawSeismogram(); }
+        });
+        seisCv.addEventListener('mousemove', e=>{
+          const rect = seisCv.getBoundingClientRect();
+          seisCv.style.cursor = seisLegendHit(e.clientX-rect.left, e.clientY-rect.top) ? 'pointer' : 'default';
+        });
+
+        syncControls(); draw();
+        }
+        </script>
+
+        """)
+    end
+
+    const _pfr_ready = true
+end
+
+# ╔═╡ 40f2f5d6-1f06-4828-aaa7-ef7b7e42d90e
+begin
+    _pfr_ready
+    WideCell(@bind pfr PointForceRadiationInput(); max_width=1500)
+end
+
+# ╔═╡ 1e9f4218-324c-411e-8394-6b79201dbde3
+# The bond starts as `nothing` until the widget's first real interaction in a live browser
+# reports back -- fall back to the same defaults the widget itself opens with.
+pfr_safe = pfr isa AbstractDict ? pfr : Dict{String,Any}(
+    "fx" => 0.0, "fy" => 0.0, "fz" => 1.0, "rdx" => 0.6, "rdy" => 0.3, "rdz" => 0.74,
+    "rdist" => 60.0, "alpha" => 4.0, "beta" => 2.0, "period" => 10.0)
+
+# ╔═╡ 0999e269-5dd7-4ab5-b091-b5f4178d6ba8
+let
+    fhat = (pfr_safe["fx"], pfr_safe["fy"], pfr_safe["fz"])
+    rhat = (pfr_safe["rdx"], pfr_safe["rdy"], pfr_safe["rdz"])
+    θdeg = round(acos(clamp(dot(fhat, rhat), -1.0, 1.0)) * 180 / π; digits=0)
+    md"""
+    Receiver at **$(θdeg)°** from the force axis, distance r = **$(round(pfr_safe["rdist"]; digits=1))** km ·
+    α = **$(pfr_safe["alpha"])**, β = **$(pfr_safe["beta"])** km/s ·
+    source: **Gaussian pulse, period T = $(pfr_safe["period"]) s**
+    """
+end
+
+# ╔═╡ 7b330e11-d451-4992-bcdb-10c6dc770399
+md"""
+`PfrPush` does no physics -- it takes the already-computed seismogram + source-waveform table and
+hands them to the *already-rendered* [`PointForceRadiationInput`](@ref) widget by dispatching a
+browser `CustomEvent` at the widget's own `<div>`, the same pattern this repo's other widgets use
+(see e.g. `FieldPush` in `fault-dislocation.jl`).
+"""
+
+# ╔═╡ 52162e1d-c250-4941-9a3b-ffed90ca972f
+_pfr_flatten(v) = join(v, ",")
+
+# ╔═╡ 9642334f-90f6-4b8b-a015-758ec6b5246b
+begin
+    struct PfrPush
+        tgrid_seis::Any
+        seis::Any
+        tgrid_wave::Any
+        wave::Any
+        effomega::Float64
+    end
+    function Base.show(io::IO, ::MIME"text/html", p::PfrPush)
+        write(io, """
+        <script>
+        {
+        const w = document.getElementById('pfrwidget');
+        if(w){
+          w.dispatchEvent(new CustomEvent('pfr-update', { detail: {
+            tgridSeis: [$(_pfr_flatten(p.tgrid_seis))],
+            nearRadial: [$(_pfr_flatten(p.seis.near_radial))],
+            nearTransverse: [$(_pfr_flatten(p.seis.near_transverse))],
+            pfarRadial: [$(_pfr_flatten(p.seis.pfar_radial))],
+            sfarTransverse: [$(_pfr_flatten(p.seis.sfar_transverse))],
+            tgridWave: [$(_pfr_flatten(p.tgrid_wave))],
+            wave: [$(_pfr_flatten(p.wave))],
+            effOmega: $(p.effomega),
+          }}));
+        }
+        }
+        </script>
+        """)
+    end
+end
+
+# ╔═╡ 48aa578a-e733-4384-a034-6824fef86bfe
+_pfr_sourcetype = Val(:gaussian)
+
+# ╔═╡ d5590b12-e38e-40c0-923a-7691c40fb559
+_pfr_sigma2 = period_to_sigma2(pfr_safe["period"])
+
+# ╔═╡ 6d3f9b8a-1a2e-4c9f-9b3a-2f6a7d8c5e10
+_pfr_sourceparams = (_pfr_sigma2,)
+
+# ╔═╡ e3d9ea0e-0098-46f1-87a1-113b62bcc12f
+_pfr_tgrid_seis = range(-2.0, 1.3 * 100.0 / min(pfr_safe["alpha"], pfr_safe["beta"]); length=400)
+
+# ╔═╡ 94a6b641-a3f8-414c-a840-164f4d25d4f3
+_pfr_seis = pointforce_seismogram(
+    (pfr_safe["fx"], pfr_safe["fy"], pfr_safe["fz"]),
+    (pfr_safe["rdx"], pfr_safe["rdy"], pfr_safe["rdz"]),
+    pfr_safe["rdist"], pfr_safe["alpha"], pfr_safe["beta"],
+    _pfr_sourcetype, _pfr_sourceparams, _pfr_tgrid_seis)
+
+# ╔═╡ 515b9d85-8a37-4791-89f5-442111bc83a6
+_pfr_tgrid_wave = range(-100.0 / min(pfr_safe["alpha"], pfr_safe["beta"]) - 1,
+    1.3 * 100.0 / min(pfr_safe["alpha"], pfr_safe["beta"]) + 1; length=800)
+
+# ╔═╡ 6fe7c3f3-121a-44cc-a8ef-7fd887565535
+_pfr_wave = sourcewave_deriv_table(_pfr_sourcetype, _pfr_sourceparams, _pfr_tgrid_wave)
+
+# ╔═╡ 491afad3-1ea6-4942-a533-a0d559f80fd1
+PfrPush(_pfr_tgrid_seis, _pfr_seis, _pfr_tgrid_wave, _pfr_wave, 1 / sqrt(_pfr_sigma2))
+
+# ╔═╡ 321aa3aa-d29e-481a-bdcc-aa0655a72bda
+md"""
+### Moment Tensor Radiation
+"""
+
+# ╔═╡ c6616a5c-225d-4415-9155-c1f769c14eea
+begin
+    """
+    	latlon_grid_directions(ntheta, nphi)
+
+    A `(ntheta+1)*(nphi+1)` grid of unit directions covering the whole sphere -- `theta` (polar
+    angle) the outer index, `phi` (azimuth) the inner. The widget's JS regenerates this exact
+    grid independently (pure geometry, no physics dependence) so it can zip Julia's per-direction
+    physics results back in by flat index, without ever sending the directions themselves over
+    the wire.
+    """
+    function latlon_grid_directions(ntheta::Int, nphi::Int)
+        dirs = Vector{NTuple{3,Float64}}(undef, (ntheta + 1) * (nphi + 1))
+        k = 1
+        for i in 0:ntheta, j in 0:nphi
+            theta = π * i / ntheta
+            phi = 2π * j / nphi
+            dirs[k] = (sin(theta) * cos(phi), sin(theta) * sin(phi), cos(theta))
+            k += 1
+        end
+        return dirs
+    end
+
+    """
+    	mt_radial_pattern(M, γ)
+
+    Far-field P radiation-pattern amplitude for a general symmetric moment tensor `M` in
+    direction `γ` -- the signed scalar `` \\hat\\gamma^\\top M \\hat\\gamma ``, generalizing the
+    point force's `` \\cos\\theta `` pattern (Aki & Richards eq. 4.29).
+    """
+    mt_radial_pattern(M::AbstractMatrix, γ::AbstractVector) = dot(γ, M * γ)
+
+    """
+    	mt_transverse_vector(M, γ)
+
+    Far-field S radiation-pattern VECTOR for a general symmetric moment tensor `M` in direction
+    `γ` -- `` M\\hat\\gamma - (\\hat\\gamma^\\top M \\hat\\gamma)\\hat\\gamma ``, the component of
+    `` M\\gamma `` tangential to `γ`. Generalizes the point force's `` \\sin\\theta\\,\\hat{t} ``
+    pattern; unlike the point-force case this is a genuine 3-vector, not a single scalar times a
+    fixed tangential direction, since a general `M` has no single preferred axis.
+    """
+    function mt_transverse_vector(M::AbstractMatrix, γ::AbstractVector)
+        Mγ = M * γ
+        return Mγ .- dot(γ, Mγ) .* γ
+    end
+
+    """
+    	mt_field_grid(M, ntheta, nphi)
+
+    Evaluate [`mt_radial_pattern`](@ref) and [`mt_transverse_vector`](@ref) at every point of
+    [`latlon_grid_directions`](@ref)`(ntheta, nphi)` -- this is the widget's entire field data,
+    recomputed whenever the matrix changes and pushed to JS in one shot. Returns
+    `(pradial, stangent)`, concretely-typed `Vector{Float64}`/`Vector{NTuple{3,Float64}}` indexed
+    the same way as the direction grid.
+    """
+    function mt_field_grid(M::AbstractMatrix, ntheta::Int, nphi::Int)
+        dirs = latlon_grid_directions(ntheta, nphi)
+        pradial = Vector{Float64}(undef, length(dirs))
+        stangent = Vector{NTuple{3,Float64}}(undef, length(dirs))
+        for (k, d) in enumerate(dirs)
+            γ = [d[1], d[2], d[3]]
+            pradial[k] = mt_radial_pattern(M, γ)
+            st = mt_transverse_vector(M, γ)
+            stangent[k] = (st[1], st[2], st[3])
+        end
+        return pradial, stangent
+    end
+
+    """
+    	double_couple_matrix(strike, dip, rake)
+
+    Symmetric, traceless moment tensor for a pure double-couple (shear-slip) source -- angles in
+    degrees, Aki & Richards eq. (4.85) convention (`x`=North, `y`=East, `z`=Down). Normalized to
+    unit Frobenius norm so the widget's matrix values stay in a fixed, comparable range regardless
+    of mechanism.
+    """
+    function double_couple_matrix(strike::Real, dip::Real, rake::Real)
+        φ, δ, λ = deg2rad(strike), deg2rad(dip), deg2rad(rake)
+        mxx = -(sin(δ) * cos(λ) * sin(2φ) + sin(2δ) * sin(λ) * sin(φ)^2)
+        myy = sin(δ) * cos(λ) * sin(2φ) - sin(2δ) * sin(λ) * cos(φ)^2
+        mzz = sin(2δ) * sin(λ)
+        mxy = sin(δ) * cos(λ) * cos(2φ) + 0.5 * sin(2δ) * sin(λ) * sin(2φ)
+        mxz = -(cos(δ) * cos(λ) * cos(φ) + cos(2δ) * sin(λ) * sin(φ))
+        myz = -(cos(δ) * cos(λ) * sin(φ) - cos(2δ) * sin(λ) * cos(φ))
+        M = Symmetric([mxx mxy mxz; mxy myy myz; mxz myz mzz])
+        return M ./ norm(M)
+    end
+end
+
+# ╔═╡ 3908f04c-36b5-4a27-b51a-e4affa9467fc
+md"""
+!!! correct "Checking that a double couple is really traceless"
+	A pure shear dislocation conserves volume, so its moment tensor must be traceless
+	(`` M_{xx}+M_{yy}+M_{zz}=0 ``) for *every* strike/dip/rake -- checked below, algebraically
+	guaranteed by the formula but worth confirming numerically too.
+"""
+
+# ╔═╡ 5606eb83-7ee5-4589-885c-e35f04c3f944
+let
+    for (strike, dip, rake) in ((0.0, 90.0, 0.0), (30.0, 45.0, 60.0), (200.0, 70.0, -30.0), (355.0, 10.0, 170.0))
+        M = double_couple_matrix(strike, dip, rake)
+        @assert abs(tr(M)) < 1e-10
+    end
+    "double_couple_matrix produces a traceless (pure shear) moment tensor for every mechanism ✓"
+end
+
+# ╔═╡ a9a7cebc-ee46-4884-9a06-0b30f335a613
+md"""
+!!! correct "Lamé's theorem still holds for a moment tensor"
+	The same finite-difference check used above for the point force, repeated for a moment-tensor
+	far field: `curl(P)` and `div(S)` should again be small but nonzero, shrinking with distance.
+"""
+
+# ╔═╡ 420d095f-c215-4e3f-800f-3e2ea2692321
+let
+    α, β = 4.0, 2.0
+    st, σ² = Val(:gaussian), 5.0
+    M = double_couple_matrix(30.0, 60.0, 90.0)
+
+    pfarM_vec(x, y, z, t) = begin
+        r = norm([x, y, z])
+        γ = [x, y, z] ./ r
+        (γ .* mt_radial_pattern(M, γ)) ./ (4π * RHO * α^3 * r) .* sourcewave(st, t - r / α, σ²)
+    end
+    sfarM_vec(x, y, z, t) = begin
+        r = norm([x, y, z])
+        γ = [x, y, z] ./ r
+        mt_transverse_vector(M, γ) ./ (4π * RHO * β^3 * r) .* sourcewave(st, t - r / β, σ²)
+    end
+    function curl_fd(F, x, y, z, t; h=1e-3)
+        [(F(x, y + h, z, t)[3] - F(x, y - h, z, t)[3]) / 2h - (F(x, y, z + h, t)[2] - F(x, y, z - h, t)[2]) / 2h,
+            (F(x, y, z + h, t)[1] - F(x, y, z - h, t)[1]) / 2h - (F(x + h, y, z, t)[3] - F(x - h, y, z, t)[3]) / 2h,
+            (F(x, y, z + h, t)[2] - F(x, y, z - h, t)[2]) / 2h - (F(x, y + h, z, t)[1] - F(x, y - h, z, t)[1]) / 2h]
+    end
+    div_fd(F, x, y, z, t; h=1e-3) =
+        (F(x + h, y, z, t)[1] - F(x - h, y, z, t)[1]) / 2h + (F(x, y + h, z, t)[2] - F(x, y - h, z, t)[2]) / 2h +
+        (F(x, y, z + h, t)[3] - F(x, y, z - h, t)[3]) / 2h
+
+    map([15.0, 40.0, 100.0]) do r
+        x, y, z, t = r / sqrt(3), r / sqrt(3), r / sqrt(3), r / α
+        curlP_rel = norm(curl_fd(pfarM_vec, x, y, z, t)) / max(norm(pfarM_vec(x, y, z, t)), 1e-300)
+        divS_rel = abs(div_fd(sfarM_vec, x, y, z, t)) / max(norm(sfarM_vec(x, y, z, t)), 1e-300)
+        (; r, curlP_rel=round(curlP_rel; sigdigits=3), divS_rel=round(divS_rel; sigdigits=3))
+    end
+end
+
+# ╔═╡ 1f36f0f5-7692-434e-bc9b-bed27f6c5bf4
+md"""
+### The Moment Tensor Widget
+"""
+
+# ╔═╡ 81421235-9cd9-428a-8629-03000f640a3d
+begin
+    struct MomentTensorInput
+        mxx::Float64
+        myy::Float64
+        mzz::Float64
+        mxy::Float64
+        mxz::Float64
+        myz::Float64
+        strike::Float64
+        dip::Float64
+        rake::Float64
+    end
+    function MomentTensorInput(; strike=30.0, dip=60.0, rake=90.0)
+        M = double_couple_matrix(strike, dip, rake)
+        MomentTensorInput(M[1, 1], M[2, 2], M[3, 3], M[1, 2], M[1, 3], M[2, 3], strike, dip, rake)
+    end
+
+    Base.get(w::MomentTensorInput) = Dict{String,Any}(
+        "mxx" => w.mxx, "myy" => w.myy, "mzz" => w.mzz,
+        "mxy" => w.mxy, "mxz" => w.mxz, "myz" => w.myz,
+        "strike" => w.strike, "dip" => w.dip, "rake" => w.rake, "source" => "sdr")
+
+    function Base.show(io::IO, ::MIME"text/html", w::MomentTensorInput)
+        write(io, """
+        <div id="mtwidget">
+        <style>
+        pluto-cell:has(#mtwidget) { width: min(80vw, 1500px) !important;
+          margin-left: calc((100% - min(80vw, 1500px)) / 2) !important; }
+        #mtwidget{font-family:sans-serif;color:#e5e7eb;width:100%;box-sizing:border-box}
+        #mtwidget .mt-title{width:100%;box-sizing:border-box;text-align:center;margin-bottom:10px;
+          background:#0a0f18;border:1px solid #3b5c85;border-radius:6px;padding:10px 14px}
+        #mtwidget .mt-title-desc{font-size:17px;font-weight:700;color:#e5e7eb}
+        #mtwidget .mt-title-hint{font-size:13px;color:#9ca3af;margin-top:3px}
+        #mtwidget .mt-workspace{display:flex;gap:16px;flex-wrap:wrap;justify-content:center;align-items:flex-start}
+        #mtwidget .mt-panel{background:#000;border:1px solid #374151;border-radius:6px;padding:8px}
+        #mtwidget .mt-caption{font-size:13px;color:#9ca3af;text-align:center;margin-top:4px}
+        #mtwidget canvas{display:block;cursor:grab}
+        #mtwidget .mt-controls{flex:0 0 280px;width:280px;display:flex;flex-direction:column;
+          gap:8px;font:14px sans-serif}
+        #mtwidget .mt-control-group{background:#050505;border:1px solid #2f3744;border-radius:6px;padding:10px 12px}
+        #mtwidget .mt-control-title{font-size:15px;font-weight:700;color:#e5e7eb;margin-bottom:6px}
+        #mtwidget .mt-control-row{display:grid;grid-template-columns:60px minmax(0,1fr) 44px;gap:6px;align-items:center;margin:5px 0}
+        #mtwidget .mt-control-row label{font-size:13px;color:#9ca3af}
+        #mtwidget .mt-control-row input[type=range]{width:100%;min-width:0}
+        #mtwidget .mt-value{font-size:13px;color:#e5e7eb;text-align:right;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+        #mtwidget .mt-actions{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+        #mtwidget .mt-readout{font-size:13px;color:#d1d5db;line-height:1.6}
+        #mtwidget .mt-readout b{color:#e5e7eb}
+        #mtwidget button{border-radius:4px;border:1px solid #9ca3af;background:#606060;color:#f3f4f6;padding:6px 12px;font-size:13px;cursor:pointer}
+        #mtwidget button.active{background:#2563eb;border-color:#93c5fd}
+        #mtwidget .mt-jmatrix{display:inline-grid;grid-template-columns:repeat(3,auto);gap:4px 6px;padding:4px 8px;position:relative;margin:4px auto}
+        #mtwidget .mt-jmatrix::before, #mtwidget .mt-jmatrix::after{content:'';position:absolute;top:2px;bottom:2px;width:6px;border:2px solid #9ca3af}
+        #mtwidget .mt-jmatrix::before{left:0;border-right:none}
+        #mtwidget .mt-jmatrix::after{right:0;border-left:none}
+        #mtwidget .mt-jmatrix input{width:52px;background:#111827;color:#e5e7eb;border:1px solid #374151;border-radius:4px;padding:4px 3px;font-size:12px;text-align:center;font-variant-numeric:tabular-nums}
+        #mtwidget .mt-jmatrix input:focus{outline:2px solid #38bdf8;border-color:#38bdf8}
+        #mtwidget .mt-jhint{font-size:11px;color:#6b7280;text-align:center;margin-top:4px}
+        </style>
+
+        <div class="mt-title">
+          <div class="mt-title-desc">A fault has no net force -- its source is a moment tensor, and Lamé's theorem still splits it into radial P and tangential S.</div>
+          <div class="mt-title-hint">edit the matrix, or drag strike/dip/rake for a double couple &middot; drag empty space to rotate &middot; press Play to expand the wavefronts</div>
+        </div>
+
+        <div class="mt-workspace">
+          <div>
+            <div class="mt-panel"><canvas id="mt-canvas"></canvas></div>
+            <div class="mt-caption" id="mt-caption"></div>
+          </div>
+          <div class="mt-controls">
+            <div class="mt-control-group">
+              <div class="mt-control-title">View</div>
+              <div class="mt-actions">
+                <button id="mt-view-anim" type="button">Wavefront animation</button>
+                <button id="mt-view-pattern" type="button">Radiation pattern</button>
+              </div>
+            </div>
+            <div class="mt-control-group">
+              <div class="mt-control-title">Moment tensor M</div>
+              <div class="mt-jmatrix">
+                <input type="number" step="0.05" id="mt-mxx" value="$(w.mxx)">
+                <input type="number" step="0.05" id="mt-mxy" value="$(w.mxy)">
+                <input type="number" step="0.05" id="mt-mxz" value="$(w.mxz)">
+                <input type="number" step="0.05" id="mt-myx" value="$(w.mxy)">
+                <input type="number" step="0.05" id="mt-myy" value="$(w.myy)">
+                <input type="number" step="0.05" id="mt-myz" value="$(w.myz)">
+                <input type="number" step="0.05" id="mt-mzx" value="$(w.mxz)">
+                <input type="number" step="0.05" id="mt-mzy" value="$(w.myz)">
+                <input type="number" step="0.05" id="mt-mzz" value="$(w.mzz)">
+              </div>
+              <div class="mt-jhint">symmetric -- editing an off-diagonal cell updates its mirror</div>
+            </div>
+            <div class="mt-control-group">
+              <div class="mt-control-title">Double-couple generator</div>
+              <div class="mt-control-row"><label>strike</label><input type="range" id="mt-strike" min="0" max="360" step="1" value="$(w.strike)"><span class="mt-value" id="mt-strike-v"></span></div>
+              <div class="mt-control-row"><label>dip</label><input type="range" id="mt-dip" min="0" max="90" step="1" value="$(w.dip)"><span class="mt-value" id="mt-dip-v"></span></div>
+              <div class="mt-control-row"><label>rake</label><input type="range" id="mt-rake" min="-180" max="180" step="1" value="$(w.rake)"><span class="mt-value" id="mt-rake-v"></span></div>
+            </div>
+            <div class="mt-control-group">
+              <div class="mt-control-title">Wavefront</div>
+              <div class="mt-actions"><button id="mt-play" type="button">Play</button><button id="mt-reset" type="button">Reset</button></div>
+            </div>
+            <div class="mt-control-group">
+              <div class="mt-control-title">Readouts</div>
+              <div class="mt-readout" id="mt-readout"></div>
+            </div>
+          </div>
+        </div>
+        </div>
+
+        <script>
+        {
+        const par = currentScript.previousElementSibling;
+        const WORLD = 1.0;
+
+        let mxx=$(w.mxx), myy=$(w.myy), mzz=$(w.mzz), mxy=$(w.mxy), mxz=$(w.mxz), myz=$(w.myz);
+        let strike=$(w.strike), dip=$(w.dip), rake=$(w.rake);
+        let pendingSource = 'sdr';
+
+        const availW = Math.min(window.innerWidth*0.8, par.clientWidth || window.innerWidth*0.8, 1500);
+        const CONTROLS_W = 280+16;
+        const SEC = Math.max(400, Math.min(availW - CONTROLS_W, 575));
+        const DPR = window.devicePixelRatio || 1;
+
+        const cv = par.querySelector('#mt-canvas');
+        const ctx = cv.getContext('2d');
+        function hidpi(canvas, context, w, h){
+          canvas.width = Math.round(w*DPR); canvas.height = Math.round(h*DPR);
+          canvas.style.width = w+'px'; canvas.style.height = h+'px';
+          context.setTransform(DPR,0,0,DPR,0,0);
+        }
+        hidpi(cv, ctx, SEC, SEC);
+
+        // ---- 3D camera: identical orthographic drag-to-rotate family used throughout this
+        // repo's widgets (StressTensorInput, PointForceRadiationInput, ...) -- pure display
+        // geometry, no physics content, safe to keep client-side.
+        let yaw = -0.6, pitch = 0.35;
+        const CX = SEC/2, CY = SEC/2, RPIX = SEC*0.36;
+        function rot(p){
+          const x = p[0]*Math.cos(yaw) - p[1]*Math.sin(yaw);
+          const y = p[0]*Math.sin(yaw) + p[1]*Math.cos(yaw);
+          const z = p[2];
+          return [x, y*Math.cos(pitch) - z*Math.sin(pitch), y*Math.sin(pitch) + z*Math.cos(pitch)];
+        }
+        function projUnit(p){ const r = rot(p); return [CX + r[0]*RPIX, CY - r[2]*RPIX]; }
+
+        function drawAxes(){
+          const AXLEN = 1.18;
+          const axes = [ [[1,0,0],'x₁'], [[0,1,0],'x₂'], [[0,0,1],'x₃'] ];
+          ctx.lineWidth = 1;
+          ctx.font = '13px sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+          for(const [v,label] of axes){
+            ctx.strokeStyle = 'rgba(156,163,175,0.55)';
+            const [x0,y0] = projUnit([-v[0]*AXLEN,-v[1]*AXLEN,-v[2]*AXLEN]);
+            const [x1,y1] = projUnit([v[0]*AXLEN,v[1]*AXLEN,v[2]*AXLEN]);
+            ctx.beginPath(); ctx.moveTo(x0,y0); ctx.lineTo(x1,y1); ctx.stroke();
+            ctx.fillStyle = '#9ca3af'; ctx.fillText(label, x1, y1);
+          }
+          ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic';
+        }
+
+        function drawStarMarker(cx, cy, r, fill, stroke){
+          const spikes = 5, rOuter = r, rInner = r * 0.45;
+          ctx.beginPath();
+          for(let i=0; i<spikes*2; i++){
+            const rad = i % 2 === 0 ? rOuter : rInner;
+            const ang = -Math.PI/2 + i*Math.PI/spikes;
+            const x = cx + rad*Math.cos(ang), y = cy + rad*Math.sin(ang);
+            i===0 ? ctx.moveTo(x,y) : ctx.lineTo(x,y);
+          }
+          ctx.closePath();
+          ctx.fillStyle = fill; ctx.fill();
+          ctx.strokeStyle = stroke; ctx.lineWidth = 1; ctx.stroke();
+        }
+
+        function drawArrowHead2D(x0, y0, x1, y1, color, size){
+          size = size || 6;
+          const ang = Math.atan2(y1-y0, x1-x0);
+          ctx.beginPath(); ctx.moveTo(x1,y1);
+          ctx.lineTo(x1-size*Math.cos(ang-0.4), y1-size*Math.sin(ang-0.4));
+          ctx.lineTo(x1-size*Math.cos(ang+0.4), y1-size*Math.sin(ang+0.4));
+          ctx.closePath(); ctx.fillStyle = color; ctx.fill();
+        }
+
+        // ---- data pushed from Julia: mt_field_grid's per-direction P/S amplitudes, and the
+        // source-derivative lookup table -- this widget computes NO physics client-side, only
+        // geometry (camera, direction-grid regeneration) and drawing.
+        let fieldData = null; // {ntheta, nphi, pradial, stx, sty, stz}
+        let waveData = null;  // {tgridWave, wave}
+
+        function latlonDirs(ntheta, nphi){
+          const dirs = [];
+          for(let i=0;i<=ntheta;i++){
+            const theta = Math.PI*i/ntheta;
+            for(let j=0;j<=nphi;j++){
+              const phi = 2*Math.PI*j/nphi;
+              dirs.push([Math.sin(theta)*Math.cos(phi), Math.sin(theta)*Math.sin(phi), Math.cos(theta)]);
+            }
+          }
+          return dirs;
+        }
+
+        function lookupWave(t){
+          if(!waveData) return 0;
+          const {tgridWave, wave} = waveData;
+          const n = tgridWave.length;
+          const t0 = tgridWave[0], t1 = tgridWave[n-1];
+          if(t <= t0) return wave[0];
+          if(t >= t1) return wave[n-1];
+          const frac = (t-t0)/(t1-t0)*(n-1);
+          const i0 = Math.floor(frac), i1 = Math.min(n-1, i0+1);
+          const f = frac - i0;
+          return wave[i0]*(1-f) + wave[i1]*f;
+        }
+        function peakWaveNear(){
+          if(!waveData) return 0;
+          let best = 0, bestAbs = -1;
+          for(let i=0; i<waveData.wave.length; i++){
+            const v = waveData.wave[i];
+            if(Math.abs(v) > bestAbs){ bestAbs = Math.abs(v); best = v; }
+          }
+          return best;
+        }
+
+        let refAmp = 1e-12;
+        let playing = false, rafId = null, tPhase = 0, lastTs = null;
+        let viewMode = 'anim';
+        const ALPHA_MT = 0.55, BETA_MT = 0.32; // fixed display wave speeds -- shell expansion rate only, not physics content
+
+        function drawWavefrontShell(R, dirs, wireColor, radial){
+          if(!(R > 0.02 && R < WORLD*1.05)) return;
+          ctx.strokeStyle = wireColor; ctx.lineWidth = 1;
+          const {ntheta, nphi} = fieldData;
+          for(let i=0;i<=ntheta;i++){
+            ctx.beginPath(); let started=false;
+            for(let j=0;j<=nphi;j++){
+              const k = i*(nphi+1)+j;
+              const g = dirs[k];
+              const p = [g[0]*R, g[1]*R, g[2]*R];
+              if(rot(p)[1] < 0){ started=false; continue; }
+              const s = projUnit(p);
+              if(!started){ ctx.moveTo(s[0],s[1]); started=true; } else ctx.lineTo(s[0],s[1]);
+            }
+            ctx.stroke();
+          }
+
+          const srcAtFront = peakWaveNear();
+          const ARROW_LEN_MAX = WORLD*0.09;
+          for(let k=0;k<dirs.length;k++){
+            const g = dirs[k];
+            if(rot(g)[1] < 0.02) continue;
+            let amp, dir;
+            if(radial){
+              amp = fieldData.pradial[k]*srcAtFront;
+              dir = g;
+            } else {
+              const sx=fieldData.stx[k], sy=fieldData.sty[k], sz=fieldData.stz[k];
+              const mag = Math.hypot(sx,sy,sz);
+              amp = mag*srcAtFront;
+              dir = mag>1e-9 ? [sx/mag, sy/mag, sz/mag] : [0,0,0];
+            }
+            const mrel = Math.min(1, Math.abs(amp)/refAmp);
+            if(mrel < 0.05) continue;
+            const len = mrel*ARROW_LEN_MAX*Math.sign(amp);
+            const base = [g[0]*R, g[1]*R, g[2]*R];
+            const tip = [base[0]+dir[0]*len, base[1]+dir[1]*len, base[2]+dir[2]*len];
+            const [x0,y0] = projUnit(base), [x1,y1] = projUnit(tip);
+            const color = amp >= 0 ? 'rgba(239,68,68,' + (0.4+0.55*mrel) + ')' : 'rgba(59,130,246,' + (0.4+0.55*mrel) + ')';
+            ctx.strokeStyle = color; ctx.lineWidth = 1.6;
+            ctx.beginPath(); ctx.moveTo(x0,y0); ctx.lineTo(x1,y1); ctx.stroke();
+            drawArrowHead2D(x0,y0,x1,y1,color,4);
+          }
+        }
+
+        function drawWavefronts(){
+          if(!fieldData) return;
+          const dirs = latlonDirs(fieldData.ntheta, fieldData.nphi);
+          drawWavefrontShell(ALPHA_MT*tPhase, dirs, 'rgba(249,115,22,0.22)', true);
+          drawWavefrontShell(BETA_MT*tPhase, dirs, 'rgba(34,211,238,0.22)', false);
+        }
+
+        function drawRadiationSurfaces(){
+          if(!fieldData) return;
+          const {ntheta, nphi, pradial, stx, sty, stz} = fieldData;
+          const dirs = latlonDirs(ntheta, nphi);
+          const quads = [];
+          function vertex(k, r){ const g = dirs[k]; return [g[0]*r, g[1]*r, g[2]*r]; }
+          for(let i=0;i<ntheta;i++){
+            for(let j=0;j<nphi;j++){
+              const k00=i*(nphi+1)+j, k01=i*(nphi+1)+j+1, k11=(i+1)*(nphi+1)+j+1, k10=(i+1)*(nphi+1)+j;
+              // P lobe (radial amplitude)
+              const pAvg = (pradial[k00]+pradial[k01]+pradial[k11]+pradial[k10])/4;
+              const pr = 0.08 + Math.abs(pAvg)*0.6;
+              const pverts = [vertex(k00,pr),vertex(k01,pr),vertex(k11,pr),vertex(k10,pr)];
+              const pctr = [(pverts[0][0]+pverts[1][0]+pverts[2][0]+pverts[3][0])/4,(pverts[0][1]+pverts[1][1]+pverts[2][1]+pverts[3][1])/4,(pverts[0][2]+pverts[1][2]+pverts[2][2]+pverts[3][2])/4];
+              const pcolor = pAvg >= 0 ? 'rgba(239,68,68,' + (0.3+0.6*Math.min(1,Math.abs(pAvg)*1.4)) + ')' : 'rgba(59,130,246,' + (0.3+0.6*Math.min(1,Math.abs(pAvg)*1.4)) + ')';
+              quads.push({verts: pverts, depth: rot(pctr)[1], color: pcolor});
+              // S lobe (tangential magnitude)
+              const smag = (Math.hypot(stx[k00],sty[k00],stz[k00])+Math.hypot(stx[k01],sty[k01],stz[k01])+Math.hypot(stx[k11],sty[k11],stz[k11])+Math.hypot(stx[k10],sty[k10],stz[k10]))/4;
+              const sr = 0.08 + smag*0.5;
+              const sverts = [vertex(k00,sr),vertex(k01,sr),vertex(k11,sr),vertex(k10,sr)];
+              const sctr = [(sverts[0][0]+sverts[1][0]+sverts[2][0]+sverts[3][0])/4,(sverts[0][1]+sverts[1][1]+sverts[2][1]+sverts[3][1])/4,(sverts[0][2]+sverts[1][2]+sverts[2][2]+sverts[3][2])/4];
+              const scolor = 'rgba(34,211,238,' + (0.2+0.55*Math.min(1,smag*1.4)) + ')';
+              quads.push({verts: sverts, depth: rot(sctr)[1], color: scolor});
+            }
+          }
+          quads.sort((a,b)=>a.depth-b.depth);
+          for(const q of quads){
+            ctx.beginPath();
+            const [x0,y0] = projUnit(q.verts[0]); ctx.moveTo(x0,y0);
+            for(let k=1;k<4;k++){ const [x,y] = projUnit(q.verts[k]); ctx.lineTo(x,y); }
+            ctx.closePath();
+            ctx.fillStyle = q.color; ctx.fill();
+          }
+        }
+
+        function draw(){
+          ctx.clearRect(0,0,SEC,SEC);
+          drawAxes();
+          if(viewMode === 'pattern'){ drawRadiationSurfaces(); } else { drawWavefronts(); }
+          const [sx0,sy0] = projUnit([0,0,0]);
+          drawStarMarker(sx0, sy0, 7, '#e5e7eb', '#000');
+          ctx.fillStyle = '#9ca3af'; ctx.font = '12px sans-serif'; ctx.textAlign='left';
+          ctx.fillText('source', sx0+10, sy0-8);
+          par.querySelector('#mt-caption').textContent = 'drag to rotate';
+          updateReadout();
+        }
+
+        function updateReadout(){
+          const trace = mxx+myy+mzz;
+          par.querySelector('#mt-readout').innerHTML =
+            'trace(M) <b>' + trace.toFixed(2) + '</b>' + (Math.abs(trace)<0.05 ? ' (pure shear)' : '') + '<br>' +
+            '<span style="color:#ef4444">&#9679;</span> push/outward &nbsp; <span style="color:#3b82f6">&#9679;</span> pull/inward';
+        }
+
+        function syncControls(){
+          par.querySelector('#mt-view-anim').classList.toggle('active', viewMode==='anim');
+          par.querySelector('#mt-view-pattern').classList.toggle('active', viewMode==='pattern');
+          par.querySelector('#mt-play').style.display = viewMode==='anim' ? '' : 'none';
+          par.querySelector('#mt-mxx').value = mxx.toFixed(3);
+          par.querySelector('#mt-myy').value = myy.toFixed(3);
+          par.querySelector('#mt-mzz').value = mzz.toFixed(3);
+          par.querySelector('#mt-mxy').value = mxy.toFixed(3);
+          par.querySelector('#mt-myx').value = mxy.toFixed(3);
+          par.querySelector('#mt-mxz').value = mxz.toFixed(3);
+          par.querySelector('#mt-mzx').value = mxz.toFixed(3);
+          par.querySelector('#mt-myz').value = myz.toFixed(3);
+          par.querySelector('#mt-mzy').value = myz.toFixed(3);
+          par.querySelector('#mt-strike').value = strike; par.querySelector('#mt-strike-v').textContent = strike.toFixed(0)+'°';
+          par.querySelector('#mt-dip').value = dip; par.querySelector('#mt-dip-v').textContent = dip.toFixed(0)+'°';
+          par.querySelector('#mt-rake').value = rake; par.querySelector('#mt-rake-v').textContent = rake.toFixed(0)+'°';
+        }
+
+        let commitInFlight = false;
+        function commit(){
+          commitInFlight = true;
+          par.value = { mxx, myy, mzz, mxy, mxz, myz, strike, dip, rake, source: pendingSource };
+          par.dispatchEvent(new CustomEvent('input'));
+        }
+        function throttledCommit(){ if(!commitInFlight) commit(); }
+
+        par.addEventListener('mt-update', e=>{
+          fieldData = { ntheta: e.detail.ntheta, nphi: e.detail.nphi, pradial: e.detail.pradial,
+            stx: e.detail.stx, sty: e.detail.sty, stz: e.detail.stz };
+          waveData = { tgridWave: e.detail.tgridWave, wave: e.detail.wave };
+          mxx=e.detail.mxx; myy=e.detail.myy; mzz=e.detail.mzz;
+          mxy=e.detail.mxy; mxz=e.detail.mxz; myz=e.detail.myz;
+          const maxAbsWave = Math.max(1e-12, ...waveData.wave.map(Math.abs));
+          const maxAbsField = Math.max(1e-12, ...fieldData.pradial.map(Math.abs));
+          refAmp = maxAbsWave*maxAbsField;
+          commitInFlight = false;
+          syncControls(); draw();
+        });
+
+        // ---- camera drag (empty space only -- no draggable handles on this widget, the matrix
+        // and sliders are the input) ----
+        let dragging = false, lastX = 0, lastY = 0;
+        cv.addEventListener('mousedown', e=>{
+          const rect = cv.getBoundingClientRect();
+          dragging = true; lastX = e.clientX-rect.left; lastY = e.clientY-rect.top;
+        });
+        window.addEventListener('mousemove', e=>{
+          if(!dragging) return;
+          const rect = cv.getBoundingClientRect();
+          const px = e.clientX-rect.left, py = e.clientY-rect.top;
+          const dx = px-lastX, dy = py-lastY;
+          yaw += dx*0.008;
+          pitch = Math.max(-1.4, Math.min(1.4, pitch - dy*0.008));
+          lastX = px; lastY = py;
+          draw();
+        });
+        window.addEventListener('mouseup', ()=>{ dragging = false; });
+
+        // ---- matrix editor: 9 inputs, off-diagonal pairs mirrored ----
+        const MIRROR = { 'mt-mxy':'mt-myx', 'mt-myx':'mt-mxy', 'mt-mxz':'mt-mzx', 'mt-mzx':'mt-mxz', 'mt-myz':'mt-mzy', 'mt-mzy':'mt-myz' };
+        const FIELD_OF = { 'mt-mxx':'mxx','mt-myy':'myy','mt-mzz':'mzz',
+          'mt-mxy':'mxy','mt-myx':'mxy','mt-mxz':'mxz','mt-mzx':'mxz','mt-myz':'myz','mt-mzy':'myz' };
+
+        par.addEventListener('input', e=>{
+          if(e.target===par) return;
+          e.stopImmediatePropagation();
+          const id = e.target.id, v = +e.target.value;
+          if(id in FIELD_OF){
+            const field = FIELD_OF[id];
+            if(field==='mxx') mxx=v; else if(field==='myy') myy=v; else if(field==='mzz') mzz=v;
+            else if(field==='mxy') mxy=v; else if(field==='mxz') mxz=v; else if(field==='myz') myz=v;
+            if(MIRROR[id]) par.querySelector('#'+MIRROR[id]).value = v;
+            pendingSource = 'matrix';
+            throttledCommit();
+            return;
+          }
+          if(id==='mt-strike'){ strike=v; par.querySelector('#mt-strike-v').textContent=strike.toFixed(0)+'°'; }
+          else if(id==='mt-dip'){ dip=v; par.querySelector('#mt-dip-v').textContent=dip.toFixed(0)+'°'; }
+          else if(id==='mt-rake'){ rake=v; par.querySelector('#mt-rake-v').textContent=rake.toFixed(0)+'°'; }
+          else return;
+          pendingSource = 'sdr';
+          throttledCommit();
+        }, true);
+
+        par.querySelector('#mt-view-anim').addEventListener('click', ()=>{
+          if(viewMode==='anim') return;
+          viewMode = 'anim'; syncControls(); draw();
+        });
+        function stopAnim(){
+          playing = false; par.querySelector('#mt-play').textContent = 'Play';
+          if(rafId){ cancelAnimationFrame(rafId); rafId = null; }
+        }
+        par.querySelector('#mt-view-pattern').addEventListener('click', ()=>{
+          if(viewMode==='pattern') return;
+          stopAnim(); viewMode = 'pattern'; syncControls(); draw();
+        });
+
+        function tLoopMax(){ return 1.3*WORLD/Math.min(ALPHA_MT,BETA_MT); }
+        const SIM_SPEED = tLoopMax() / 13;
+        const playBtn = par.querySelector('#mt-play');
+        function stepAnim(ts){
+          if(lastTs===null) lastTs = ts;
+          const dt = Math.min(0.1, (ts-lastTs)/1000);
+          lastTs = ts;
+          tPhase += dt*SIM_SPEED;
+          if(tPhase > tLoopMax()) tPhase = 0;
+          draw();
+          rafId = requestAnimationFrame(stepAnim);
+        }
+        playBtn.addEventListener('click', ()=>{
+          playing = !playing;
+          playBtn.textContent = playing ? 'Pause' : 'Play';
+          if(playing){ lastTs=null; rafId = requestAnimationFrame(stepAnim); }
+          else if(rafId){ cancelAnimationFrame(rafId); rafId=null; }
+        });
+        par.querySelector('#mt-reset').addEventListener('click', ()=>{
+          strike=$(w.strike); dip=$(w.dip); rake=$(w.rake); tPhase=0;
+          pendingSource = 'sdr';
+          syncControls(); draw(); commit();
+        });
+
+        syncControls(); draw();
+        }
+        </script>
+
+        """)
+    end
+
+    const _mt_ready = true
+end
+
+# ╔═╡ 73444fbb-3a43-442b-a85d-29d243644a92
+begin
+    _mt_ready
+    WideCell(@bind mt MomentTensorInput(); max_width=1500)
+end
+
+# ╔═╡ 61dea2a2-6d32-4bca-ba7e-1cf39ce83e35
+# The bond starts as `nothing` until the widget's first real interaction in a live browser
+# reports back -- fall back to a concrete double-couple example so the very first render (and
+# the physics cells below) have real numbers to work with.
+mt_safe = mt isa AbstractDict ? mt : let
+    M0 = double_couple_matrix(30.0, 60.0, 90.0)
+    Dict{String,Any}(
+        "mxx" => M0[1, 1], "myy" => M0[2, 2], "mzz" => M0[3, 3],
+        "mxy" => M0[1, 2], "mxz" => M0[1, 3], "myz" => M0[2, 3],
+        "strike" => 30.0, "dip" => 60.0, "rake" => 90.0, "source" => "sdr")
+end
+
+# ╔═╡ ae12217e-0d9c-4156-8d36-3c7d8274cc34
+# "source" tells us whether the strike/dip/rake sliders or the matrix cells themselves were the
+# last thing the user touched -- the matrix is the actual source of truth for the physics either
+# way, but only one of the two inputs can be authoritative for any given commit.
+_mt_M = get(mt_safe, "source", "sdr") == "matrix" ?
+        Symmetric([mt_safe["mxx"] mt_safe["mxy"] mt_safe["mxz"]
+            mt_safe["mxy"] mt_safe["myy"] mt_safe["myz"]
+            mt_safe["mxz"] mt_safe["myz"] mt_safe["mzz"]]) :
+        double_couple_matrix(mt_safe["strike"], mt_safe["dip"], mt_safe["rake"])
+
+# ╔═╡ 12685459-3bc9-44c7-b056-a8b913bd974c
+_mt_pradial, _mt_stangent = mt_field_grid(_mt_M, _mt_ntheta, _mt_nphi)
+
+# ╔═╡ 1e745b82-3ff6-49cb-a52e-a71fca6434ca
+md"""
+`MtPush` mirrors `PfrPush`: it carries no physics of its own, just the already-computed field
+grid and source-waveform table, handed to the *already-rendered* [`MomentTensorInput`](@ref)
+widget via a `CustomEvent`.
+"""
+
+# ╔═╡ 0bffa9c8-e05d-47f9-9bd1-4a096cd99747
+begin
+    struct MtPush
+        ntheta::Int
+        nphi::Int
+        mxx::Float64
+        myy::Float64
+        mzz::Float64
+        mxy::Float64
+        mxz::Float64
+        myz::Float64
+        pradial::Vector{Float64}
+        stangent::Vector{NTuple{3,Float64}}
+        tgrid_wave::Any
+        wave::Any
+    end
+    function Base.show(io::IO, ::MIME"text/html", p::MtPush)
+        write(io, """
+        <script>
+        {
+        const w = document.getElementById('mtwidget');
+        if(w){
+          w.dispatchEvent(new CustomEvent('mt-update', { detail: {
+            ntheta: $(p.ntheta), nphi: $(p.nphi),
+            mxx: $(p.mxx), myy: $(p.myy), mzz: $(p.mzz), mxy: $(p.mxy), mxz: $(p.mxz), myz: $(p.myz),
+            pradial: [$(_pfr_flatten(p.pradial))],
+            stx: [$(_pfr_flatten([s[1] for s in p.stangent]))],
+            sty: [$(_pfr_flatten([s[2] for s in p.stangent]))],
+            stz: [$(_pfr_flatten([s[3] for s in p.stangent]))],
+            tgridWave: [$(_pfr_flatten(p.tgrid_wave))],
+            wave: [$(_pfr_flatten(p.wave))],
+          }}));
+        }
+        }
+        </script>
+        """)
+    end
+end
+
+# ╔═╡ 05b19046-6389-41e8-97f9-c13084b65872
+MtPush(_mt_ntheta, _mt_nphi, _mt_M[1, 1], _mt_M[2, 2], _mt_M[3, 3], _mt_M[1, 2], _mt_M[1, 3], _mt_M[2, 3],
+    _mt_pradial, _mt_stangent, _mt_tgrid_wave, _mt_wave)
 
 # ╔═╡ 00000000-0000-0000-0000-000000000001
 PLUTO_PROJECT_TOML_CONTENTS = """
 [deps]
-Distributions = "31c24e10-a181-5473-b8eb-7969acd0382f"
-Latexify = "23fbe1c1-3f47-55db-b15f-69d7ec21a316"
 LinearAlgebra = "37e2e46d-f89d-539d-b4ee-838fcccc9c8e"
-Meshes = "eacbb407-ea5a-433e-ab97-5258b1ca43fa"
-PlutoPlotly = "8e989ff0-3d88-8e9f-f020-2b208a939ff0"
-PlutoTeachingTools = "661c6b06-c737-4d37-b85c-46df65de6f69"
-PlutoTest = "cb4044da-4d16-4ffa-a6a3-8cad7f73ebdc"
 PlutoUI = "7f904dfe-b85e-4ff6-b463-dae2292396a8"
 SpecialFunctions = "276daf66-3868-5448-9aa4-cd146d93841b"
-StatsBase = "2913bbd2-ae8a-5f71-8c99-4fb6c76f3a91"
-SymbolicUtils = "d1185830-fcd6-423d-90d6-eec64667417b"
-Symbolics = "0c5d862f-8b57-4792-8d23-62f2024744c7"
 
 [compat]
-Distributions = "~0.25.110"
-Latexify = "~0.16.5"
-Meshes = "~0.55.5"
-PlutoPlotly = "~0.6.5"
-PlutoTeachingTools = "~0.4.6"
-PlutoTest = "~0.2.2"
-PlutoUI = "~0.7.59"
-SpecialFunctions = "~2.6.1"
-StatsBase = "~0.34.3"
-SymbolicUtils = "~3.32.0"
-Symbolics = "~6.56.0"
+PlutoUI = "~0.7.83"
+SpecialFunctions = "~2.8.2"
 """
 
 # ╔═╡ 00000000-0000-0000-0000-000000000002
 PLUTO_MANIFEST_TOML_CONTENTS = """
 # This file is machine-generated - editing it directly is not advised
 
-julia_version = "1.11.7"
+julia_version = "1.12.4"
 manifest_format = "2.0"
-project_hash = "10dc238998b44fc06a696ae4173cf05e49591765"
-
-[[deps.ADTypes]]
-git-tree-sha1 = "27cecae79e5cc9935255f90c53bb831cc3c870d7"
-uuid = "47edcb42-4c32-4615-8424-f2b9edc5f35b"
-version = "1.18.0"
-
-    [deps.ADTypes.extensions]
-    ADTypesChainRulesCoreExt = "ChainRulesCore"
-    ADTypesConstructionBaseExt = "ConstructionBase"
-    ADTypesEnzymeCoreExt = "EnzymeCore"
-
-    [deps.ADTypes.weakdeps]
-    ChainRulesCore = "d360d2e6-b24c-11e9-a2a3-2a2ae2dbcce4"
-    ConstructionBase = "187b0558-2788-49d3-abe0-74a17ed4e7c9"
-    EnzymeCore = "f151be2c-9106-41f4-ab19-57ee4f262869"
-
-[[deps.AbstractFFTs]]
-deps = ["LinearAlgebra"]
-git-tree-sha1 = "d92ad398961a3ed262d8bf04a1a2b8340f915fef"
-uuid = "621f4979-c628-5d54-868e-fcf4e3e8185c"
-version = "1.5.0"
-weakdeps = ["ChainRulesCore", "Test"]
-
-    [deps.AbstractFFTs.extensions]
-    AbstractFFTsChainRulesCoreExt = "ChainRulesCore"
-    AbstractFFTsTestExt = "Test"
+project_hash = "0eb42bd4276548eb4fd54b3732ee3f5404667bf5"
 
 [[deps.AbstractPlutoDingetjes]]
-deps = ["Pkg"]
-git-tree-sha1 = "6e1d2a35f2f90a4bc7c2ed98079b2ba09c35b83a"
+git-tree-sha1 = "6c3913f4e9bdf6ba3c08041a446fb1332716cbc2"
 uuid = "6e696c72-6542-2067-7265-42206c756150"
-version = "1.3.2"
-
-[[deps.AbstractTrees]]
-git-tree-sha1 = "2d9c9a55f9c93e8887ad391fbae72f8ef55e1177"
-uuid = "1520ce14-60c1-5f80-bbc7-55ef81b5835c"
-version = "0.4.5"
-
-[[deps.Accessors]]
-deps = ["CompositionsBase", "ConstructionBase", "Dates", "InverseFunctions", "MacroTools"]
-git-tree-sha1 = "3b86719127f50670efe356bc11073d84b4ed7a5d"
-uuid = "7d9f7c33-5ae7-4f3b-8dc6-eff91059b697"
-version = "0.1.42"
-
-    [deps.Accessors.extensions]
-    AxisKeysExt = "AxisKeys"
-    IntervalSetsExt = "IntervalSets"
-    LinearAlgebraExt = "LinearAlgebra"
-    StaticArraysExt = "StaticArrays"
-    StructArraysExt = "StructArrays"
-    TestExt = "Test"
-    UnitfulExt = "Unitful"
-
-    [deps.Accessors.weakdeps]
-    AxisKeys = "94b1ba4f-4ee9-5380-92f1-94cde586c3c5"
-    IntervalSets = "8197267c-284f-5f27-9208-e0e47529a953"
-    LinearAlgebra = "37e2e46d-f89d-539d-b4ee-838fcccc9c8e"
-    StaticArrays = "90137ffa-7385-5640-81b9-e52037218182"
-    StructArrays = "09ab397b-f2b6-538f-b94a-2f83cf4a842a"
-    Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
-    Unitful = "1986cc42-f94f-5a68-af5c-568840ba703d"
-
-[[deps.Adapt]]
-deps = ["LinearAlgebra", "Requires"]
-git-tree-sha1 = "7e35fca2bdfba44d797c53dfe63a51fabf39bfc0"
-uuid = "79e6a3ab-5dfb-504d-930d-738a2a938a0e"
-version = "4.4.0"
-weakdeps = ["SparseArrays", "StaticArrays"]
-
-    [deps.Adapt.extensions]
-    AdaptSparseArraysExt = "SparseArrays"
-    AdaptStaticArraysExt = "StaticArrays"
-
-[[deps.AdaptivePredicates]]
-git-tree-sha1 = "7e651ea8d262d2d74ce75fdf47c4d63c07dba7a6"
-uuid = "35492f91-a3bd-45ad-95db-fcad7dcfedb7"
-version = "1.2.0"
-
-[[deps.AliasTables]]
-deps = ["PtrArrays", "Random"]
-git-tree-sha1 = "9876e1e164b144ca45e9e3198d0b689cadfed9ff"
-uuid = "66dad0bd-aa9a-41b7-9441-69ab47430ed8"
-version = "1.1.3"
+version = "1.4.0"
 
 [[deps.ArgTools]]
 uuid = "0dad84c5-d112-42e6-8d28-ef12dabb789f"
 version = "1.1.2"
-
-[[deps.ArrayInterface]]
-deps = ["Adapt", "LinearAlgebra"]
-git-tree-sha1 = "d81ae5489e13bc03567d4fbbb06c546a5e53c857"
-uuid = "4fba245c-0d91-5ea0-9b3e-6abc04ee57a9"
-version = "7.22.0"
-
-    [deps.ArrayInterface.extensions]
-    ArrayInterfaceBandedMatricesExt = "BandedMatrices"
-    ArrayInterfaceBlockBandedMatricesExt = "BlockBandedMatrices"
-    ArrayInterfaceCUDAExt = "CUDA"
-    ArrayInterfaceCUDSSExt = ["CUDSS", "CUDA"]
-    ArrayInterfaceChainRulesCoreExt = "ChainRulesCore"
-    ArrayInterfaceChainRulesExt = "ChainRules"
-    ArrayInterfaceGPUArraysCoreExt = "GPUArraysCore"
-    ArrayInterfaceMetalExt = "Metal"
-    ArrayInterfaceReverseDiffExt = "ReverseDiff"
-    ArrayInterfaceSparseArraysExt = "SparseArrays"
-    ArrayInterfaceStaticArraysCoreExt = "StaticArraysCore"
-    ArrayInterfaceTrackerExt = "Tracker"
-
-    [deps.ArrayInterface.weakdeps]
-    BandedMatrices = "aae01518-5342-5314-be14-df237901396f"
-    BlockBandedMatrices = "ffab5731-97b5-5995-9138-79e8c1846df0"
-    CUDA = "052768ef-5323-5732-b1bb-66c8b64840ba"
-    CUDSS = "45b445bb-4962-46a0-9369-b4df9d0f772e"
-    ChainRules = "082447d4-558c-5d27-93f4-14fc19e9eca2"
-    ChainRulesCore = "d360d2e6-b24c-11e9-a2a3-2a2ae2dbcce4"
-    GPUArraysCore = "46192b85-c4d5-4398-a991-12ede77f4527"
-    Metal = "dde4c033-4e86-420c-a63e-0dd931031962"
-    ReverseDiff = "37e2e3b7-166d-5795-8a7a-e32c996b4267"
-    SparseArrays = "2f01184e-e22b-5df5-ae63-d93ebab69eaf"
-    StaticArraysCore = "1e83bf80-4336-4d27-bf5d-d5a4f845583c"
-    Tracker = "9f7883ad-71c0-57eb-9f7f-b5c9e6d3789c"
 
 [[deps.Artifacts]]
 uuid = "56f22d72-fd6d-98f1-02f0-08ddc0907c33"
@@ -920,56 +2065,6 @@ version = "1.11.0"
 [[deps.Base64]]
 uuid = "2a0f44e3-6c83-55bd-87e4-b1978d98bd5f"
 version = "1.11.0"
-
-[[deps.Bessels]]
-git-tree-sha1 = "4435559dc39793d53a9e3d278e185e920b4619ef"
-uuid = "0e736298-9ec6-45e8-9647-e4fc86a2fe38"
-version = "0.2.8"
-
-[[deps.Bijections]]
-git-tree-sha1 = "a2d308fcd4c2fb90e943cf9cd2fbfa9c32b69733"
-uuid = "e2ed5e7c-b2de-5872-ae92-c73ca462fb04"
-version = "0.2.2"
-
-[[deps.CRlibm]]
-deps = ["CRlibm_jll"]
-git-tree-sha1 = "66188d9d103b92b6cd705214242e27f5737a1e5e"
-uuid = "96374032-68de-5a5b-8d9e-752f78720389"
-version = "1.0.2"
-
-[[deps.CRlibm_jll]]
-deps = ["Artifacts", "JLLWrappers", "Libdl", "Pkg"]
-git-tree-sha1 = "e329286945d0cfc04456972ea732551869af1cfc"
-uuid = "4e9b3aee-d8a1-5a3d-ad8b-7d824db253f0"
-version = "1.0.1+0"
-
-[[deps.ChainRules]]
-deps = ["Adapt", "ChainRulesCore", "Compat", "Distributed", "GPUArraysCore", "IrrationalConstants", "LinearAlgebra", "Random", "RealDot", "SparseArrays", "SparseInverseSubset", "Statistics", "StructArrays", "SuiteSparse"]
-git-tree-sha1 = "3b704353e517a957323bd3ac70fa7b669b5f48d4"
-uuid = "082447d4-558c-5d27-93f4-14fc19e9eca2"
-version = "1.72.6"
-
-[[deps.ChainRulesCore]]
-deps = ["Compat", "LinearAlgebra"]
-git-tree-sha1 = "e4c6a16e77171a5f5e25e9646617ab1c276c5607"
-uuid = "d360d2e6-b24c-11e9-a2a3-2a2ae2dbcce4"
-version = "1.26.0"
-weakdeps = ["SparseArrays"]
-
-    [deps.ChainRulesCore.extensions]
-    ChainRulesCoreSparseArraysExt = "SparseArrays"
-
-[[deps.CircularArrays]]
-deps = ["OffsetArrays"]
-git-tree-sha1 = "e24a6f390e5563583bb4315c73035b5b3f3e7ab4"
-uuid = "7a955b69-7140-5f4e-a0ed-f168c5e2e749"
-version = "1.4.0"
-
-[[deps.ColorSchemes]]
-deps = ["ColorTypes", "ColorVectorSpace", "Colors", "FixedPointNumbers", "PrecompileTools", "Random"]
-git-tree-sha1 = "b0fd3f56fa442f81e0a47815c92245acfaaa4e34"
-uuid = "35d6a980-a343-548e-a6ea-1d62b119f2f4"
-version = "3.31.0"
 
 [[deps.ColorTypes]]
 deps = ["FixedPointNumbers", "Random"]
@@ -981,308 +2076,35 @@ weakdeps = ["StyledStrings"]
     [deps.ColorTypes.extensions]
     StyledStringsExt = "StyledStrings"
 
-[[deps.ColorVectorSpace]]
-deps = ["ColorTypes", "FixedPointNumbers", "LinearAlgebra", "Requires", "Statistics", "TensorCore"]
-git-tree-sha1 = "8b3b6f87ce8f65a2b4f857528fd8d70086cd72b1"
-uuid = "c3611d14-8923-5661-9e6a-0046d554d3a4"
-version = "0.11.0"
-weakdeps = ["SpecialFunctions"]
-
-    [deps.ColorVectorSpace.extensions]
-    SpecialFunctionsExt = "SpecialFunctions"
-
-[[deps.Colorfy]]
-deps = ["ColorSchemes", "Colors", "Dates", "FixedPointNumbers"]
-git-tree-sha1 = "f5c80e247eca449cdfefcee4cff6f7c4cd086e37"
-uuid = "03fe91ce-8ec6-4610-8e8d-e7491ccca690"
-version = "1.1.2"
-
-    [deps.Colorfy.extensions]
-    ColorfyCategoricalArraysExt = "CategoricalArrays"
-    ColorfyDistributionsExt = "Distributions"
-    ColorfyUnitfulExt = "Unitful"
-
-    [deps.Colorfy.weakdeps]
-    CategoricalArrays = "324d7699-5711-5eae-9e2f-1d82baa6b597"
-    Distributions = "31c24e10-a181-5473-b8eb-7969acd0382f"
-    Unitful = "1986cc42-f94f-5a68-af5c-568840ba703d"
-
-[[deps.Colors]]
-deps = ["ColorTypes", "FixedPointNumbers", "Reexport"]
-git-tree-sha1 = "37ea44092930b1811e666c3bc38065d7d87fcc74"
-uuid = "5ae59095-9a9b-59fe-a467-6f913c188581"
-version = "0.13.1"
-
-[[deps.Combinatorics]]
-git-tree-sha1 = "08c8b6831dc00bfea825826be0bc8336fc369860"
-uuid = "861a8166-3701-5b0c-9a16-15d98fcdc6aa"
-version = "1.0.2"
-
-[[deps.CommonSolve]]
-git-tree-sha1 = "0eee5eb66b1cf62cd6ad1b460238e60e4b09400c"
-uuid = "38540f10-b2f7-11e9-35d8-d573e4eb0ff2"
-version = "0.2.4"
-
-[[deps.CommonSubexpressions]]
-deps = ["MacroTools"]
-git-tree-sha1 = "cda2cfaebb4be89c9084adaca7dd7333369715c5"
-uuid = "bbf7d656-a473-5ed7-a52c-81e309532950"
-version = "0.3.1"
-
-[[deps.CommonWorldInvalidations]]
-git-tree-sha1 = "ae52d1c52048455e85a387fbee9be553ec2b68d0"
-uuid = "f70d9fcc-98c5-4d4a-abd7-e4cdeebd8ca8"
-version = "1.0.0"
-
-[[deps.Compat]]
-deps = ["TOML", "UUIDs"]
-git-tree-sha1 = "9d8a54ce4b17aa5bdce0ea5c34bc5e7c340d16ad"
-uuid = "34da2185-b29b-5c13-b0c7-acf172513d20"
-version = "4.18.1"
-weakdeps = ["Dates", "LinearAlgebra"]
-
-    [deps.Compat.extensions]
-    CompatLinearAlgebraExt = "LinearAlgebra"
-
 [[deps.CompilerSupportLibraries_jll]]
 deps = ["Artifacts", "Libdl"]
 uuid = "e66e0078-7015-5450-92f7-15fbd957f2ae"
-version = "1.1.1+0"
-
-[[deps.CompositeTypes]]
-git-tree-sha1 = "bce26c3dab336582805503bed209faab1c279768"
-uuid = "b152e2b5-7a66-4b01-a709-34e65c35f657"
-version = "0.1.4"
-
-[[deps.CompositionsBase]]
-git-tree-sha1 = "802bb88cd69dfd1509f6670416bd4434015693ad"
-uuid = "a33af91c-f02d-484b-be07-31d278c5ca2b"
-version = "0.1.2"
-weakdeps = ["InverseFunctions"]
-
-    [deps.CompositionsBase.extensions]
-    CompositionsBaseInverseFunctionsExt = "InverseFunctions"
-
-[[deps.ConstructionBase]]
-git-tree-sha1 = "b4b092499347b18a015186eae3042f72267106cb"
-uuid = "187b0558-2788-49d3-abe0-74a17ed4e7c9"
-version = "1.6.0"
-weakdeps = ["IntervalSets", "LinearAlgebra", "StaticArrays"]
-
-    [deps.ConstructionBase.extensions]
-    ConstructionBaseIntervalSetsExt = "IntervalSets"
-    ConstructionBaseLinearAlgebraExt = "LinearAlgebra"
-    ConstructionBaseStaticArraysExt = "StaticArrays"
-
-[[deps.CoordRefSystems]]
-deps = ["Random", "Rotations", "StaticArrays", "Unitful", "Zygote"]
-git-tree-sha1 = "25aafb8bf5e0f46d9f0c691aa9c0a0f5dea35c15"
-uuid = "b46f11dc-f210-4604-bfba-323c1ec968cb"
-version = "0.19.2"
-
-[[deps.DataAPI]]
-git-tree-sha1 = "abe83f3a2f1b857aac70ef8b269080af17764bbe"
-uuid = "9a962f9c-6df0-11e9-0e5d-c546b8b5ee8a"
-version = "1.16.0"
-
-[[deps.DataStructures]]
-deps = ["OrderedCollections"]
-git-tree-sha1 = "6c72198e6a101cccdd4c9731d3985e904ba26037"
-uuid = "864edb3b-99cc-5e75-8d2d-829cb0a9cfe8"
-version = "0.19.1"
-
-[[deps.DataValueInterfaces]]
-git-tree-sha1 = "bfc1187b79289637fa0ef6d4436ebdfe6905cbd6"
-uuid = "e2d170a0-9d28-54be-80f0-106bbe20a464"
-version = "1.0.0"
+version = "1.3.0+1"
 
 [[deps.Dates]]
 deps = ["Printf"]
 uuid = "ade2ca70-3891-5945-98fb-dc099432e06a"
 version = "1.11.0"
 
-[[deps.DelaunayTriangulation]]
-deps = ["AdaptivePredicates", "EnumX", "ExactPredicates", "Random"]
-git-tree-sha1 = "5620ff4ee0084a6ab7097a27ba0c19290200b037"
-uuid = "927a84f5-c5f4-47a5-9785-b46e178433df"
-version = "1.6.4"
-
-[[deps.DelimitedFiles]]
-deps = ["Mmap"]
-git-tree-sha1 = "9e2f36d3c96a820c678f2f1f1782582fcf685bae"
-uuid = "8bb1440f-4735-579b-a4ab-409b98df4dab"
-version = "1.9.1"
-
-[[deps.DiffResults]]
-deps = ["StaticArraysCore"]
-git-tree-sha1 = "782dd5f4561f5d267313f23853baaaa4c52ea621"
-uuid = "163ba53b-c6d8-5494-b064-1a9d43ac40c5"
-version = "1.1.0"
-
-[[deps.DiffRules]]
-deps = ["IrrationalConstants", "LogExpFunctions", "NaNMath", "Random", "SpecialFunctions"]
-git-tree-sha1 = "23163d55f885173722d1e4cf0f6110cdbaf7e272"
-uuid = "b552c78f-8df3-52c6-915a-8e097449b14b"
-version = "1.15.1"
-
-[[deps.Distances]]
-deps = ["LinearAlgebra", "Statistics", "StatsAPI"]
-git-tree-sha1 = "c7e3a542b999843086e2f29dac96a618c105be1d"
-uuid = "b4f34e82-e78d-54a5-968a-f98e89d6e8f7"
-version = "0.10.12"
-weakdeps = ["ChainRulesCore", "SparseArrays"]
-
-    [deps.Distances.extensions]
-    DistancesChainRulesCoreExt = "ChainRulesCore"
-    DistancesSparseArraysExt = "SparseArrays"
-
-[[deps.Distributed]]
-deps = ["Random", "Serialization", "Sockets"]
-uuid = "8ba89e20-285c-5b6f-9357-94700520ee1b"
-version = "1.11.0"
-
-[[deps.Distributions]]
-deps = ["AliasTables", "FillArrays", "LinearAlgebra", "PDMats", "Printf", "QuadGK", "Random", "SpecialFunctions", "Statistics", "StatsAPI", "StatsBase", "StatsFuns"]
-git-tree-sha1 = "3bc002af51045ca3b47d2e1787d6ce02e68b943a"
-uuid = "31c24e10-a181-5473-b8eb-7969acd0382f"
-version = "0.25.122"
-
-    [deps.Distributions.extensions]
-    DistributionsChainRulesCoreExt = "ChainRulesCore"
-    DistributionsDensityInterfaceExt = "DensityInterface"
-    DistributionsTestExt = "Test"
-
-    [deps.Distributions.weakdeps]
-    ChainRulesCore = "d360d2e6-b24c-11e9-a2a3-2a2ae2dbcce4"
-    DensityInterface = "b429d917-457f-4dbc-8f4c-0cc954292b1d"
-    Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
-
 [[deps.DocStringExtensions]]
 git-tree-sha1 = "7442a5dfe1ebb773c29cc2962a8980f47221d76c"
 uuid = "ffbed154-4ef7-542d-bbb7-c09d3a79fcae"
 version = "0.9.5"
 
-[[deps.DomainSets]]
-deps = ["CompositeTypes", "IntervalSets", "LinearAlgebra", "StaticArrays"]
-git-tree-sha1 = "c249d86e97a7e8398ce2068dce4c078a1c3464de"
-uuid = "5b8099bc-c8ec-5219-889f-1d9e522a28bf"
-version = "0.7.16"
-
-    [deps.DomainSets.extensions]
-    DomainSetsMakieExt = "Makie"
-    DomainSetsRandomExt = "Random"
-
-    [deps.DomainSets.weakdeps]
-    Makie = "ee78f7c6-11fb-53f2-987a-cfe4a2b5a57a"
-    Random = "9a3f8284-a2c9-5f02-9a11-845980a1fd5c"
-
 [[deps.Downloads]]
 deps = ["ArgTools", "FileWatching", "LibCURL", "NetworkOptions"]
 uuid = "f43a241f-c20a-4ad4-852c-f6b1247861c6"
-version = "1.6.0"
-
-[[deps.DynamicPolynomials]]
-deps = ["Future", "LinearAlgebra", "MultivariatePolynomials", "MutableArithmetics", "Reexport", "Test"]
-git-tree-sha1 = "3f50fa86c968fc1a9e006c07b6bc40ccbb1b704d"
-uuid = "7c1d4256-1411-5781-91ec-d7bc3513ac07"
-version = "0.6.4"
-
-[[deps.EnumX]]
-git-tree-sha1 = "bddad79635af6aec424f53ed8aad5d7555dc6f00"
-uuid = "4e289a0a-7415-4d19-859d-a7e5c4648b56"
-version = "1.0.5"
-
-[[deps.ExactPredicates]]
-deps = ["IntervalArithmetic", "Random", "StaticArrays"]
-git-tree-sha1 = "83231673ea4d3d6008ac74dc5079e77ab2209d8f"
-uuid = "429591f6-91af-11e9-00e2-59fbe8cec110"
-version = "2.2.9"
-
-[[deps.ExprTools]]
-git-tree-sha1 = "27415f162e6028e81c72b82ef756bf321213b6ec"
-uuid = "e2ba6199-217a-4e67-a87a-7c52f15ade04"
-version = "0.1.10"
-
-[[deps.ExproniconLite]]
-git-tree-sha1 = "c13f0b150373771b0fdc1713c97860f8df12e6c2"
-uuid = "55351af7-c7e9-48d6-89ff-24e801d99491"
-version = "0.10.14"
+version = "1.7.0"
 
 [[deps.FileWatching]]
 uuid = "7b1f6079-737a-58dc-b8bc-7a2ca5c1b5ee"
 version = "1.11.0"
 
-[[deps.FillArrays]]
-deps = ["LinearAlgebra"]
-git-tree-sha1 = "173e4d8f14230a7523ae11b9a3fa9edb3e0efd78"
-uuid = "1a297f60-69ca-5386-bcde-b61e274b549b"
-version = "1.14.0"
-weakdeps = ["PDMats", "SparseArrays", "Statistics"]
-
-    [deps.FillArrays.extensions]
-    FillArraysPDMatsExt = "PDMats"
-    FillArraysSparseArraysExt = "SparseArrays"
-    FillArraysStatisticsExt = "Statistics"
-
 [[deps.FixedPointNumbers]]
-deps = ["Statistics"]
-git-tree-sha1 = "05882d6995ae5c12bb5f36dd2ed3f61c98cbb172"
+deps = ["Random", "Statistics"]
+git-tree-sha1 = "59af96b98217c6ef4ae0dfe065ac7c20831d1a84"
 uuid = "53c48c17-4a7d-5ca2-90c5-79b7896eea93"
-version = "0.8.5"
-
-[[deps.Format]]
-git-tree-sha1 = "9c68794ef81b08086aeb32eeaf33531668d5f5fc"
-uuid = "1fa38f19-a742-5d3f-a2b9-30dd87b9d5f8"
-version = "1.3.7"
-
-[[deps.ForwardDiff]]
-deps = ["CommonSubexpressions", "DiffResults", "DiffRules", "LinearAlgebra", "LogExpFunctions", "NaNMath", "Preferences", "Printf", "Random", "SpecialFunctions"]
-git-tree-sha1 = "ba6ce081425d0afb2bedd00d9884464f764a9225"
-uuid = "f6369f11-7733-5829-9624-2563aa707210"
-version = "1.2.2"
-weakdeps = ["StaticArrays"]
-
-    [deps.ForwardDiff.extensions]
-    ForwardDiffStaticArraysExt = "StaticArrays"
-
-[[deps.FunctionWrappers]]
-git-tree-sha1 = "d62485945ce5ae9c0c48f124a84998d755bae00e"
-uuid = "069b7b12-0de2-55c6-9aab-29f3d0a68a2e"
-version = "1.1.3"
-
-[[deps.FunctionWrappersWrappers]]
-deps = ["FunctionWrappers"]
-git-tree-sha1 = "b104d487b34566608f8b4e1c39fb0b10aa279ff8"
-uuid = "77dc65aa-8811-40c2-897b-53d922fa7daf"
-version = "0.1.3"
-
-[[deps.Future]]
-deps = ["Random"]
-uuid = "9fa8497b-333b-5362-9e8d-4d0656e87820"
-version = "1.11.0"
-
-[[deps.GPUArraysCore]]
-deps = ["Adapt"]
-git-tree-sha1 = "83cf05ab16a73219e5f6bd1bdfa9848fa24ac627"
-uuid = "46192b85-c4d5-4398-a991-12ede77f4527"
-version = "0.2.0"
-
-[[deps.Ghostscript_jll]]
-deps = ["Artifacts", "JLLWrappers", "JpegTurbo_jll", "Libdl", "Zlib_jll"]
-git-tree-sha1 = "38044a04637976140074d0b0621c1edf0eb531fd"
-uuid = "61579ee1-b43e-5ca0-a5da-69d92c66a64b"
-version = "9.55.1+0"
-
-[[deps.HashArrayMappedTries]]
-git-tree-sha1 = "2eaa69a7cab70a52b9687c8bf950a5a93ec895ae"
-uuid = "076d061b-32b6-4027-95e0-9a2c6f6d7e74"
-version = "0.2.0"
-
-[[deps.HypergeometricFunctions]]
-deps = ["LinearAlgebra", "OpenLibm_jll", "SpecialFunctions"]
-git-tree-sha1 = "68c173f4f449de5b438ee67ed0c9c748dc31a2ec"
-uuid = "34004b35-14d8-5ef3-9330-4cdb6864b03a"
-version = "0.3.28"
+version = "0.8.6"
 
 [[deps.Hyperscript]]
 deps = ["Test"]
@@ -1292,138 +2114,36 @@ version = "0.0.5"
 
 [[deps.HypertextLiteral]]
 deps = ["Tricks"]
-git-tree-sha1 = "7134810b1afce04bbc1045ca1985fbe81ce17653"
+git-tree-sha1 = "d1a86724f81bcd184a38fd284ce183ec067d71a0"
 uuid = "ac1192a8-f4b3-4bfe-ba22-af5b92cd3ab2"
-version = "0.9.5"
+version = "1.0.0"
 
 [[deps.IOCapture]]
 deps = ["Logging", "Random"]
-git-tree-sha1 = "b6d6bfdd7ce25b0f9b2f6b3dd56b2673a66c8770"
+git-tree-sha1 = "0ee181ec08df7d7c911901ea38baf16f755114dc"
 uuid = "b5f81e59-6552-4d32-b1f0-c071b021bf89"
-version = "0.2.5"
-
-[[deps.IRTools]]
-deps = ["InteractiveUtils", "MacroTools"]
-git-tree-sha1 = "57e9ce6cf68d0abf5cb6b3b4abf9bedf05c939c0"
-uuid = "7869d1d1-7146-5819-86e3-90919afe41df"
-version = "0.4.15"
-
-[[deps.IfElse]]
-git-tree-sha1 = "debdd00ffef04665ccbb3e150747a77560e8fad1"
-uuid = "615f187c-cbe4-4ef1-ba3b-2fcf58d6d173"
-version = "0.1.1"
-
-[[deps.IntegerMathUtils]]
-git-tree-sha1 = "4c1acff2dc6b6967e7e750633c50bc3b8d83e617"
-uuid = "18e54dd8-cb9d-406c-a71d-865a43cbb235"
-version = "0.1.3"
+version = "1.0.0"
 
 [[deps.InteractiveUtils]]
 deps = ["Markdown"]
 uuid = "b77e0a4c-d291-57a0-90e8-8db25a27a240"
 version = "1.11.0"
 
-[[deps.IntervalArithmetic]]
-deps = ["CRlibm", "MacroTools", "OpenBLASConsistentFPCSR_jll", "Printf", "Random", "RoundingEmulator"]
-git-tree-sha1 = "bf0210c01fb7d67c31fed97d7c1d1716b98ea689"
-uuid = "d1acc4aa-44c8-5952-acd4-ba5d80a2a253"
-version = "1.0.1"
-
-    [deps.IntervalArithmetic.extensions]
-    IntervalArithmeticArblibExt = "Arblib"
-    IntervalArithmeticDiffRulesExt = "DiffRules"
-    IntervalArithmeticForwardDiffExt = "ForwardDiff"
-    IntervalArithmeticIntervalSetsExt = "IntervalSets"
-    IntervalArithmeticLinearAlgebraExt = "LinearAlgebra"
-    IntervalArithmeticRecipesBaseExt = "RecipesBase"
-    IntervalArithmeticSparseArraysExt = "SparseArrays"
-
-    [deps.IntervalArithmetic.weakdeps]
-    Arblib = "fb37089c-8514-4489-9461-98f9c8763369"
-    DiffRules = "b552c78f-8df3-52c6-915a-8e097449b14b"
-    ForwardDiff = "f6369f11-7733-5829-9624-2563aa707210"
-    IntervalSets = "8197267c-284f-5f27-9208-e0e47529a953"
-    LinearAlgebra = "37e2e46d-f89d-539d-b4ee-838fcccc9c8e"
-    RecipesBase = "3cdcf5f2-1ef4-517c-9805-6587b60abb01"
-    SparseArrays = "2f01184e-e22b-5df5-ae63-d93ebab69eaf"
-
-[[deps.IntervalSets]]
-git-tree-sha1 = "5fbb102dcb8b1a858111ae81d56682376130517d"
-uuid = "8197267c-284f-5f27-9208-e0e47529a953"
-version = "0.7.11"
-weakdeps = ["Random", "RecipesBase", "Statistics"]
-
-    [deps.IntervalSets.extensions]
-    IntervalSetsRandomExt = "Random"
-    IntervalSetsRecipesBaseExt = "RecipesBase"
-    IntervalSetsStatisticsExt = "Statistics"
-
-[[deps.InverseFunctions]]
-git-tree-sha1 = "a779299d77cd080bf77b97535acecd73e1c5e5cb"
-uuid = "3587e190-3f89-42d0-90ee-14403ec27112"
-version = "0.1.17"
-weakdeps = ["Dates", "Test"]
-
-    [deps.InverseFunctions.extensions]
-    InverseFunctionsDatesExt = "Dates"
-    InverseFunctionsTestExt = "Test"
-
 [[deps.IrrationalConstants]]
 git-tree-sha1 = "b2d91fe939cae05960e760110b328288867b5758"
 uuid = "92d709cd-6900-40b7-9082-c6be49f344b6"
 version = "0.2.6"
 
-[[deps.IteratorInterfaceExtensions]]
-git-tree-sha1 = "a3f24677c21f5bbe9d2a714f95dcd58337fb2856"
-uuid = "82899510-4779-5014-852e-03e436cf321d"
-version = "1.0.0"
-
 [[deps.JLLWrappers]]
 deps = ["Artifacts", "Preferences"]
-git-tree-sha1 = "0533e564aae234aff59ab625543145446d8b6ec2"
+git-tree-sha1 = "7204148362dafe5fe6a273f855b8ccbe4df8173e"
 uuid = "692b3bcd-3c85-4b1f-b108-f13ce0eb3210"
-version = "1.7.1"
+version = "1.8.0"
 
-[[deps.JSON]]
-deps = ["Dates", "Mmap", "Parsers", "Unicode"]
-git-tree-sha1 = "31e996f0a15c7b280ba9f76636b3ff9e2ae58c9a"
-uuid = "682c06a0-de6a-54ab-a142-c8b1cf79cde6"
-version = "0.21.4"
-
-[[deps.Jieko]]
-deps = ["ExproniconLite"]
-git-tree-sha1 = "2f05ed29618da60c06a87e9c033982d4f71d0b6c"
-uuid = "ae98c720-c025-4a4a-838c-29b094483192"
-version = "0.2.1"
-
-[[deps.JpegTurbo_jll]]
-deps = ["Artifacts", "JLLWrappers", "Libdl"]
-git-tree-sha1 = "4255f0032eafd6451d707a51d5f0248b8a165e4d"
-uuid = "aacddb02-875f-59d6-b918-886e6ef4fbf8"
-version = "3.1.3+0"
-
-[[deps.LaTeXStrings]]
-git-tree-sha1 = "dda21b8cbd6a6c40d9d02a73230f9d70fed6918c"
-uuid = "b964fa9f-0449-5b57-a5c2-d3ea65f4040f"
-version = "1.4.0"
-
-[[deps.Latexify]]
-deps = ["Format", "Ghostscript_jll", "InteractiveUtils", "LaTeXStrings", "MacroTools", "Markdown", "OrderedCollections", "Requires"]
-git-tree-sha1 = "44f93c47f9cd6c7e431f2f2091fcba8f01cd7e8f"
-uuid = "23fbe1c1-3f47-55db-b15f-69d7ec21a316"
-version = "0.16.10"
-
-    [deps.Latexify.extensions]
-    DataFramesExt = "DataFrames"
-    SparseArraysExt = "SparseArrays"
-    SymEngineExt = "SymEngine"
-    TectonicExt = "tectonic_jll"
-
-    [deps.Latexify.weakdeps]
-    DataFrames = "a93c6f00-e57d-5684-b7b6-d8193f3e46c0"
-    SparseArrays = "2f01184e-e22b-5df5-ae63-d93ebab69eaf"
-    SymEngine = "123dc426-2d89-5057-bbad-38513e3affd8"
-    tectonic_jll = "d7dd28d6-a5e6-559c-9131-7eb760cdacc5"
+[[deps.JuliaSyntaxHighlighting]]
+deps = ["StyledStrings"]
+uuid = "ac6e5ff7-fb65-4e79-a425-ec3bc9c03011"
+version = "1.12.0"
 
 [[deps.LibCURL]]
 deps = ["LibCURL_jll", "MozillaCACerts_jll"]
@@ -1431,24 +2151,14 @@ uuid = "b27032c2-a3e7-50c8-80cd-2d36dbcbfd21"
 version = "0.6.4"
 
 [[deps.LibCURL_jll]]
-deps = ["Artifacts", "LibSSH2_jll", "Libdl", "MbedTLS_jll", "Zlib_jll", "nghttp2_jll"]
+deps = ["Artifacts", "LibSSH2_jll", "Libdl", "OpenSSL_jll", "Zlib_jll", "nghttp2_jll"]
 uuid = "deac9b47-8bc7-5906-a0fe-35ac56dc84c0"
-version = "8.6.0+0"
-
-[[deps.LibGit2]]
-deps = ["Base64", "LibGit2_jll", "NetworkOptions", "Printf", "SHA"]
-uuid = "76f85450-5226-5b5a-8eaa-529ad045b433"
-version = "1.11.0"
-
-[[deps.LibGit2_jll]]
-deps = ["Artifacts", "LibSSH2_jll", "Libdl", "MbedTLS_jll"]
-uuid = "e37daf67-58a4-590a-8e99-b0245dd2ffc5"
-version = "1.7.2+0"
+version = "8.15.0+0"
 
 [[deps.LibSSH2_jll]]
-deps = ["Artifacts", "Libdl", "MbedTLS_jll"]
+deps = ["Artifacts", "Libdl", "OpenSSL_jll"]
 uuid = "29816b5a-b9ab-546f-933c-edad1886dfa8"
-version = "1.11.0+1"
+version = "1.11.3+1"
 
 [[deps.Libdl]]
 uuid = "8f399da3-3557-5675-b5ff-fb832c97cbdb"
@@ -1457,13 +2167,13 @@ version = "1.11.0"
 [[deps.LinearAlgebra]]
 deps = ["Libdl", "OpenBLAS_jll", "libblastrampoline_jll"]
 uuid = "37e2e46d-f89d-539d-b4ee-838fcccc9c8e"
-version = "1.11.0"
+version = "1.12.0"
 
 [[deps.LogExpFunctions]]
 deps = ["DocStringExtensions", "IrrationalConstants", "LinearAlgebra"]
-git-tree-sha1 = "13ca9e2586b89836fd20cccf56e57e2b9ae7f38f"
+git-tree-sha1 = "bba2d9aa057d8f126415de240573e86a8f39d2a1"
 uuid = "2ab3a3ac-af41-5b50-aa03-7779005ae688"
-version = "0.3.29"
+version = "1.0.1"
 
     [deps.LogExpFunctions.extensions]
     LogExpFunctionsChainRulesCoreExt = "ChainRulesCore"
@@ -1484,109 +2194,33 @@ git-tree-sha1 = "c64d943587f7187e751162b3b84445bbbd79f691"
 uuid = "6c6e2e6c-3030-632d-7369-2d6c69616d65"
 version = "1.1.0"
 
-[[deps.MacroTools]]
-git-tree-sha1 = "1e0228a030642014fe5cfe68c2c0a818f9e3f522"
-uuid = "1914dd2f-81c6-5fcd-8719-6d5c9610ff09"
-version = "0.5.16"
-
 [[deps.Markdown]]
-deps = ["Base64"]
+deps = ["Base64", "JuliaSyntaxHighlighting", "StyledStrings"]
 uuid = "d6f4376e-aef5-505a-96c1-9c027394607a"
 version = "1.11.0"
 
-[[deps.MbedTLS_jll]]
-deps = ["Artifacts", "Libdl"]
-uuid = "c8ffd9c3-330d-5841-b78e-0817d7145fa1"
-version = "2.28.6+0"
-
-[[deps.Meshes]]
-deps = ["Bessels", "CircularArrays", "Colorfy", "CoordRefSystems", "DelaunayTriangulation", "Distances", "LinearAlgebra", "NearestNeighbors", "Random", "Rotations", "ScopedValues", "SparseArrays", "StaticArrays", "StatsBase", "TiledIteration", "TransformsBase", "Unitful"]
-git-tree-sha1 = "80bc8d6f8599be35b9018ba0a6a0a760bf8fcdb4"
-uuid = "eacbb407-ea5a-433e-ab97-5258b1ca43fa"
-version = "0.55.5"
-
-    [deps.Meshes.extensions]
-    MeshesMakieExt = "Makie"
-
-    [deps.Meshes.weakdeps]
-    Makie = "ee78f7c6-11fb-53f2-987a-cfe4a2b5a57a"
-
-[[deps.Missings]]
-deps = ["DataAPI"]
-git-tree-sha1 = "ec4f7fbeab05d7747bdf98eb74d130a2a2ed298d"
-uuid = "e1d29d7a-bbdc-5cf2-9ac0-f12de2c33e28"
-version = "1.2.0"
-
-[[deps.Mmap]]
-uuid = "a63ad114-7e13-5084-954f-fe012c677804"
-version = "1.11.0"
-
-[[deps.Moshi]]
-deps = ["ExproniconLite", "Jieko"]
-git-tree-sha1 = "53f817d3e84537d84545e0ad749e483412dd6b2a"
-uuid = "2e0e35c7-a2e4-4343-998d-7ef72827ed2d"
-version = "0.3.7"
-
 [[deps.MozillaCACerts_jll]]
 uuid = "14a3606d-f60d-562e-9121-12d972cd8159"
-version = "2023.12.12"
-
-[[deps.MultivariatePolynomials]]
-deps = ["DataStructures", "LinearAlgebra", "MutableArithmetics"]
-git-tree-sha1 = "d38b8653b1cdfac5a7da3b819c0a8d6024f9a18c"
-uuid = "102ac46a-7ee4-5c85-9060-abc95bfdeaa3"
-version = "0.5.13"
-weakdeps = ["ChainRulesCore"]
-
-    [deps.MultivariatePolynomials.extensions]
-    MultivariatePolynomialsChainRulesCoreExt = "ChainRulesCore"
-
-[[deps.MutableArithmetics]]
-deps = ["LinearAlgebra", "SparseArrays", "Test"]
-git-tree-sha1 = "22df8573f8e7c593ac205455ca088989d0a2c7a0"
-uuid = "d8a4904e-b15c-11e9-3269-09a3773c0cb0"
-version = "1.6.7"
-
-[[deps.NaNMath]]
-deps = ["OpenLibm_jll"]
-git-tree-sha1 = "9b8215b1ee9e78a293f99797cd31375471b2bcae"
-uuid = "77ba4419-2d1f-58cd-9bb1-8ffee604a2e3"
-version = "1.1.3"
-
-[[deps.NearestNeighbors]]
-deps = ["Distances", "StaticArrays"]
-git-tree-sha1 = "ca7e18198a166a1f3eb92a3650d53d94ed8ca8a1"
-uuid = "b8a86587-4115-5ab1-83bc-aa920d37bbce"
-version = "0.4.22"
+version = "2025.11.4"
 
 [[deps.NetworkOptions]]
 uuid = "ca575930-c2e3-43a9-ace4-1e988b2c1908"
-version = "1.2.0"
-
-[[deps.OffsetArrays]]
-git-tree-sha1 = "117432e406b5c023f665fa73dc26e79ec3630151"
-uuid = "6fe1bfb0-de20-5000-8ca7-80f57d26f881"
-version = "1.17.0"
-weakdeps = ["Adapt"]
-
-    [deps.OffsetArrays.extensions]
-    OffsetArraysAdaptExt = "Adapt"
-
-[[deps.OpenBLASConsistentFPCSR_jll]]
-deps = ["Artifacts", "CompilerSupportLibraries_jll", "JLLWrappers", "Libdl"]
-git-tree-sha1 = "567515ca155d0020a45b05175449b499c63e7015"
-uuid = "6cdc7f73-28fd-5e50-80fb-958a8875b1af"
-version = "0.3.29+0"
+version = "1.3.0"
 
 [[deps.OpenBLAS_jll]]
 deps = ["Artifacts", "CompilerSupportLibraries_jll", "Libdl"]
 uuid = "4536629a-c528-5b80-bd46-f80d51c5b363"
-version = "0.3.27+1"
+version = "0.3.29+0"
 
 [[deps.OpenLibm_jll]]
 deps = ["Artifacts", "Libdl"]
 uuid = "05823500-19ac-5b8b-9628-191a04bc5112"
-version = "0.8.5+0"
+version = "0.8.7+0"
+
+[[deps.OpenSSL_jll]]
+deps = ["Artifacts", "Libdl"]
+uuid = "458c3c95-2e84-50aa-8efc-19380b2a3a95"
+version = "3.5.4+0"
 
 [[deps.OpenSpecFun_jll]]
 deps = ["Artifacts", "CompilerSupportLibraries_jll", "JLLWrappers", "Libdl"]
@@ -1594,153 +2228,21 @@ git-tree-sha1 = "1346c9208249809840c91b26703912dff463d335"
 uuid = "efe28fd5-8261-553b-a9e1-b2916fc3738e"
 version = "0.5.6+0"
 
-[[deps.OrderedCollections]]
-git-tree-sha1 = "05868e21324cede2207c6f0f466b4bfef6d5e7ee"
-uuid = "bac558e1-5e72-5ebc-8fee-abe8a469f55d"
-version = "1.8.1"
-
-[[deps.PDMats]]
-deps = ["LinearAlgebra", "SparseArrays", "SuiteSparse"]
-git-tree-sha1 = "f07c06228a1c670ae4c87d1276b92c7c597fdda0"
-uuid = "90014a1f-27ba-587c-ab20-58faa44d9150"
-version = "0.11.35"
-
-[[deps.Parameters]]
-deps = ["OrderedCollections", "UnPack"]
-git-tree-sha1 = "34c0e9ad262e5f7fc75b10a9952ca7692cfc5fbe"
-uuid = "d96e819e-fc66-5662-9728-84c9c7592b0a"
-version = "0.12.3"
-
-[[deps.Parsers]]
-deps = ["Dates", "PrecompileTools", "UUIDs"]
-git-tree-sha1 = "7d2f8f21da5db6a806faf7b9b292296da42b2810"
-uuid = "69de0a69-1ddd-5017-9359-2bf0b02dc9f0"
-version = "2.8.3"
-
-[[deps.Pkg]]
-deps = ["Artifacts", "Dates", "Downloads", "FileWatching", "LibGit2", "Libdl", "Logging", "Markdown", "Printf", "Random", "SHA", "TOML", "Tar", "UUIDs", "p7zip_jll"]
-uuid = "44cfe95a-1eb2-52ea-b672-e2afdf69b78f"
-version = "1.11.0"
-weakdeps = ["REPL"]
-
-    [deps.Pkg.extensions]
-    REPLExt = "REPL"
-
-[[deps.PlotlyBase]]
-deps = ["ColorSchemes", "Colors", "Dates", "DelimitedFiles", "DocStringExtensions", "JSON", "LaTeXStrings", "Logging", "Parameters", "Pkg", "REPL", "Requires", "Statistics", "UUIDs"]
-git-tree-sha1 = "28278bb0053da0fd73537be94afd1682cc5a0a83"
-uuid = "a03496cd-edff-5a9b-9e67-9cda94a718b5"
-version = "0.8.21"
-
-    [deps.PlotlyBase.extensions]
-    DataFramesExt = "DataFrames"
-    DistributionsExt = "Distributions"
-    IJuliaExt = "IJulia"
-    JSON3Ext = "JSON3"
-
-    [deps.PlotlyBase.weakdeps]
-    DataFrames = "a93c6f00-e57d-5684-b7b6-d8193f3e46c0"
-    Distributions = "31c24e10-a181-5473-b8eb-7969acd0382f"
-    IJulia = "7073ff75-c697-5162-941a-fcdaad2a7d2a"
-    JSON3 = "0f8b85d8-7281-11e9-16c2-39a750bddbf1"
-
-[[deps.PlutoPlotly]]
-deps = ["AbstractPlutoDingetjes", "Artifacts", "ColorSchemes", "Colors", "Dates", "Downloads", "HypertextLiteral", "InteractiveUtils", "LaTeXStrings", "Markdown", "Pkg", "PlotlyBase", "PrecompileTools", "Reexport", "ScopedValues", "Scratch", "TOML"]
-git-tree-sha1 = "8acd04abc9a636ef57004f4c2e6f3f6ed4611099"
-uuid = "8e989ff0-3d88-8e9f-f020-2b208a939ff0"
-version = "0.6.5"
-
-    [deps.PlutoPlotly.extensions]
-    PlotlyKaleidoExt = "PlotlyKaleido"
-    UnitfulExt = "Unitful"
-
-    [deps.PlutoPlotly.weakdeps]
-    PlotlyKaleido = "f2990250-8cf9-495f-b13a-cce12b45703c"
-    Unitful = "1986cc42-f94f-5a68-af5c-568840ba703d"
-
-[[deps.PlutoTeachingTools]]
-deps = ["Downloads", "HypertextLiteral", "Latexify", "Markdown", "PlutoUI"]
-git-tree-sha1 = "dacc8be63916b078b592806acd13bb5e5137d7e9"
-uuid = "661c6b06-c737-4d37-b85c-46df65de6f69"
-version = "0.4.6"
-
-[[deps.PlutoTest]]
-deps = ["HypertextLiteral", "InteractiveUtils", "Markdown", "Test"]
-git-tree-sha1 = "17aa9b81106e661cffa1c4c36c17ee1c50a86eda"
-uuid = "cb4044da-4d16-4ffa-a6a3-8cad7f73ebdc"
-version = "0.2.2"
-
 [[deps.PlutoUI]]
-deps = ["AbstractPlutoDingetjes", "Base64", "ColorTypes", "Dates", "Downloads", "FixedPointNumbers", "Hyperscript", "HypertextLiteral", "IOCapture", "InteractiveUtils", "JSON", "Logging", "MIMEs", "Markdown", "Random", "Reexport", "URIs", "UUIDs"]
-git-tree-sha1 = "f53232a27a8c1c836d3998ae1e17d898d4df2a46"
+deps = ["AbstractPlutoDingetjes", "Base64", "ColorTypes", "Dates", "Downloads", "FixedPointNumbers", "Hyperscript", "HypertextLiteral", "IOCapture", "InteractiveUtils", "Logging", "MIMEs", "Markdown", "Random", "Reexport", "URIs", "UUIDs"]
+git-tree-sha1 = "e189d0623e7ce9c37389bac17e80aac3b0302e75"
 uuid = "7f904dfe-b85e-4ff6-b463-dae2292396a8"
-version = "0.7.72"
-
-[[deps.PreallocationTools]]
-deps = ["Adapt", "ArrayInterface", "PrecompileTools"]
-git-tree-sha1 = "c05b4c6325262152483a1ecb6c69846d2e01727b"
-uuid = "d236fae5-4411-538c-8e31-a6e3d9e00b46"
-version = "0.4.34"
-
-    [deps.PreallocationTools.extensions]
-    PreallocationToolsForwardDiffExt = "ForwardDiff"
-    PreallocationToolsReverseDiffExt = "ReverseDiff"
-    PreallocationToolsSparseConnectivityTracerExt = "SparseConnectivityTracer"
-
-    [deps.PreallocationTools.weakdeps]
-    ForwardDiff = "f6369f11-7733-5829-9624-2563aa707210"
-    ReverseDiff = "37e2e3b7-166d-5795-8a7a-e32c996b4267"
-    SparseConnectivityTracer = "9f842d2f-2579-4b1d-911e-f412cf18a3f5"
-
-[[deps.PrecompileTools]]
-deps = ["Preferences"]
-git-tree-sha1 = "5aa36f7049a63a1528fe8f7c3f2113413ffd4e1f"
-uuid = "aea7be01-6a6a-4083-8856-8a6e6704d82a"
-version = "1.2.1"
+version = "0.7.83"
 
 [[deps.Preferences]]
 deps = ["TOML"]
-git-tree-sha1 = "0f27480397253da18fe2c12a4ba4eb9eb208bf3d"
+git-tree-sha1 = "8b770b60760d4451834fe79dd483e318eee709c4"
 uuid = "21216c6a-2e73-6563-6e65-726566657250"
-version = "1.5.0"
-
-[[deps.Primes]]
-deps = ["IntegerMathUtils"]
-git-tree-sha1 = "25cdd1d20cd005b52fc12cb6be3f75faaf59bb9b"
-uuid = "27ebfcd6-29c5-5fa9-bf4b-fb8fc14df3ae"
-version = "0.5.7"
+version = "1.5.2"
 
 [[deps.Printf]]
 deps = ["Unicode"]
 uuid = "de0858da-6303-5e67-8744-51eddeeeb8d7"
-version = "1.11.0"
-
-[[deps.PtrArrays]]
-git-tree-sha1 = "1d36ef11a9aaf1e8b74dacc6a731dd1de8fd493d"
-uuid = "43287f4e-b6f4-7ad1-bb20-aadabca52c3d"
-version = "1.3.0"
-
-[[deps.QuadGK]]
-deps = ["DataStructures", "LinearAlgebra"]
-git-tree-sha1 = "9da16da70037ba9d701192e27befedefb91ec284"
-uuid = "1fd47b50-473d-5c70-9696-f719f8f3bcdc"
-version = "2.11.2"
-
-    [deps.QuadGK.extensions]
-    QuadGKEnzymeExt = "Enzyme"
-
-    [deps.QuadGK.weakdeps]
-    Enzyme = "7da242da-08ed-463a-9acd-ee780be4f1d9"
-
-[[deps.Quaternions]]
-deps = ["LinearAlgebra", "Random", "RealDot"]
-git-tree-sha1 = "994cc27cdacca10e68feb291673ec3a76aa2fae9"
-uuid = "94ee1d12-ae83-5a48-8b1c-48b8ff168ae0"
-version = "0.7.6"
-
-[[deps.REPL]]
-deps = ["InteractiveUtils", "Markdown", "Sockets", "StyledStrings", "Unicode"]
-uuid = "3fa0cd96-eef1-5676-8a61-b3b8758bbffb"
 version = "1.11.0"
 
 [[deps.Random]]
@@ -1748,633 +2250,148 @@ deps = ["SHA"]
 uuid = "9a3f8284-a2c9-5f02-9a11-845980a1fd5c"
 version = "1.11.0"
 
-[[deps.RealDot]]
-deps = ["LinearAlgebra"]
-git-tree-sha1 = "9f0a1b71baaf7650f4fa8a1d168c7fb6ee41f0c9"
-uuid = "c1ae055f-0cd5-4b69-90a6-9a35b1a98df9"
-version = "0.1.0"
-
-[[deps.RecipesBase]]
-deps = ["PrecompileTools"]
-git-tree-sha1 = "5c3d09cc4f31f5fc6af001c250bf1278733100ff"
-uuid = "3cdcf5f2-1ef4-517c-9805-6587b60abb01"
-version = "1.3.4"
-
-[[deps.RecursiveArrayTools]]
-deps = ["Adapt", "ArrayInterface", "DocStringExtensions", "GPUArraysCore", "LinearAlgebra", "RecipesBase", "StaticArraysCore", "Statistics", "SymbolicIndexingInterface"]
-git-tree-sha1 = "51bdb23afaaa551f923a0e990f7c44a4451a26f1"
-uuid = "731186ca-8d62-57ce-b412-fbd966d074cd"
-version = "3.39.0"
-
-    [deps.RecursiveArrayTools.extensions]
-    RecursiveArrayToolsFastBroadcastExt = "FastBroadcast"
-    RecursiveArrayToolsForwardDiffExt = "ForwardDiff"
-    RecursiveArrayToolsKernelAbstractionsExt = "KernelAbstractions"
-    RecursiveArrayToolsMeasurementsExt = "Measurements"
-    RecursiveArrayToolsMonteCarloMeasurementsExt = "MonteCarloMeasurements"
-    RecursiveArrayToolsReverseDiffExt = ["ReverseDiff", "Zygote"]
-    RecursiveArrayToolsSparseArraysExt = ["SparseArrays"]
-    RecursiveArrayToolsStructArraysExt = "StructArrays"
-    RecursiveArrayToolsTablesExt = ["Tables"]
-    RecursiveArrayToolsTrackerExt = "Tracker"
-    RecursiveArrayToolsZygoteExt = "Zygote"
-
-    [deps.RecursiveArrayTools.weakdeps]
-    FastBroadcast = "7034ab61-46d4-4ed7-9d0f-46aef9175898"
-    ForwardDiff = "f6369f11-7733-5829-9624-2563aa707210"
-    KernelAbstractions = "63c18a36-062a-441e-b654-da1e3ab1ce7c"
-    Measurements = "eff96d63-e80a-5855-80a2-b1b0885c5ab7"
-    MonteCarloMeasurements = "0987c9cc-fe09-11e8-30f0-b96dd679fdca"
-    ReverseDiff = "37e2e3b7-166d-5795-8a7a-e32c996b4267"
-    SparseArrays = "2f01184e-e22b-5df5-ae63-d93ebab69eaf"
-    StructArrays = "09ab397b-f2b6-538f-b94a-2f83cf4a842a"
-    Tables = "bd369af6-aec1-5ad0-b16a-f7cc5008161c"
-    Tracker = "9f7883ad-71c0-57eb-9f7f-b5c9e6d3789c"
-    Zygote = "e88e6eb3-aa80-5325-afca-941959d7151f"
-
 [[deps.Reexport]]
 git-tree-sha1 = "45e428421666073eab6f2da5c9d310d99bb12f9b"
 uuid = "189a3867-3050-52da-a836-e630ba90ab69"
 version = "1.2.2"
 
-[[deps.Requires]]
-deps = ["UUIDs"]
-git-tree-sha1 = "62389eeff14780bfe55195b7204c0d8738436d64"
-uuid = "ae029012-a4dd-5104-9daa-d747884805df"
-version = "1.3.1"
-
-[[deps.Rmath]]
-deps = ["Random", "Rmath_jll"]
-git-tree-sha1 = "5b3d50eb374cea306873b371d3f8d3915a018f0b"
-uuid = "79098fc4-a85e-5d69-aa6a-4863f24498fa"
-version = "0.9.0"
-
-[[deps.Rmath_jll]]
-deps = ["Artifacts", "JLLWrappers", "Libdl"]
-git-tree-sha1 = "58cdd8fb2201a6267e1db87ff148dd6c1dbd8ad8"
-uuid = "f50d1b31-88e8-58de-be2c-1cc44531875f"
-version = "0.5.1+0"
-
-[[deps.Rotations]]
-deps = ["LinearAlgebra", "Quaternions", "Random", "StaticArrays"]
-git-tree-sha1 = "5680a9276685d392c87407df00d57c9924d9f11e"
-uuid = "6038ab10-8711-5258-84ad-4b1120ba62dc"
-version = "1.7.1"
-weakdeps = ["RecipesBase"]
-
-    [deps.Rotations.extensions]
-    RotationsRecipesBaseExt = "RecipesBase"
-
-[[deps.RoundingEmulator]]
-git-tree-sha1 = "40b9edad2e5287e05bd413a38f61a8ff55b9557b"
-uuid = "5eaf0fd0-dfba-4ccb-bf02-d820a40db705"
-version = "0.2.1"
-
-[[deps.RuntimeGeneratedFunctions]]
-deps = ["ExprTools", "SHA", "Serialization"]
-git-tree-sha1 = "86a8a8b783481e1ea6b9c91dd949cb32191f8ab4"
-uuid = "7e49a35a-f44a-4d26-94aa-eba1b4ca6b47"
-version = "0.5.15"
-
 [[deps.SHA]]
 uuid = "ea8e919c-243c-51af-8825-aaa63cd721ce"
 version = "0.7.0"
-
-[[deps.SciMLBase]]
-deps = ["ADTypes", "Accessors", "Adapt", "ArrayInterface", "CommonSolve", "ConstructionBase", "Distributed", "DocStringExtensions", "EnumX", "FunctionWrappersWrappers", "IteratorInterfaceExtensions", "LinearAlgebra", "Logging", "Markdown", "Moshi", "PreallocationTools", "PrecompileTools", "Preferences", "Printf", "RecipesBase", "RecursiveArrayTools", "Reexport", "RuntimeGeneratedFunctions", "SciMLOperators", "SciMLPublic", "SciMLStructures", "StaticArraysCore", "Statistics", "SymbolicIndexingInterface"]
-git-tree-sha1 = "7680fbbc8a4fdf9837b4cae5e3fbebe53ec8e4ff"
-uuid = "0bca4576-84f4-4d90-8ffe-ffa030f20462"
-version = "2.122.0"
-
-    [deps.SciMLBase.extensions]
-    SciMLBaseChainRulesCoreExt = "ChainRulesCore"
-    SciMLBaseDistributionsExt = "Distributions"
-    SciMLBaseEnzymeExt = "Enzyme"
-    SciMLBaseForwardDiffExt = "ForwardDiff"
-    SciMLBaseMLStyleExt = "MLStyle"
-    SciMLBaseMakieExt = "Makie"
-    SciMLBaseMeasurementsExt = "Measurements"
-    SciMLBaseMonteCarloMeasurementsExt = "MonteCarloMeasurements"
-    SciMLBaseMooncakeExt = "Mooncake"
-    SciMLBasePartialFunctionsExt = "PartialFunctions"
-    SciMLBasePyCallExt = "PyCall"
-    SciMLBasePythonCallExt = "PythonCall"
-    SciMLBaseRCallExt = "RCall"
-    SciMLBaseReverseDiffExt = "ReverseDiff"
-    SciMLBaseTrackerExt = "Tracker"
-    SciMLBaseZygoteExt = ["Zygote", "ChainRulesCore"]
-
-    [deps.SciMLBase.weakdeps]
-    ChainRules = "082447d4-558c-5d27-93f4-14fc19e9eca2"
-    ChainRulesCore = "d360d2e6-b24c-11e9-a2a3-2a2ae2dbcce4"
-    Distributions = "31c24e10-a181-5473-b8eb-7969acd0382f"
-    Enzyme = "7da242da-08ed-463a-9acd-ee780be4f1d9"
-    ForwardDiff = "f6369f11-7733-5829-9624-2563aa707210"
-    MLStyle = "d8e11817-5142-5d16-987a-aa16d5891078"
-    Makie = "ee78f7c6-11fb-53f2-987a-cfe4a2b5a57a"
-    Measurements = "eff96d63-e80a-5855-80a2-b1b0885c5ab7"
-    MonteCarloMeasurements = "0987c9cc-fe09-11e8-30f0-b96dd679fdca"
-    Mooncake = "da2b9cff-9c12-43a0-ae48-6db2b0edb7d6"
-    PartialFunctions = "570af359-4316-4cb7-8c74-252c00c2016b"
-    PyCall = "438e738f-606a-5dbb-bf0a-cddfbfd45ab0"
-    PythonCall = "6099a3de-0909-46bc-b1f4-468b9a2dfc0d"
-    RCall = "6f49c342-dc21-5d91-9882-a32aef131414"
-    ReverseDiff = "37e2e3b7-166d-5795-8a7a-e32c996b4267"
-    Tracker = "9f7883ad-71c0-57eb-9f7f-b5c9e6d3789c"
-    Zygote = "e88e6eb3-aa80-5325-afca-941959d7151f"
-
-[[deps.SciMLOperators]]
-deps = ["Accessors", "ArrayInterface", "DocStringExtensions", "LinearAlgebra", "MacroTools"]
-git-tree-sha1 = "c1053ba68ede9e4005fc925dd4e8723fcd96eef8"
-uuid = "c0aeaf25-5076-4817-a8d5-81caf7dfa961"
-version = "1.9.0"
-weakdeps = ["SparseArrays", "StaticArraysCore"]
-
-    [deps.SciMLOperators.extensions]
-    SciMLOperatorsSparseArraysExt = "SparseArrays"
-    SciMLOperatorsStaticArraysCoreExt = "StaticArraysCore"
-
-[[deps.SciMLPublic]]
-git-tree-sha1 = "ed647f161e8b3f2973f24979ec074e8d084f1bee"
-uuid = "431bcebd-1456-4ced-9d72-93c2757fff0b"
-version = "1.0.0"
-
-[[deps.SciMLStructures]]
-deps = ["ArrayInterface"]
-git-tree-sha1 = "566c4ed301ccb2a44cbd5a27da5f885e0ed1d5df"
-uuid = "53ae85a6-f571-4167-b2af-e1d143709226"
-version = "1.7.0"
-
-[[deps.ScopedValues]]
-deps = ["HashArrayMappedTries", "Logging"]
-git-tree-sha1 = "c3b2323466378a2ba15bea4b2f73b081e022f473"
-uuid = "7e506255-f358-4e82-b7e4-beb19740aa63"
-version = "1.5.0"
-
-[[deps.Scratch]]
-deps = ["Dates"]
-git-tree-sha1 = "9b81b8393e50b7d4e6d0a9f14e192294d3b7c109"
-uuid = "6c6a2e73-6563-6170-7368-637461726353"
-version = "1.3.0"
 
 [[deps.Serialization]]
 uuid = "9e88b42a-f829-5b0c-bbe9-9e923198166b"
 version = "1.11.0"
 
-[[deps.Setfield]]
-deps = ["ConstructionBase", "Future", "MacroTools", "StaticArraysCore"]
-git-tree-sha1 = "c5391c6ace3bc430ca630251d02ea9687169ca68"
-uuid = "efcf1570-3423-57d1-acb7-fd33fddbac46"
-version = "1.1.2"
-
-[[deps.Sockets]]
-uuid = "6462fe0b-24de-5631-8697-dd941f90decc"
-version = "1.11.0"
-
-[[deps.SortingAlgorithms]]
-deps = ["DataStructures"]
-git-tree-sha1 = "64d974c2e6fdf07f8155b5b2ca2ffa9069b608d9"
-uuid = "a2af1166-a08f-5f64-846c-94a0d3cef48c"
-version = "1.2.2"
-
-[[deps.SparseArrays]]
-deps = ["Libdl", "LinearAlgebra", "Random", "Serialization", "SuiteSparse_jll"]
-uuid = "2f01184e-e22b-5df5-ae63-d93ebab69eaf"
-version = "1.11.0"
-
-[[deps.SparseInverseSubset]]
-deps = ["LinearAlgebra", "SparseArrays", "SuiteSparse"]
-git-tree-sha1 = "52962839426b75b3021296f7df242e40ecfc0852"
-uuid = "dc90abb0-5640-4711-901d-7e5b23a2fada"
-version = "0.1.2"
-
 [[deps.SpecialFunctions]]
 deps = ["IrrationalConstants", "LogExpFunctions", "OpenLibm_jll", "OpenSpecFun_jll"]
-git-tree-sha1 = "f2685b435df2613e25fc10ad8c26dddb8640f547"
+git-tree-sha1 = "cd4b115137894ced9830a92bcdb95a6bd8f38880"
 uuid = "276daf66-3868-5448-9aa4-cd146d93841b"
-version = "2.6.1"
-weakdeps = ["ChainRulesCore"]
+version = "2.8.2"
 
     [deps.SpecialFunctions.extensions]
     SpecialFunctionsChainRulesCoreExt = "ChainRulesCore"
 
-[[deps.Static]]
-deps = ["CommonWorldInvalidations", "IfElse", "PrecompileTools", "SciMLPublic"]
-git-tree-sha1 = "1e44e7b1dbb5249876d84c32466f8988a6b41bbb"
-uuid = "aedffcd0-7271-4cad-89d0-dc628f76c6d3"
-version = "1.3.0"
-
-[[deps.StaticArrayInterface]]
-deps = ["ArrayInterface", "Compat", "IfElse", "LinearAlgebra", "PrecompileTools", "Static"]
-git-tree-sha1 = "96381d50f1ce85f2663584c8e886a6ca97e60554"
-uuid = "0d7ed370-da01-4f52-bd93-41d350b8b718"
-version = "1.8.0"
-weakdeps = ["OffsetArrays", "StaticArrays"]
-
-    [deps.StaticArrayInterface.extensions]
-    StaticArrayInterfaceOffsetArraysExt = "OffsetArrays"
-    StaticArrayInterfaceStaticArraysExt = "StaticArrays"
-
-[[deps.StaticArrays]]
-deps = ["LinearAlgebra", "PrecompileTools", "Random", "StaticArraysCore"]
-git-tree-sha1 = "b8693004b385c842357406e3af647701fe783f98"
-uuid = "90137ffa-7385-5640-81b9-e52037218182"
-version = "1.9.15"
-weakdeps = ["ChainRulesCore", "Statistics"]
-
-    [deps.StaticArrays.extensions]
-    StaticArraysChainRulesCoreExt = "ChainRulesCore"
-    StaticArraysStatisticsExt = "Statistics"
-
-[[deps.StaticArraysCore]]
-git-tree-sha1 = "6ab403037779dae8c514bad259f32a447262455a"
-uuid = "1e83bf80-4336-4d27-bf5d-d5a4f845583c"
-version = "1.4.4"
+    [deps.SpecialFunctions.weakdeps]
+    ChainRulesCore = "d360d2e6-b24c-11e9-a2a3-2a2ae2dbcce4"
 
 [[deps.Statistics]]
 deps = ["LinearAlgebra"]
 git-tree-sha1 = "ae3bb1eb3bba077cd276bc5cfc337cc65c3075c0"
 uuid = "10745b16-79ce-11e8-11f9-7d13ad32a3b2"
 version = "1.11.1"
-weakdeps = ["SparseArrays"]
 
     [deps.Statistics.extensions]
     SparseArraysExt = ["SparseArrays"]
 
-[[deps.StatsAPI]]
-deps = ["LinearAlgebra"]
-git-tree-sha1 = "9d72a13a3f4dd3795a195ac5a44d7d6ff5f552ff"
-uuid = "82ae8749-77ed-4fe6-ae5f-f523153014b0"
-version = "1.7.1"
-
-[[deps.StatsBase]]
-deps = ["AliasTables", "DataAPI", "DataStructures", "LinearAlgebra", "LogExpFunctions", "Missings", "Printf", "Random", "SortingAlgorithms", "SparseArrays", "Statistics", "StatsAPI"]
-git-tree-sha1 = "a136f98cefaf3e2924a66bd75173d1c891ab7453"
-uuid = "2913bbd2-ae8a-5f71-8c99-4fb6c76f3a91"
-version = "0.34.7"
-
-[[deps.StatsFuns]]
-deps = ["HypergeometricFunctions", "IrrationalConstants", "LogExpFunctions", "Reexport", "Rmath", "SpecialFunctions"]
-git-tree-sha1 = "91f091a8716a6bb38417a6e6f274602a19aaa685"
-uuid = "4c63d2b9-4356-54db-8cca-17b64c39e42c"
-version = "1.5.2"
-weakdeps = ["ChainRulesCore", "InverseFunctions"]
-
-    [deps.StatsFuns.extensions]
-    StatsFunsChainRulesCoreExt = "ChainRulesCore"
-    StatsFunsInverseFunctionsExt = "InverseFunctions"
-
-[[deps.StructArrays]]
-deps = ["ConstructionBase", "DataAPI", "Tables"]
-git-tree-sha1 = "a2c37d815bf00575332b7bd0389f771cb7987214"
-uuid = "09ab397b-f2b6-538f-b94a-2f83cf4a842a"
-version = "0.7.2"
-
-    [deps.StructArrays.extensions]
-    StructArraysAdaptExt = "Adapt"
-    StructArraysGPUArraysCoreExt = ["GPUArraysCore", "KernelAbstractions"]
-    StructArraysLinearAlgebraExt = "LinearAlgebra"
-    StructArraysSparseArraysExt = "SparseArrays"
-    StructArraysStaticArraysExt = "StaticArrays"
-
-    [deps.StructArrays.weakdeps]
-    Adapt = "79e6a3ab-5dfb-504d-930d-738a2a938a0e"
-    GPUArraysCore = "46192b85-c4d5-4398-a991-12ede77f4527"
-    KernelAbstractions = "63c18a36-062a-441e-b654-da1e3ab1ce7c"
-    LinearAlgebra = "37e2e46d-f89d-539d-b4ee-838fcccc9c8e"
+    [deps.Statistics.weakdeps]
     SparseArrays = "2f01184e-e22b-5df5-ae63-d93ebab69eaf"
-    StaticArrays = "90137ffa-7385-5640-81b9-e52037218182"
 
 [[deps.StyledStrings]]
 uuid = "f489334b-da3d-4c2e-b8f0-e476e12c162b"
 version = "1.11.0"
-
-[[deps.SuiteSparse]]
-deps = ["Libdl", "LinearAlgebra", "Serialization", "SparseArrays"]
-uuid = "4607b0f0-06f3-5cda-b6b1-a6196a1729e9"
-
-[[deps.SuiteSparse_jll]]
-deps = ["Artifacts", "Libdl", "libblastrampoline_jll"]
-uuid = "bea87d4a-7f5b-5778-9afe-8cc45184846c"
-version = "7.7.0+0"
-
-[[deps.SymbolicIndexingInterface]]
-deps = ["Accessors", "ArrayInterface", "RuntimeGeneratedFunctions", "StaticArraysCore"]
-git-tree-sha1 = "94c58884e013efff548002e8dc2fdd1cb74dfce5"
-uuid = "2efcf032-c050-4f8e-a9bb-153293bab1f5"
-version = "0.3.46"
-
-    [deps.SymbolicIndexingInterface.extensions]
-    SymbolicIndexingInterfacePrettyTablesExt = "PrettyTables"
-
-    [deps.SymbolicIndexingInterface.weakdeps]
-    PrettyTables = "08abe8d2-0d0c-5749-adfa-8a2ac140af0d"
-
-[[deps.SymbolicLimits]]
-deps = ["SymbolicUtils"]
-git-tree-sha1 = "f75c7deb7e11eea72d2c1ea31b24070b713ba061"
-uuid = "19f23fe9-fdab-4a78-91af-e7b7767979c3"
-version = "0.2.3"
-
-[[deps.SymbolicUtils]]
-deps = ["AbstractTrees", "ArrayInterface", "Bijections", "ChainRulesCore", "Combinatorics", "ConstructionBase", "DataStructures", "DocStringExtensions", "DynamicPolynomials", "ExproniconLite", "LinearAlgebra", "MultivariatePolynomials", "NaNMath", "Setfield", "SparseArrays", "SpecialFunctions", "StaticArrays", "SymbolicIndexingInterface", "TaskLocalValues", "TermInterface", "TimerOutputs", "Unityper"]
-git-tree-sha1 = "a85b4262a55dbd1af39bb6facf621d79ca6a322d"
-uuid = "d1185830-fcd6-423d-90d6-eec64667417b"
-version = "3.32.0"
-
-    [deps.SymbolicUtils.extensions]
-    SymbolicUtilsLabelledArraysExt = "LabelledArrays"
-    SymbolicUtilsReverseDiffExt = "ReverseDiff"
-
-    [deps.SymbolicUtils.weakdeps]
-    LabelledArrays = "2ee39098-c373-598a-b85f-a56591580800"
-    ReverseDiff = "37e2e3b7-166d-5795-8a7a-e32c996b4267"
-
-[[deps.Symbolics]]
-deps = ["ADTypes", "ArrayInterface", "Bijections", "CommonWorldInvalidations", "ConstructionBase", "DataStructures", "DiffRules", "Distributions", "DocStringExtensions", "DomainSets", "DynamicPolynomials", "LaTeXStrings", "Latexify", "Libdl", "LinearAlgebra", "LogExpFunctions", "MacroTools", "Markdown", "NaNMath", "OffsetArrays", "PrecompileTools", "Primes", "RecipesBase", "Reexport", "RuntimeGeneratedFunctions", "SciMLBase", "SciMLPublic", "Setfield", "SparseArrays", "SpecialFunctions", "StaticArraysCore", "SymbolicIndexingInterface", "SymbolicLimits", "SymbolicUtils", "TermInterface"]
-git-tree-sha1 = "1b09f5faec5284f505c40e68ba565115e7d48718"
-uuid = "0c5d862f-8b57-4792-8d23-62f2024744c7"
-version = "6.56.0"
-
-    [deps.Symbolics.extensions]
-    SymbolicsD3TreesExt = "D3Trees"
-    SymbolicsForwardDiffExt = "ForwardDiff"
-    SymbolicsGroebnerExt = "Groebner"
-    SymbolicsLuxExt = "Lux"
-    SymbolicsNemoExt = "Nemo"
-    SymbolicsPreallocationToolsExt = ["PreallocationTools", "ForwardDiff"]
-    SymbolicsSymPyExt = "SymPy"
-    SymbolicsSymPyPythonCallExt = "SymPyPythonCall"
-
-    [deps.Symbolics.weakdeps]
-    D3Trees = "e3df1716-f71e-5df9-9e2d-98e193103c45"
-    ForwardDiff = "f6369f11-7733-5829-9624-2563aa707210"
-    Groebner = "0b43b601-686d-58a3-8a1c-6623616c7cd4"
-    Lux = "b2108857-7c20-44ae-9111-449ecde12c47"
-    Nemo = "2edaba10-b0f1-5616-af89-8c11ac63239a"
-    PreallocationTools = "d236fae5-4411-538c-8e31-a6e3d9e00b46"
-    SymPy = "24249f21-da20-56a4-8eb1-6a02cf4ae2e6"
-    SymPyPythonCall = "bc8888f7-b21e-4b7c-a06a-5d9c9496438c"
 
 [[deps.TOML]]
 deps = ["Dates"]
 uuid = "fa267f1f-6049-4f14-aa54-33bafae1ed76"
 version = "1.0.3"
 
-[[deps.TableTraits]]
-deps = ["IteratorInterfaceExtensions"]
-git-tree-sha1 = "c06b2f539df1c6efa794486abfb6ed2022561a39"
-uuid = "3783bdb8-4a98-5b6b-af9a-565f29a5fe9c"
-version = "1.0.1"
-
-[[deps.Tables]]
-deps = ["DataAPI", "DataValueInterfaces", "IteratorInterfaceExtensions", "OrderedCollections", "TableTraits"]
-git-tree-sha1 = "f2c1efbc8f3a609aadf318094f8fc5204bdaf344"
-uuid = "bd369af6-aec1-5ad0-b16a-f7cc5008161c"
-version = "1.12.1"
-
-[[deps.Tar]]
-deps = ["ArgTools", "SHA"]
-uuid = "a4e569a6-e804-4fa4-b0f3-eef7a1d5b13e"
-version = "1.10.0"
-
-[[deps.TaskLocalValues]]
-git-tree-sha1 = "67e469338d9ce74fc578f7db1736a74d93a49eb8"
-uuid = "ed4db957-447d-4319-bfb6-7fa9ae7ecf34"
-version = "0.1.3"
-
-[[deps.TensorCore]]
-deps = ["LinearAlgebra"]
-git-tree-sha1 = "1feb45f88d133a655e001435632f019a9a1bcdb6"
-uuid = "62fd8b95-f654-4bbd-a8a5-9c27f68ccd50"
-version = "0.1.1"
-
-[[deps.TermInterface]]
-git-tree-sha1 = "d673e0aca9e46a2f63720201f55cc7b3e7169b16"
-uuid = "8ea1fca8-c5ef-4a55-8b96-4e9afe9c9a3c"
-version = "2.0.0"
-
 [[deps.Test]]
 deps = ["InteractiveUtils", "Logging", "Random", "Serialization"]
 uuid = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
 version = "1.11.0"
 
-[[deps.TiledIteration]]
-deps = ["OffsetArrays", "StaticArrayInterface"]
-git-tree-sha1 = "1176cc31e867217b06928e2f140c90bd1bc88283"
-uuid = "06e1c1a7-607b-532d-9fad-de7d9aa2abac"
-version = "0.5.0"
-
-[[deps.TimerOutputs]]
-deps = ["ExprTools", "Printf"]
-git-tree-sha1 = "3748bd928e68c7c346b52125cf41fff0de6937d0"
-uuid = "a759f4b9-e2f1-59dc-863e-4aeb61b1ea8f"
-version = "0.5.29"
-
-    [deps.TimerOutputs.extensions]
-    FlameGraphsExt = "FlameGraphs"
-
-    [deps.TimerOutputs.weakdeps]
-    FlameGraphs = "08572546-2f56-4bcf-ba4e-bab62c3a3f89"
-
-[[deps.TransformsBase]]
-deps = ["AbstractTrees"]
-git-tree-sha1 = "c209ddc5ea678a542aabe482713b24c9280919ed"
-uuid = "28dd2a49-a57a-4bfb-84ca-1a49db9b96b8"
-version = "1.6.0"
-
 [[deps.Tricks]]
-git-tree-sha1 = "372b90fe551c019541fafc6ff034199dc19c8436"
+git-tree-sha1 = "311349fd1c93a31f783f977a71e8b062a57d4101"
 uuid = "410a4b4d-49e4-4fbc-ab6d-cb71b17b3775"
-version = "0.1.12"
+version = "0.1.13"
 
 [[deps.URIs]]
-git-tree-sha1 = "bef26fb046d031353ef97a82e3fdb6afe7f21b1a"
+git-tree-sha1 = "3b0738bd7c5645641845da25cbd99800b8718689"
 uuid = "5c2747f8-b7ea-4ff2-ba2e-563bfd36b1d4"
-version = "1.6.1"
+version = "1.6.2"
 
 [[deps.UUIDs]]
 deps = ["Random", "SHA"]
 uuid = "cf7118a7-6976-5b1a-9a39-7adc72f591a4"
 version = "1.11.0"
 
-[[deps.UnPack]]
-git-tree-sha1 = "387c1f73762231e86e0c9c5443ce3b4a0a9a0c2b"
-uuid = "3a884ed6-31ef-47d7-9d2a-63182c4928ed"
-version = "1.0.2"
-
 [[deps.Unicode]]
 uuid = "4ec0a83e-493e-50e2-b9ac-8f72acf5a8f5"
 version = "1.11.0"
 
-[[deps.Unitful]]
-deps = ["Dates", "LinearAlgebra", "Random"]
-git-tree-sha1 = "83360bda12f61c250835830cc40b64f487cc2230"
-uuid = "1986cc42-f94f-5a68-af5c-568840ba703d"
-version = "1.25.1"
-weakdeps = ["ConstructionBase", "ForwardDiff", "InverseFunctions", "LaTeXStrings", "Latexify", "Printf"]
-
-    [deps.Unitful.extensions]
-    ConstructionBaseUnitfulExt = "ConstructionBase"
-    ForwardDiffExt = "ForwardDiff"
-    InverseFunctionsUnitfulExt = "InverseFunctions"
-    LatexifyExt = ["Latexify", "LaTeXStrings"]
-    PrintfExt = "Printf"
-
-[[deps.Unityper]]
-deps = ["ConstructionBase"]
-git-tree-sha1 = "25008b734a03736c41e2a7dc314ecb95bd6bbdb0"
-uuid = "a7c27f48-0311-42f6-a7f8-2c11e75eb415"
-version = "0.1.6"
-
 [[deps.Zlib_jll]]
 deps = ["Libdl"]
 uuid = "83775a58-1f1d-513f-b197-d71354ab007a"
-version = "1.2.13+1"
-
-[[deps.Zygote]]
-deps = ["AbstractFFTs", "ChainRules", "ChainRulesCore", "DiffRules", "Distributed", "FillArrays", "ForwardDiff", "GPUArraysCore", "IRTools", "InteractiveUtils", "LinearAlgebra", "LogExpFunctions", "MacroTools", "NaNMath", "PrecompileTools", "Random", "SparseArrays", "SpecialFunctions", "Statistics", "ZygoteRules"]
-git-tree-sha1 = "a29cbf3968d36022198bcc6f23fdfd70f7caf737"
-uuid = "e88e6eb3-aa80-5325-afca-941959d7151f"
-version = "0.7.10"
-
-    [deps.Zygote.extensions]
-    ZygoteAtomExt = "Atom"
-    ZygoteColorsExt = "Colors"
-    ZygoteDistancesExt = "Distances"
-    ZygoteTrackerExt = "Tracker"
-
-    [deps.Zygote.weakdeps]
-    Atom = "c52e3926-4ff0-5f6e-af25-54175e0327b1"
-    Colors = "5ae59095-9a9b-59fe-a467-6f913c188581"
-    Distances = "b4f34e82-e78d-54a5-968a-f98e89d6e8f7"
-    Tracker = "9f7883ad-71c0-57eb-9f7f-b5c9e6d3789c"
-
-[[deps.ZygoteRules]]
-deps = ["ChainRulesCore", "MacroTools"]
-git-tree-sha1 = "434b3de333c75fc446aa0d19fc394edafd07ab08"
-uuid = "700de1a5-db45-46bc-99cf-38207098b444"
-version = "0.2.7"
+version = "1.3.1+2"
 
 [[deps.libblastrampoline_jll]]
 deps = ["Artifacts", "Libdl"]
 uuid = "8e850b90-86db-534c-a0d3-1478176c7d93"
-version = "5.11.0+0"
+version = "5.15.0+0"
 
 [[deps.nghttp2_jll]]
 deps = ["Artifacts", "Libdl"]
 uuid = "8e850ede-7688-5339-a07c-302acd2aaf8d"
-version = "1.59.0+0"
-
-[[deps.p7zip_jll]]
-deps = ["Artifacts", "Libdl"]
-uuid = "3f19e933-33d8-53b3-aaab-bd5110c3b7a0"
-version = "17.4.0+2"
+version = "1.64.0+1"
 """
 
 # ╔═╡ Cell order:
-# ╠═4bdd2493-70dd-4cf7-bcd4-b2a32aaff474
-# ╠═bccd3c27-2f9f-4dea-9d81-83cd6ba0ed9e
-# ╟─d6c09c3c-7fb6-4598-8897-a8f93b3c725e
-# ╟─280472ec-50db-49b6-9c96-5f9d5c80b3bb
-# ╟─d502d260-c562-476f-9e05-5dc1a2ce26b9
-# ╟─17f3f3b5-0632-431f-8081-ae5c386171ed
-# ╟─7917e7eb-ecef-4efe-9cca-606895199a7d
-# ╟─44c900ad-e9bf-4bc3-b456-898899ccd36b
-# ╟─25f3761a-3f94-4aa8-9fb8-0fbbe32fe095
-# ╟─2957f6f0-7314-4340-9062-b6da2f1a7089
-# ╟─3d43de3c-d60f-4997-aff8-f8027319485c
-# ╟─24d2fecb-fe04-41f5-ab59-e5681e8cdca8
-# ╠═25f04c16-a107-4f72-bf64-40ee7db3e24f
-# ╠═0c748592-b599-4ac2-9370-f3175c09c23c
-# ╠═a768aa28-7486-4d2f-9dee-a2f9be58a0e0
-# ╠═ed35749b-88fd-428e-889c-95d20b9edd36
-# ╠═5b649a90-fd7b-4cf3-82c2-b9168273e7f2
-# ╠═93cd7c3a-e1bf-45f0-9ab8-47980cbbc9c5
-# ╠═e5addb67-5710-464b-b88f-9aa432df1829
-# ╟─b0a98128-4b78-471d-85c6-218c304b9578
-# ╠═12e0afd1-559e-4f22-b76c-c1aa6469f693
-# ╠═d98b20d0-853a-4f24-b089-101517d3cc78
-# ╠═f4ad875f-cffd-41cd-8f1f-02b62df5950f
-# ╠═a5a9db82-18df-4bef-9378-7cdcb1af95a1
-# ╠═91108dff-5a8b-42d2-85b7-5cda6a946406
-# ╟─58dae178-1e8f-4c90-baac-ed8ca53aee99
-# ╠═257d6706-bd8b-4dae-8bab-20900c1684d3
-# ╟─cc80bf4e-ba95-4201-a077-e66f2bf79746
-# ╠═c465a6dd-c103-4b97-ba9b-b1b22bb23c78
-# ╟─be8f0cc1-83ed-458b-9a0b-75fabd15c701
-# ╟─d4c329e6-52e7-4ba7-8941-a5724a038d05
-# ╠═f4aee41d-d63a-4a90-bfb1-a77d721a576b
-# ╠═94adb048-f5c2-485e-833c-921c9a87814e
-# ╠═f41ce900-88b5-479b-b7f0-b3cab5ab7bba
-# ╠═87e12020-0e28-46a3-814c-7660fc8c5745
-# ╠═ccc20f79-1b54-43c7-a759-488a6fc53b0d
-# ╠═10535763-8613-49fc-b59e-997236109ba7
-# ╠═e01bfb56-031c-4f6b-9835-45111e09f043
-# ╟─fbbc5151-7726-4793-9ee2-05662631b3e1
-# ╠═0f88f2b0-294a-47e7-8753-f9450c7e722d
-# ╠═99e4676f-a469-4243-afbd-7be1b587914a
-# ╟─ec7a4506-698d-421d-a7d1-ae61136883f7
-# ╠═aef669b3-4492-4487-a587-d6ffa20bd4f5
-# ╠═3bdae723-c32d-4264-bd57-184b73cddb3d
-# ╟─c570f122-2b06-478d-a66e-6ea0b9871446
-# ╟─ac7a947f-283f-4743-a42b-082a0eb0c42e
-# ╠═4019938e-defe-4024-a7cd-28f34660e46d
-# ╠═8c79d25c-589e-4198-b2b0-b2fcaab91b0c
-# ╠═23395f6e-4a12-4550-b536-bb85881dfc81
-# ╠═65e2b15c-c646-4148-82c8-707350e0e112
-# ╟─b0c536eb-9ec9-4745-82fe-50b94330a5c9
-# ╟─9e00e076-1306-451b-a9d2-a80c48a7fb13
-# ╟─bcc3a6c2-ece8-464d-985a-1e3dabae778f
-# ╠═086e74ac-30c6-11ed-3260-cb96ffde4e5c
-# ╠═e5ef408e-bbe4-4bac-b155-cf860d91807e
-# ╟─8d7fbc8f-2b78-4708-8d3d-be9d4324c8ad
-# ╠═a8eebe3a-0a95-4811-94de-615a04f3f3bf
-# ╠═e98402cf-3d2a-4471-8628-61cb83e4aa26
-# ╟─3975cbd0-2e48-4dcc-a0a2-57db172d14a6
-# ╠═30cc4084-b410-4f3d-b9e7-1ee6783295d9
-# ╟─307416f3-54d6-4f9f-b29b-5a424d1f8451
-# ╠═96753808-7580-4502-8084-a57642809089
-# ╟─8b707d16-c6b5-4a86-9156-f847ed265334
-# ╠═1d0d7290-e561-4cb1-80d2-fd72c43d774a
-# ╠═24901509-9dcc-4af7-b708-dcc277565ebb
-# ╠═2b31fe24-347d-4c0e-85e9-4fd8b9cb0e16
-# ╠═b90575c9-0e86-48a1-b656-954a0dd71968
-# ╠═1df1eea7-b5cb-477c-991a-14ac21aea154
-# ╠═eeff59bb-b32f-423f-ba4a-0c193958a79a
-# ╟─68d4c48c-3bf5-49f5-ac32-0012b372eec4
-# ╟─7ba6bb60-4b0c-450a-af25-76a7b100f8d6
-# ╠═c9a6acbb-bbfa-42d9-ad9f-f511375df4d9
-# ╠═b7e46a19-7273-4717-a737-b94b968e7250
-# ╠═f021e0c8-0938-474f-a418-bb29c0a92052
-# ╟─f2551112-c619-42ff-8b09-ec1271971781
-# ╟─a80b0e95-d028-483e-a733-88d31422bd6b
-# ╠═0f4defd4-f0d6-4ff1-8d02-138d5b4b8a99
-# ╠═24c0331a-f479-4f29-b87d-cfabb75528cb
-# ╠═6d953350-48c8-412c-930b-617b235e71c0
-# ╠═e7669838-f9f9-4c05-b6d3-f5361725f81b
-# ╠═1f666fbb-942d-41e9-86bd-a41f173a6c56
-# ╠═6edf6598-8e51-4cb8-9c29-7759c17a52ae
-# ╠═c497d1b0-4b29-4938-bdad-3de63e6cd022
-# ╟─df67edac-e750-4ea8-a131-796f1ee9f86f
-# ╠═6dcaa88e-7191-4d6d-bcbf-8195c3f863cf
-# ╠═dbe87c18-347a-4373-890a-8a0c51fc1ff0
-# ╟─767543ee-152d-499a-8690-7dba8e28ae88
-# ╟─10897515-6242-47b5-8407-22ddbf15f0d6
-# ╠═6b8c1b92-55d6-4f99-9363-76fb058f345a
-# ╠═5dde0ad0-926d-4326-9564-12efc7141edc
-# ╠═e0cf9350-325c-4edd-9f77-dcf18c4c8b04
-# ╠═f2f6bbc8-6c05-4b09-82fd-b4f1ed76da12
-# ╠═2f140a6e-4775-441c-9f53-a1f33b897251
-# ╟─3d86326e-735f-4bcd-86b8-d31b132ee036
-# ╠═01ac68da-a533-4fba-ad5d-8d12c2014ae1
-# ╠═854072b0-68c0-4492-b56a-d630fbb4d82a
-# ╟─3c2300c5-770b-42ad-a182-d274158b9923
-# ╠═4eb8d905-0ac1-45eb-9543-9dbfc4bad709
-# ╠═3c6835b0-bd1c-4e99-b8e1-156e700033fa
-# ╠═5629a75b-a436-4127-a880-7bc3fce811a5
-# ╟─316460ee-fafc-4057-a0a8-3885335569cf
-# ╠═2077aa71-9a0f-4b46-97b2-3157e857fcda
-# ╠═89722347-66ba-4b11-ac95-92ba735e58a0
+# ╠═021492fb-0d1a-4f6e-a656-bdf6a8e74a90
+# ╠═cbc8f361-986c-424d-a649-6e841c072e72
+# ╟─dfaa5e67-7d3d-492a-8b56-a66bd0cd3970
+# ╟─f80221b6-eec6-4044-896b-68cca2bfcb6d
+# ╟─40f2f5d6-1f06-4828-aaa7-ef7b7e42d90e
+# ╟─1e9f4218-324c-411e-8394-6b79201dbde3
+# ╟─0999e269-5dd7-4ab5-b091-b5f4178d6ba8
+# ╟─baf5aa58-0d0f-4e2c-803e-b1a8d98580a4
+# ╟─b954f277-9840-465e-926e-5c4963751487
+# ╟─fc71ba84-35f3-4269-b8c9-3308782ae9df
+# ╟─7f488eb9-9372-41b4-95ec-69abb753ef96
+# ╟─73444fbb-3a43-442b-a85d-29d243644a92
+# ╟─61dea2a2-6d32-4bca-ba7e-1cf39ce83e35
+# ╟─ae12217e-0d9c-4156-8d36-3c7d8274cc34
+# ╠═e62a5517-0584-42fd-9372-07d6d0dc8119
+# ╠═12685459-3bc9-44c7-b056-a8b913bd974c
+# ╠═672e6bb6-90a8-4a18-85a8-d854e797aa00
+# ╠═970be60f-3c20-4f57-909d-c163b388a9dc
+# ╠═05b19046-6389-41e8-97f9-c13084b65872
+# ╟─ad81924a-96a4-486c-a24e-34fe50ca9fd3
+# ╟─b32d43d5-7b7e-4c90-8660-a0328ef6bb60
+# ╠═9d59cfce-5ac4-46d9-bf66-4defb8a03546
+# ╟─0b0ea15d-957e-467a-beea-961284f67c63
+# ╠═cbc35a5e-0cc7-4ece-aac0-8520759d70fa
+# ╠═9b7a2e1c-4c1a-4a6e-8f3a-6a8c1d2f5e01
+# ╠═9b7a2e1c-4c1a-4a6e-8f3a-6a8c1d2f5e02
+# ╟─18b1d5bd-de79-41a4-9324-963d17a145f7
+# ╠═153caeb6-34d2-4fa6-a0f5-7c76f101a04a
+# ╟─92539fa5-60db-4e54-b02c-79da24b2d9b9
+# ╠═ed9930ba-ba7b-4295-a4c7-beb820fd2d66
+# ╟─54313d17-0de1-4d94-a9ed-948eadff5cf2
+# ╠═6787dae7-467b-4bf6-a643-5f318b109a32
+# ╠═27257ff9-d835-476a-923b-fa8dc57cbd69
+# ╟─757a080d-c03f-4d8f-9bb8-e0eb8aa4eca0
+# ╠═a3154298-98dd-4625-b8b0-f60d1070c31a
+# ╟─7b330e11-d451-4992-bcdb-10c6dc770399
+# ╠═52162e1d-c250-4941-9a3b-ffed90ca972f
+# ╠═9642334f-90f6-4b8b-a015-758ec6b5246b
+# ╠═48aa578a-e733-4384-a034-6824fef86bfe
+# ╠═d5590b12-e38e-40c0-923a-7691c40fb559
+# ╠═6d3f9b8a-1a2e-4c9f-9b3a-2f6a7d8c5e10
+# ╠═e3d9ea0e-0098-46f1-87a1-113b62bcc12f
+# ╠═94a6b641-a3f8-414c-a840-164f4d25d4f3
+# ╠═515b9d85-8a37-4791-89f5-442111bc83a6
+# ╠═6fe7c3f3-121a-44cc-a8ef-7fd887565535
+# ╠═491afad3-1ea6-4942-a533-a0d559f80fd1
+# ╟─321aa3aa-d29e-481a-bdcc-aa0655a72bda
+# ╠═c6616a5c-225d-4415-9155-c1f769c14eea
+# ╟─3908f04c-36b5-4a27-b51a-e4affa9467fc
+# ╠═5606eb83-7ee5-4589-885c-e35f04c3f944
+# ╟─a9a7cebc-ee46-4884-9a06-0b30f335a613
+# ╠═420d095f-c215-4e3f-800f-3e2ea2692321
+# ╟─1f36f0f5-7692-434e-bc9b-bed27f6c5bf4
+# ╠═81421235-9cd9-428a-8629-03000f640a3d
+# ╟─1e745b82-3ff6-49cb-a52e-a71fca6434ca
+# ╠═0bffa9c8-e05d-47f9-9bd1-4a096cd99747
 # ╟─00000000-0000-0000-0000-000000000001
 # ╟─00000000-0000-0000-0000-000000000002

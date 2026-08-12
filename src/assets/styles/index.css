@@ -19,29 +19,29 @@
         "Segoe UI Symbol", system-ui, sans-serif;
     --system-fonts-mono: Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
 
-    --fg: #000;
-    --faded-1: #858585;
-    --faded-2: rgb(161, 161, 161);
-    --sidebar-accent-1: #c89393;
-    --search-bg: hsl(78deg 10% 85%);
-    --search-bg-accent: #f4f4f5;
+    --fg: #f6f1e9;
+    --faded-1: #c9bfaf;
+    --faded-2: #8a7f6e;
+    --sidebar-accent-1: #a6763d;
+    --search-bg: #fbf7f0;
+    --search-bg-accent: #ede6d8;
 
-    --track-bg: hsl(56 50% 94% / 1);
-    --track-bg-accent: #a3987c;
+    --track-bg: #fbf7f0;
+    --track-bg-accent: #a6763d;
 }
 
 @media (prefers-color-scheme: dark) {
     :root {
-        --fg: #ddd;
-        --faded-1: #b3b3b3;
-        --faded-2: #999999;
+        --fg: #f6f1e9;
+        --faded-1: #c9bfaf;
+        --faded-2: #8a7f6e;
 
-        --sidebar-accent-1: #d0a493;
-        --search-bg: #363b33;
-        --search-bg-accent: #4d6542;
+        --sidebar-accent-1: #a6763d;
+        --search-bg: #fbf7f0;
+        --search-bg-accent: #ede6d8;
 
-        --track-bg: #545346;
-        --track-bg-accent: #dad1b9;
+        --track-bg: #fbf7f0;
+        --track-bg-accent: #a6763d;
     }
 }
 
@@ -54,13 +54,18 @@ body {
     /*   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", sans-serif; */
     width: 100vw;
     overflow-x: hidden;
-    background: hsl(235deg 19% 16%);
+    background: #23201b;
     color: var(--pluto-output-color);
 
     /* background: url(bg.svg); */
     /* background-color: hsl(231deg 14% 57%); */
     /* background-size: cover; */
     word-break: break-word;
+}
+
+/* A slightly roomier default reading column; Pluto retains its own native colors. */
+body pluto-notebook {
+    width: min(760px, calc(100vw - 3rem)) !important;
 }
 
 .pages-markdown p,
@@ -106,7 +111,7 @@ a {
 }
 .pages-markdown a,
 .pages-markdown a:visited {
-    color: #4674bc;
+    color: #d6a45e;
 }
 a:hover {
     text-decoration: underline;
@@ -144,15 +149,35 @@ a.pluto_home_link {
 .sidebar-about .logos {
     display: flex;
     flex-direction: row;
-    gap: 1em;
-    padding: 1em;
+    gap: 0.6rem;
+    padding: 1rem 0.35rem 0.25rem;
     align-items: center;
 }
 
-.sidebar-about .logos picture {
-    flex: 1 1 auto;
+.sidebar-about .logos .institution-logo {
+    display: grid;
+    flex: 1 1 0;
     min-width: 0;
-    height: auto;
+    min-height: 3.2rem;
+    place-items: center;
+    overflow: hidden;
+    border: 1px solid #e4dacb;
+    border-radius: 2px;
+    background: #fff;
+    padding: 0.38rem;
+    transition: border-color 150ms ease, box-shadow 150ms ease, transform 150ms ease;
+}
+
+.sidebar-about .logos .institution-logo:hover {
+    border-color: #a6763d;
+    box-shadow: 0 5px 12px rgb(0 0 0 / 13%);
+    transform: translateY(-1px);
+}
+
+.sidebar-about .logos .institution-logo img {
+    display: block;
+    max-width: 100%;
+    max-height: 2.25rem;
     object-fit: contain;
 }
 

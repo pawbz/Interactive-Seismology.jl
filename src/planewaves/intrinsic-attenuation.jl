@@ -1,5 +1,5 @@
 ### A Pluto.jl notebook ###
-# v0.20.20
+# v0.2.6
 
 #> [frontmatter]
 #> title = "Seismic Attenuation"
@@ -117,6 +117,23 @@ md"""
 # ╔═╡ b11c4313-73e6-4d78-bc10-6c64120ae8a9
 @syms c::Real # amplitude of either P or S waves
 
+# ╔═╡ 6d1613fa-5fa0-47b8-b39b-520070d786a8
+function A(medium, A₀)
+    if (medium == "elastic")
+        return A₀
+    elseif (medium == "anelastic1")
+        return A₀ * exp(-ω * x / 2 / c / Q)
+    elseif (medium == "anelastic2")
+        return A₀ * exp(-ω * x / 2 / c / Q) * exp(ı * ω * x * log(ω / ω₀) / π / c₀ / Q)
+    end
+end
+
+# ╔═╡ ca29d9b8-d6a7-46d9-bc4f-4bfc263e7009
+planewave = A(medium, A₀) * exp(ı * ω * (t - (x / c)))
+
+# ╔═╡ eb190d1a-3c6b-407a-a586-9b13ed40b106
+planewave
+
 # ╔═╡ 2e6ad714-5972-41ce-92c9-f30a8b50f3dd
 md"""
 ## Appendix
@@ -136,23 +153,6 @@ freqgrid = rfftfreq(length(tgrid), inv(step(tgrid)))
 
 # ╔═╡ d237a9eb-775a-4d9c-b53c-192f90952ea1
 @syms c₀::Real ω₀::Real
-
-# ╔═╡ 6d1613fa-5fa0-47b8-b39b-520070d786a8
-function A(medium, A₀)
-    if (medium == "elastic")
-        return A₀
-    elseif (medium == "anelastic1")
-        return A₀ * exp(-ω * x / 2 / c / Q)
-    elseif (medium == "anelastic2")
-        return A₀ * exp(-ω * x / 2 / c / Q) * exp(ı * ω * x * log(ω / ω₀) / π / c₀ / Q)
-    end
-end
-
-# ╔═╡ ca29d9b8-d6a7-46d9-bc4f-4bfc263e7009
-planewave = A(medium, A₀) * exp(ı * ω * (t - (x / c)))
-
-# ╔═╡ eb190d1a-3c6b-407a-a586-9b13ed40b106
-planewave
 
 # ╔═╡ a3989848-a4ce-4a6d-94a5-245fb57474a0
 c_dispersive(ω, Q, c₀, ω₀) = c₀ * (1 + 1 / π / Q * log(ω / ω₀)) # not used atm

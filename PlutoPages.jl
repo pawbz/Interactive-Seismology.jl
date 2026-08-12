@@ -1,5 +1,5 @@
 ### A Pluto.jl notebook ###
-# v0.20.19
+# v1.0.3
 
 using Markdown
 using InteractiveUtils
@@ -184,7 +184,10 @@ md"""
 """
 
 # ╔═╡ bb905046-59b7-4da6-97ad-dbb9055d823a
-const pluto_deploy_settings = PlutoSliderServer.get_configuration(PlutoSliderServer.default_config_path())
+begin
+	const pluto_deploy_settings = PlutoSliderServer.get_configuration(PlutoSliderServer.default_config_path())
+	const slider_server_url = get(ENV, "PLUTO_SLIDER_SERVER_URL", pluto_deploy_settings.Export.slider_server_url)
+end
 
 # ╔═╡ b638df55-fd74-4ae8-bdbd-ec7b18214b40
 function prose_from_code(s::String)::String
@@ -446,12 +449,26 @@ dir_changed_time = let
 end
 
 # ╔═╡ 7d9cb939-da6b-4961-9584-a905ad453b5d
-allfiles = filter(PlutoSliderServer.list_files_recursive(dir)) do p
-	# reference to retrigger when files change
-	dir_changed_time
-	manual_update_trigger
-	
-	!ignore(joinpath(dir, p))
+begin
+	# The two YAML files are the authoritative list of notebooks on the site.
+	# Other source files (Markdown, layouts, images, CSS, …) remain part of the site.
+	# `include` is guarded because this cell can be re-run in a long-lived
+	# Pluto development session; the registry functions read the YAML on each use.
+	if !isdefined(@__MODULE__, :DeploymentNotebooks)
+		include(joinpath(@__DIR__, "deployment_notebooks.jl"))
+	end
+	configured_notebooks = DeploymentNotebooks.notebook_paths().all
+
+	allfiles = filter(PlutoSliderServer.list_files_recursive(dir)) do p
+		# reference to retrigger when files change
+		dir_changed_time
+		manual_update_trigger
+
+		absolute_path = joinpath(dir, p)
+		!ignore(absolute_path) && (
+			!Pluto.is_pluto_notebook(absolute_path) || p in configured_notebooks
+		)
+	end
 end
 
 # ╔═╡ d314ab46-b866-44c6-bfca-9a413bc06514
@@ -684,6 +701,10 @@ function template_handler(
 
 	
 	if Pluto.is_pluto_notebook(input.absolute_path)
+		# Static notebooks keep their exported state only. Only notebooks selected
+		# by live-notebooks.yml receive the live slider-server endpoint.
+		notebook_slider_server_url = input.relative_path in DeploymentNotebooks.notebook_paths().live ?
+			slider_server_url : nothing
 		temp_out = mktempdir()
 		Logging.with_logger(Logging.NullLogger()) do
 			PlutoSliderServer.export_notebook(
@@ -708,7 +729,7 @@ function template_handler(
 		<pluto-editor 
 			statefile=$(reg_s.url) 
 			notebookfile=$(reg_n.url) 
-			slider_server_url=$(pluto_deploy_settings.Export.slider_server_url)
+			slider_server_url=$(notebook_slider_server_url)
 			binder_url=$(pluto_deploy_settings.Export.binder_url)
 			disable_ui
 		></pluto-editor>

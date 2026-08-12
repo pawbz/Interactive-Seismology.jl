@@ -85,6 +85,51 @@ function geoid_response(s, ℓ, layers)
   choice, a magic number's origin) — this is the same rule as the rest of this repo's Julia code, not
   specific to notebooks.
 
+## The physics lives in Julia — always, no exceptions for "it's just the widget"
+
+Every widget in this repo pairs a Julia physics layer with a JS display layer, and the line between
+them is not negotiable: **any actual math — a formula, a derivative, a matrix product, a coordinate
+transform that depends on the physics rather than just the camera — is a Julia function, full stop.**
+JS only draws what Julia already computed. This holds even when the temptation to shortcut is strongest:
+a slider drag that needs to feel instant, a per-direction sample evaluated hundreds of times a frame, a
+"simple" trig formula that seems easier to just paste into the `<script>` block. None of that is an
+exception. If a live interaction needs the physics to update as the user drags, round-trip it through
+Julia with the same `commitInFlight`/`throttledCommit` pattern already used for camera drags — do not
+reach for a client-side reimplementation to dodge the latency.
+
+The one narrow carve-out (see `pluto-widget-style`'s "Marker shapes" and camera-drag sections) is pure
+*display/camera geometry* that has no physical content of its own: which screen pixel a 3D point
+projects to, which direction the mouse is dragging, how to rotate a view, where to place a text label.
+That code has no formula a reader would want to see or verify against a textbook; it's plumbing. The
+test is not "is this JS short/simple?" — it's "does this JS encode a physical relationship?" A rotation
+matrix for the camera is plumbing. A dot product between a moment tensor and a direction vector is
+physics, even though it's one line of JS and would be trivial to inline. When in doubt, put it in
+Julia; a docstring costs nothing and an inlined formula in JS is exactly the kind of thing that goes
+unverified and quietly drifts wrong (see `lame-theorem.jl`'s far-field `` X_0 ``-vs-`` \dot X_0 ``
+bug, caught only because the physics lived in one documented, testable function instead of being
+duplicated into a canvas script).
+
+Push per-direction physics results as flat arrays via the same `CustomEvent` pattern used everywhere
+else in this repo (`FieldPush`, `PfrPush`, `RayPush`, ...): Julia evaluates the quantity on a
+*deterministically reproducible* direction set (a Fibonacci sphere, a `(θ,φ)` grid — see
+[`fibonacci_sphere_directions`](@ref)/[`latlon_grid_directions`](@ref) in `lame-theorem.jl` for the
+canonical pattern), JS regenerates the *identical* geometry independently (safe, since it's pure
+geometry with no physics dependence) and zips it by index with the pushed array. This keeps the two
+sides in lockstep without ever sending the direction vectors themselves over the wire.
+
+### Keep the Julia side itself free of unnecessary global state
+
+Within the Julia side, prefer many small, single-purpose, properly-typed functions over one large
+`let` block or a sprawl of loosely-typed top-level bindings. Pluto cells are already global bindings by
+construction (`pfr_safe`, `_pfr_seis`, ... — that part is unavoidable and fine), but the *computation*
+inside a cell should still read like ordinary well-factored Julia: a function that takes typed
+arguments and returns a typed result, not a closure that reaches into outer-scope mutable state. This
+matters for two reasons — it's what makes the function independently testable/verifiable (see the
+`### Verifying ...` subsections throughout this file), and it's what keeps per-frame or per-direction
+evaluations (hundreds of calls, every widget redraw) fast: concretely-typed arguments and
+preallocated, concretely-typed output arrays (`Vector{Float64}`, not `Vector{Any}`) let Julia compile
+a tight specialized method instead of falling back to slow, boxed, dynamically-dispatched code.
+
 ## LaTeX math — and the one thing that will silently break it
 
 **Never write inline math as `$...$` or display math as `$$...$$`.** That's the Jupyter/generic-Markdown

@@ -1,5 +1,5 @@
 ### A Pluto.jl notebook ###
-# v0.20.21
+# v0.2.6
 
 #> [frontmatter]
 #> title = "Ray Theory and The Eikonal Equation"
@@ -61,6 +61,11 @@ and leverage Julia's automatic differentiation capability to compute the gradien
 
 Instructor: Pawan Bharadwaj, Indian Institute of Science, Bengaluru, India
 """
+
+# ╔═╡ a66ab3cd-c293-45ce-9e58-36b93712dbf2
+TwoColumn(md"""$(@bind lmedium confirm(layered_medium_input(5)))""",
+    md"""$(@bind source confirm(source_input()))
+    """)
 
 # ╔═╡ d2447315-f975-4447-ab92-5d5e267eaac5
 md"""
@@ -127,9 +132,6 @@ We shall assume a solution of the form
 # ╔═╡ 32a89a32-de52-481e-a017-1ae10c2c4bc4
 @syms U(t)
 
-# ╔═╡ 946772f8-3229-41cd-9a56-feae400ad11b
-ϕ = A(x, z) * exp(ı * ω * (t - T(x, z))) # trail solution
-
 # ╔═╡ 8d1ff0cb-78da-481c-b588-b664bf84828a
 @syms ı
 
@@ -144,6 +146,9 @@ md"...with variables"
 
 # ╔═╡ b3aa15cf-6baa-4209-9352-cebcb84dc3c5
 @syms T(x, z) A(x, z) # travel-time and amplitude A(x,z)
+
+# ╔═╡ 946772f8-3229-41cd-9a56-feae400ad11b
+ϕ = A(x, z) * exp(ı * ω * (t - T(x, z))) # trail solution
 
 # ╔═╡ ff0a4ccf-7518-4662-9203-ff639cb2bce2
 md"...and the following operators."
@@ -428,11 +433,6 @@ The direction of the outgoing slowness vector.
         """
     end
 end
-
-# ╔═╡ a66ab3cd-c293-45ce-9e58-36b93712dbf2
-TwoColumn(md"""$(@bind lmedium confirm(layered_medium_input(5)))""",
-    md"""$(@bind source confirm(source_input()))
-    """)
 
 # ╔═╡ 2d79a52e-a11b-4841-b588-f1eddb1be8d5
 begin
@@ -765,7 +765,7 @@ Symbolics = "~6.57.0"
 PLUTO_MANIFEST_TOML_CONTENTS = """
 # This file is machine-generated - editing it directly is not advised
 
-julia_version = "1.12.1"
+julia_version = "1.12.4"
 manifest_format = "2.0"
 project_hash = "c8b34447d761ab28a0d0877e5f4dee8cf39b2a82"
 
@@ -1187,7 +1187,7 @@ version = "0.7.16"
 [[deps.Downloads]]
 deps = ["ArgTools", "FileWatching", "LibCURL", "NetworkOptions"]
 uuid = "f43a241f-c20a-4ad4-852c-f6b1247861c6"
-version = "1.6.0"
+version = "1.7.0"
 
 [[deps.DrWatson]]
 deps = ["Dates", "FileIO", "JLD2", "LibGit2", "MacroTools", "Pkg", "Random", "Requires", "Scratch", "UnPack"]
@@ -1681,7 +1681,7 @@ version = "0.6.4"
 [[deps.LibCURL_jll]]
 deps = ["Artifacts", "LibSSH2_jll", "Libdl", "OpenSSL_jll", "Zlib_jll", "nghttp2_jll"]
 uuid = "deac9b47-8bc7-5906-a0fe-35ac56dc84c0"
-version = "8.11.1+1"
+version = "8.15.0+0"
 
 [[deps.LibGit2]]
 deps = ["LibGit2_jll", "NetworkOptions", "Printf", "SHA"]
@@ -1829,7 +1829,7 @@ version = "0.3.7"
 
 [[deps.MozillaCACerts_jll]]
 uuid = "14a3606d-f60d-562e-9121-12d972cd8159"
-version = "2025.5.20"
+version = "2025.11.4"
 
 [[deps.MultivariatePolynomials]]
 deps = ["ChainRulesCore", "DataStructures", "LinearAlgebra", "MutableArithmetics"]
@@ -1905,7 +1905,7 @@ version = "0.8.7+0"
 [[deps.OpenSSL_jll]]
 deps = ["Artifacts", "Libdl"]
 uuid = "458c3c95-2e84-50aa-8efc-19380b2a3a95"
-version = "3.5.1+0"
+version = "3.5.4+0"
 
 [[deps.OpenSpecFun_jll]]
 deps = ["Artifacts", "CompilerSupportLibraries_jll", "JLLWrappers", "Libdl"]
@@ -1955,7 +1955,7 @@ version = "2.8.3"
 [[deps.Pkg]]
 deps = ["Artifacts", "Dates", "Downloads", "FileWatching", "LibGit2", "Libdl", "Logging", "Markdown", "Printf", "Random", "SHA", "TOML", "Tar", "UUIDs", "p7zip_jll"]
 uuid = "44cfe95a-1eb2-52ea-b672-e2afdf69b78f"
-version = "1.12.0"
+version = "1.12.1"
 weakdeps = ["REPL"]
 
     [deps.Pkg.extensions]
@@ -2745,9 +2745,9 @@ uuid = "1317d2d5-d96f-522e-a858-c73665f53c3e"
 version = "2022.0.0+1"
 
 [[deps.p7zip_jll]]
-deps = ["Artifacts", "Libdl"]
+deps = ["Artifacts", "CompilerSupportLibraries_jll", "Libdl"]
 uuid = "3f19e933-33d8-53b3-aaab-bd5110c3b7a0"
-version = "17.5.0+2"
+version = "17.7.0+0"
 """
 
 # ╔═╡ Cell order:

@@ -40,6 +40,8 @@ jobs:
                     ${{ runner.os }}-dotjulia-v1-${{ hashFiles('**/Project.toml', '**/Manifest.toml') }}
 
             - name: 🪴 Generate site
+              env:
+                PLUTO_SLIDER_SERVER_URL: ${{ vars.PLUTO_SLIDER_SERVER_URL }}
               run: julia --project=pluto-deployment-environment -e '
                   import Pkg;
                   Pkg.instantiate();

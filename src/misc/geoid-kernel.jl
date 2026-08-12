@@ -34,7 +34,9 @@ using Symbolics
 TableOfContents(include_definitions=true)
 
 # ╔═╡ 6d403f73-4d5e-4f80-b12c-3d4e5f607182
-md"""
+let
+    attenuation_at_ell2 = round((B_CMB / A_EARTH)^4, digits=3)
+    Markdown.parse(raw"""
 ## Why Does a Dense Blob Make a Geoid *Low*?
 
 Drop a dense lump into the mantle. Ask a student what happens to the geoid — the shape of
@@ -75,10 +77,8 @@ mass.
 **A deep dense anomaly** does the opposite on both counts. It is far from the surface, so the
 flow it drives has largely died out by the time it reaches the top — the surface barely
 deflects. Meanwhile it deflects the **CMB** strongly instead. But the CMB is 2891 km away from
-where you measure, and gravitational signals attenuate with distance as $(let
-	f = (B_CMB / A_EARTH)^4
-	"``(b/a)^{\\ell+2}``, only **$(round(f, digits=3))** at ``\\ell = 2``"
-end) — so
+where you measure, and gravitational signals attenuate with distance as
+``(b/a)^{\ell+2}``, only **""" * string(attenuation_at_ell2) * raw"""** at ``\ell = 2`` — so
 that large CMB deflection is barely felt at the surface. The anomaly's own pull survives, and
 the net can come out **positive**.
 
@@ -98,7 +98,8 @@ how that is even possible.
 Instructor: *Pawan Bharadwaj*,
 Indian Institute of Science, Bengaluru, India
 
-"""
+""")
+end
 
 # ╔═╡ 7e514084-5e6f-4091-c23d-4e5f60718293
 md"---"
@@ -212,15 +213,7 @@ Whichever exceeds the other sets the sign, and moving the anomaly in depth is wh
 """
 
 # ╔═╡ 290cfb98-0851-4b4c-7dd8-930415263749
-md"""
-#### The competition, depth by depth
-
-Here is the balance laid out for a unit dense sheet, in both a uniform mantle and Hager &
-Richards' model WL. The column that matters is the **ratio** ``|②/①|`` — the surface
-depression divided by the anomaly's own pull. **The geoid flips sign exactly where that ratio
-crosses 1.**
-
-$(let
+let
 	function tbl(lay)
 		rows = String[]
 		for d in (100e3, 300e3, 600e3, 1000e3, 1500e3, 2000e3, 2500e3, 2800e3)
@@ -231,9 +224,18 @@ $(let
 		end
 		"| depth | ``\\vert ②/① \\vert`` | net geoid |\n|---|---:|:---|\n" * join(rows, "\n")
 	end
-	Markdown.parse("**Uniform viscosity**\n\n" * tbl(isoviscous_layers()) *
-				   "\n\n**Hager & Richards model WL**\n\n" * tbl(hr89_WL_layers()))
-end)
+
+	competition_tables = "**Uniform viscosity**\n\n" * tbl(isoviscous_layers()) *
+		"\n\n**Hager & Richards model WL**\n\n" * tbl(hr89_WL_layers())
+	Markdown.parse(raw"""
+#### The competition, depth by depth
+
+Here is the balance laid out for a unit dense sheet, in both a uniform mantle and Hager &
+Richards' model WL. The column that matters is the **ratio** ``|②/①|`` — the surface
+depression divided by the anomaly's own pull. **The geoid flips sign exactly where that ratio
+crosses 1.**
+
+""" * competition_tables * raw"""
 
 In the uniform mantle the ratio never drops below 1 until the very base, so every depth gives
 a low. In model WL the low-viscosity asthenosphere weakens the surface coupling enough that
@@ -243,7 +245,8 @@ lows happens in the mid-mantle.
 Notice also the last row of each table: the ratio collapses near the CMB, because by then the
 surface hardly deflects at all. The anomaly is instead deflecting the **CMB** — strongly, but
 too far from the observer for it to compete, as the attenuation factor above showed.
-"""
+""")
+end
 
 # ╔═╡ 4b2e1db6-2bec-4d6e-9fda-930415263748
 md"""
@@ -256,13 +259,7 @@ degree has its own kernel with its own zero-crossing depth.
 """
 
 # ╔═╡ 6d403fd6-4dcd-4f80-b1fb-152637485960
-md"""
-## Aha #3: Viscosity Controls the Flip
-
-Sweep the **η lower / η upper** slider and watch the kernel. The headline is that
-**a uniform mantle has no sign flip at all** — viscosity layering is what creates one:
-
-$(let
+let
 	rows = String[]
 	for ratio in (1.0, 3.0, 10.0, 30.0, 100.0)
 		lay = ratio ≈ 1.0 ? isoviscous_layers() : twolayer_layers(ratio)
@@ -270,8 +267,21 @@ $(let
 		lbl = ratio ≈ 1.0 ? "1× *(uniform)*" : "$(ratio)×"
 		push!(rows, "| $(lbl) | " * (isnothing(d) ? "**none** — single-signed" : "**$(round(Int,d)) km**") * " |")
 	end
-	Markdown.parse("| ``\\eta_{lower}/\\eta_{upper}`` | ``\\ell=2`` sign flip |\n|---|---|\n" * join(rows, "\n"))
-end)
+	viscosity_table = "| ``\\eta_{lower}/\\eta_{upper}`` | ``\\ell=2`` sign flip |\n|---|---|\n" * join(rows, "\n")
+
+	ds = (100e3, 300e3, 600e3, 900e3, 1500e3, 2400e3)
+	wl_table = "| depth | ``K_2(r)`` for model WL |\n|---|---:|\n" * join(
+		["| $(round(Int,d/1e3)) km | `$(round(geoid_kernel(A_EARTH-d, 2, hr89_WL_layers()), sigdigits=3))` |" for d in ds],
+		"\n",
+	)
+
+	Markdown.parse(raw"""
+## Aha #3: Viscosity Controls the Flip
+
+Sweep the **η lower / η upper** slider and watch the kernel. The headline is that
+**a uniform mantle has no sign flip at all** — viscosity layering is what creates one:
+
+""" * viscosity_table * raw"""
 
 For a **uniform** mantle the ``\ell=2`` kernel is negative at every depth: the deflected
 boundaries always outvote the anomaly's own attraction, so *any* dense anomaly gives a geoid
@@ -294,17 +304,14 @@ and the deep mantle starts producing geoid *highs*.
 	its sign change largely from a **low-viscosity asthenosphere** (η = 1/30 between 100 and
 	400 km) rather than from a stiff lower mantle alone:
 
-	$(let
-		ds = (100e3, 300e3, 600e3, 900e3, 1500e3, 2400e3)
-		rows = ["| $(round(Int,d/1e3)) km | `$(round(geoid_kernel(A_EARTH-d, 2, hr89_WL_layers()), sigdigits=3))` |" for d in ds]
-		Markdown.parse("| depth | ``K_2(r)`` for model WL |\n|---|---:|\n" * join(rows, "\n"))
-	end)
+	""" * wl_table * raw"""
 
 	Positive in the upper mantle, crossing between 600 and 900 km, negative below — the
 	structure of the ``G^\ell`` panel in their Figure 2. This is the notebook's
 	reproduction-of-a-published-kernel check; the uniform-viscosity case above is our own
 	baseline, not a published result.
-"""
+""")
+end
 
 # ╔═╡ 7e5140e6-5ebf-4091-c20b-263748596071
 md"""

@@ -16,8 +16,12 @@ else
     ]
 
     @htl("""
-    <div class="subjectscontainer wide">
-      <h1>Highlights</h1>
+    <div id="explore" class="subjectscontainer wide">
+      <div class="section-heading">
+        <p class="section-kicker">Explore by experiment</p>
+        <h2>Follow the signal</h2>
+        <p>Begin anywhere—each notebook is a self-contained experiment with live controls and visual feedback.</p>
+      </div>
       <div class="contain">
       $(highlights)      
       </div>

@@ -1,5 +1,5 @@
 ### A Pluto.jl notebook ###
-# v0.20.21
+# v0.2.6
 
 #> [frontmatter]
 #> title = "Lamb's Problem"
@@ -49,8 +49,17 @@ Instructor: *Pawan Bharadwaj*,
 Indian Institute of Science, Bengaluru, India
 """
 
+# ╔═╡ 4e31b3c7-e7ab-4a10-ba04-292dd03a3732
+md"""Select the term $(@bind plot_phase confirm(Select([Direct() => "Direct", Preflect() => "Reflected P",  Sreflect() => "Reflected S"])))"""
+
 # ╔═╡ 5d8719c8-4b50-435b-9c3e-aa8eee50df98
 n_layers = 5
+
+# ╔═╡ 78d77dbb-1f2c-4b7c-a1ce-fa775ac7bd5c
+@bind layers_ui layer_table_input(n_layers, GUTENBERG_MODEL)
+
+# ╔═╡ d24ceb91-f463-497f-a914-5c6e90e766ee
+layers_ui
 
 # ╔═╡ d1f5e223-cc49-4fe8-9b2e-c1ccecf2315a
 # Reference frequency for causal-Q dispersion
@@ -474,6 +483,9 @@ let
 	println("Phase = $(angle(Rpp)) rad = $(rad2deg(angle(Rpp))) deg")
 end
 
+# ╔═╡ ccec9a65-e249-4d28-bacb-6b53f8bfabf4
+reflectivity_pp(layers_ui, 0.0, 0.01, ω_ref)
+
 # ╔═╡ 3dfbfc66-8f87-4906-84f5-495bf113e4ef
 
 
@@ -615,9 +627,6 @@ struct Preflect end
 # ╔═╡ 281a5cac-4e00-42d6-b331-ea5d80888f27
 struct Sreflect end
 
-# ╔═╡ 4e31b3c7-e7ab-4a10-ba04-292dd03a3732
-md"""Select the term $(@bind plot_phase confirm(Select([Direct() => "Direct", Preflect() => "Reflected P",  Sreflect() => "Reflected S"])))"""
-
 # ╔═╡ 089b0602-077a-4074-a424-0a6afab8bcf4
 """
     smooth_taper(p, p_max)
@@ -635,6 +644,87 @@ function smooth_taper(p, p_max; width=0.3)
     else
         return 0.0
     end
+end
+
+# ╔═╡ 84209251-8b66-4d63-ba8f-1b7c1a12b382
+layers_ui[1].vp
+
+# ╔═╡ 951a5946-ab54-4aff-be89-b8d5ea90fa1a
+begin
+    function get_phase(::Direct, k, kmax, param, layers)
+		taper = smooth_taper(k, kmax; width=0.2)
+		vp = causal_velocity(layers[1].vp, layers[1].Qp, )
+        C = taper * conical_wave(k, param.Ω, param.R, param.Z, layers[1].vp)
+		return C
+    end
+	function get_phase(::Preflect, p, p_max, param, media)
+    taper = smooth_taper(p, p_max; width=0.1)
+#     # frequency‑dependent reflectivity
+    A = cat(reflectivity_pp.(Ref(layers_ui), p, param.ωgrid, Ref(ω_ref)), dims=2)
+	C = conical_wave(p, param.Ω, param.R, param.Z, media.α₁)
+	C = reshape(C, length(param.ωgrid), length(param.rgrid))
+	return A .* C
+#     return A .* taper .* conical_wave(p, param.Ω, param.X, param.Y, param.Z, media.α₁, h)
+end
+	# ...existing code...
+# function get_phase(::Preflect, p, p_max, param, media, h)
+#     taper = smooth_taper(p, p_max; width=0.1)
+
+#     # Frequency‑dependent plane‑wave reflectivity of the stack at the top of layer 1
+#     # A = reflectivity_pp.(Ref(layers_ui), p, param.Ω, Ref(ω_ref))
+# 	A = reflectivity_pp(layers_ui, p, 1.0, 1.0)
+
+#     # Missing two‑way vertical phase in the top medium (P in layer 1):
+#     # down from source depth h to the free surface, then up to receiver depth z
+#     # -> exp(i ω q1 (h + z)).  With z = 0, this becomes exp(i ω q1 2h) when
+#     # combined with conical_wave’s exp(i ω q1 (h - z)).
+#     q1 = get_vertical_wavenumber(media.α₁, p)  # match conical_wave’s branch/convention
+#     extra_top_phase = exp.(1im .* param.Ω .* q1 .* (h .+ param.Z))
+
+#     return A .* taper .* extra_top_phase .* conical_wave(p, param.Ω, param.X, param.Y, param.Z, media.α₁, h)
+# end
+# ...existing code...
+
+	
+	
+  #   function get_phase(::Preflect, p, p_max, param, media, h)
+		# taper = smooth_taper(p, p_max; width=0.1)
+		
+  #       # A = get_A(Afunctions_vec["Aₚ"], p, media)
+  #       return A * taper * (conical_wave(p, param.Ω, param.X, param.Y, param.Z, media.α₁, h))
+  #   end
+
+	
+    function get_phase(::Sreflect, p, p_max, param, media, h)
+		taper = smooth_taper(p, p_max; width=0.1)
+        A = get_A(Afunctions_vec["Aₛ"], p, media)
+        return A * taper * (conical_wave(p, param.Ω, param.R, param.Z, media.α₁, media.β₁, h))
+    end
+end
+
+# ╔═╡ 9a9a1d8e-df81-4aa2-b0f3-49cb90f8a398
+layers_ui[1]
+
+# ╔═╡ c246fdfc-321c-4856-8a4b-cf6cb4ba1594
+function get_wavefield(param, layers, phase; np=1024, pmargin=1.5)
+    # Discrete Riemann summation over horizontal wavenumber in [0, kmax]
+
+	vmax = maximum(getfield.(layers, :vs))
+    kmax = maximum(param.ωgrid) / vmax * 1.2
+    kgrid = range(0, kmax, length = np)
+
+    dk = step(kgrid)
+
+    # Accumulate vector result over all frequencies/receivers
+    integral_sum = zeros(ComplexF64, length(param.ωgrid), length(param.rgrid))
+
+    for k in kgrid
+        # get_phase broadcasts over param fields and returns a vector
+        integral_sum .+= get_phase(phase, k, kmax, param, layers) * dk
+    end
+
+    U = param.W .* integral_sum
+    return U
 end
 
 # ╔═╡ 72aca1bf-3997-4be3-b316-921b45480c1a
@@ -663,6 +753,9 @@ Bessels.besselj0.(1.0 .* seismograms_param.R) .* exp.(im .* kz)
 # ╔═╡ 3f8684cb-03c7-4c86-86b5-0af2d9a32418
 @time conical_wave(0.0, seismograms_param.Ω, seismograms_param.X, seismograms_param.Y, seismograms_param.Z, media.α₁ + 1e-3)
 
+# ╔═╡ 00a3df8b-9642-461a-8d37-9342c121240e
+reflectivity_pp.(Ref(layers_ui), 0.1, seismograms_param.ωgrid, ω_ref)
+
 # ╔═╡ a88a10fe-2a02-458d-898a-25cdb0d15af4
 conical_wave(0.1, seismograms_param.Ω, seismograms_param.X, seismograms_param.Y, seismograms_param.Z, media.α₁)
 
@@ -672,17 +765,52 @@ seismograms_param.Ω
 # ╔═╡ 37e33e90-0d44-4a9d-abeb-a7ee1cf9f977
 seismograms_param.Z
 
+# ╔═╡ 395d3a63-b7b8-44b5-97ab-740c4849db26
+begin
+	vmax = maximum(getfield.(layers_ui, :vs))
+	    kmax = maximum(seismograms_param.ωgrid) / vmax * 1.2
+	    # kgrid = range(0, kmax, length = 1024)
+end
+
+# ╔═╡ d297ea1c-e0ad-4fe7-bbc2-fc7d6269f8ba
+get_phase(Direct(), 1.0, 4.0, seismograms_param, layers_ui)
+
 # ╔═╡ 3693ffe9-979b-416a-85de-8438f00a6fc2
 H1 = 100.0
 
 # ╔═╡ 765b90b8-060d-4b68-8201-309abe4adebc
 first.(Iterators.product(1:10, 11:20))
 
+# ╔═╡ 70ff038f-e684-4fde-8c93-0358b0181c01
+C = get_wavefield(seismograms_param, layers_ui, plot_phase)
+
 # ╔═╡ 6923e13d-a4c5-45c9-a1b2-f0104932d709
 function remove_zero_frequency!(C)
 	C[1, :] .= 0.0
 	return C
 end
+
+# ╔═╡ 53a45db3-8571-4fc7-a855-5173030b7cb9
+seismograms = irfft(remove_zero_frequency!(get_wavefield(seismograms_param, layers_ui, plot_phase)), seismograms_param.Nt, 1);
+
+# ╔═╡ 96556fec-4bea-4132-946a-92d17372df54
+let
+    U = seismograms
+    Umaxclip = maximum(abs, U) * .1
+    plot(heatmap(y=seismograms_param.tgrid, x=seismograms_param.rgrid, z=U, zmin=-Umaxclip, zmax=Umaxclip, colorscale=:seismic,), Layout(title="Seismograms", width=300, yaxis_autorange="reversed", xaxis=attr(title="distance to receiver"), yaxis=attr(title="time (s)")))
+end
+
+# ╔═╡ 4ff2ef66-06eb-4df0-b491-10ab7a81d65d
+seismograms
+
+# ╔═╡ b3d2ba8e-7a02-4af1-9e4a-d9ab1b4676df
+plot(seismograms[:, 6])
+
+# ╔═╡ 47c0c813-08a2-4173-9853-f12874449b6e
+seismograms
+
+# ╔═╡ 77032c75-0cae-48a0-a5f0-7ca4de2ff3ea
+C
 
 # ╔═╡ 4b283a44-214a-4bc0-8eb9-031a0e124a82
 md"## Snapshot"
@@ -701,6 +829,17 @@ snapshot_param = let
     W = fill(1.0, length(X))
     (; X, Y, Z, Ω, W, N, xgrid, zgrid)
 end;
+
+# ╔═╡ 423c7abb-f274-4010-bd08-95adc5890204
+# ╠═╡ disabled = true
+#=╠═╡
+snapshot = reshape(get_wavefield(snapshot_param, H1, media, plot_phase), snapshot_param.N, snapshot_param.N);
+  ╠═╡ =#
+
+# ╔═╡ a7b582ba-57fa-4f90-b017-5a9d059c30e5
+#=╠═╡
+plot(contour(x=snapshot_param.xgrid, y=snapshot_param.zgrid, z=log.(abs.(snapshot))), Layout(title="Radiation", yaxis_autorange="reversed", height=300, width=650))
+  ╠═╡ =#
 
 # ╔═╡ c695e4d3-c49d-4587-8adc-cdd4c001325e
 md"## Appendix"
@@ -781,145 +920,6 @@ end
 
 
 
-# ╔═╡ 78d77dbb-1f2c-4b7c-a1ce-fa775ac7bd5c
-@bind layers_ui layer_table_input(n_layers, GUTENBERG_MODEL)
-
-# ╔═╡ d24ceb91-f463-497f-a914-5c6e90e766ee
-layers_ui
-
-# ╔═╡ ccec9a65-e249-4d28-bacb-6b53f8bfabf4
-reflectivity_pp(layers_ui, 0.0, 0.01, ω_ref)
-
-# ╔═╡ 00a3df8b-9642-461a-8d37-9342c121240e
-reflectivity_pp.(Ref(layers_ui), 0.1, seismograms_param.ωgrid, ω_ref)
-
-# ╔═╡ 84209251-8b66-4d63-ba8f-1b7c1a12b382
-layers_ui[1].vp
-
-# ╔═╡ 951a5946-ab54-4aff-be89-b8d5ea90fa1a
-begin
-    function get_phase(::Direct, k, kmax, param, layers)
-		taper = smooth_taper(k, kmax; width=0.2)
-		vp = causal_velocity(layers[1].vp, layers[1].Qp, )
-        C = taper * conical_wave(k, param.Ω, param.R, param.Z, layers[1].vp)
-		return C
-    end
-	function get_phase(::Preflect, p, p_max, param, media)
-    taper = smooth_taper(p, p_max; width=0.1)
-#     # frequency‑dependent reflectivity
-    A = cat(reflectivity_pp.(Ref(layers_ui), p, param.ωgrid, Ref(ω_ref)), dims=2)
-	C = conical_wave(p, param.Ω, param.R, param.Z, media.α₁)
-	C = reshape(C, length(param.ωgrid), length(param.rgrid))
-	return A .* C
-#     return A .* taper .* conical_wave(p, param.Ω, param.X, param.Y, param.Z, media.α₁, h)
-end
-	# ...existing code...
-# function get_phase(::Preflect, p, p_max, param, media, h)
-#     taper = smooth_taper(p, p_max; width=0.1)
-
-#     # Frequency‑dependent plane‑wave reflectivity of the stack at the top of layer 1
-#     # A = reflectivity_pp.(Ref(layers_ui), p, param.Ω, Ref(ω_ref))
-# 	A = reflectivity_pp(layers_ui, p, 1.0, 1.0)
-
-#     # Missing two‑way vertical phase in the top medium (P in layer 1):
-#     # down from source depth h to the free surface, then up to receiver depth z
-#     # -> exp(i ω q1 (h + z)).  With z = 0, this becomes exp(i ω q1 2h) when
-#     # combined with conical_wave’s exp(i ω q1 (h - z)).
-#     q1 = get_vertical_wavenumber(media.α₁, p)  # match conical_wave’s branch/convention
-#     extra_top_phase = exp.(1im .* param.Ω .* q1 .* (h .+ param.Z))
-
-#     return A .* taper .* extra_top_phase .* conical_wave(p, param.Ω, param.X, param.Y, param.Z, media.α₁, h)
-# end
-# ...existing code...
-
-	
-	
-  #   function get_phase(::Preflect, p, p_max, param, media, h)
-		# taper = smooth_taper(p, p_max; width=0.1)
-		
-  #       # A = get_A(Afunctions_vec["Aₚ"], p, media)
-  #       return A * taper * (conical_wave(p, param.Ω, param.X, param.Y, param.Z, media.α₁, h))
-  #   end
-
-	
-    function get_phase(::Sreflect, p, p_max, param, media, h)
-		taper = smooth_taper(p, p_max; width=0.1)
-        A = get_A(Afunctions_vec["Aₛ"], p, media)
-        return A * taper * (conical_wave(p, param.Ω, param.R, param.Z, media.α₁, media.β₁, h))
-    end
-end
-
-# ╔═╡ c246fdfc-321c-4856-8a4b-cf6cb4ba1594
-function get_wavefield(param, layers, phase; np=1024, pmargin=1.5)
-    # Discrete Riemann summation over horizontal wavenumber in [0, kmax]
-
-	vmax = maximum(getfield.(layers, :vs))
-    kmax = maximum(param.ωgrid) / vmax * 1.2
-    kgrid = range(0, kmax, length = np)
-
-    dk = step(kgrid)
-
-    # Accumulate vector result over all frequencies/receivers
-    integral_sum = zeros(ComplexF64, length(param.ωgrid), length(param.rgrid))
-
-    for k in kgrid
-        # get_phase broadcasts over param fields and returns a vector
-        integral_sum .+= get_phase(phase, k, kmax, param, layers) * dk
-    end
-
-    U = param.W .* integral_sum
-    return U
-end
-
-# ╔═╡ 423c7abb-f274-4010-bd08-95adc5890204
-# ╠═╡ disabled = true
-#=╠═╡
-snapshot = reshape(get_wavefield(snapshot_param, H1, media, plot_phase), snapshot_param.N, snapshot_param.N);
-  ╠═╡ =#
-
-# ╔═╡ a7b582ba-57fa-4f90-b017-5a9d059c30e5
-#=╠═╡
-plot(contour(x=snapshot_param.xgrid, y=snapshot_param.zgrid, z=log.(abs.(snapshot))), Layout(title="Radiation", yaxis_autorange="reversed", height=300, width=650))
-  ╠═╡ =#
-
-# ╔═╡ 9a9a1d8e-df81-4aa2-b0f3-49cb90f8a398
-layers_ui[1]
-
-# ╔═╡ 395d3a63-b7b8-44b5-97ab-740c4849db26
-begin
-	vmax = maximum(getfield.(layers_ui, :vs))
-	    kmax = maximum(seismograms_param.ωgrid) / vmax * 1.2
-	    # kgrid = range(0, kmax, length = 1024)
-end
-
-# ╔═╡ d297ea1c-e0ad-4fe7-bbc2-fc7d6269f8ba
-get_phase(Direct(), 1.0, 4.0, seismograms_param, layers_ui)
-
-# ╔═╡ 70ff038f-e684-4fde-8c93-0358b0181c01
-C = get_wavefield(seismograms_param, layers_ui, plot_phase)
-
-# ╔═╡ 77032c75-0cae-48a0-a5f0-7ca4de2ff3ea
-C
-
-# ╔═╡ 53a45db3-8571-4fc7-a855-5173030b7cb9
-seismograms = irfft(remove_zero_frequency!(get_wavefield(seismograms_param, layers_ui, plot_phase)), seismograms_param.Nt, 1);
-
-# ╔═╡ 96556fec-4bea-4132-946a-92d17372df54
-let
-    U = seismograms
-    Umaxclip = maximum(abs, U) * .1
-    plot(heatmap(y=seismograms_param.tgrid, x=seismograms_param.rgrid, z=U, zmin=-Umaxclip, zmax=Umaxclip, colorscale=:seismic,), Layout(title="Seismograms", width=300, yaxis_autorange="reversed", xaxis=attr(title="distance to receiver"), yaxis=attr(title="time (s)")))
-end
-
-# ╔═╡ 4ff2ef66-06eb-4df0-b491-10ab7a81d65d
-seismograms
-
-# ╔═╡ b3d2ba8e-7a02-4af1-9e4a-d9ab1b4676df
-plot(seismograms[:, 6])
-
-# ╔═╡ 47c0c813-08a2-4173-9853-f12874449b6e
-seismograms
-
 # ╔═╡ e7c1cbf4-7939-45a2-a754-b36ae9bdcab4
 md"""### To Do
 - Use in place functions while performing numerical integration for speedup
@@ -969,7 +969,7 @@ Symbolics = "~6.56.0"
 PLUTO_MANIFEST_TOML_CONTENTS = """
 # This file is machine-generated - editing it directly is not advised
 
-julia_version = "1.12.1"
+julia_version = "1.12.4"
 manifest_format = "2.0"
 project_hash = "8ba07bdbf4aab40a52233abcfc7f636bf7a1184d"
 
@@ -1303,7 +1303,7 @@ version = "0.7.16"
 [[deps.Downloads]]
 deps = ["ArgTools", "FileWatching", "LibCURL", "NetworkOptions"]
 uuid = "f43a241f-c20a-4ad4-852c-f6b1247861c6"
-version = "1.6.0"
+version = "1.7.0"
 
 [[deps.DynamicPolynomials]]
 deps = ["Future", "LinearAlgebra", "MultivariatePolynomials", "MutableArithmetics", "Reexport", "Test"]
@@ -1555,7 +1555,7 @@ version = "0.6.4"
 [[deps.LibCURL_jll]]
 deps = ["Artifacts", "LibSSH2_jll", "Libdl", "OpenSSL_jll", "Zlib_jll", "nghttp2_jll"]
 uuid = "deac9b47-8bc7-5906-a0fe-35ac56dc84c0"
-version = "8.11.1+1"
+version = "8.15.0+0"
 
 [[deps.LibGit2]]
 deps = ["LibGit2_jll", "NetworkOptions", "Printf", "SHA"]
@@ -1645,7 +1645,7 @@ version = "0.3.7"
 
 [[deps.MozillaCACerts_jll]]
 uuid = "14a3606d-f60d-562e-9121-12d972cd8159"
-version = "2025.5.20"
+version = "2025.11.4"
 
 [[deps.MultivariatePolynomials]]
 deps = ["DataStructures", "LinearAlgebra", "MutableArithmetics"]
@@ -1707,7 +1707,7 @@ version = "0.8.7+0"
 [[deps.OpenSSL_jll]]
 deps = ["Artifacts", "Libdl"]
 uuid = "458c3c95-2e84-50aa-8efc-19380b2a3a95"
-version = "3.5.1+0"
+version = "3.5.4+0"
 
 [[deps.OpenSpecFun_jll]]
 deps = ["Artifacts", "CompilerSupportLibraries_jll", "JLLWrappers", "Libdl"]
@@ -1741,7 +1741,7 @@ version = "2.8.3"
 [[deps.Pkg]]
 deps = ["Artifacts", "Dates", "Downloads", "FileWatching", "LibGit2", "Libdl", "Logging", "Markdown", "Printf", "Random", "SHA", "TOML", "Tar", "UUIDs", "p7zip_jll"]
 uuid = "44cfe95a-1eb2-52ea-b672-e2afdf69b78f"
-version = "1.12.0"
+version = "1.12.1"
 weakdeps = ["REPL"]
 
     [deps.Pkg.extensions]
@@ -2272,9 +2272,9 @@ uuid = "1317d2d5-d96f-522e-a858-c73665f53c3e"
 version = "2022.0.0+1"
 
 [[deps.p7zip_jll]]
-deps = ["Artifacts", "Libdl"]
+deps = ["Artifacts", "CompilerSupportLibraries_jll", "Libdl"]
 uuid = "3f19e933-33d8-53b3-aaab-bd5110c3b7a0"
-version = "17.5.0+2"
+version = "17.7.0+0"
 """
 
 # ╔═╡ Cell order:
