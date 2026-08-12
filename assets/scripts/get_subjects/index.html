@@ -22,7 +22,9 @@
                     &lt;h3>$(name)&lt;/h3>
                     &lt;img src=$(image)>
                 &lt;/a>&quot;&quot;&quot;)
-            end for other_page in collections[section_id].pages
+            end for other_page in let collection = get(collections, section_id, nothing)
+                collection === nothing ? Any[] : collection.pages
+            end
         ])
         &quot;&quot;&quot;)
         for (section_id, section_name) in sections
@@ -30,4 +32,5 @@
 
     # isempty(sections) ? nothing : @htl(&quot;&quot;&quot;&lt;div class=&quot;wide subjectscontainer&quot;>
     # &quot;&quot;&quot;)
-end</code></pre>
+end
+</code></pre>
