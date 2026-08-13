@@ -182,7 +182,7 @@ md"### The PREM Density Profile"
 begin
     # PREM (Dziewonski & Anderson, 1981, Phys. Earth Planet. Inter. 25(4):297-356) density
     # and velocity profile, parsed directly from the same reference model file specnm.jl
-    # uses for normal-mode calculations: src/specnm_models/prem_ani, an AXISEM card-deck
+    # uses for normal-mode calculations: src/assets/data/specnm_models/prem_ani, an AXISEM card-deck
     # listing (radius, rho, vpv, vsv, vph, vsh, eta, qka, qmu) at every one of PREM's real
     # radial sample points -- not an independently-typed subset. We use the vertically-
     # polarized vp/vs (vpv/vsv) as a single representative velocity at each depth, ignoring
@@ -192,7 +192,7 @@ begin
     rho = Float64[]
     vp = Float64[]
     vs = Float64[]
-    open(joinpath(@__DIR__, "..", "specnm_models", "prem_ani")) do io
+    open(joinpath(@__DIR__, "..", "assets", "data", "specnm_models", "prem_ani")) do io
         for line in eachline(io)
             s = strip(line)
             (isempty(s) || startswith(s, "#") || !occursin(r"^[0-9.]", s)) && continue
@@ -416,25 +416,25 @@ begin
     # GyPSuM (Simmons, Forte, Boschi & Grand, 2010, doi:10.1029/2010JB007631), downloaded
     # from IRIS EMC. All 100 native depth layers kept; lat/lon coarsened to 3x3 deg (still
     # finer than the globe's own render mesh) to keep the embedded payload a few MB instead
-    # of tens of MB. See data/gypsum_dvs_coarse.csv for full provenance.
+    # of tens of MB. See ../assets/data/gypsum_dvs_coarse.csv for full provenance.
     tomo_lons, tomo_lats, tomo_depths, tomo_grid =
-        load_tomo_csv(joinpath(@__DIR__, "data", "gypsum_dvs_coarse.csv"))
+        load_tomo_csv(joinpath(@__DIR__, "..", "assets", "data", "gypsum_dvs_coarse.csv"))
 
     # S40RTS (Ritsema, Deuss, van Heijst & Woodhouse, 2011,
-    # doi:10.1111/j.1365-246X.2010.04884.x). See data/s40rts_dvs_coarse.csv for provenance.
+    # doi:10.1111/j.1365-246X.2010.04884.x). See ../assets/data/s40rts_dvs_coarse.csv for provenance.
     s40rts_lons, s40rts_lats, s40rts_depths, s40rts_grid =
-        load_tomo_csv(joinpath(@__DIR__, "data", "s40rts_dvs_coarse.csv"))
+        load_tomo_csv(joinpath(@__DIR__, "..", "assets", "data", "s40rts_dvs_coarse.csv"))
 
     # GLAD-M25 (Lei et al., 2020, doi:10.1093/gji/ggaa253), a full-waveform/adjoint-tomography
     # model -- higher resolution than GyPSuM/S40RTS, since it comes from a much finer
     # spectral-element inversion rather than a truncated spherical-harmonic expansion. See
-    # data/gladm25_dvs_coarse.csv for full provenance, including how dVs% was derived
+    # ../assets/data/gladm25_dvs_coarse.csv for full provenance, including how dVs% was derived
     # (GLAD-M25 ships absolute Vsv, not a PREM-relative perturbation like GyPSuM/S40RTS) and
     # why its usable depth range starts at 80 km rather than the surface (a real data-fill
     # bug in the shallowest layers, plus crustal structure sharp enough to blow out this
     # widget's mantle-focused color scale).
     gladm25_lons, gladm25_lats, gladm25_depths, gladm25_grid =
-        load_tomo_csv(joinpath(@__DIR__, "data", "gladm25_dvs_coarse.csv"))
+        load_tomo_csv(joinpath(@__DIR__, "..", "assets", "data", "gladm25_dvs_coarse.csv"))
 
     (tomo_grid, s40rts_grid, gladm25_grid)
 end
@@ -510,11 +510,11 @@ md"### Layer 5: Coastlines"
 # ╔═╡ 9bebe536-3dc8-4e45-b27d-160dc0b4f608
 begin
     # Natural Earth 1:110m coastline (public domain), vendored offline from GeoMakie.jl's
-    # bundled assets -- see data/coastlines_110m.csv for provenance. Drawn on the globe
+    # bundled assets -- see ../assets/data/coastlines_110m.csv for provenance. Drawn on the globe
     # widget's outer shell purely as a geographic reference layer (it carries no data of
     # its own), so a viewer can tell "that fast anomaly is under East Asia" at a glance
     # instead of having to mentally project bare lat/lon onto a rotating sphere.
-    coast_raw, _coast_header = readdlm(joinpath(@__DIR__, "data", "coastlines_110m.csv"), ',';
+    coast_raw, _coast_header = readdlm(joinpath(@__DIR__, "..", "assets", "data", "coastlines_110m.csv"), ',';
         comments=true, comment_char='#', header=true)
     coast_line_id = Int.(coast_raw[:, 1])
     coast_lon = Float64.(coast_raw[:, 2])

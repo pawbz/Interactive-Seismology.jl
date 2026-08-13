@@ -103,7 +103,7 @@ begin
   const SEC = Math.round(Math.min(availW, heightBudget, 640))
   const DPR = Math.min(window.devicePixelRatio || 1, 2)
   const REARTH = 6371
-  // Real PREM discontinuity depths (km), from src/specnm_models/prem_ani.
+  // Real PREM discontinuity depths (km), from src/assets/data/specnm_models/prem_ani.
   const DISCS = [[24.4,'Moho'],[400,'400'],[670,'670'],[2891,'CMB'],[5149.5,'ICB']]
   let distanceDeg = $(w.distance_deg), depthKm = $(w.depth_km)
   let rayPaths = []      // filled in by the 'raypath-results' push from Julia, below

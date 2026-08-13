@@ -166,7 +166,7 @@ begin
     # Natural Earth 1:110m coastline (public domain), the same vendored dataset used by
     # `earth-internal-structure.jl`'s globe widget -- drawn here as a flat equirectangular
     # reference layer so a viewer can place a dragged search box geographically.
-    coast_raw, _coast_header = readdlm(joinpath(@__DIR__, "data", "coastlines_110m.csv"), ',';
+    coast_raw, _coast_header = readdlm(joinpath(@__DIR__, "..", "assets", "data", "coastlines_110m.csv"), ',';
         comments=true, comment_char='#', header=true)
     coast_line_id = Int.(coast_raw[:, 1])
     coast_lon = Float64.(coast_raw[:, 2])

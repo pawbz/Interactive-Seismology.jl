@@ -127,7 +127,7 @@ md"### Select Earth Model & Solve"
 
 # ╔═╡ d99b1935-4f90-4b82-809c-b6a801c37e0d
 """
-All 13 model files under `src/specnm_models/`, spanning specnm's three
+All 13 model files under `src/assets/data/specnm_models/`, spanning specnm's three
 auto-detected formats (deck, layered, poly).
 """
 const SPECNM_MODEL_NAMES = ["europa", "homo-full-sphere", "homo-full-sphere-att",
@@ -502,7 +502,8 @@ end
 
 # ╔═╡ beddae25-17bc-48e9-8eef-41f21a08fb10
 begin
-	model_fname = specnm_solve isa AbstractDict ? "../specnm_models/" * specnm_solve["model"] : "../specnm_models/prem_ani"
+	model_name = specnm_solve isa AbstractDict ? specnm_solve["model"] : "prem_ani"
+	model_fname = joinpath(@__DIR__, "..", "assets", "data", "specnm_models", model_name)
 	fmax_value = specnm_solve isa AbstractDict ? specnm_solve["fmax"] : 0.01
 end;
 

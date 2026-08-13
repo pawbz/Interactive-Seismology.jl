@@ -155,19 +155,14 @@ md"""
 begin
     const XMAX = 800.0  # m -- domain width
     const ZMAX = 400.0  # m -- domain depth
-    const NX = 61        # imaging/painting grid -- also used for the migration image
-    const NZ = 31
+    const NX = 81        # imaging/painting grid -- also used for the migration image. Bumped up
+    const NZ = 41         # from 61x31 now that the animated wavefield-movie panel (a second,
+    # separately-gridded forward-operator build every repaint) is gone -- see the "Wavefield
+    # movie" removal note below.
     const xgrid = range(0.0, XMAX; length=NX)
     const zgrid = range(0.0, ZMAX; length=NZ)
-    const NXM = 31       # coarser grid, animated wavefield-movie panel only -- keeps the pushed
-    const NZM = 16        # per-frame data small enough to stay snappy
-    const xgridM = range(0.0, XMAX; length=NXM)
-    const zgridM = range(0.0, ZMAX; length=NZM)
     const STANDOFF = 15.0 # m -- fixed elevation of sources/receivers above z=0, avoids the G0
     # singularity a source or receiver sitting exactly on top of a scatterer would cause
-    const NSRC = 3
-    const NREC = 31
-    const recX = collect(range(0.0, XMAX; length=NREC))
     const TGRID = range(0.0, 1.0; length=201) # s
 end
 
@@ -195,11 +190,11 @@ begin
     """
     function G0(rx, rz, sx, sz, k, rho)
         # H0(2) is genuinely singular at r=0 (Y0(x) -> -Inf as x -> 0), not just numerically
-        # touchy -- this floor regularizes that self-term. It matters because the wavefield-movie
-        # panel reuses the model's own grid points as its "receivers" (see resample_to_grid /
-        # the acqM cell), which guarantees an exact-coincidence r=0 case on the grid diagonal; the
-        # floor is well below the smallest real (non-coincident) grid spacing used anywhere in
-        # this notebook, so it never affects a genuine source-receiver-scatterer distance.
+        # touchy -- this floor regularizes that self-term. It matters because sources and
+        # receivers are now independently mouse-placed along the surface, so two of them can
+        # legitimately land at the exact same x; the floor is well below the smallest real
+        # (non-coincident) grid spacing used anywhere in this notebook, so it never affects a
+        # genuine source-receiver-scatterer distance.
         r = max(rad(sx, sz, rx, rz), 2.0)
         return -0.25 * rho * im * hankelh2(0, k * r)
     end
@@ -292,8 +287,7 @@ end
 	get_scattered_wavefield(dm, G, acq, pa)
 
 The Born-approximate scattered field at every receiver, in the time domain, for a squared-slowness
-perturbation field `dm` (`(nz,nx)`, Julia's own natural column-major layout -- see
-[`resample_to_grid`](@ref) for how the movie panel gets its own copy) and its precomputed
+perturbation field `dm` (`(nz,nx)`, Julia's own natural column-major layout) and its precomputed
 sensitivity operator `G` (from [`get_forward_operator`](@ref)): one matrix-vector product
 `` \\delta d = G\\,\\delta m `` followed by an inverse FFT. Returns an `(nt, nr)` array.
 """
@@ -303,33 +297,6 @@ function get_scattered_wavefield(dm, G, acq, pa)
     d = G * vec(dm)
     d = reshape(d, nω, nr)
     return irfft(d, length(pa.tgrid), 1)
-end
-
-# ╔═╡ c58bc7c7-e686-423f-94b2-5bb2ae531643
-begin
-    """
-    	nearest_index(rng, value)
-
-    The index into the uniform range `rng` closest to `value`, computed directly by arithmetic --
-    `O(1)` and allocation-free, unlike `argmin(abs.(value .- rng))`, which scans the whole range
-    and allocates a temporary array to do it. Valid because every grid this notebook resamples
-    between is a uniform range (`range(...; length=...)`). Clamped to stay within `rng`'s valid
-    indices.
-    """
-    nearest_index(rng, value) = clamp(round(Int, (value - first(rng)) / step(rng)) + 1, 1, length(rng))
-
-    """
-    	resample_to_grid(field_fine, zg_fine, xg_fine, zg_coarse, xg_coarse)
-
-    Nearest-neighbour resample a `(length(zg_fine), length(xg_fine))` field onto a different
-    rectangular grid -- used to carry the painted perturbation (defined on the fine imaging grid)
-    onto the coarser grid the animated wavefield-movie panel uses. Runs once per paint stroke, so
-    the allocation-free [`nearest_index`](@ref) lookup (rather than a linear `argmin` search) keeps
-    painting responsive.
-    """
-    function resample_to_grid(field_fine, zg_fine, xg_fine, zg_coarse, xg_coarse)
-        [field_fine[nearest_index(zg_fine, z), nearest_index(xg_fine, x)] for z in zg_coarse, x in xg_coarse]
-    end
 end
 
 # ╔═╡ 90fcf549-8982-4bde-895d-eb9df3b32a41
@@ -423,19 +390,6 @@ begin
     `CustomEvent`.
     """
     flatten_grid_rowmajor(M) = join(vec(permutedims(M)), ",")
-
-    """
-    	flatten_movie_rowmajor(M, NZg, NXg)
-
-    Flatten an `(nt, NZg*NXg)` time series (Julia-natural columns, from
-    [`get_reference_wavefield`](@ref)/[`get_scattered_wavefield`](@ref)) into one long row-major
-    string, frame by frame, via [`flatten_grid_rowmajor`](@ref) -- what the widget's animated
-    wavefield panel indexes into as `frame*NZg*NXg + iz*NXg+ix`.
-    """
-    function flatten_movie_rowmajor(M, NZg, NXg)
-        nt = size(M, 1)
-        join([flatten_grid_rowmajor(reshape(view(M, it, :), NZg, NXg)) for it in 1:nt], ",")
-    end
 end
 
 # ╔═╡ fb798d80-3f07-4294-a8af-7fc7c34a61f7
@@ -443,18 +397,18 @@ begin
     struct BornScatteringInput
         vp0::Float64            # background velocity, m/s
         fpeak::Float64          # source peak frequency, Hz
-        pert::Vector{Float64}   # flat NZ*NX painted perturbation, % of background m0=1/vp0^2, JS row-major (iz*NX+ix)
-        srcX::Vector{Float64}   # NSRC source x positions, m
-        viewSrc::Int             # 1..NSRC -- which source's gather/movie panels are shown
-        recMuted::Vector{Float64} # NREC flags, 0=active 1=muted
+        pert::Vector{Float64}   # flat NZ*NX painted scatterers, % of background m0=1/vp0^2, JS row-major (iz*NX+ix)
+        srcX::Vector{Float64}   # source x positions, m -- variable length, user places/deletes them
+        recX::Vector{Float64}   # receiver x positions, m -- variable length, user places/deletes them
+        viewSrc::Int             # 1..length(srcX) -- which source's gather panel is shown
     end
-    BornScatteringInput(; vp0=2500.0, fpeak=40.0, pert=zeros(NZ * NX), srcX=[150.0, 400.0, 650.0],
-        viewSrc=2, recMuted=zeros(NREC)) =
-        BornScatteringInput(vp0, fpeak, pert, srcX, viewSrc, recMuted)
+    BornScatteringInput(; vp0=2500.0, fpeak=40.0, pert=zeros(NZ * NX), srcX=[250.0, 550.0],
+        recX=collect(range(50.0, XMAX - 50.0; length=12)), viewSrc=1) =
+        BornScatteringInput(vp0, fpeak, pert, srcX, recX, viewSrc)
 
     Base.get(w::BornScatteringInput) = Dict{String,Any}(
         "vp0" => w.vp0, "fpeak" => w.fpeak, "pert" => w.pert,
-        "srcX" => w.srcX, "viewSrc" => w.viewSrc, "recMuted" => w.recMuted)
+        "srcX" => w.srcX, "recX" => w.recX, "viewSrc" => w.viewSrc)
 
     function Base.show(io::IO, ::MIME"text/html", w::BornScatteringInput)
         write(io, """
@@ -467,22 +421,20 @@ begin
           background:#0a0f18;border:1px solid #3b5c85;border-radius:6px;padding:10px 14px}
         #bswidget .bs-title-desc{font-size:17px;font-weight:700;color:#e5e7eb}
         #bswidget .bs-title-hint{font-size:13px;color:#9ca3af;margin-top:3px}
-        #bswidget .bs-workspace{display:flex;gap:16px;flex-wrap:wrap;justify-content:center;align-items:flex-start;margin-bottom:14px}
-        #bswidget .bs-row2{display:flex;gap:16px;flex-wrap:wrap;justify-content:center;align-items:flex-start}
+        #bswidget .bs-primary{display:flex;gap:16px;flex-wrap:wrap;justify-content:center;align-items:flex-start;margin-bottom:14px}
+        #bswidget .bs-controls-row{display:flex;gap:16px;flex-wrap:wrap;justify-content:center;align-items:stretch;margin-bottom:14px}
+        #bswidget .bs-secondary{display:flex;justify-content:center}
         #bswidget .bs-panel{background:#000;border:1px solid #374151;border-radius:6px;padding:8px}
+        #bswidget .bs-panel-title{font-size:14px;font-weight:700;color:#e5e7eb;text-align:center;margin-bottom:6px}
         #bswidget .bs-caption{font-size:12px;color:#9ca3af;text-align:center;margin-top:4px}
         #bswidget canvas{display:block;cursor:crosshair}
-        #bswidget .bs-controls{flex:0 0 540px;width:540px;display:grid;
-          grid-template-columns:repeat(2, minmax(0,1fr));gap:8px;font:14px sans-serif;align-content:start}
-        #bswidget .bs-control-group{background:#050505;border:1px solid #2f3744;border-radius:6px;padding:10px 12px}
+        #bswidget .bs-control-group{flex:1 1 240px;min-width:220px;background:#050505;border:1px solid #2f3744;border-radius:6px;padding:10px 12px}
         #bswidget .bs-control-title{font-size:15px;font-weight:700;color:#e5e7eb;margin-bottom:6px}
         #bswidget .bs-control-row{display:grid;grid-template-columns:70px minmax(0,1fr) 58px;gap:6px;align-items:center;margin:5px 0}
         #bswidget .bs-control-row label{font-size:13px;color:#9ca3af}
         #bswidget .bs-control-row input[type=range]{width:100%;min-width:0}
         #bswidget .bs-value{font-size:13px;color:#e5e7eb;text-align:right;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
         #bswidget .bs-actions{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
-        #bswidget .bs-readout{font-size:13px;color:#d1d5db;line-height:1.6}
-        #bswidget .bs-readout b{color:#e5e7eb}
         #bswidget select{background:#0b0b0b;color:#e5e7eb;border:1px solid #374151;border-radius:4px;padding:3px;width:100%}
         #bswidget button{border-radius:4px;border:1px solid #9ca3af;background:#606060;color:#f3f4f6;padding:6px 12px;font-size:13px;cursor:pointer}
         #bswidget button.active{background:#2563eb;border-color:#93c5fd}
@@ -491,56 +443,58 @@ begin
         </style>
 
         <div class="bs-title">
-          <div class="bs-title-desc">Paint subsurface scatterers and see the scattered wavefield, the data it produces, and whether migration recovers it.</div>
-          <div class="bs-title-hint">drag on the model to paint &middot; drag a star to move a source (click to view it) &middot; click a triangle to mute a receiver &middot; press Play to animate</div>
+          <div class="bs-title-desc">Click to place scatterers, sources, and receivers; see the data they produce and whether migration recovers what you placed.</div>
+          <div class="bs-title-hint">pick a mode below &middot; click empty ground to place &middot; drag an existing marker to move it &middot; Delete mode + click to remove</div>
         </div>
 
-        <div class="bs-workspace">
+        <div class="bs-primary">
           <div>
+            <div class="bs-panel-title">Model</div>
             <div class="bs-panel"><canvas id="bs-model"></canvas></div>
             <div class="bs-caption" id="bs-model-caption"></div>
             <div class="bs-cbar-label">scattering strength, % of background</div>
             <canvas id="bs-cbar" class="bs-cbar"></canvas>
           </div>
-          <div class="bs-controls">
-            <div class="bs-control-group">
-              <div class="bs-control-title">Paint</div>
-              <div class="bs-actions">
-                <button id="bs-paint-neg" type="button">Slower (red)</button>
-                <button id="bs-paint-pos" type="button">Faster (blue)</button>
-              </div>
-              <div class="bs-control-row"><label>brush</label><input type="range" id="bs-brush" min="20" max="150" step="10" value="60"><span class="bs-value" id="bs-brush-v"></span></div>
-              <div class="bs-actions"><button id="bs-clear" type="button">Clear paint</button></div>
-            </div>
-            <div class="bs-control-group">
-              <div class="bs-control-title">Background</div>
-              <div class="bs-control-row"><label>v&#8320; (m/s)</label><input type="range" id="bs-vp0" min="1500" max="4000" step="50" value="$(w.vp0)"><span class="bs-value" id="bs-vp0-v"></span></div>
-              <div class="bs-control-row"><label>f peak (Hz)</label><input type="range" id="bs-fpeak" min="15" max="80" step="1" value="$(w.fpeak)"><span class="bs-value" id="bs-fpeak-v"></span></div>
-            </div>
-            <div class="bs-control-group">
-              <div class="bs-control-title">Wavefield movie</div>
-              <div class="bs-actions"><button id="bs-play" type="button">Play</button><button id="bs-reset" type="button">Reset</button></div>
-              <div class="bs-actions" style="margin-top:6px">
-                <button id="bs-view-ref" type="button">Reference</button>
-                <button id="bs-view-tot" type="button">Total</button>
-                <button id="bs-view-sca" type="button">Scattered</button>
-              </div>
-            </div>
-            <div class="bs-control-group">
-              <div class="bs-control-title">Readouts</div>
-              <div class="bs-readout" id="bs-readout"></div>
-            </div>
+          <div>
+            <div class="bs-panel-title">Migration Image</div>
+            <div class="bs-panel"><canvas id="bs-image"></canvas></div>
+            <div class="bs-caption" id="bs-image-caption"></div>
           </div>
         </div>
 
-        <div class="bs-row2">
-          <div>
-            <div class="bs-panel"><canvas id="bs-gather"></canvas></div>
-            <div class="bs-caption">shot gather, source #<span id="bs-gather-src"></span> &middot; reference (left) vs. scattered (right)</div>
+        <div class="bs-controls-row">
+          <div class="bs-control-group">
+            <div class="bs-control-title">Mode</div>
+            <div class="bs-actions">
+              <button id="bs-mode-scatterer" type="button">Scatterer</button>
+              <button id="bs-mode-source" type="button">Source</button>
+              <button id="bs-mode-receiver" type="button">Receiver</button>
+              <button id="bs-mode-delete" type="button">Delete</button>
+            </div>
+            <div class="bs-actions" id="bs-scatterer-sign" style="margin-top:6px">
+              <button id="bs-paint-neg" type="button">Slower (red)</button>
+              <button id="bs-paint-pos" type="button">Faster (blue)</button>
+            </div>
+            <div class="bs-control-row" id="bs-scatterer-spray">
+              <label>spray</label><input type="range" id="bs-spray" min="0" max="60" step="5" value="0"><span class="bs-value" id="bs-spray-v"></span>
+            </div>
+            <div class="bs-actions" style="margin-top:6px">
+              <button id="bs-clear" type="button">Clear scatterers</button>
+              <button id="bs-reset" type="button">Reset all</button>
+            </div>
           </div>
+          <div class="bs-control-group">
+            <div class="bs-control-title">Background</div>
+            <div class="bs-control-row"><label>v&#8320; (m/s)</label><input type="range" id="bs-vp0" min="1500" max="4000" step="50" value="$(w.vp0)"><span class="bs-value" id="bs-vp0-v"></span></div>
+            <div class="bs-control-row"><label>f peak (Hz)</label><input type="range" id="bs-fpeak" min="15" max="80" step="1" value="$(w.fpeak)"><span class="bs-value" id="bs-fpeak-v"></span></div>
+          </div>
+        </div>
+
+        <div class="bs-secondary">
           <div>
-            <div class="bs-panel"><canvas id="bs-image"></canvas></div>
-            <div class="bs-caption">migration image (all $(NSRC) sources stacked)</div>
+            <div class="bs-panel-title">Shot Gather &mdash; Source #<span id="bs-gather-src"></span></div>
+            <div class="bs-panel"><canvas id="bs-gather"></canvas></div>
+            <div class="bs-caption">reference (left) vs. scattered (right) &middot; each panel independently amplitude-scaled</div>
           </div>
         </div>
         </div>
@@ -548,19 +502,23 @@ begin
         <script>
         {
         const par = currentScript.previousElementSibling;
-        const NX=$(NX), NZ=$(NZ), NXM=$(NXM), NZM=$(NZM), XMAX=$(XMAX), ZMAX=$(ZMAX);
-        const NSRC=$(NSRC), NREC=$(NREC), NT=$(length(TGRID)), TMAX=$(TGRID[end]);
-        const recX = [$(_bs_flatten(recX))];
+        const NX=$(NX), NZ=$(NZ), XMAX=$(XMAX), ZMAX=$(ZMAX), NT=$(length(TGRID));
+        const MIN_SRC=1, MAX_SRC=8, MIN_REC=1, MAX_REC=40;
 
         let vp0=$(w.vp0), fpeak=$(w.fpeak);
         let pert = $(w.pert == zeros(NZ*NX) ? "new Array(NX*NZ).fill(0)" : "[" * join(w.pert, ",") * "]");
         let srcX = [$(_bs_flatten(w.srcX))];
+        let recX = [$(_bs_flatten(w.recX))];
         let viewSrc = $(w.viewSrc);
-        let recMuted = [$(_bs_flatten(w.recMuted))];
 
         const availW = Math.min(window.innerWidth*0.8, par.clientWidth || window.innerWidth*0.8, 1500);
-        const CONTROLS_W = 540+16; // matches .bs-controls' 2-column grid width -- keep in sync
-        const SEC_W = Math.max(360, Math.min(availW - CONTROLS_W, 620));
+        const GAP = 16;
+        // .bs-panel adds 8px padding + 1px border per side beyond the canvas's own pixel size
+        // (it isn't border-box), so each panel actually renders PANEL_OVERHEAD px wider than the
+        // canvas -- leaving this out was exactly why two side-by-side panels silently overflowed
+        // their flex row and wrapped onto separate lines at real (non-cramped-test) window widths.
+        const PANEL_OVERHEAD = 18;
+        const SEC_W = Math.max(280, Math.floor((availW - GAP - 2*PANEL_OVERHEAD) / 2));
         const SEC_H = Math.round(SEC_W * ZMAX/XMAX);
         const DPR = window.devicePixelRatio || 1;
 
@@ -579,22 +537,21 @@ begin
         const CBAR_W = SEC_W, CBAR_H = 34;
         hidpi(cbarCv, cbarCtx, CBAR_W, CBAR_H);
 
-        const GATHER_W = SEC_W, GATHER_H = Math.round(SEC_W * 0.62);
+        // model and migration-image canvases are the same size, side by side by design
+        const IMG_W = SEC_W, IMG_H = SEC_H;
+        const iCv = par.querySelector('#bs-image');
+        const iCtx = iCv.getContext('2d');
+        hidpi(iCv, iCtx, IMG_W, IMG_H);
+
+        const GATHER_W = availW - PANEL_OVERHEAD, GATHER_H = Math.round((availW - PANEL_OVERHEAD) * 0.3);
         const gCv = par.querySelector('#bs-gather');
         const gCtx = gCv.getContext('2d');
         hidpi(gCv, gCtx, GATHER_W, GATHER_H);
 
-        const IMG_W = availW - SEC_W - 16, IMG_H = Math.round(IMG_W * ZMAX/XMAX);
-        const iCv = par.querySelector('#bs-image');
-        const iCtx = iCv.getContext('2d');
-        hidpi(iCv, iCtx, Math.max(260,IMG_W), Math.max(130,Math.round(Math.max(260,IMG_W)*ZMAX/XMAX)));
-
         function toScreen(x, z){ return [x/XMAX*SEC_W, z/ZMAX*SEC_H]; }
         function toWorld(px, pz){ return [px/SEC_W*XMAX, pz/SEC_H*ZMAX]; }
-        function xOf(ix,n){ return ix/(n-1)*XMAX; }
-        function zOf(iz,n){ return iz/(n-1)*ZMAX; }
 
-        // diverging colormap, reused for the paint field / gather / migration image alike --
+        // diverging colormap, reused for the scatterer field / gather / migration image alike --
         // blue=faster/positive, red=slower/negative (this repo's usual convention).
         function velColor(v, mx){
           const t = Math.max(-1, Math.min(1, v/mx));
@@ -603,7 +560,7 @@ begin
           return [255, Math.round(255*(1-s)), Math.round(255*(1-s))];
         }
 
-        const FIELD_PCT_MAX = 10; // fixed colorbar scale: painted perturbation saturates at +-10%
+        const FIELD_PCT_MAX = 10; // fixed colorbar scale: a placed scatterer saturates at +-10%
 
         function drawFieldColorbar(){
           const w = CBAR_W, h = CBAR_H;
@@ -624,29 +581,40 @@ begin
           cbarCtx.textAlign = 'center'; cbarCtx.fillText('0', w/2, barY+barH+12);
         }
 
-        let pushed = null; // {dref,dscat,image,drefMovie,dscatMovie,dmax,imgmax,wavemax} from Julia
-        let playing = false, rafId = null, tPhase = 0, lastTs = null;
+        let pushed = null; // {dref,dscat,image,dmax,imgmax} from Julia
+        let mode = 'scatterer'; // 'scatterer' | 'source' | 'receiver' | 'delete'
         let paintMode = 'neg'; // 'neg' (red, +delta-m, slower) | 'pos' (blue, -delta-m, faster)
-        let waveView = 'ref'; // 'ref' | 'tot' | 'sca'
-        let dragMode = null, dragIdx = -1, painting = false;
+        let dragMode = null, dragIdx = -1;
+        let sprayWidth = 0; // 0 = plain click-to-toggle-one-scatterer; >0 = drag sprays several
+        let spraying = false;
+        const PER_SPRAY = 4; // random scatterers seeded per spray tick, same idea as the
+        // seismic-interferometry.jl notebook's source-spray brush
 
-        // ---- painting on the (coarse) imaging grid ----
-        const PAINT_STEP_PCT = 0.6; // % of the +-10 cap added/removed per brush touch
-        function paintAt(xkm, zkm, brushKm){
-          const sign = paintMode==='pos' ? 1 : -1;
-          for(let iz=0; iz<NZ; iz++){
-            const dz = zOf(iz,NZ)-zkm;
-            for(let ix=0; ix<NX; ix++){
-              const dx = xOf(ix,NX)-xkm;
-              const d2 = dx*dx+dz*dz;
-              const r2 = brushKm*brushKm;
-              if(d2 < r2*4){
-                const falloff = Math.exp(-d2/(2*r2/4));
-                const amp = falloff * PAINT_STEP_PCT * sign;
-                const idx = iz*NX+ix;
-                pert[idx] = Math.max(-FIELD_PCT_MAX, Math.min(FIELD_PCT_MAX, pert[idx] + amp));
-              }
-            }
+        // ---- placing a single point scatterer on the imaging grid (no brush/falloff -- one
+        // click sets or clears exactly one grid cell, a literal point scatterer) ----
+        function placeScatterer(xkm, zkm){
+          const ix = Math.round(xkm/XMAX*(NX-1));
+          const iz = Math.round(zkm/ZMAX*(NZ-1));
+          if(ix<0 || ix>=NX || iz<0 || iz>=NZ) return;
+          const idx = iz*NX+ix;
+          const target = FIELD_PCT_MAX * (paintMode==='pos' ? 1 : -1);
+          pert[idx] = Math.abs(pert[idx]-target) < 1.0e-9 ? 0 : target; // click again to clear
+        }
+
+        // ---- spray several scatterers around (xkm,zkm) within sprayWidth, for quickly building
+        // up a denser/larger scattering region -- unlike placeScatterer this SETS (doesn't toggle)
+        // each hit cell to the current sign's full strength, since a spray gesture is additive by
+        // nature, not a series of independent click-toggles.
+        function spraySeed(xkm, zkm){
+          const target = FIELD_PCT_MAX * (paintMode==='pos' ? 1 : -1);
+          for(let k=0;k<PER_SPRAY;k++){
+            const xk = xkm + (Math.random()-0.5)*2*sprayWidth;
+            const zk = zkm + (Math.random()-0.5)*2*sprayWidth;
+            if(xk<0 || xk>XMAX || zk<0 || zk>ZMAX) continue;
+            const ix = Math.round(xk/XMAX*(NX-1));
+            const iz = Math.round(zk/ZMAX*(NZ-1));
+            if(ix<0 || ix>=NX || iz<0 || iz>=NZ) continue;
+            pert[iz*NX+ix] = target;
           }
         }
 
@@ -665,29 +633,6 @@ begin
             }
           }
           ctx.putImageData(img, 0, 0);
-        }
-
-        function drawWaveOverlay(){
-          if(!pushed) return;
-          const nFrame = Math.min(NT-1, Math.max(0, Math.round(tPhase/TMAX*(NT-1))));
-          const base = nFrame*NZM*NXM;
-          const ref = pushed.drefMovie, sca = pushed.dscatMovie;
-          const mx = pushed.wavemax;
-          const cw = SEC_W/NXM, ch = SEC_H/NZM;
-          ctx.save(); ctx.globalAlpha = 0.62;
-          for(let iz=0; iz<NZM; iz++){
-            for(let ix=0; ix<NXM; ix++){
-              const k = base + iz*NXM+ix;
-              let v = ref[k];
-              if(waveView==='sca') v = sca[k];
-              else if(waveView==='tot') v = ref[k] + sca[k];
-              if(Math.abs(v) < mx*0.02) continue;
-              const [r,g,b] = velColor(v, mx);
-              ctx.fillStyle = 'rgb('+r+','+g+','+b+')';
-              ctx.fillRect(ix*cw, iz*ch, cw+0.5, ch+0.5);
-            }
-          }
-          ctx.restore();
         }
 
         function drawTriangleDownMarker(cx, cy, r, fill, stroke){
@@ -716,32 +661,81 @@ begin
           ctx.strokeStyle = stroke; ctx.lineWidth = 1; ctx.stroke();
         }
 
-        function drawGeom(cvx){
-          const zStand = -30; // px above z=0 to draw the surface markers, purely cosmetic
-          for(let i=0;i<NREC;i++){
-            const [px] = toScreen(recX[i], 0);
-            const muted = recMuted[i]===1;
-            drawTriangleDownMarker(px, 6, 6, muted ? '#4b5563' : '#f5f3ef', '#0a0f18');
+        // spatial axis ticks, drawn as a semi-opaque band along the canvas edge (avoids having to
+        // reserve extra canvas space / re-plumb the coordinate mapping) -- called with the SAME
+        // xmax/step on both the model and migration-image canvases so their ticks land at
+        // identical pixel offsets and read as one shared/common axis across the two side-by-side
+        // panels, per their shared XMAX/ZMAX domain.
+        function drawXAxis(c, W, H, xmax, step, unit){
+          const bandH = 16;
+          c.fillStyle = 'rgba(0,0,0,0.55)'; c.fillRect(0, H-bandH, W, bandH);
+          c.strokeStyle = '#4b5563'; c.beginPath(); c.moveTo(0,H-bandH+0.5); c.lineTo(W,H-bandH+0.5); c.stroke();
+          c.fillStyle = '#9ca3af'; c.font = '9px sans-serif'; c.textBaseline = 'top';
+          for(let x=0; x<=xmax+1e-9; x+=step){
+            const px = Math.min(W, x/xmax*W);
+            c.strokeStyle = '#6b7280'; c.beginPath(); c.moveTo(px,H-bandH); c.lineTo(px,H-bandH+4); c.stroke();
+            const label = Math.round(x)+(unit||'');
+            const tw = c.measureText(label).width;
+            // draw left-aligned at a clamped x so the first/last labels never run past the
+            // canvas edge (a plain textAlign='left'/'right' flush against px=0 or px=W clips
+            // half the glyph there -- this keeps a small margin on both sides instead).
+            const tx = Math.max(2, Math.min(W - tw - 2, px - tw/2));
+            c.textAlign = 'left';
+            c.fillText(label, tx, H-bandH+5);
           }
-          for(let i=0;i<NSRC;i++){
+        }
+        function drawYAxis(c, H, ymax, step, unit, digits){
+          const bandW = 34;
+          c.fillStyle = 'rgba(0,0,0,0.55)'; c.fillRect(0,0,bandW,H);
+          c.strokeStyle = '#4b5563'; c.beginPath(); c.moveTo(bandW+0.5,0); c.lineTo(bandW+0.5,H); c.stroke();
+          c.fillStyle = '#9ca3af'; c.font = '9px sans-serif'; c.textAlign = 'left';
+          for(let y=0; y<=ymax+1e-9; y+=step){
+            const py = Math.min(H, y/ymax*H);
+            c.strokeStyle = '#6b7280'; c.beginPath(); c.moveTo(bandW-4,py); c.lineTo(bandW,py); c.stroke();
+            const label = y.toFixed(digits||0)+(unit||'');
+            const tw = c.measureText(label).width;
+            // right edge of the label pinned just inside the band, left edge clamped to >=2px
+            // so it never runs off the canvas's own left edge for a wide label near y=0
+            const tx = Math.max(2, bandW-4-tw);
+            const ty = Math.max(1, Math.min(H-1, py));
+            c.textBaseline = y<=1e-9 ? 'top' : (y>=ymax-1e-9 ? 'bottom' : 'middle');
+            c.fillText(label, tx, ty);
+          }
+        }
+
+        function drawGeom(){
+          for(let i=0;i<recX.length;i++){
+            const [px] = toScreen(recX[i], 0);
+            drawTriangleDownMarker(px, 6, 6, '#f5f3ef', '#0a0f18');
+          }
+          for(let i=0;i<srcX.length;i++){
             const [px] = toScreen(srcX[i], 0);
             const active = (i+1)===viewSrc;
             drawStarMarker(px, 18, active?11:8, active?'#facc15':'#f5f3ef', '#0a0f18');
           }
         }
 
+        function updateModelCaption(){
+          par.querySelector('#bs-model-caption').innerHTML =
+            NX + '×' + NZ + ' grid &middot; v&#8320; ' + vp0.toFixed(0) + ' m/s, f<sub>peak</sub> ' + fpeak.toFixed(0) + ' Hz &middot; ' +
+            srcX.length + ' source' + (srcX.length===1?'':'s') + ', ' + recX.length + ' receiver' + (recX.length===1?'':'s');
+        }
+
         function draw(){
           drawField();
-          drawWaveOverlay();
           drawGeom();
+          drawXAxis(ctx, SEC_W, SEC_H, XMAX, 200, ' m');
+          drawYAxis(ctx, SEC_H, ZMAX, 100, ' m');
           ctx.strokeStyle = '#374151'; ctx.lineWidth = 1; ctx.strokeRect(0.5,0.5,SEC_W-1,SEC_H-1);
-          par.querySelector('#bs-model-caption').textContent = 'x: 0–' + XMAX.toFixed(0) + ' m  ·  z (depth): 0–' + ZMAX.toFixed(0) + ' m';
+          updateModelCaption();
           drawFieldColorbar();
           drawGather();
           drawImage();
-          updateReadout();
         }
 
+        // wiggle-trace gather: one polyline per receiver (time down, amplitude as horizontal
+        // deflection from that receiver's own baseline column), positive lobes filled -- the
+        // classic seismic-section display, replacing the earlier per-sample heatmap.
         function drawGather(){
           gCtx.clearRect(0,0,GATHER_W,GATHER_H);
           gCtx.strokeStyle = '#374151'; gCtx.lineWidth = 1; gCtx.strokeRect(0.5,0.5,GATHER_W-1,GATHER_H-1);
@@ -751,35 +745,62 @@ begin
             return;
           }
           const halfW = Math.floor(GATHER_W/2);
-          const mx = pushed.dmax;
-          function panel(data, x0, w){
-            const img = gCtx.createImageData(Math.round(w*DPR), Math.round(GATHER_H*DPR));
-            const wpx = img.width, hpx = img.height;
-            for(let py=0; py<hpx; py++){
-              const it = Math.min(NT-1, Math.round(py/hpx*(NT-1)));
-              for(let px2=0; px2<wpx; px2++){
-                const ir = Math.min(NREC-1, Math.round(px2/wpx*(NREC-1)));
-                const v = data[it + ir*NT];
-                const [r,g,b] = velColor(v, mx);
-                const idx = (py*wpx+px2)*4;
-                img.data[idx]=r; img.data[idx+1]=g; img.data[idx+2]=b; img.data[idx+3]=255;
-              }
-            }
-            gCtx.putImageData(img, Math.round(x0*DPR), 0);
+          const nrec = recX.length;
+          const tMax = $(TGRID[end]);
+          function maxAbs(arr){
+            let m = 1e-12;
+            for(let i=0;i<arr.length;i++){ const a=Math.abs(arr[i]); if(a>m) m=a; }
+            return m;
           }
-          panel(pushed.dref, 0, halfW);
-          panel(pushed.dscat, halfW, GATHER_W-halfW);
+          // each panel is normalized to its OWN max amplitude -- the scattered field is, by
+          // the Born approximation's own premise, much weaker than the reference field, so a
+          // shared scale would flatten the scattered wiggles to nearly nothing.
+          function wigglePanel(data, x0, w){
+            const mx = maxAbs(data);
+            const spacing = w / Math.max(1,nrec);
+            const amp = spacing * 0.85 / 2 / mx;
+            for(let ir=0; ir<nrec; ir++){
+              const cx = x0 + spacing*(ir+0.5);
+              gCtx.beginPath();
+              gCtx.moveTo(cx, 0);
+              for(let it=0; it<NT; it++){
+                const v = data[it + ir*NT];
+                const x = cx + Math.max(0,v)*amp;
+                const y = it/(NT-1)*GATHER_H;
+                gCtx.lineTo(x,y);
+              }
+              gCtx.lineTo(cx, GATHER_H);
+              gCtx.closePath();
+              gCtx.fillStyle = 'rgba(59,130,246,0.55)';
+              gCtx.fill();
+              gCtx.beginPath();
+              for(let it=0; it<NT; it++){
+                const v = data[it + ir*NT];
+                const x = cx + v*amp;
+                const y = it/(NT-1)*GATHER_H;
+                it===0 ? gCtx.moveTo(x,y) : gCtx.lineTo(x,y);
+              }
+              gCtx.strokeStyle = '#e5e7eb'; gCtx.lineWidth = 1; gCtx.stroke();
+            }
+            drawXAxis(gCtx, w, GATHER_H, nrec-1, Math.max(1,Math.round((nrec-1)/4)), '');
+          }
+          wigglePanel(pushed.dref, 0, halfW);
+          gCtx.save(); gCtx.translate(halfW,0);
+          wigglePanel(pushed.dscat, 0, GATHER_W-halfW);
+          gCtx.restore();
+          drawYAxis(gCtx, GATHER_H, tMax, 0.2, ' s', 1);
           gCtx.strokeStyle = '#4b5563'; gCtx.beginPath(); gCtx.moveTo(halfW+0.5,0); gCtx.lineTo(halfW+0.5,GATHER_H); gCtx.stroke();
           gCtx.fillStyle = '#e5e7eb'; gCtx.font = '11px sans-serif'; gCtx.textAlign='left';
-          gCtx.fillText('reference', 4, 12);
+          gCtx.fillText('reference', 32, 12);
           gCtx.fillText('scattered', halfW+4, 12);
         }
 
         function drawImage(){
           const W = iCv.width/DPR, H = iCv.height/DPR;
           iCtx.clearRect(0,0,W,H);
-          iCtx.strokeStyle = '#374151'; iCtx.lineWidth = 1; iCtx.strokeRect(0.5,0.5,W-1,H-1);
+          par.querySelector('#bs-image-caption').textContent = 'migration image (' + srcX.length + ' source' + (srcX.length===1?'':'s') + ' stacked)';
           if(!pushed){
+            iCtx.strokeStyle = '#374151'; iCtx.lineWidth = 1; iCtx.strokeRect(0.5,0.5,W-1,H-1);
             iCtx.fillStyle = '#6b7280'; iCtx.font = '12px sans-serif'; iCtx.fillText('computing...', 10, 18);
             return;
           }
@@ -798,43 +819,41 @@ begin
           }
           iCtx.putImageData(img, 0, 0);
           function toImgScreen(x,z){ return [x/XMAX*W, z/ZMAX*H]; }
-          for(let i=0;i<NREC;i++){
+          for(let i=0;i<recX.length;i++){
             const [px] = toImgScreen(recX[i], 0);
-            const muted = recMuted[i]===1;
             iCtx.beginPath();
             const r=4;
             for(let k=0;k<3;k++){ const ang=Math.PI/2+k*2*Math.PI/3; const x=px+r*Math.cos(ang), y=6+r*Math.sin(ang); k===0?iCtx.moveTo(x,y):iCtx.lineTo(x,y); }
-            iCtx.closePath(); iCtx.fillStyle = muted ? '#4b5563' : '#f5f3ef'; iCtx.fill(); iCtx.strokeStyle='#0a0f18'; iCtx.lineWidth=1; iCtx.stroke();
+            iCtx.closePath(); iCtx.fillStyle = '#f5f3ef'; iCtx.fill(); iCtx.strokeStyle='#0a0f18'; iCtx.lineWidth=1; iCtx.stroke();
           }
-          for(let i=0;i<NSRC;i++){
+          for(let i=0;i<srcX.length;i++){
             const [px] = toImgScreen(srcX[i], 0);
             iCtx.beginPath(); iCtx.arc(px,14,3,0,2*Math.PI); iCtx.fillStyle='#facc15'; iCtx.fill();
           }
-        }
-
-        function updateReadout(){
-          const nmuted = recMuted.reduce((a,b)=>a+(b===1?1:0),0);
-          par.querySelector('#bs-readout').innerHTML =
-            'v&#8320; <b>' + vp0.toFixed(0) + '</b> m/s &middot; f<sub>peak</sub> <b>' + fpeak.toFixed(0) + '</b> Hz<br>' +
-            '<b>' + (NREC-nmuted) + '/' + NREC + '</b> receivers active<br>' +
-            'viewing source <b>#' + viewSrc + '</b><br>' +
-            (pushed ? 'movie t <b>' + tPhase.toFixed(2) + '</b> s' : 'computing...');
+          drawXAxis(iCtx, W, H, XMAX, 200, ' m');
+          drawYAxis(iCtx, H, ZMAX, 100, ' m');
+          iCtx.strokeStyle = '#374151'; iCtx.lineWidth = 1; iCtx.strokeRect(0.5,0.5,W-1,H-1);
         }
 
         function syncControls(){
           par.querySelector('#bs-vp0').value = vp0; par.querySelector('#bs-vp0-v').textContent = vp0.toFixed(0);
           par.querySelector('#bs-fpeak').value = fpeak; par.querySelector('#bs-fpeak-v').textContent = fpeak.toFixed(0);
+          par.querySelector('#bs-mode-scatterer').classList.toggle('active', mode==='scatterer');
+          par.querySelector('#bs-mode-source').classList.toggle('active', mode==='source');
+          par.querySelector('#bs-mode-receiver').classList.toggle('active', mode==='receiver');
+          par.querySelector('#bs-mode-delete').classList.toggle('active', mode==='delete');
+          par.querySelector('#bs-scatterer-sign').style.display = mode==='scatterer' ? 'flex' : 'none';
+          par.querySelector('#bs-scatterer-spray').style.display = mode==='scatterer' ? 'grid' : 'none';
           par.querySelector('#bs-paint-neg').classList.toggle('active', paintMode==='neg');
           par.querySelector('#bs-paint-pos').classList.toggle('active', paintMode==='pos');
-          par.querySelector('#bs-view-ref').classList.toggle('active', waveView==='ref');
-          par.querySelector('#bs-view-tot').classList.toggle('active', waveView==='tot');
-          par.querySelector('#bs-view-sca').classList.toggle('active', waveView==='sca');
+          par.querySelector('#bs-spray').value = sprayWidth;
+          par.querySelector('#bs-spray-v').textContent = sprayWidth===0 ? 'off' : sprayWidth.toFixed(0)+' m';
         }
 
         let commitInFlight = false;
         function commit(){
           commitInFlight = true;
-          par.value = { vp0, fpeak, pert, srcX, viewSrc, recMuted };
+          par.value = { vp0, fpeak, pert, srcX, recX, viewSrc };
           par.dispatchEvent(new CustomEvent('input'));
         }
         function throttledCommit(){ if(!commitInFlight) commit(); }
@@ -845,52 +864,106 @@ begin
           draw();
         });
 
+        // hit-test helpers, shared by Source/Receiver placement mode (drag an existing marker
+        // vs. click empty ground to add a new one) and Delete mode.
+        function hitSrc(px, pz){
+          let bestD=14, bestIdx=-1;
+          for(let i=0;i<srcX.length;i++){
+            const [spx] = toScreen(srcX[i], 0);
+            const d = Math.hypot(px-spx, pz-18);
+            if(d<bestD){bestD=d; bestIdx=i;}
+          }
+          return bestIdx;
+        }
+        function hitRec(px, pz){
+          let bestD=10, bestIdx=-1;
+          for(let i=0;i<recX.length;i++){
+            const [rpx] = toScreen(recX[i], 0);
+            const d = Math.hypot(px-rpx, pz-6);
+            if(d<bestD){bestD=d; bestIdx=i;}
+          }
+          return bestIdx;
+        }
+
         cv.addEventListener('mousedown', e=>{
           const rect = cv.getBoundingClientRect();
           const px = e.clientX-rect.left, pz = e.clientY-rect.top;
-          let best=null, bestD=14, bestIdx=-1;
-          for(let i=0;i<NSRC;i++){
-            const [spx,spz] = toScreen(srcX[i], 0);
-            const d = Math.hypot(px-spx, pz-18);
-            if(d<bestD){bestD=d; best='src'; bestIdx=i;}
+
+          if(mode==='delete'){
+            const si = hitSrc(px,pz);
+            if(si>=0){
+              if(srcX.length>MIN_SRC){
+                srcX.splice(si,1);
+                viewSrc = Math.min(viewSrc, srcX.length) || 1;
+                commit(); draw();
+              }
+              return;
+            }
+            const ri = hitRec(px,pz);
+            if(ri>=0 && recX.length>MIN_REC){ recX.splice(ri,1); commit(); draw(); }
+            return;
           }
-          if(best){ dragMode = best; dragIdx = bestIdx; viewSrc = bestIdx+1; draw(); return; }
-          for(let i=0;i<NREC;i++){
-            const [rpx] = toScreen(recX[i], 0);
-            const d = Math.hypot(px-rpx, pz-6);
-            if(d<10){ recMuted[i] = recMuted[i]===1 ? 0 : 1; draw(); commit(); return; }
+
+          if(mode==='source'){
+            const si = hitSrc(px,pz);
+            if(si>=0){ dragMode='src'; dragIdx=si; viewSrc=si+1; draw(); return; }
+            if(srcX.length<MAX_SRC){
+              const [xkm] = toWorld(Math.max(0,Math.min(SEC_W,px)), 0);
+              srcX.push(Math.max(0, Math.min(XMAX, xkm)));
+              viewSrc = srcX.length;
+              commit(); draw();
+            }
+            return;
           }
-          painting = true;
+
+          if(mode==='receiver'){
+            const ri = hitRec(px,pz);
+            if(ri>=0){ dragMode='rec'; dragIdx=ri; draw(); return; }
+            if(recX.length<MAX_REC){
+              const [xkm] = toWorld(Math.max(0,Math.min(SEC_W,px)), 0);
+              recX.push(Math.max(0, Math.min(XMAX, xkm)));
+              commit(); draw();
+            }
+            return;
+          }
+
+          // mode === 'scatterer'
           const [xkm,zkm] = toWorld(px,pz);
-          const brushKm = +par.querySelector('#bs-brush').value;
-          paintAt(xkm, zkm, brushKm);
-          draw();
+          if(sprayWidth>0){ spraying=true; spraySeed(xkm,zkm); }
+          else placeScatterer(xkm, zkm);
+          commit(); draw();
         });
         window.addEventListener('mousemove', e=>{
-          const rect = cv.getBoundingClientRect();
-          const px = e.clientX-rect.left, pz = e.clientY-rect.top;
-          if(dragMode==='src'){
+          if(dragMode){
+            const rect = cv.getBoundingClientRect();
+            const px = e.clientX-rect.left;
             const [xkm] = toWorld(Math.max(0,Math.min(SEC_W,px)), 0);
-            srcX[dragIdx] = Math.max(0, Math.min(XMAX, xkm));
+            const clamped = Math.max(0, Math.min(XMAX, xkm));
+            if(dragMode==='src') srcX[dragIdx] = clamped;
+            else if(dragMode==='rec') recX[dragIdx] = clamped;
             draw(); throttledCommit();
             return;
           }
-          if(!painting) return;
-          const [xkm,zkm] = toWorld(px,pz);
-          const brushKm = +par.querySelector('#bs-brush').value;
-          paintAt(xkm, zkm, brushKm);
-          draw();
+          if(spraying && mode==='scatterer' && sprayWidth>0){
+            const rect = cv.getBoundingClientRect();
+            const px = e.clientX-rect.left, pz = e.clientY-rect.top;
+            const [xkm,zkm] = toWorld(px,pz);
+            spraySeed(xkm,zkm);
+            draw(); throttledCommit();
+          }
         });
         window.addEventListener('mouseup', ()=>{
-          if(painting || dragMode) commit();
-          painting = false; dragMode = null; dragIdx = -1;
+          if(dragMode || spraying) commit();
+          dragMode = null; dragIdx = -1; spraying = false;
         });
 
+        function setMode(m){ mode = m; syncControls(); }
+        par.querySelector('#bs-mode-scatterer').addEventListener('click', ()=>setMode('scatterer'));
+        par.querySelector('#bs-mode-source').addEventListener('click', ()=>setMode('source'));
+        par.querySelector('#bs-mode-receiver').addEventListener('click', ()=>setMode('receiver'));
+        par.querySelector('#bs-mode-delete').addEventListener('click', ()=>setMode('delete'));
         par.querySelector('#bs-paint-neg').addEventListener('click', ()=>{ paintMode='neg'; syncControls(); });
         par.querySelector('#bs-paint-pos').addEventListener('click', ()=>{ paintMode='pos'; syncControls(); });
-        par.querySelector('#bs-view-ref').addEventListener('click', ()=>{ waveView='ref'; syncControls(); draw(); });
-        par.querySelector('#bs-view-tot').addEventListener('click', ()=>{ waveView='tot'; syncControls(); draw(); });
-        par.querySelector('#bs-view-sca').addEventListener('click', ()=>{ waveView='sca'; syncControls(); draw(); });
         par.querySelector('#bs-clear').addEventListener('click', ()=>{
           pert = new Array(NX*NZ).fill(0); draw(); commit();
         });
@@ -901,9 +974,9 @@ begin
           const id = e.target.id, v = e.target.value;
           if(id==='bs-vp0'){ vp0=+v; par.querySelector('#bs-vp0-v').textContent=vp0.toFixed(0); }
           else if(id==='bs-fpeak'){ fpeak=+v; par.querySelector('#bs-fpeak-v').textContent=fpeak.toFixed(0); }
-          else if(id==='bs-brush'){ par.querySelector('#bs-brush-v').textContent=v+' m'; return; }
+          else if(id==='bs-spray'){ sprayWidth=+v; par.querySelector('#bs-spray-v').textContent = sprayWidth===0 ? 'off' : sprayWidth.toFixed(0)+' m'; return; }
           else return;
-          updateReadout(); throttledCommit();
+          updateModelCaption(); throttledCommit();
         }, true);
 
         par.addEventListener('change', e=>{
@@ -913,34 +986,14 @@ begin
           if(id==='bs-vp0'||id==='bs-fpeak'){ commit(); return; }
         }, true);
 
-        const SIM_SPEED = 0.35;
-        const playBtn = par.querySelector('#bs-play');
-        function stepAnim(ts){
-          if(lastTs===null) lastTs = ts;
-          const dt = Math.min(0.1, (ts-lastTs)/1000);
-          lastTs = ts;
-          tPhase += dt*SIM_SPEED;
-          if(tPhase > TMAX) tPhase = 0;
-          draw();
-          rafId = requestAnimationFrame(stepAnim);
-        }
-        playBtn.addEventListener('click', ()=>{
-          playing = !playing;
-          playBtn.textContent = playing ? 'Pause' : 'Play';
-          if(playing){ lastTs=null; rafId = requestAnimationFrame(stepAnim); }
-          else if(rafId){ cancelAnimationFrame(rafId); rafId=null; }
-        });
-
         par.querySelector('#bs-reset').addEventListener('click', ()=>{
           vp0=$(w.vp0); fpeak=$(w.fpeak);
           pert = new Array(NX*NZ).fill(0);
-          srcX = [$(_bs_flatten(w.srcX))]; viewSrc = $(w.viewSrc);
-          recMuted = [$(_bs_flatten(w.recMuted))];
-          tPhase = 0;
+          srcX = [$(_bs_flatten(w.srcX))]; recX = [$(_bs_flatten(w.recX))];
+          viewSrc = $(w.viewSrc);
           syncControls(); draw(); commit();
         });
 
-        par.querySelector('#bs-brush-v').textContent = par.querySelector('#bs-brush').value+' m';
         syncControls(); draw();
         }
         </script>
@@ -961,17 +1014,26 @@ end
 # back -- fall back to the same defaults the widget itself opens with.
 bs_safe = bs isa AbstractDict ? bs : Dict{String,Any}(
     "vp0" => 2500.0, "fpeak" => 40.0, "pert" => zeros(NZ * NX),
-    "srcX" => [150.0, 400.0, 650.0], "viewSrc" => 2, "recMuted" => zeros(NREC))
+    "srcX" => [250.0, 550.0], "recX" => collect(range(50.0, XMAX - 50.0; length=12)), "viewSrc" => 1)
 
 # ╔═╡ b313a158-3384-490f-8cdf-6786cd3facd4
 let
-    nmuted = count(==(1.0), Float64.(bs_safe["recMuted"]))
-    md"""
-    Background velocity **$(round(Int, bs_safe["vp0"]))** m/s, source peak frequency
-    **$(round(Int, bs_safe["fpeak"]))** Hz &middot; **$(NSRC)** sources, **$(NREC - nmuted)/$(NREC)**
-    receivers active &middot; viewing source **#$(bs_safe["viewSrc"])**'s gather and wavefield movie
-    below (the migration image always stacks *all* $(NSRC) sources).
-    """
+    nsrc, nrec = length(bs_safe["srcX"]), length(bs_safe["recX"])
+    # build the readout as one plain string first, then hand md""" a single bare interpolation --
+    # several `$(...)` interpolations packed tightly against adjacent text on the same lines can
+    # confuse Markdown.jl's own parser (it owns `$(...)` here, not plain Julia string
+    # interpolation), showing the raw unevaluated expression instead of its value.
+    readout = "Background velocity **$(round(Int, bs_safe["vp0"]))** m/s, source peak frequency " *
+              "**$(round(Int, bs_safe["fpeak"]))** Hz · **$nsrc** source$(nsrc == 1 ? "" : "s"), " *
+              "**$nrec** receiver$(nrec == 1 ? "" : "s") · viewing source **#$(bs_safe["viewSrc"])**'s " *
+              "gather below (the migration image always stacks *all* $nsrc sources)."
+    # `Markdown.parse` (a plain function call, not the `md"""` string macro) does NOT decode
+    # HTML entities like `&middot;` the way `md"""..."""`'s own source-text parsing does --
+    # use the literal Unicode character instead of the entity when building the string by
+    # hand. Also: no leading indentation before the string passed in -- 4+ leading spaces is
+    # Markdown's own "indented code block" syntax, which prints raw text with no bold/entity
+    # parsing at all. Both bit this exact cell once already.
+    Markdown.parse(readout)
 end
 
 # ╔═╡ 27ef0a2c-50b9-4d13-b50e-68786de4db91
@@ -984,64 +1046,37 @@ _bs_pa = acoustic_medium(bs_safe["vp0"], bs_safe["fpeak"], xgrid, zgrid)
 # were last written (see this repo's pluto_bond_value_type memory note) -- viewSrc is used as an
 # array index below, and Julia refuses to index with a Float64 even when it's exactly integer-
 # valued, so round+clamp it once here rather than trusting the raw bond value at each use site.
-_bs_viewSrc = clamp(round(Int, bs_safe["viewSrc"]), 1, NSRC)
-
-# ╔═╡ c006bf6d-1ca6-4349-a7f0-e5e81c1fa67b
-_bs_paM = acoustic_medium(bs_safe["vp0"], bs_safe["fpeak"], xgridM, zgridM)
+_bs_viewSrc = clamp(round(Int, bs_safe["viewSrc"]), 1, length(bs_safe["srcX"]))
 
 # ╔═╡ 649a946a-8459-4bce-9ecd-aa6f771b8e6c
-_bs_acq = (; rlocs_x=recX, rlocs_z=fill(-STANDOFF, NREC),
-    slocs_x=Float64.(bs_safe["srcX"]), slocs_z=fill(-STANDOFF, NSRC))
+# both source and receiver counts are user-controlled (mouse-placed/deleted in the widget), so
+# every downstream cell derives its own count from `length(...)` rather than a fixed constant.
+_bs_acq = (; rlocs_x=Float64.(bs_safe["recX"]), rlocs_z=fill(-STANDOFF, length(bs_safe["recX"])),
+    slocs_x=Float64.(bs_safe["srcX"]), slocs_z=fill(-STANDOFF, length(bs_safe["srcX"])))
 
 # ╔═╡ ca1a7fed-2c65-4360-9e19-dfaf798bea1e
 # reference field never depends on the painted scatterers -- computed once for all sources at once
 _bs_dref = get_reference_wavefield(_bs_pa, _bs_acq, TGRID)
 
-# ╔═╡ 082041a0-4a7a-41e4-aa28-9db8c421d463
-begin
-    _bs_gridZ = [z for z in zgridM, x in xgridM]  # (NZM,NXM), Julia-natural (z fastest when vec'd)
-    _bs_gridX = [x for z in zgridM, x in xgridM]
-    _bs_acqM = (; rlocs_x=vec(_bs_gridX), rlocs_z=vec(_bs_gridZ),
-        slocs_x=[Float64(bs_safe["srcX"][_bs_viewSrc])], slocs_z=[-STANDOFF])
-end
-
-# ╔═╡ ba46a17b-af4d-423e-8398-9c344d0df8bf
-_bs_Gmovie = get_forward_operator(_bs_paM, _bs_acqM, _bs_acqM.slocs_x[1], -STANDOFF)
-
-# ╔═╡ 604ef000-2a93-44bf-8373-e36a4294deb0
-_bs_drefM = get_reference_wavefield(_bs_paM, _bs_acqM, TGRID)[:, :, 1]
-
 # ╔═╡ dca30e9e-6501-44df-a086-ee2780fb9f89
 # one sensitivity matrix per source (real acquisition, full imaging grid) -- the expensive step,
 # gated behind background/geometry only, exactly as the "Computing the Fields" architecture intends
-_bs_Greal = [get_forward_operator(_bs_pa, _bs_acq, bs_safe["srcX"][i], -STANDOFF) for i in 1:NSRC]
+_bs_Greal = [get_forward_operator(_bs_pa, _bs_acq, bs_safe["srcX"][i], -STANDOFF) for i in eachindex(bs_safe["srcX"])]
 
 # ╔═╡ 022d3632-8aab-4b44-9867-a8a639bcdfa6
-# painted perturbation, JS row-major (iz*NX+ix) -> Julia-natural (NZ,NX), then to physical squared-
-# slowness units -- this is the one cell that changes on every brush stroke, and everything above it
-# (the G matrices) is untouched by it, so repainting only re-triggers the cheap cells below.
+# placed scatterers, JS row-major (iz*NX+ix) -> Julia-natural (NZ,NX), then to physical squared-
+# slowness units -- this is the one cell that changes on every click, and everything above it
+# (the G matrices) is untouched by it, so placing/clearing a scatterer only re-triggers the cheap
+# cells below.
 _bs_dm = permutedims(reshape(Float64.(bs_safe["pert"]), NX, NZ)) ./ 100 ./ bs_safe["vp0"]^2
 
-# ╔═╡ 6679f50a-7af5-455b-abf5-2f166248950b
-_bs_dmM = resample_to_grid(_bs_dm, zgrid, xgrid, zgridM, xgridM)
-
-# ╔═╡ 8d3124af-39b2-4400-9fc7-246ee7180305
-_bs_dscatM = get_scattered_wavefield(_bs_dmM, _bs_Gmovie, _bs_acqM, _bs_paM)
-
-# ╔═╡ 2d04488e-29bd-409f-8a19-5e84efc6b9b6
-_bs_muted = findall(==(1.0), Float64.(bs_safe["recMuted"]))
-
 # ╔═╡ a144eb61-7b1b-4ec5-9037-ea13bf6cd140
-_bs_dscat = map(1:NSRC) do i
-    d = get_scattered_wavefield(_bs_dm, _bs_Greal[i], _bs_acq, _bs_pa)
-    d[:, _bs_muted] .= 0.0
-    d
-end
+_bs_dscat = [get_scattered_wavefield(_bs_dm, _bs_Greal[i], _bs_acq, _bs_pa) for i in eachindex(bs_safe["srcX"])]
 
 # ╔═╡ 34fb2cf5-8b2a-43c9-9bdf-c52d0583a909
-# migration always stacks ALL sources, muted receivers included as zeros exactly like a real survey
-# with dead channels -- this is the panel that answers "did the image recover what I painted?"
-_bs_image = sum(get_migration_image(_bs_dscat[i], _bs_Greal[i], _bs_acq, _bs_pa) for i in 1:NSRC)
+# migration always stacks ALL sources -- this is the panel that answers "did the image recover
+# what I placed?"
+_bs_image = sum(get_migration_image(_bs_dscat[i], _bs_Greal[i], _bs_acq, _bs_pa) for i in eachindex(bs_safe["srcX"]))
 
 # ╔═╡ 5f7b9237-8a45-4df7-a92e-eae3ade48ecd
 begin
@@ -1049,11 +1084,8 @@ begin
         dref::Any
         dscat::Any
         image::Any
-        drefMovie::Any
-        dscatMovie::Any
         dmax::Float64
         imgmax::Float64
-        wavemax::Float64
     end
     function Base.show(io::IO, ::MIME"text/html", p::BsPush)
         write(io, """
@@ -1065,11 +1097,8 @@ begin
             dref: [$(p.dref)],
             dscat: [$(p.dscat)],
             image: [$(p.image)],
-            drefMovie: [$(p.drefMovie)],
-            dscatMovie: [$(p.dscatMovie)],
             dmax: $(p.dmax),
             imgmax: $(p.imgmax),
-            wavemax: $(p.wavemax),
           }}));
         }
         }
@@ -1080,19 +1109,17 @@ end
 
 # ╔═╡ 7bfd9cbb-c4d1-412a-8c13-af5db5bcca06
 begin
-    _bs_dref_view = _bs_dref[:, :, _bs_viewSrc]     # (nt, NREC)
-    _bs_dscat_view = _bs_dscat[_bs_viewSrc]          # (nt, NREC)
+    _bs_dref_view = _bs_dref[:, :, _bs_viewSrc]     # (nt, nrec)
+    _bs_dscat_view = _bs_dscat[_bs_viewSrc]          # (nt, nrec)
     _bs_dmax = max(maximum(abs, _bs_dref_view), maximum(abs, _bs_dscat_view), 1.0e-12)
     _bs_imgmax = max(maximum(abs, _bs_image), 1.0e-12)
-    _bs_wavemax = max(maximum(abs, _bs_drefM), maximum(abs, _bs_dscatM), 1.0e-12)
 end
 
 # ╔═╡ 60c5d139-4df7-45ea-a8a9-c11e13cce883
 BsPush(
     _bs_flatten(vec(_bs_dref_view)), _bs_flatten(vec(_bs_dscat_view)),
     flatten_grid_rowmajor(_bs_image),
-    flatten_movie_rowmajor(_bs_drefM, NZM, NXM), flatten_movie_rowmajor(_bs_dscatM, NZM, NXM),
-    _bs_dmax, _bs_imgmax, _bs_wavemax)
+    _bs_dmax, _bs_imgmax)
 
 # ╔═╡ 978a06e3-f582-4070-ae25-5deb12ca4c28
 md"""
@@ -1552,7 +1579,6 @@ version = "17.7.0+0"
 # ╠═fc2711fe-68d2-4432-9ed8-e511c7fa71fe
 # ╠═04207c33-ce75-4b16-a22d-df46cc949ef9
 # ╠═a219febc-278d-4093-aba4-2c7dc736f6ab
-# ╠═c58bc7c7-e686-423f-94b2-5bb2ae531643
 # ╟─90fcf549-8982-4bde-895d-eb9df3b32a41
 # ╠═cd5c240c-db82-4307-8d5b-702a0b49a946
 # ╟─80f38939-748f-41cc-83ec-762dbfaa6267
@@ -1562,18 +1588,11 @@ version = "17.7.0+0"
 # ╠═c70710d4-3918-4397-aaba-e3ce9c87f96a
 # ╠═27ef0a2c-50b9-4d13-b50e-68786de4db91
 # ╠═a3b1c2d4-5e6f-4708-9a1b-2c3d4e5f6071
-# ╠═c006bf6d-1ca6-4349-a7f0-e5e81c1fa67b
 # ╠═649a946a-8459-4bce-9ecd-aa6f771b8e6c
-# ╠═082041a0-4a7a-41e4-aa28-9db8c421d463
 # ╠═dca30e9e-6501-44df-a086-ee2780fb9f89
-# ╠═ba46a17b-af4d-423e-8398-9c344d0df8bf
 # ╠═ca1a7fed-2c65-4360-9e19-dfaf798bea1e
-# ╠═604ef000-2a93-44bf-8373-e36a4294deb0
 # ╠═022d3632-8aab-4b44-9867-a8a639bcdfa6
-# ╠═6679f50a-7af5-455b-abf5-2f166248950b
-# ╠═2d04488e-29bd-409f-8a19-5e84efc6b9b6
 # ╠═a144eb61-7b1b-4ec5-9037-ea13bf6cd140
-# ╠═8d3124af-39b2-4400-9fc7-246ee7180305
 # ╠═34fb2cf5-8b2a-43c9-9bdf-c52d0583a909
 # ╟─38cd5bf1-203f-49ce-810b-7ed60e88c705
 # ╠═fb798d80-3f07-4294-a8af-7fc7c34a61f7
