@@ -1,0 +1,12 @@
+[Unit]
+Description=Check origin/main for Interactive Seismology updates
+
+[Timer]
+OnBootSec=2min
+OnUnitActiveSec=5min
+RandomizedDelaySec=30s
+Persistent=true
+Unit=interactive-seismology-update.service
+
+[Install]
+WantedBy=timers.target

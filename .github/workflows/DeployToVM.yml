@@ -1,9 +1,6 @@
-name: Deploy Live Notebooks to VM
+name: Manual SSH Deploy to VM
 
 on:
-  push:
-    branches:
-      - main
   workflow_dispatch:
 
 jobs:
@@ -13,26 +10,20 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
-      - name: Install Julia
-        uses: julia-actions/setup-julia@v1
-        with:
-          version: "1.12.0"
 
       - name: Deploy to VM
         env:
           VM_HOST: ${{ secrets.VM_HOST }}
           VM_USER: ${{ secrets.VM_USER }}
           VM_SSH_KEY: ${{ secrets.VM_SSH_KEY }}
+          VM_KNOWN_HOSTS: ${{ secrets.VM_KNOWN_HOSTS }}
           VM_DEPLOY_PATH: ${{ secrets.VM_DEPLOY_PATH }}
-          SITE_DIR: ${{ vars.SITE_DIR }}
+          VM_PORT: ${{ vars.VM_PORT || '22' }}
         run: |
           # Check that secrets are set
-          if [ -z "$VM_HOST" ] || [ -z "$VM_USER" ] || [ -z "$VM_SSH_KEY" ] || [ -z "$VM_DEPLOY_PATH" ]; then
+          if [ -z "$VM_HOST" ] || [ -z "$VM_USER" ] || [ -z "$VM_SSH_KEY" ] || [ -z "$VM_KNOWN_HOSTS" ] || [ -z "$VM_DEPLOY_PATH" ]; then
             echo "⚠️  VM deployment secrets not configured"
-            echo "Please set VM_HOST, VM_USER, VM_SSH_KEY, and VM_DEPLOY_PATH in GitHub secrets"
+            echo "Please set VM_HOST, VM_USER, VM_SSH_KEY, VM_KNOWN_HOSTS, and VM_DEPLOY_PATH"
             exit 1
           fi
 
@@ -40,12 +31,13 @@ jobs:
           mkdir -p ~/.ssh
           echo "$VM_SSH_KEY" > ~/.ssh/vm_key
           chmod 600 ~/.ssh/vm_key
-          ssh-keyscan -H "$VM_HOST" >> ~/.ssh/known_hosts 2>/dev/null || true
+          printf '%s\n' "$VM_KNOWN_HOSTS" > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/known_hosts
 
           # Deploy via SSH
           echo "📦 Connecting to VM and deploying..."
-          ssh -i ~/.ssh/vm_key "$VM_USER@$VM_HOST" \
-            "cd $VM_DEPLOY_PATH && SITE_DIR='${SITE_DIR:-}' bash deploy-to-vm.sh" || {
+          ssh -p "$VM_PORT" -i ~/.ssh/vm_key "$VM_USER@$VM_HOST" \
+            "cd '$VM_DEPLOY_PATH' && bash deploy-to-vm.sh" || {
             echo "⚠️  SSH deployment failed"
             echo "Ensure your VM has:"
             echo "  1. Git repository cloned at: $VM_DEPLOY_PATH"

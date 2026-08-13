@@ -5,6 +5,13 @@ notebooks/week9/testCSVwrite.csv
 
 _cache
 _site
+<<<<<<< HEAD
 backup_notebooks/
+=======
+_site-serving
+_site.empty.previous
+.julia-depot
+.deployed-main-revision
+>>>>>>> eb58bd410976c6ab90c132927cfe16d6c947fed6
 generation_report.html
 src/week9/testCSVwrite.csv
