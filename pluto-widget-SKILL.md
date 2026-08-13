@@ -201,6 +201,112 @@ This matches the marker shapes seismologists actually use on maps/cross-sections
 event, an inverted triangle for the station), so a reader who's seen a real epicenter map recognizes
 the widget's markers instantly instead of having to learn an arbitrary circle-means-what convention.
 
+## Panel titles, and not letting a "Readouts" box become a redundancy dump
+
+When a widget has several canvas panels (a model view, a migration image, a data gather — see
+`Born-approximation.jl`'s `BornScatteringInput`), give each one a short bold title directly above it
+(`.{p}-panel-title`, `font-size:14px;font-weight:700`), distinct from the smaller `.{p}-caption` line
+below the canvas. The title names *what the panel is* ("Model", "Migration Image", "Shot Gather");
+the caption underneath carries *live detail specific to that panel's current state* (grid resolution,
+counts, which source is being viewed). Splitting these two jobs across two lines reads faster than one
+long caption trying to do both — a viewer scanning the row of panels only needs the titles; the detail
+line is there when they look closer.
+
+**Don't add a separate "Readouts" control-group that just repeats values already visible elsewhere.**
+It's tempting to collect "current state" into one text box (`v₀ 2500 m/s · N sources · viewing #1 ·
+mode: scatterer`), but check each line against what's *already on screen* before doing that: a slider's
+own value already shows next to the slider (`.{p}-value` span), an active mode/toggle button already
+shows via its own `.active` highlight, and "which source am I viewing" is naturally already part of
+whichever panel actually shows that source's data (fold it into *that* panel's own title/caption
+instead, e.g. `Shot Gather — Source #1`, rather than a fourth place reporting the same number).
+`Born-approximation.jl`'s original Readouts group turned out to duplicate *every one* of its own four
+lines once checked this way — removed entirely, with the one genuinely non-redundant fact left (source/
+receiver counts) folded into the model panel's own caption instead. A readout box earns its place only
+for a value that has nowhere else to naturally live.
+
+## Spatial-axis tick labels drawn on top of a canvas: keep them off the true edge
+
+For any canvas showing a physical x/z (or x/time) domain, drawing small tick-mark + label bands along
+the bottom and left edges — directly on the canvas, as a semi-opaque strip, rather than reserving
+separate space and re-plumbing your coordinate transform — is the cheapest way to add a real spatial
+axis to an existing widget. Two panels sharing the same domain and the same tick step (e.g. a model
+view and a migration image both spanning the same `XMAX`/`ZMAX`) read as one *shared* axis for free, as
+long as both canvases are the same pixel size and you call the same drawing function with the same
+`step` argument on both.
+
+**The one thing that will clip labels at the canvas edge**: a naive `textAlign='left'` tick at `x=0` or
+`textAlign='right'` tick at `x=W` places the glyph's edge *exactly* on the canvas boundary — for `left`
+that's usually fine (the glyph extends inward), but for a *left-side vertical axis band*, right-aligning
+each label's text so it ends near the band's own inner edge means the label's *start* can fall at a
+negative x for anything wider than a couple characters (`"400 m"`, `"0.6 s"` at a narrow ~28px band
+routinely start a few pixels before x=0 and get silently cut by the canvas boundary — no error, the
+glyph just isn't there). **Fix**: measure the label with `ctx.measureText(label).width` and clamp its
+drawn position to stay within `[2, bandSize-2]` (or `[2, W-2]` for the bottom axis) rather than trusting
+`textAlign` extremes to keep it in bounds — a couple of pixels of margin on both ends is enough, and it
+costs nothing to always do this rather than only where you've noticed clipping by eye.
+
+## Multiple data panels of very different amplitude: normalize each one independently
+
+When two (or more) canvas panels show physically related but *very differently scaled* quantities side
+by side — the clearest case is a reference wavefield next to its scattered/perturbation counterpart
+under a small-perturbation approximation (Born, linearized inversion, ...), where the perturbed field is
+*by the approximation's own premise* much weaker than the reference — resist sharing one color/amplitude
+scale computed from the combined data. A single shared `max(abs(...))` across both panels is dominated
+by the larger one, and the smaller panel renders as visually flat/empty even when its own internal
+structure is perfectly real and worth seeing. Compute each panel's own `max(abs(...))` from its own data
+and normalize independently; if a viewer might mistake matching *colors* between panels for matching
+*absolute amplitude*, say so explicitly in the caption (e.g. "each panel independently amplitude-scaled")
+so the comparison isn't accidentally over-read.
+
+## A bare `$` in embedded JS breaks the enclosing Julia string, not just LaTeX `$...$`
+
+The well-known trap is writing math as `$x^2$` inside `md"""..."""` and having Julia try to interpolate
+it (see `pluto-notebook-writing-SKILL.md`). The *same* root cause bites inside a widget's `<script>` block
+too, in a form that's easy to miss because nothing about it looks like math: any JS **regex literal that
+ends a pattern with `$`** (the end-of-string anchor), e.g. `` /^nm-c(\d)$/ ``, sits inside the Julia
+`"""..."""` string that `write(io, """...""")` builds. Julia's parser sees that bare `$` and tries to
+start an interpolation, expecting an identifier or `(...)` next — finds `/` instead — and throws
+`ParseError: identifier or parenthesized expression expected after $ in string`. Confirmed on
+`wave-mode-duality-1D.jl`: three regexes matching slider ids (`` /^nm-c(\d)$/ ``, `` /^nm-b(\d)$/ ``,
+`` /^nm-c\d$/ ``) all needed this fix. **`Meta.parseall` on the whole file does not catch it** — the file
+still parses as valid Julia overall; the error only surfaces per-cell, inside Pluto's own cell-level
+parse (`pluto-collab restart` reports `mime: application/vnd.pluto.parseerror+object` with an *empty*
+`output_text` for that cell, which is easy to misread as "the cell produced no output" rather than "this
+cell failed to parse at all" — check the `mime` field, not just whether `output_text` is empty). **Fix:**
+escape it as `\$` (a recognized Julia string escape producing a literal `$`), the same rule as any other
+literal `$` you need inside a Julia string — `` /^nm-c(\\d)\$/ `` is what actually reaches the JS engine
+as `` /^nm-c(\d)$/ ``. Any JS syntax that uses a bare trailing `$` (regex anchors are the common case;
+`${...}` template-literal interpolation is another, less likely with `\\`-doubling already in place)
+is worth a specific grep (`grep -n '\$/' file.jl`) after writing or editing widget JS, since this is
+otherwise invisible until Pluto tries to load that exact cell.
+
+## A capture-phase listener that unconditionally `stopImmediatePropagation()`s can silently disable a
+## sibling element's own listener for the same event type
+
+The delegated-listener pattern used throughout this repo's widgets — one `par.addEventListener('input',
+e=>{...}, true)` (capture phase, so it intercepts before Pluto's own bond listener ever sees the event —
+see "Pluto bond input bubbling") dispatching on `e.target.id` to handle every slider/checkbox in one place
+— has a sharp edge: **if that handler calls `e.stopImmediatePropagation()` unconditionally for any
+non-`par` target, instead of only for the ids it actually recognizes, it silently blocks every *other*
+listener registered directly on that same element for the same event type**, including a listener that
+element itself owns (e.g. a `<select>`'s own dedicated `addEventListener('change', ...)` for handling
+layer-count changes). Capture-phase listeners on an ancestor always run *before* an element's own
+target-phase listener, so the ancestor's `stopImmediatePropagation()` wins even though the target's own
+listener was registered first in wall-clock time. Confirmed on `wave-mode-duality-1D.jl`: a `#nm-nlayers`
+`<select>` had its own `change` listener to resize the `velocities`/`boundaries` arrays, but a sibling
+capture-phase `par.addEventListener('change', e=>{ if(e.target===par) return; e.stopImmediatePropagation();
+... }, true)` — meant only to intercept a handful of slider ids — stopped *every* change event at the
+capture stage regardless of id, so picking a new layer count in the dropdown silently did nothing (the
+`<select>`'s displayed value changed; the underlying JS array never did). Symptom is maddening to diagnose
+purely by testing in a browser automation tool, because setting `select.value` directly (e.g. via a test
+harness's form-fill helper) *also* doesn't fire a real `change` event — so a naive test can't tell "my
+listener is blocked" apart from "my test harness never triggered the listener at all"; confirm with
+`el.dispatchEvent(new Event('change', {bubbles:true}))` from `javascript_tool` to rule out the harness
+before suspecting your own code. **Fix:** move `e.stopImmediatePropagation()` *inside* the `if` branch
+that actually recognizes and handles the id, not before it — only stop propagation for the ids this
+handler is actually the owner of, and let everything else (including a sibling element's own listener)
+proceed normally.
+
 ## Title bar: orient the viewer before they touch anything
 
 Every widget opens with a two-line header, centered, sitting above `.{p}-workspace`, boxed like the

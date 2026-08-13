@@ -26,5 +26,4 @@ Let's embark on this seismic adventure and discover the captivating realm of sei
 
 
 
-> “The joy of being a seismologist comes to you when you find something new about the Earth's interior from the observation of seismic waves obtained on the surface, and realize that you did it without penetrating the Earth or touching or examining it directly.”
-> — Keiiti Aki, 1980
+

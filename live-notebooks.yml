@@ -42,9 +42,9 @@ sections:
     live:
       - Earth Structure and Internal Layers/earth-internal-structure.jl
     static:
-      - Earth Structure and Internal Layers/normal-modes.jl
-      - Earth Structure and Internal Layers/specnm.jl
-      - Earth Structure and Internal Layers/spherical_harmonics.jl
+      - Earth Structure and Internal Layers/wave-mode-duality-1D.jl
+      - Earth Structure and Internal Layers/normal-modes-specnm-planets.jl
+      - Earth Structure and Internal Layers/spherical_harmonics-homo-full-sphere.jl
 
   Seismic Sources and Faulting:
     live:

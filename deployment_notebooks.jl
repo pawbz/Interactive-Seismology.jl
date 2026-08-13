@@ -4,7 +4,7 @@ module DeploymentNotebooks
 using YAML
 import Pluto
 
-export SOURCE_DIRECTORY, notebook_paths, registry_paths
+export SOURCE_DIRECTORY, notebook_entries, notebook_paths, registry_paths
 
 const REPOSITORY_ROOT = @__DIR__
 const SOURCE_DIRECTORY = joinpath(REPOSITORY_ROOT, "src")
@@ -57,48 +57,48 @@ function registry_paths(filename::AbstractString; root::AbstractString=REPOSITOR
     paths
 end
 
-"""Return the static, live, and combined notebook paths, relative to `src/`."""
-function notebook_paths(; root::AbstractString=REPOSITORY_ROOT)
-    path = joinpath(root, "live-notebooks.yml")
+"""Return the unified registry entries, preserving the order within each YAML list."""
+function notebook_entries(; root::AbstractString=REPOSITORY_ROOT)
+    filename = "live-notebooks.yml"
+    path = joinpath(root, filename)
     isfile(path) || error("Notebook registry not found: $(path)")
 
     registry = YAML.load_file(path)
     sections = get(registry, "sections", nothing)
-    sections isa AbstractDict || error("live-notebooks.yml must contain a 'sections:' mapping")
+    sections isa AbstractDict || error("$(filename) must contain a 'sections:' mapping")
 
-    static = String[]
-    live = String[]
+    entries = NamedTuple{(:section, :kind, :path), Tuple{String, Symbol, String}}[]
     for (section, section_entries) in sections
-        section_entries isa AbstractDict || begin
-            section_entries isa AbstractVector || error("live-notebooks.yml: section $(repr(section)) must be either a list or an object with 'live'/'static' fields")
-            for entry in section_entries
-                entry isa AbstractString || error("live-notebooks.yml: notebook entries must be strings")
-                normalized = normalize_notebook_entry(entry, "live-notebooks.yml"; root)
-                push!(live, normalized)
-            end
-            continue
-        end
-
-        for kind in ("live", "static")
-            entries = get(section_entries, kind, nothing)
-            entries === nothing && continue
-            entries isa AbstractVector || error("live-notebooks.yml: section $(repr(section)) field $(repr(kind)) must contain a list")
-            for entry in entries
-                entry isa AbstractString || error("live-notebooks.yml: notebook entries must be strings")
-                normalized = normalize_notebook_entry(entry, "live-notebooks.yml"; root)
-                if kind == "live"
-                    push!(live, normalized)
-                else
-                    push!(static, normalized)
+        if section_entries isa AbstractDict
+            for kind in ("live", "static")
+                listed = get(section_entries, kind, nothing)
+                listed === nothing && continue
+                listed isa AbstractVector || error("$(filename): section $(repr(section)) field $(repr(kind)) must contain a list")
+                for entry in listed
+                    entry isa AbstractString || error("$(filename): notebook entries must be strings")
+                    push!(entries, (section=String(section), kind=Symbol(kind), path=normalize_notebook_entry(entry, filename; root)))
                 end
             end
+        elseif section_entries isa AbstractVector
+            for entry in section_entries
+                entry isa AbstractString || error("$(filename): notebook entries must be strings")
+                push!(entries, (section=String(section), kind=:live, path=normalize_notebook_entry(entry, filename; root)))
+            end
+        else
+            error("$(filename): section $(repr(section)) must be either a list or an object with 'live'/'static' fields")
         end
     end
 
-    length(unique(live)) == length(live) || error("live-notebooks.yml contains a live notebook more than once")
-    length(unique(static)) == length(static) || error("live-notebooks.yml contains a static notebook more than once")
-    overlap = intersect(static, live)
-    isempty(overlap) || error("A notebook must be static or live, not both: $(join(overlap, ", "))")
+    paths = getproperty.(entries, :path)
+    length(unique(paths)) == length(paths) || error("$(filename) contains a notebook more than once")
+    entries
+end
+
+"""Return the static, live, and combined notebook paths, relative to `src/`."""
+function notebook_paths(; root::AbstractString=REPOSITORY_ROOT)
+    entries = notebook_entries(; root)
+    static = [entry.path for entry in entries if entry.kind == :static]
+    live = [entry.path for entry in entries if entry.kind == :live]
     (; static, live, all=vcat(static, live))
 end
 

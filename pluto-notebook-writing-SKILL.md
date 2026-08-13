@@ -350,6 +350,44 @@ If a rendered equation shows up as a literal backslash-letter (`\ell` printed as
 throws an `UndefVarError`/interpolation error on a cell that's pure prose, this escaping mismatch is the
 first thing to check.
 
+## Building prose from a dynamically-constructed string: two more traps
+
+The pattern "compute a readout string in Julia, then hand it to Markdown" (e.g. a live summary line
+that includes `bs_safe["vp0"]`, a source count, a view index — anything with several `$(...)`
+interpolations packed together) has two failure modes beyond the escaping rule above, both silent
+(no error, no exception — the cell just renders wrong) and both hit for real building
+`Born-approximation.jl`'s summary line:
+
+1. **Several tightly-packed `$(...)` interpolations directly inside `md"""..."""` can confuse
+   Markdown.jl's own parser** — it can print one of the raw, unevaluated `$(...)` expressions
+   verbatim (e.g. literally `$(nsrc == 1 ? "" : "s")`, rendered as garbled inline-math-looking text)
+   instead of substituting its value. **Fix**: build the *entire* line as one plain Julia string
+   first (ordinary `"..." * "..."` concatenation, or `"$(...)"` inside that string, is fine —
+   ordinary string interpolation doesn't have this problem), then hand `md"""..."""` a single bare
+   `$readout` interpolation with nothing else on that line.
+
+2. **Once you've done that, don't indent the `$readout` line 4+ spaces inside `md"""..."""`.**
+   Markdown treats 4-space (or one-tab) leading indentation as its own "indented code block" syntax
+   — completely unrelated to Julia's own code indentation, but easy to introduce by accident since
+   it's natural to indent `$readout` to match the surrounding `let`/`begin` block. A code block
+   prints its content **verbatim**: no bold, no HTML entities, and it's wrapped in monospace styling
+   — the whole line renders as raw source text instead of prose. Put `$readout` at column 0 (or
+   inline on the same line as other static text) instead:
+   ```julia
+   readout = "Background velocity **$(round(Int, bs_safe["vp0"]))** m/s" * " · more text..."
+   md"""
+   $readout
+   """
+   ```
+   If even that reads as risky to get right by eye, skip `md"""..."""` for this one cell entirely
+   and call `Markdown.parse(readout)` directly (a plain function, not the string macro) — it takes
+   the same indentation care but sidesteps re-checking the macro's own source-text parsing. **If you
+   do this, you lose HTML-entity decoding**: `Markdown.parse` does not expand `&middot;`/`&#8320;`/etc.
+   the way `md"""..."""`'s macro-time source parsing does, so those entities print as literal text.
+   Use the actual Unicode character directly in the Julia string instead (`"·"`, `"₀"`) rather than
+   its HTML entity name — it renders correctly either way and sidesteps the question of which code
+   path is doing the decoding.
+
 ## Admonitions (callout boxes)
 
 Julia's Markdown supports `!!! type "optional title"` blocks (indent the body one tab). Semantic usage,

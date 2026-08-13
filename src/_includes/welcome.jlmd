@@ -1,7 +1,6 @@
 ---
 layout: "layout.jlhtml"
 ---
-
 <link rel="stylesheet" href="$(root_url)/assets/styles/homepage.css" type="text/css" />
 
 <header class="seismo-hero">
@@ -9,24 +8,41 @@ layout: "layout.jlhtml"
         <p class="eyebrow"><span></span> ES 218 · Indian Institute of Science</p>
         <h1><span>Interactive</span> Seismology</h1>
         <p class="hero-lede">Learn to read the Earth in motion: explore waves, earthquakes, and the planet’s interior through notebooks you can touch, change, and run.</p>
-        <div class="hero-actions">
-            <a class="button button-primary" href="#explore">Explore the notebooks <span aria-hidden="true">↓</span></a>
-            <a class="button button-secondary" href="$(root_url)/misc/seismic-interferometry/">Open a notebook <span aria-hidden="true">→</span></a>
-        </div>
-        <dl class="hero-metrics" aria-label="What you can explore">
-            <div><dt>01</dt><dd>Wave motion</dd></div>
-            <div><dt>02</dt><dd>Earth structure</dd></div>
-            <div><dt>03</dt><dd>Real data</dd></div>
-        </dl>
     </div>
 </header>
 
 <section class="site-introduction">
-    <p class="section-kicker">A computational field notebook</p>
-    <p>These short, reactive notebooks make the invisible visible: change a model, watch the wavefield respond, and build physical intuition one experiment at a time.</p>
+    <blockquote>
+        <p>“The joy of being a seismologist comes to you when you find something new about the Earth's interior from the observation of seismic waves obtained on the surface, and realize that you did it without penetrating the Earth or touching or examining it directly.”</p>
+        <footer>— Keiiti Aki, 1980</footer>
+    </blockquote>
 </section>
 
 <main class="homepage">
+<div class="section-heading carousel-introduction">
+    <p class="section-kicker">Explore the notebooks</p>
+    <h2>One experiment at a time</h2>
+</div>
+<div class="carousel-columns">
 $(Base.include(@__MODULE__, joinpath(@__DIR__, "..", "assets", "scripts", "get_highlights.jl")))
 $(Base.include(@__MODULE__, joinpath(@__DIR__, "..", "assets", "scripts", "get_subjects.jl")))
+</div>
 </main>
+
+<script>
+document.querySelectorAll(".carousel").forEach((carousel) => {
+    const track = carousel.querySelector(".carousel-track");
+    const prev = carousel.querySelector(".carousel-prev");
+    const next = carousel.querySelector(".carousel-next");
+    if (!track) return;
+
+    const step = () => {
+        const slide = track.querySelector(".carousel-slide");
+        const gap = parseFloat(getComputedStyle(track).columnGap || "0") || 0;
+        return slide ? slide.getBoundingClientRect().width + gap : track.clientWidth;
+    };
+
+    prev?.addEventListener("click", () => track.scrollBy({ left: -step(), behavior: "smooth" }));
+    next?.addEventListener("click", () => track.scrollBy({ left: step(), behavior: "smooth" }));
+});
+</script>

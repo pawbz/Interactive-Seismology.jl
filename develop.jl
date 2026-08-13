@@ -42,6 +42,31 @@ Pkg.activate("./pluto-deployment-environment")
 Pkg.instantiate()
 import Pluto
 import Deno_jll
+import PlutoSliderServer
+
+include(joinpath(@__DIR__, "deployment_notebooks.jl"))
+using .DeploymentNotebooks
+
+# Same live/static split and slider server as local_serve_test, so the dev preview matches it.
+live_host = get(ENV, "LIVE_HOST", "127.0.0.1")
+live_port = parse(Int, get(ENV, "LIVE_PORT", "1234"))
+ENV["PLUTO_SLIDER_SERVER_URL"] = "http://$(live_host):$(live_port)" # read by PlutoPages.jl when it defines slider_server_url
+
+notebooks = notebook_paths()
+live_server_task = if isempty(notebooks.live)
+    nothing
+else
+    @info "Starting live notebook server for: $(join(notebooks.live, ", "))"
+    @async PlutoSliderServer.run_directory(
+        SOURCE_DIRECTORY;
+        notebook_paths=notebooks.live,
+        SliderServer_host=live_host,
+        SliderServer_port=live_port,
+        SliderServer_watch_dir=false,
+        SliderServer_serve_static_export_folder=false,
+        Export_enabled=false,
+    )
+end
 
 
 pluto_port_channel = Channel{UInt16}(1)
@@ -125,3 +150,4 @@ open_in_default_browser(pluto_server_url)
 
 wait(dev_server_task)
 wait(pluto_server_task)
+live_server_task === nothing || wait(live_server_task)

@@ -59,6 +59,53 @@
     cursor: pointer;
 }
 
+/* Desktop notebooks keep the full page width. The course index rests off-canvas as
+   a small rail, then slides over the page only while it is being used. */
+@media screen and (min-width: 769px) {
+    #pages-sidebar {
+        position: fixed;
+        top: 0;
+        left: 0;
+        height: 100vh;
+        height: 100dvh;
+        overflow-y: auto;
+        overscroll-behavior: contain;
+        transform: translateX(calc(-100% + 2.75rem));
+        transition: transform 220ms ease;
+    }
+    #pages-sidebar::after {
+        position: absolute;
+        right: 0;
+        top: 0;
+        display: grid;
+        width: 2.75rem;
+        height: 3.25rem;
+        place-items: center;
+        border: 1px solid #e4dacb;
+        border-top: 0;
+        border-right: 0;
+        border-radius: 0 0 0 2px;
+        background: var(--sidebar-bg);
+        box-shadow: 0 8px 20px rgb(0 0 0 / 12%);
+        color: var(--sidebar-accent-1);
+        content: "☰";
+        font-size: 1.2rem;
+        line-height: 1;
+    }
+    #pages-sidebar:hover,
+    #pages-sidebar:focus-within {
+        transform: translateX(0);
+    }
+    #pages-sidebar:hover::after,
+    #pages-sidebar:focus-within::after {
+        opacity: 0;
+        pointer-events: none;
+    }
+    @media (prefers-reduced-motion: reduce) {
+        #pages-sidebar { transition: none; }
+    }
+}
+
 /* SIDEBAR COLLAPSING */
 
 #pages-content::after {
@@ -102,6 +149,7 @@
         overflow-y: auto;
         transition: transform 300ms cubic-bezier(0.18, 0.89, 0.45, 1.12);
     }
+    #pages-sidebar::after { display: none; }
     @media (prefers-reduced-motion) {
         #pages-sidebar {
             transition: none;
@@ -211,6 +259,90 @@
 }
 #pages-sidebar li li.not_in_track {
     opacity: 0.4;
+}
+
+#pages-sidebar .sidebar-contact {
+    margin-top: 1rem;
+}
+
+#pages-sidebar .sidebar-contact-box {
+    display: flex;
+    flex-direction: column;
+    gap: 0.3rem;
+    padding: 0.7rem 0.8rem;
+    border: 1px solid rgba(166, 118, 61, 0.3);
+    border-radius: 0.5rem;
+    background: rgba(166, 118, 61, 0.06);
+    color: var(--sidebar-color);
+    font-size: 0.78rem;
+    line-height: 1.35;
+}
+
+#pages-sidebar .sidebar-contact-box strong {
+    font-size: 0.7rem;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    opacity: 0.8;
+    font-weight: 700;
+}
+
+#pages-sidebar .sidebar-contact-box .sidebar-contact-instructor {
+    font-size: 0.88rem;
+    font-weight: 600;
+    padding-bottom: 0.35rem;
+    border-bottom: 1px solid rgba(166, 118, 61, 0.3);
+}
+
+#pages-sidebar .sidebar-contact-box a {
+    color: #6f491f;
+    font-weight: 600;
+    font-size: 0.8rem;
+}
+
+.page-banner {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 0.75rem;
+    margin: 0 1rem 1rem 1rem;
+    padding: 0.75rem 1.25rem;
+    border: 1px solid #3a352d;
+    border-radius: 0.75rem;
+    background: #2c2820;
+    color: #f6f1e9;
+}
+
+.page-banner-info {
+    display: flex;
+    flex-direction: column;
+    gap: 0.15rem;
+}
+
+.page-banner-title {
+    font-family: Vollkorn, serif;
+    font-weight: 700;
+    font-size: 1.1rem;
+}
+
+.page-banner-instructor {
+    font-size: 0.85rem;
+    opacity: 0.85;
+}
+
+.page-banner-contact {
+    font-size: 0.85rem;
+    white-space: nowrap;
+}
+
+.page-banner a {
+    color: #e0a458;
+    font-weight: 600;
+    text-decoration: none;
+}
+
+.page-banner a:hover {
+    text-decoration: underline;
 }
 
 /* TRACK CHOOSER */

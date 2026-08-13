@@ -70,16 +70,6 @@ $(pluto_head)
                     <h1><a href="$(root_url)"><span>$(metadata["course_info"]["course_name"])</span></a></h1>
                     <h2><span>$(metadata["course_info"]["course_subtitle"])</span></h2>
                 </div>
-                <div class="authors">
-                    by $(let
-                        authors = metadata["course_info"]["authors"]
-                        nauthors = length(authors)
-                        map(enumerate(authors)) do (i, (author_name, author_link))
-                            sep = i == nauthors ? "" : ", "
-                            @htl("""<a href="$(author_link)">$(author_name)</a>$(sep)""")
-                        end
-                    end)
-                </div>
             </li>
             <li>
                 <div class="search-bar">
@@ -87,6 +77,13 @@ $(pluto_head)
                         <input type="search" name="q" placeholder="Search...">
                         <input type=submit value="🔎">
                     </form>
+                </div>
+            </li>
+            <li class="sidebar-contact">
+                <div class="sidebar-contact-box">
+                    <span class="sidebar-contact-instructor">Instructor: <em>Pawan Bharadwaj</em>, Indian Institute of Science, Bengaluru, India</span>
+                    <strong>Bug reports</strong>
+                    <a href="mailto:pawan@iisc.ac.in">pawan@iisc.ac.in</a>
                 </div>
             </li>
             $(let
@@ -138,8 +135,8 @@ $(pluto_head)
                 <li><hr></li>
             <li class="sidebar-about">
                 <div class="semester-details">
-                    <a href="$(root_url)/semesters/">$(metadata["course_info"]["semester"])</a>
-                <div class="course-numbers"><span>$(metadata["course_info"]["code"])</span></div>
+                    <a href="https://ceas.iisc.ac.in/">Centre For Earth Sciences</a>
+                <div class="course-numbers"><span><a href="https://iisc.ac.in/">Indian Institute of Science</a></span></div>
                 </div>
                 <div class="logos">
                     <a class="institution-logo" href="https://ceas.iisc.ac.in/" title="Centre for Earth Sciences" aria-label="Centre for Earth Sciences">
@@ -179,6 +176,15 @@ $(pluto_head)
                 </div>
                 """) : nothing)
             </div>"""))
+        $(isempty(f("title", "")) ? nothing : @htl("""<div class="page-banner">
+            <div class="page-banner-info">
+                <a href="https://pawbz.github.io/Interactive-Seismology.jl/" class="page-banner-title">Interactive Seismology Notebooks</a>
+                <span class="page-banner-instructor">Instructor: <em>Pawan Bharadwaj</em>, Indian Institute of Science, Bengaluru, India</span>
+            </div>
+            <div class="page-banner-contact">
+                Bug reports: <a href="mailto:pawan@iisc.ac.in">pawan@iisc.ac.in</a>
+            </div>
+        </div>"""))
         $(content)
         </div>
     </div>
