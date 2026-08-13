@@ -277,7 +277,7 @@ cd /home/pluto/Interactive-Seismology.jl
 - **Domain setup**: Set up a custom domain and SSL certificate (Let's Encrypt)
 - **Reverse proxy**: Use Nginx to proxy requests if behind a custom domain
 - **Monitoring**: Add monitoring/alerting for uptime and performance
-- **Consolidate registries**: Once all notebooks are migrated, merge `live-notebooks.yml` and `static-notebooks.yml`
+- **Single registry**: Use the unified `live-notebooks.yml` with per-section `live:` and `static:` entries
 
 ## Security Notes
 

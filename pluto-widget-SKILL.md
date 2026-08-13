@@ -401,6 +401,41 @@ to Julia, never raw pixels), which is why that one just resizes its logical cons
 directly instead of using the zoom-transform. **Check which situation you're in before copying either
 approach** — grep for the widget's own numeric constants in any Julia cell that isn't inside the `<script>`.
 
+## Blank space when the control panel outgrows the canvas column
+
+A single-column `.{p}-controls` (one `{p}-control-group` stacked under the next, `flex-direction:column`)
+looks fine when a widget starts with 2-3 control groups, but every widget in this repo accretes groups
+over its life as features get added (a view toggle, a new background-model picker, a new slider group...).
+Once the controls column is taller than the canvas+colorbar column next to it, the flex row's shorter side
+(the canvas) just stops, and the empty page background below it reads as a big wasted gap — this is a
+`ray-theory-eikonal-equation.jl` fix, hit at 6 control groups against a short, wide (500km × 150km) canvas.
+
+**Fix**: once a widget's controls column exceeds ~4-5 groups, switch it from a single flex column to an
+explicit 2-column CSS grid, and widen its allotted width to match:
+
+```css
+#{id} .{p}-controls{flex:0 0 540px;width:540px;display:grid;
+  grid-template-columns:repeat(2, minmax(0,1fr));gap:8px;font:14px sans-serif;align-content:start}
+```
+
+This roughly halves the controls column's total height (6 groups → 3 rows instead of 6), bringing it back
+in line with the canvas column instead of towering over it. Two follow-ups this rule requires, both easy
+to forget:
+
+- **Bump the JS `CONTROLS_W` constant to match** (`260+16` → `540+16` for the above) — it feeds `SEC_W =
+  Math.max(<floor>, Math.min(availW - CONTROLS_W, <cap>))`, so a stale `CONTROLS_W` after widening the CSS
+  either starves the canvas of width it should get, or (if left too small) lets the two columns overflow
+  `availW` and wrap ungracefully.
+- Prefer a fixed `repeat(2, ...)` over `repeat(auto-fit, minmax(...))` here specifically — auto-fit is the
+  right call for a *family* of same-shaped items (see the control-grid-floor guidance under "Making it
+  wide" below), but a widget's control groups are usually a small, known, differently-sized handful (a
+  toggle-button group next to a 4-slider group next to a readout panel) where you want a predictable 2-up
+  flow, not however many columns happen to fit at a given width.
+
+Don't reach for this preemptively on a 2-3-group widget — the point is the controls/canvas height ratio,
+not a fixed group count; check the actual rendered heights (or just eyeball a screenshot) before deciding
+a widget needs it.
+
 ## How this was tuned (concrete numbers, so you have a starting point)
 
 For the two reference widgets, on real testing across 1024×768 up to 1920×1080:

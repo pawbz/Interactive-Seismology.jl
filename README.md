@@ -18,9 +18,8 @@ A [collection](https://pawbz.github.io/Interactive-Seismology.jl/) of *reactive 
 
 ### Local deployment preview
 
-`static-notebooks.yml` and `live-notebooks.yml` are the single source of truth for
-which Pluto notebooks appear on the site. To build and test that exact selection
-locally, run:
+`live-notebooks.yml` is the single source of truth for which Pluto notebooks appear
+on the site. To build and test that exact selection locally, run:
 
 ```bash
 ./local_serve_test

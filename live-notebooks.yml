@@ -1,7 +1,54 @@
-# Live Interactive Notebooks
-# These notebooks run on the VM via PlutoSliderServer
-# Add/remove notebooks by section to enable/disable live deployment
+# Unified notebook registry
+# Section names are the folder names, and each section can contain live and static notebooks.
+# A notebook appears in the site only if it is listed here explicitly.
 
 sections:
-  Test:
-    - misc/geoid-kernel.jl
+  Elasticity and Deformation:
+    live:
+      - Elasticity and Deformation/strain-tensor.jl
+      - Elasticity and Deformation/stress-tensor.jl
+      - Elasticity and Deformation/lame-theorem.jl
+    static:
+      - Elasticity and Deformation/simple-harmonic-motion.jl
+      - Elasticity and Deformation/coupled_oscillations.jl
+
+  Planewave Propagation:
+    live:
+      - Planewave Propagation/reflection-transmission-SH.jl
+      - Planewave Propagation/reflection-P-SV-free-surface.jl
+    static:
+      - Planewave Propagation/boundary-conditions.jl
+      - Planewave Propagation/anisotropy.jl
+      - Planewave Propagation/intrinsic-attenuation.jl
+
+  Surface Waves:
+    live:
+      - Surface Waves/SH-reflectivity-method.jl
+      - Surface Waves/Love-wave-analytic1.jl
+      - Surface Waves/Love-wave-dispersion-curves.jl
+    static:
+      - Surface Waves/Love-Waves.jl
+      - Surface Waves/Rayleigh-function.jl
+      - Surface Waves/Rayleigh-dispersion-curves.jl
+
+  Ray Theory:
+    live:
+      - Ray Theory/global-seismic-arrivals.jl
+      - Ray Theory/ray-theory-eikonal-equation.jl
+    static:
+      - Ray Theory/ray-tomography.jl
+
+  Earth Structure and Internal Layers:
+    live:
+      - Earth Structure and Internal Layers/earth-internal-structure.jl
+    static:
+      - Earth Structure and Internal Layers/normal-modes.jl
+      - Earth Structure and Internal Layers/specnm.jl
+      - Earth Structure and Internal Layers/spherical_harmonics.jl
+
+  Seismic Sources and Faulting:
+    live:
+      - Seismic Sources and Faulting/fault-dislocation.jl
+      - Seismic Sources and Faulting/seismic-sources.jl
+    static:
+      - Seismic Sources and Faulting/Lamb_problem.jl

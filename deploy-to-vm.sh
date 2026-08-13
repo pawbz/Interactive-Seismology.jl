@@ -23,7 +23,7 @@ echo "📦 Pulling latest from git..."
 git pull origin main
 
 # Generate the complete static site using PlutoPages
-# This exports ALL notebooks from both live-notebooks.yml and static-notebooks.yml
+# This exports all notebooks listed in the unified live-notebooks.yml registry
 echo "🔧 Generating complete static site via PlutoPages.jl..."
 PLUTO_SLIDER_SERVER_URL="${PLUTO_SLIDER_SERVER_URL:-/}" \
 julia --project=pluto-deployment-environment -e "

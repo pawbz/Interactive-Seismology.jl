@@ -5,14 +5,9 @@
 ### Configuration Files
 
 1. **`live-notebooks.yml`** (NEW)
-   - Registry of notebooks to run live on your VM
-   - Currently configured with: `misc/geoid-kernel.jl` (test)
+   - Unified registry of notebooks, with per-section `live:` and `static:` entries
+   - Selects which notebooks are live on the VM and which are static on the site
    - Edit to add/remove notebooks → auto-deploys to VM
-
-2. **`static-notebooks.yml`** (NEW)
-   - Registry of notebooks for GitHub Pages (future use)
-   - Currently configured with: `misc/seismic-interferometry.jl` (test)
-   - Allows organizing static content separately from live
 
 ### Deployment Scripts
 
@@ -171,8 +166,7 @@ Result:
 
 | File | Purpose | Edit? | Notes |
 |------|---------|-------|-------|
-| `live-notebooks.yml` | Which notebooks go live | ✏️ Yes | Edit to deploy/remove |
-| `static-notebooks.yml` | Which notebooks on GitHub Pages | Later | For future site organization |
+| `live-notebooks.yml` | Unified registry for live/static notebook selections | ✏️ Yes | Edit to deploy/remove |
 | `deploy-to-vm.sh` | Deployment automation | Usually no | Only if changing deploy logic |
 | `Dockerfile.vm` | Docker image for VM | Optional | Alternative to systemd |
 | `.github/workflows/DeployToVM.yml` | GitHub Actions workflow | Rarely | Only if changing CI/CD |

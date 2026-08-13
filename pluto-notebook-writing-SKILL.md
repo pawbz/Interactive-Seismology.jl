@@ -11,6 +11,66 @@ Julia functions are documented, and how to write LaTeX math that actually surviv
 Julia string. `src/misc/geoid-kernel.jl` is the reference — go read the actual notebook when this doc
 doesn't cover your specific case.
 
+## Repository workflow: experimental by default
+
+All new Pluto notebooks should be created in the staging area under `src/experimental/` unless the author
+has already decided which topical section the notebook belongs to.
+
+- `src/experimental/` is the default home for draft, exploratory, and candidate notebooks.
+- Once a notebook is mature enough to belong to a topic, move it into the relevant folder such as
+  `src/Elasticity and Deformation/`, `src/Planewave Propagation/`, `src/Surface Waves/`, or
+  `src/Earth Structure and Internal Layers/`.
+- The folder name is the section title that should appear in the site navigation and in the notebook
+  registry, so the folder is the canonical source of the section label.
+- Do not place a new notebook directly in a production section folder unless the notebook is already
+  ready to be included in the site.
+
+In other words: new work starts in experimental, and the user moves it as necessary into the section that
+matches the underlying physics. The system should not auto-deploy every file in the repo; deployment is an
+explicit editorial choice, not a default behavior.
+
+## Deployment policy: explicit live vs static selection
+
+The site should use the section folders as the organizational structure, but the actual inclusion of a
+notebook in a live or static build must be decided by an explicit allowlist.
+
+Recommended mechanism:
+
+- Each section folder defines the section title.
+- Each notebook is added to either the live registry or the static registry by explicit choice.
+- The registry should be written as a section -> lists structure, not as a flat list of files.
+
+Example pattern:
+
+```yaml
+sections:
+  Elasticity and Deformation:
+    live:
+      - Elasticity and Deformation/strain-tensor.jl
+      - Elasticity and Deformation/stress-tensor.jl
+    static:
+      - Elasticity and Deformation/simple-harmonic-motion.jl
+
+  Planewave Propagation:
+    live:
+      - Planewave Propagation/reflection-transmission-SH.jl
+    static:
+      - Planewave Propagation/intrinsic-attenuation.jl
+```
+
+This gives the build clear rules:
+
+- a notebook must be in the registry to appear in the site at all;
+- it must be listed under a section folder to get that section name;
+- it must be placed in the unified `live-notebooks.yml` under either the `live:` or `static:` list for its section.
+
+This is the correct mechanism for a teaching site: the folder names provide the taxonomy, while the registry
+file decides deployment status. The repository should not infer live/static status from file location alone,
+because that is too rigid and would force the wrong notebooks onto the live server or onto the static site.
+
+The repo now reads the unified sectioned registry from `live-notebooks.yml`, preserving section names and
+flattening the nested `live:` / `static:` lists as it builds the final notebook list.
+
 ## The shape of a notebook: narrative around the widget, implementation in an Appendix
 
 The read-through experience and the file's cell order are two different things in Pluto, and that's what
@@ -117,18 +177,120 @@ canonical pattern), JS regenerates the *identical* geometry independently (safe,
 geometry with no physics dependence) and zips it by index with the pushed array. This keeps the two
 sides in lockstep without ever sending the direction vectors themselves over the wire.
 
-### Keep the Julia side itself free of unnecessary global state
+## Performance: type stability from the `@bind` boundary down
 
-Within the Julia side, prefer many small, single-purpose, properly-typed functions over one large
-`let` block or a sprawl of loosely-typed top-level bindings. Pluto cells are already global bindings by
-construction (`pfr_safe`, `_pfr_seis`, ... — that part is unavoidable and fine), but the *computation*
-inside a cell should still read like ordinary well-factored Julia: a function that takes typed
-arguments and returns a typed result, not a closure that reaches into outer-scope mutable state. This
-matters for two reasons — it's what makes the function independently testable/verifiable (see the
-`### Verifying ...` subsections throughout this file), and it's what keeps per-frame or per-direction
-evaluations (hundreds of calls, every widget redraw) fast: concretely-typed arguments and
-preallocated, concretely-typed output arrays (`Vector{Float64}`, not `Vector{Any}`) let Julia compile
-a tight specialized method instead of falling back to slow, boxed, dynamically-dispatched code.
+Sources: [Modern Julia Workflows — Optimizing](https://modernjuliaworkflows.org/optimizing/),
+[viralinstruction — How to optimise Julia code](https://viralinstruction.com/posts/optimise/), the
+[official Julia performance tips](https://docs.julialang.org/en/v1/manual/performance-tips/). Full tip
+lists there; this section keeps only what actually recurs in this repo's widget/Appendix pattern. Two
+rules underlie almost everything below: **the compiler must be able to infer a concrete type for every
+variable**, and **avoid heap allocation you don't need** (Julia's GC pauses the whole program when it
+runs). Everything else is a specific way to violate — or respect — one of those two.
+
+### The `@bind` boundary is the one place type instability is unavoidable — cut it off immediately
+
+A widget's bound value always arrives as a loosely-typed `Dict{String,Any}` (see
+`pluto_bond_value_type` in project memory), and a JS number that happens to be whole can deserialize
+as `Int64` on one interaction and `Float64` on the next. This is exactly the Julia manual's "annotate
+values from untyped locations" case (`x = a[1]::Int32`), and it's already this repo's established
+pattern — `Born-approximation.jl`'s fallback/coercion cell is the model:
+
+```julia
+bs_safe = bs isa AbstractDict ? bs : Dict{String,Any}("vp0" => 2500.0, ...)
+_bs_viewSrc = clamp(round(Int, bs_safe["viewSrc"]), 1, NSRC)   # Julia refuses to index with a Float64
+_bs_dm = permutedims(reshape(Float64.(bs_safe["pert"]), NX, NZ)) ./ 100 ./ bs_safe["vp0"]^2
+```
+
+**Rule:** coerce every field out of the bond dict to its real type (`Float64.(...)`, `round(Int, ...)`)
+in the cell that first reads it, then never touch the raw `Any`-typed dict again downstream — every
+cell after that boundary should be working with plain, concretely-typed values. This is also why the
+untyped "glue" cell (`bs_safe = bs isa AbstractDict ? ... : ...`) should do *only* the isa-check and
+type coercions and immediately hand off to a real function with concrete argument types
+(`acoustic_medium(bs_safe["vp0"], bs_safe["fpeak"], xgrid, zgrid)`) — this is Julia's **function-
+barrier** technique: the compiler specializes at the function boundary, so pushing the
+still-uncertain-until-just-now values through one function call gets you a fully type-stable,
+optimized method body on the other side, instead of every downstream cell re-inferring through a
+chain of `Any` lookups.
+
+### Type-stable functions: one return type, no mid-function type changes
+
+A function's return type shouldn't depend on the *value* of its input, and a variable shouldn't change
+concrete type partway through a loop — both force the compiler to generate code that handles multiple
+possible types at every subsequent use, which is exactly what boxing/dynamic dispatch is.
+
+```julia
+# unstable -- returns Int when x<0, else whatever typeof(x) is
+pos(x) = x < 0 ? 0 : x
+# stable -- always returns typeof(x)
+pos(x) = x < 0 ? zero(x) : x
+
+# unstable -- x starts Int64, becomes Float64 after the first /=
+function foo()
+    x = 1
+    for i in 1:10; x /= rand(); end
+    return x
+end
+# stable -- pick the real type up front
+function foo()
+    x = 1.0
+    for i in 1:10; x /= rand(); end
+    return x
+end
+```
+
+### Preallocate, broadcast-fuse, and prefer views over copies in hot paths
+
+`.`-broadcasting nests into one fused loop with no temporary arrays — `@. 3x^2 + 4x + 7x^3` is one
+pass; `3x.^2 .+ 4x .+ 7x.^3` without the fuse macro can allocate a temporary per operation. Where a
+function builds output arrays repeatedly (once per mouse-move, once per animation frame), prefer an
+in-place `!`-convention version that writes into a caller-supplied buffer over allocating fresh each
+call — the same instinct that already drives this repo's `commitInFlight`/`throttledCommit` pattern
+(don't do more work than the interaction actually needs) applies to allocation too. Use `@view`/`@views`
+instead of `x[a:b]` when slicing a large array just to read from it — a view costs nothing to create,
+a slice copies.
+
+### Loop over multidimensional arrays in column-major order
+
+Julia arrays are stored column-major, so the innermost loop index should be the *first* index of the
+array, matching how this repo already builds coordinate grids
+(`[z for z in zgridM, x in xgridM]` in `Born-approximation.jl` — `z` varies fastest because it's the
+first/outer comprehension variable, matching `vec`'s own column-major flatten). Getting this backwards
+(looping `x` innermost against a `(z,x)`-shaped array) doesn't error, it just strides through memory
+out of order and quietly costs cache misses.
+
+### Benchmark with `BenchmarkTools`, never trust a bare `@time` on a global
+
+`@time` at the REPL on a variable bound outside a function measures allocation *and* the cost of
+looking up a non-`const` global — not the function's real cost. For anything under ~1 ms, use
+`@btime`/`@benchmark` from BenchmarkTools.jl with `$` to interpolate external values:
+
+```julia
+using BenchmarkTools
+@btime get_forward_operator($_bs_pa, $_bs_acq, 400.0, -15.0)   # $ avoids re-measuring global lookup
+```
+
+Do this as a **before/after** pair around any change made specifically for performance — "it feels
+faster" isn't a measurement, and constant folding can make an un-interpolated benchmark of a literal
+expression report an impossible near-0 ns.
+
+### `@code_warntype` as a development-time check, same spirit as the numeric self-checks
+
+For any Appendix function that's genuinely hot (called every mouse-move, every animation frame, or
+inside a loop over the painting grid), run `@code_warntype the_function(args...)` once while writing
+it and look for red/`Any`/`Union` in the output — this is the performance analogue of this skill's
+`### Verifying ...` numeric self-checks: a habit for the person writing the function, not something
+that becomes permanent notebook content. `JET.jl`'s `@report_opt` catches instability deeper in a call
+chain than `@code_warntype` alone if the immediate function looks clean but something it calls isn't.
+
+### `@inbounds`/`@simd` are narrow tools, not defaults
+
+Reach for these only after profiling has identified a specific tight loop as the actual bottleneck, and
+only when array indices are *provably* always in range (`@inbounds`) or loop iterations are truly
+order-independent (`@simd`, which explicitly permits floating-point reassociation). Sprinkling either
+across a whole notebook on the assumption it "can't hurt" trades a real correctness guarantee
+(bounds checking) for a speedup that, on the array sizes typical of a widget redraw (hundreds to a few
+thousand grid cells), is usually not the dominant cost — type stability and allocation almost always
+are.
 
 ## LaTeX math — and the one thing that will silently break it
 

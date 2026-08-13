@@ -23,7 +23,7 @@ cleanup() {
 }
 trap cleanup EXIT INT TERM
 
-echo "Building notebooks selected by static-notebooks.yml and live-notebooks.yml..."
+echo "Building notebooks selected by live-notebooks.yml..."
 PLUTO_SLIDER_SERVER_URL="http://${LIVE_HOST}:${LIVE_PORT}" \
     julia --project=pluto-deployment-environment -e 'include("generate.jl")'
 

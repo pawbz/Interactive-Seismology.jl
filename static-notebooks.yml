@@ -1,7 +1,0 @@
-# Static Notebooks
-# These notebooks are exported as static HTML to GitHub Pages
-# Add/remove notebooks by section to control what appears on the main site
-
-sections:
-  Test:
-    - misc/seismic-interferometry.jl

@@ -4,11 +4,9 @@ Your dynamic deployment infrastructure is ready! Here's what's been created.
 
 ## What You Now Have
 
-### 1. **Dual Registry System**
-- `live-notebooks.yml` - Notebooks that are interactive on the VM
-- `static-notebooks.yml` - Notebook list for future site organization
-
-Both start with test notebooks to validate the pipeline.
+### 1. **Unified Registry System**
+- `live-notebooks.yml` - Single registry for the site, with per-section `live:` and `static:` entries
+- Notebook selection is explicit and section-aware
 
 ### 2. **Deployment Scripts**
 - `deploy-to-vm.sh` - Automation script for VM deployment
@@ -87,8 +85,8 @@ Push and the VM automatically updates with the same site layout as GitHub Pages,
 - ✅ Same content organization
 
 **BUT with selective interactivity:**
-- 🎯 Notebooks in `live-notebooks.yml` → interactive (live Julia)
-- 📄 Others → static HTML (pre-rendered, fast)
+- 🎯 Notebooks in the `live:` list → interactive (live Julia)
+- 📄 Notebooks in the `static:` list → static HTML (pre-rendered, fast)
 
 **Gradual migration:**
 - Start small: 1-2 test notebooks
@@ -110,8 +108,7 @@ Push and the VM automatically updates with the same site layout as GitHub Pages,
 
 | File | Purpose |
 |------|---------|
-| `live-notebooks.yml` | Registry of live/interactive notebooks |
-| `static-notebooks.yml` | Documentation registry |
+| `live-notebooks.yml` | Unified registry of live/static notebook selections |
 | `deploy-to-vm.sh` | Deployment automation |
 | `Dockerfile.vm` | Docker deployment option |
 | `.github/workflows/DeployToVM.yml` | GitHub Actions workflow |
