@@ -186,7 +186,11 @@ md"""
 # ╔═╡ bb905046-59b7-4da6-97ad-dbb9055d823a
 begin
 	const pluto_deploy_settings = PlutoSliderServer.get_configuration(PlutoSliderServer.default_config_path())
-	const slider_server_url = get(ENV, "PLUTO_SLIDER_SERVER_URL", pluto_deploy_settings.Export.slider_server_url)
+	# Live notebook actions are opt-in. GitHub Pages deliberately supplies an
+	# empty value, while the VM launcher supplies its public SliderServer URL.
+	const slider_server_url = let url = strip(get(ENV, "PLUTO_SLIDER_SERVER_URL", ""))
+		isempty(url) ? nothing : url
+	end
 end
 
 # ╔═╡ b638df55-fd74-4ae8-bdbd-ec7b18214b40

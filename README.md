@@ -30,9 +30,9 @@ service at <http://127.0.0.1:1234/>. Stop the command with `Ctrl+C`. If either
 port is occupied, choose replacements, for example
 `STATIC_PORT=8100 LIVE_PORT=17321 ./local_serve_test`.
 
-For GitHub Pages exports, set the repository variable
-`PLUTO_SLIDER_SERVER_URL` only when the live notebooks should connect to a
-publicly reachable slider-server endpoint. Otherwise they remain static there.
+GitHub Pages always publishes the static variant of this site. The remote VM
+scripts set `PLUTO_SLIDER_SERVER_URL` explicitly when selected notebooks should
+connect to a live SliderServer endpoint.
 
 **Quick start:**
 ```bash

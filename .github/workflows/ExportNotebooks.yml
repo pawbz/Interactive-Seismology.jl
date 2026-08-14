@@ -41,12 +41,21 @@ jobs:
 
             - name: 🪴 Generate site
               env:
-                PLUTO_SLIDER_SERVER_URL: ${{ vars.PLUTO_SLIDER_SERVER_URL }}
+                # GitHub Pages is the static variant of the same generated site.
+                # Only the VM launch/deployment scripts provide a live endpoint.
+                PLUTO_SLIDER_SERVER_URL: ""
               run: julia --project=pluto-deployment-environment -e '
                   import Pkg;
                   Pkg.instantiate();
 
                   include("./generate.jl")'
+
+            - name: Verify GitHub Pages export is static
+              run: |
+                if rg -n --glob '*.html' 'slider_server_url="[^"]+"' _site; then
+                  echo 'A live SliderServer URL was embedded in the GitHub Pages export.' >&2
+                  exit 1
+                fi
 
             
             - name: 📰 Upload site generation report
