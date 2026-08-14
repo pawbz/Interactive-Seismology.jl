@@ -87,9 +87,10 @@ $(pluto_head)
                 </div>
             </li>
             $(let
-                # A YAML-limited build may intentionally omit every notebook in
-                # some sidebar sections. Only render sections that have pages.
-                sections = filter(section -> haskey(collections, first(section)), metadata["sidebar"])
+                # `navigation_catalog` is assembled directly from live-notebooks.yml.
+                # It is the single source of the sidebar's sections, entries, and order.
+                sections = [(section, filter(entry -> entry.section == section, navigation_catalog))
+                    for section in unique(getproperty.(navigation_catalog, :section))]
             [
                 @htl("""
                 <li>
@@ -97,12 +98,13 @@ $(pluto_head)
                 <ul>
                 $([
                     let
+                        other_page = entry.page
                         input = other_page.input
                         output = other_page.output
                         
                         number = section_number(output.frontmatter)
                         
-                        name = get(output.frontmatter, "title", basename(input.relative_path))
+                        name = entry.title
                         desc = get(output.frontmatter, "description", nothing)
                         tags = get(output.frontmatter, "tags", String[])
                         active = page.url == other_page.url
@@ -122,14 +124,12 @@ $(pluto_head)
                         else
                             @htl("""<li class=$(class)><a href=$(href) title=$(desc)><span class="entry-number">Homework $(homework_number):</span> $(name)</a></li>""")
                         end
-                    end for other_page in let collection = get(collections, section_id, nothing)
-                        collection === nothing ? Any[] : collection.pages
-                    end
+                    end for entry in entries
                 ])
                 </ul>
                 </li>
                 """)
-                for (section_id, section_name) in sections
+                for (section_name, entries) in sections
             ]
         end)
                 <li><hr></li>

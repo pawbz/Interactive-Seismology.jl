@@ -23,7 +23,7 @@ let
         let
             notebook_path = joinpath(@__DIR__, "..", "..", entry.path)
 
-            name = get(entry.frontmatter, "title", splitext(basename(entry.path))[1])
+            name = entry.title
             desc = get(entry.frontmatter, "description", nothing)
             desc = desc isa AbstractString && !isempty(strip(desc)) ? desc : introductory_excerpt(notebook_path)
             image = get(entry.frontmatter, "image", nothing)

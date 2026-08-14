@@ -64,12 +64,14 @@ git push origin main
 Edit `live-notebooks.yml`:
 ```yaml
 sections:
-  Fundamentals:
-    - introduction/waves-on-string.jl
-    - introduction/coupled_oscillations.jl
-  
-  Advanced Topics:
-    - misc/geoid-kernel.jl
+  - name: Fundamentals
+    live:
+      - introduction/waves-on-string.jl
+      - introduction/coupled_oscillations.jl
+
+  - name: Advanced Topics
+    static:
+      - misc/geoid-kernel.jl
     - misc/seismic-interferometry.jl
 ```
 

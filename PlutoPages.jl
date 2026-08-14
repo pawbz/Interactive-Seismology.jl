@@ -599,6 +599,102 @@ md"""
 ## Layouts
 """
 
+# ╔═╡ c2ee20be-16f5-47a8-851a-67a361bb0316
+"""
+```julia
+process_layouts(page::Page)::Page
+```
+
+Recursively apply the layout specified in the frontmatter, returning a new `Page` with updated `output`.
+"""
+function process_layouts(page::Page)::Page
+	output = page.output
+	
+	if haskey(output.frontmatter, "layout")
+		@assert output.file_extension == "html" "Layout is not (yet) supported on non-HTML outputs."
+		
+		layoutname = output.frontmatter["layout"]
+		@assert layoutname isa String
+		layout_file = joinpath(dir, "_includes", layoutname)
+		@assert isfile(layout_file) "$layout_file is not a valid layout path"
+
+
+		content = if ishtml(output)
+			HTML(SafeString(output.contents))
+		else
+			output.contents
+		end
+
+		metadata = Dict()
+	    for data_file in readdir(joinpath(dir, "_data"); join=true)
+		  key = splitext(basename(data_file))[1]
+		  metadata[key] = include(data_file)
+	    end
+
+		# Layout templates run in isolated modules. Give them the YAML-selected
+		# site navigation explicitly, instead of a second hard-coded sidebar list.
+		notebook_catalog = [
+			let
+				source_path = joinpath(dir, entry.path)
+				frontmatter = Pluto.frontmatter(source_path)
+				(; entry..., frontmatter, title=DeploymentNotebooks.display_title(source_path, frontmatter))
+			end
+			for entry in DeploymentNotebooks.notebook_entries()
+		]
+		page_by_source = Dict(page.input.relative_path => page for page in pages)
+		navigation_catalog = [
+			let
+				entry_page = get(page_by_source, entry.path, nothing)
+				frontmatter = entry_page === nothing ? Dict() : entry_page.output.frontmatter
+				(; entry..., page=entry_page, title=DeploymentNotebooks.display_title(joinpath(dir, entry.path), frontmatter))
+			end
+			for entry in DeploymentNotebooks.navigation_entries()
+		]
+		missing_navigation_pages = filter(entry -> isnothing(entry.page), navigation_catalog)
+		isempty(missing_navigation_pages) || error("YAML navigation entries were not generated: $(join(getproperty.(missing_navigation_pages, :path), \", \"))")
+		
+		input = TemplateInput(;
+			contents=read(layout_file),
+			absolute_path=layout_file,
+			relative_path=relpath(layout_file, dir),
+			frontmatter=merge(output.frontmatter, 
+				FrontMatter(
+					"content" => content,
+					"page" => page,
+					"collections" => collections,
+					"notebook_catalog" => notebook_catalog,
+					"navigation_catalog" => navigation_catalog,
+					"root_url" => root_url,
+					"metadata" => metadata
+				),
+			)
+		)
+
+		result = template_handler(Val(Symbol(splitext(layout_file)[2])), input)
+		
+		@assert result.file_extension == "html" "Non-HTML output from Layouts is not (yet) supported."
+
+
+		
+		old_frontmatter = copy(output.frontmatter)
+		delete!(old_frontmatter, "layout")
+		new_frontmatter = merge(old_frontmatter, result.frontmatter)
+
+		process_layouts(Page(
+			page.url,
+			page.full_url,
+			page.input,
+			TemplateOutput(
+				result;
+				search_index_data=output.search_index_data,
+				frontmatter=new_frontmatter,
+			),
+		))
+	else
+		page
+	end
+end
+
 # ╔═╡ f2fbcc70-a714-4eda-8786-7ee5692e3268
 with_doctype(p::Page) = Page(p.url, p.full_url, p.input, with_doctype(p.output))
 
@@ -818,87 +914,6 @@ collections = let
 	Dict{String,Collection}(
 		k => Collection(k, sort(collect(v); by=sort_by)) for (k,v) in result
 	)
-end
-
-# ╔═╡ c2ee20be-16f5-47a8-851a-67a361bb0316
-"""
-```julia
-process_layouts(page::Page)::Page
-```
-
-Recursively apply the layout specified in the frontmatter, returning a new `Page` with updated `output`.
-"""
-function process_layouts(page::Page)::Page
-	output = page.output
-	
-	if haskey(output.frontmatter, "layout")
-		@assert output.file_extension == "html" "Layout is not (yet) supported on non-HTML outputs."
-		
-		layoutname = output.frontmatter["layout"]
-		@assert layoutname isa String
-		layout_file = joinpath(dir, "_includes", layoutname)
-		@assert isfile(layout_file) "$layout_file is not a valid layout path"
-
-
-		content = if ishtml(output)
-			HTML(SafeString(output.contents))
-		else
-			output.contents
-		end
-
-		metadata = Dict()
-	    for data_file in readdir(joinpath(dir, "_data"); join=true)
-		  key = splitext(basename(data_file))[1]
-		  metadata[key] = include(data_file)
-	    end
-
-		# Layout templates run in isolated modules. Give the welcome template the
-		# YAML-selected notebooks and their frontmatter explicitly instead of
-		# relying on globals from this generator module.
-		notebook_catalog = [
-			(; entry..., frontmatter=Pluto.frontmatter(joinpath(dir, entry.path)))
-			for entry in DeploymentNotebooks.notebook_entries()
-		]
-		
-		input = TemplateInput(;
-			contents=read(layout_file),
-			absolute_path=layout_file,
-			relative_path=relpath(layout_file, dir),
-			frontmatter=merge(output.frontmatter, 
-				FrontMatter(
-					"content" => content,
-					"page" => page,
-					"collections" => collections,
-					"notebook_catalog" => notebook_catalog,
-					"root_url" => root_url,
-					"metadata" => metadata
-				),
-			)
-		)
-
-		result = template_handler(Val(Symbol(splitext(layout_file)[2])), input)
-		
-		@assert result.file_extension == "html" "Non-HTML output from Layouts is not (yet) supported."
-
-
-		
-		old_frontmatter = copy(output.frontmatter)
-		delete!(old_frontmatter, "layout")
-		new_frontmatter = merge(old_frontmatter, result.frontmatter)
-
-		process_layouts(Page(
-			page.url,
-			page.full_url,
-			page.input,
-			TemplateOutput(
-				result;
-				search_index_data=output.search_index_data,
-				frontmatter=new_frontmatter,
-			),
-		))
-	else
-		page
-	end
 end
 
 # ╔═╡ 06edb2d7-325f-4f80-8c55-dc01c7783054

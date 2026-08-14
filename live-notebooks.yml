@@ -1,18 +1,28 @@
-# Unified notebook registry
-# Section names are the folder names, and each section can contain live and static notebooks.
+# Unified site navigation and notebook registry.
+# The order and names in these lists drive publishing, the sidebar, and the homepage carousel.
 # A notebook appears in the site only if it is listed here explicitly.
 
+pages:
+  - name: Course information
+    entries:
+      - introduction.md
+      - classes.md
+      - logistics.md
+      - references.md
+
 sections:
-  Elasticity and Deformation:
+  - name: Basics
+    live:
+      - Basics/simple-harmonic-motion.jl
+      - Basics/coupled_oscillations.jl
+
+  - name: Elasticity and Deformation
     live:
       - Elasticity and Deformation/strain-tensor.jl
       - Elasticity and Deformation/stress-tensor.jl
       - Elasticity and Deformation/lame-theorem.jl
-    static:
-      - Elasticity and Deformation/simple-harmonic-motion.jl
-      - Elasticity and Deformation/coupled_oscillations.jl
 
-  Planewave Propagation:
+  - name: Planewave Propagation
     live:
       - Planewave Propagation/reflection-transmission-SH.jl
       - Planewave Propagation/reflection-P-SV-free-surface.jl
@@ -21,9 +31,8 @@ sections:
       - Planewave Propagation/anisotropy.jl
       - Planewave Propagation/intrinsic-attenuation.jl
 
-  Surface Waves:
+  - name: Surface Waves
     live:
-      - Surface Waves/SH-reflectivity-method.jl
       - Surface Waves/Love-wave-analytic1.jl
       - Surface Waves/Love-wave-dispersion-curves.jl
     static:
@@ -31,22 +40,46 @@ sections:
       - Surface Waves/Rayleigh-function.jl
       - Surface Waves/Rayleigh-dispersion-curves.jl
 
-  Ray Theory:
+  - name: Ray Theory
     live:
       - Ray Theory/global-seismic-arrivals.jl
       - Ray Theory/ray-theory-eikonal-equation.jl
     static:
       - Ray Theory/ray-tomography.jl
 
-  Earth Structure and Internal Layers:
+  - name: Earth Structure and Internal Layers
     live:
       - Earth Structure and Internal Layers/earth-internal-structure.jl
-    static:
-      - Earth Structure and Internal Layers/wave-mode-duality-1D.jl
-      - Earth Structure and Internal Layers/normal-modes-specnm-planets.jl
-      - Earth Structure and Internal Layers/spherical_harmonics-homo-full-sphere.jl
 
-  Seismic Sources and Faulting:
+  - name: Normal Modes
+    live:
+      - Normal Modes/wave-mode-duality-1D.jl
+      - Normal Modes/normal-modes-specnm-planets.jl
+      - Normal Modes/spherical_harmonics-homo-full-sphere.jl
+
+  - name: Gravity
+    static:
+      - Gravity/geoid-kernel.jl
+
+  - name: Real Seismograms
+    static:
+      - Real Seismograms/my-first-seismogram.jl
+
+  - name: Imaging
+    static:
+      - Imaging/adjoint-state-method.jl
+      - Imaging/adjoint-state-method_acoustic.jl
+      - Imaging/full-waveform-inversion.jl
+
+  - name: Interferometry
+    static:
+      - Interferometry/seismic-interferometry.jl
+
+  - name: Scattering
+    static:
+      - Scattering/Born-approximation.jl
+
+  - name: Seismic Sources and Faulting
     live:
       - Seismic Sources and Faulting/fault-dislocation.jl
       - Seismic Sources and Faulting/seismic-sources.jl

@@ -178,8 +178,9 @@ cat ~/.ssh/vm-deploy
 # Example:
 cat > live-notebooks.yml << 'EOF'
 sections:
-  Test:
-    - misc/geoid-kernel.jl
+  - name: Test
+    live:
+      - misc/geoid-kernel.jl
 EOF
 
 # Commit and push

@@ -105,10 +105,12 @@ nano live-notebooks.yml
 
 # Example:
 # sections:
-#   Test:
-#     - misc/geoid-kernel.jl
-#   Fundamentals:
-#     - introduction/waves-on-string.jl
+#   - name: Test
+#     live:
+#       - misc/geoid-kernel.jl
+#   - name: Fundamentals
+#     static:
+#       - introduction/waves-on-string.jl
 
 git add live-notebooks.yml
 git commit -m "Add more notebooks to live deployment"

@@ -38,13 +38,13 @@ Recommended mechanism:
 
 - Each section folder defines the section title.
 - Each notebook is added to either the live registry or the static registry by explicit choice.
-- The registry should be written as a section -> lists structure, not as a flat list of files.
+- The registry should be written as an ordered list of named sections, not as a flat list of files.
 
 Example pattern:
 
 ```yaml
 sections:
-  Elasticity and Deformation:
+  - name: Elasticity and Deformation
     live:
       - Elasticity and Deformation/strain-tensor.jl
       - Elasticity and Deformation/stress-tensor.jl
