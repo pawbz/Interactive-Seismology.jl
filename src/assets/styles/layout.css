@@ -60,7 +60,7 @@
 }
 
 /* Desktop notebooks keep the full page width. The course index rests off-canvas as
-   a small rail, then slides over the page only while it is being used. */
+   a vertical edge band, then slides over the page only while it is being used. */
 @media screen and (min-width: 769px) {
     #pages-sidebar {
         position: fixed;
@@ -71,36 +71,42 @@
         overflow-y: auto;
         overscroll-behavior: contain;
         transform: translateX(calc(-100% + 2.75rem));
-        transition: transform 220ms ease;
+        transition: transform 280ms cubic-bezier(0.22, 0.61, 0.36, 1);
     }
     #pages-sidebar::after {
         position: absolute;
         right: 0;
-        top: 50%;
+        top: 0;
+        bottom: 0;
         display: grid;
-        width: 2.25rem;
-        height: 4.5rem;
+        width: 2.75rem;
         place-items: center;
-        border: 1px solid #e4dacb;
+        border: 0;
         border-right: 0;
-        border-radius: 0 0.75rem 0.75rem 0;
-        background: var(--sidebar-bg);
-        box-shadow: 0 8px 20px rgb(0 0 0 / 12%);
+        border-radius: 0;
+        background: linear-gradient(90deg, #fbf7f0 0%, #f4ede2 100%);
+        box-shadow: inset -1px 0 #e4dacb, 5px 0 16px rgb(0 0 0 / 8%);
         color: var(--sidebar-accent-1);
         content: "›";
         cursor: pointer;
         font-family: Georgia, serif;
         font-size: 2rem;
         line-height: 1;
-        transform: translateY(-50%);
+        transition: opacity 160ms ease;
+    }
+    #pages-sidebar > div {
+        opacity: 1;
+        transition: opacity 180ms ease 80ms, visibility 0s linear;
     }
     #pages-sidebar:hover,
     #pages-sidebar:focus-within {
         transform: translateX(0);
     }
     #pages-sidebar:not(:hover):not(:focus-within) > div {
+        opacity: 0;
         visibility: hidden;
         pointer-events: none;
+        transition: opacity 120ms ease, visibility 0s linear 280ms;
     }
     #pages-sidebar:hover::after,
     #pages-sidebar:focus-within::after {
@@ -108,7 +114,24 @@
         pointer-events: none;
     }
     @media (prefers-reduced-motion: reduce) {
-        #pages-sidebar { transition: none; }
+        #pages-sidebar,
+        #pages-sidebar::after,
+        #pages-sidebar > div { transition: none; }
+    }
+
+    /* The landing page is a course overview: keep its complete navigation in view. */
+    #pages-layout:has(main.homepage) #pages-sidebar {
+        position: sticky;
+        align-self: flex-start;
+        transform: none;
+    }
+    #pages-layout:has(main.homepage) #pages-sidebar > div {
+        opacity: 1;
+        visibility: visible;
+        pointer-events: auto;
+    }
+    #pages-layout:has(main.homepage) #pages-sidebar::after {
+        display: none;
     }
 }
 

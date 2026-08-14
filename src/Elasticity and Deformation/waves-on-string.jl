@@ -125,26 +125,6 @@ meet later in this course has some version of this same limit.
 	string blow up within a few steps -- that's the scheme amplifying its own
 	rounding error every iteration once the stability condition is violated,
 	not a bug.
-
-Staying *below* `1` isn't free either. The grid spacing ``dx`` is fixed, so
-lowering the Courant number only shrinks ``dt`` -- and for this leapfrog
-scheme, doing that while ``dx`` stays put makes the *phase* (not amplitude)
-error **worse**, not better. In fact this scheme has an exact, counter-intuitive
-property: at ``C=1`` itself, right at the edge of instability, the numerical
-and physical dispersion relations coincide *exactly* for every resolvable
-wavenumber -- zero phase error, not just less of it. Moving away from `` C=1
-`` in either direction reintroduces error: push `` C`` above `1` and the
-scheme goes unstable (previous admonition); pull it well below `1` and the
-scheme stays stable but starts mis-timing the different wavelengths making up
-the pulse relative to each other.
-
-!!! tip "Try it too"
-	The widget opens near `` C=0.9``, close enough to the exact-cancellation
-	point that the pulse looks clean. Drag **Courant** down to around `0.1`
-	and press Play: a faint, oscillatory ripple trails behind the main pulse
-	-- numerical dispersion, an artifact of the discretization, not a real
-	physical echo. Push `` C`` back up toward `1` (staying below it) and the
-	ripple all but disappears again.
 """
 
 # ╔═╡ 6feab4ba-89ed-4be0-87e7-c1cc1d78b6c2
@@ -250,24 +230,13 @@ end
 # ╔═╡ 806c8e93-15fb-402a-bab4-c58cae7dd6d2
 """
 	simulate_string(; courant, density_ratio, interface_x, boundary, mu0, rho0,
-	                  nx=600, xmin=-100.0, xmax=100.0, n_frames=220, duration=nothing,
-	                  pulse_width=0.5)
+	                  nx=600, xmin=-100.0, xmax=100.0, n_frames=220, duration=nothing)
 
 Run the 1-D velocity-stress staggered-grid simulation of a transverse pulse
 launched at `x=-50`, propagating through a medium with a density
 discontinuity of `density_ratio` at `x=interface_x` (denser for `x <
 interface_x`), reflecting off both ends of the domain according to
 `boundary`.
-
-`pulse_width` sets the launched Gaussian's sharpness (larger = narrower =
-more high-wavenumber content relative to the fixed grid spacing `dx`, hence
-more visible numerical dispersion at a low Courant number -- see "Numerical
-Stability" below). The default is narrow enough to show a trailing ripple at
-small `courant`; the Appendix's own verification cells pass a much broader,
-well-resolved `pulse_width` instead, since they're checking the *physics*
-(reflection/transmission, boundary polarity), not the *numerics*, and a
-narrow pulse's own dispersion would otherwise show up as spurious error in
-those checks.
 
 Returns a named tuple with the down-sampled time series `vy_frames`
 (`n_frames × nx`), `frames_t`, the spatial grid `xgrid`, the wave speeds and
@@ -277,8 +246,7 @@ the Courant condition was violated and the run was aborted early, in which
 case the remaining frames repeat the last valid one).
 """
 function simulate_string(; courant, density_ratio, interface_x, boundary,
-    mu0, rho0, nx=600, xmin=-100.0, xmax=100.0, n_frames=220, duration=nothing,
-    pulse_width=0.5)
+    mu0, rho0, nx=600, xmin=-100.0, xmax=100.0, n_frames=220, duration=nothing)
 
     xg = range(xmin, xmax, length=nx)
     xgrid = collect(xg)
@@ -302,7 +270,7 @@ function simulate_string(; courant, density_ratio, interface_x, boundary,
     frame_stride = max(1, nt ÷ n_frames)
     nframes_actual = length(1:frame_stride:nt)
 
-    vy = exp.(-pulse_width .* (xgrid .+ 50.0) .^ 2)
+    vy = exp.(-0.11 .* (xgrid .+ 50.0) .^ 2)
     sigma = zeros(nx - 1)
 
     vy_frames = zeros(nframes_actual, nx)
@@ -359,11 +327,8 @@ let
     T_analytic = 2 * Z1c / (Z1c + Z2c)
 
     dur = 42.0 / vs1c
-    # a broad, well-resolved pulse -- this check is validating the reflection/
-    # transmission physics, not the FD scheme's own numerical dispersion, so it
-    # deliberately does NOT use the widget's default (narrower) pulse_width
     res = simulate_string(; courant=0.3, density_ratio=ratio_check, interface_x=iface,
-        boundary="fixed", mu0=μ0, rho0=ρ0, n_frames=300, duration=dur, pulse_width=0.11)
+        boundary="fixed", mu0=μ0, rho0=ρ0, n_frames=300, duration=dur)
 
     vy_last = res.vy_frames[end, :]
     xg = res.xgrid
@@ -406,7 +371,7 @@ let
     check_t = 25.0
     results = map(("fixed", "free")) do bt
         res = simulate_string(; courant=0.3, density_ratio=1.0, interface_x=0.0,
-            boundary=bt, mu0=μ0, rho0=ρ0, n_frames=300, pulse_width=0.11)
+            boundary=bt, mu0=μ0, rho0=ρ0, n_frames=300)
         k = argmin(abs.(res.frames_t .- check_t))
         vyk = res.vy_frames[k, :]
         xg = res.xgrid
@@ -447,7 +412,7 @@ begin
         boundary::String
     end
 
-    WaveOnStringInput(; courant=0.9, density_ratio=4.0, interface_x=0.0, boundary="free") =
+    WaveOnStringInput(; courant=0.4, density_ratio=4.0, interface_x=-25.0, boundary="free") =
         WaveOnStringInput(Float64(courant), Float64(density_ratio), Float64(interface_x), boundary)
 
     Base.get(w::WaveOnStringInput) = Dict{String,Any}(
