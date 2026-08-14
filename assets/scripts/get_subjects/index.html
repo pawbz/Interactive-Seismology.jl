@@ -1,36 +1,53 @@
 <!DOCTYPE html><pre class="language-julia"><code>let
-    sections = metadata[&quot;sidebar&quot;]
-    sections = [
-        @htl(&quot;&quot;&quot;
-        $([
-            let
-                input = other_page.input
-                output = other_page.output
-                
-                name = get(output.frontmatter, &quot;title&quot;, basename(input.relative_path))
-                desc = get(output.frontmatter, &quot;description&quot;, nothing)
-                tags = get(output.frontmatter, &quot;tags&quot;, String[])
-                
-                image = get(output.frontmatter, &quot;image&quot;, nothing)
-                
-                class = [
-                    &quot;no-decoration&quot;,
-                    (&quot;tag_$(replace(x, &quot; &quot;=>&quot;_&quot;))&quot; for x in tags)...,
-                ]
-                
-                image === nothing || isempty(image) ? nothing : @htl(&quot;&quot;&quot;&lt;a title=$(desc) class=$(class) href=$(root_url * &quot;/&quot; * other_page.url)>
-                    &lt;h3>$(name)&lt;/h3>
-                    &lt;img src=$(image)>
-                &lt;/a>&quot;&quot;&quot;)
-            end for other_page in let collection = get(collections, section_id, nothing)
-                collection === nothing ? Any[] : collection.pages
+    function introductory_excerpt(notebook_path::AbstractString; limit::Int=180)
+        source = read(notebook_path, String)
+        for block in eachmatch(r&quot;md\&quot;\&quot;\&quot;(.*?)\&quot;\&quot;\&quot;&quot;s, source)
+            lines = filter(split(block.captures[1], &apos;\n&apos;)) do line
+                text = strip(line)
+                !isempty(text) &amp;&amp;
+                    !startswith(text, &quot;#&quot;) &amp;&amp;
+                    !startswith(text, &quot;!!!&quot;) &amp;&amp;
+                    !startswith(text, &quot;Instructor:&quot;)
             end
-        ])
-        &quot;&quot;&quot;)
-        for (section_id, section_name) in sections
+            isempty(lines) &amp;&amp; continue
+
+            excerpt = replace(join(strip.(lines), &quot; &quot;), r&quot;\s+&quot; => &quot; &quot;)
+            excerpt = replace(excerpt, r&quot;\[([^\]]+)\]\([^\)]+\)&quot; => s&quot;\1&quot;)
+            length(excerpt) > limit &amp;&amp; return first(excerpt, limit - 1) * &quot;…&quot;
+            return excerpt
+        end
+        nothing
+    end
+
+    slides = [
+        let
+            notebook_path = joinpath(@__DIR__, &quot;..&quot;, &quot;..&quot;, entry.path)
+
+            name = get(entry.frontmatter, &quot;title&quot;, splitext(basename(entry.path))[1])
+            desc = get(entry.frontmatter, &quot;description&quot;, nothing)
+            desc = desc isa AbstractString &amp;&amp; !isempty(strip(desc)) ? desc : introductory_excerpt(notebook_path)
+            image = get(entry.frontmatter, &quot;image&quot;, nothing)
+            href = root_url * &quot;/&quot; * splitext(entry.path)[1] * &quot;/&quot;
+
+            @htl(&quot;&quot;&quot;
+            &lt;a class=&quot;carousel-slide no-decoration&quot; href=&quot;$(href)&quot; title=&quot;$(desc)&quot;>
+                &lt;div class=&quot;slide-content&quot;>
+                    &lt;p class=&quot;slide-section&quot;>$(entry.section)&lt;/p>
+                    &lt;h3>$(name)&lt;/h3>$(desc === nothing ? nothing : @htl(&quot;&lt;p>$(desc)&lt;/p>&quot;))&lt;/div>$(image === nothing || isempty(image) ? nothing : @htl(&quot;&quot;&quot;&lt;div class=&quot;slide-preview&quot;>&lt;img src=&quot;$(image)&quot; loading=&quot;lazy&quot; alt=&quot;$(name)&quot;>&lt;/div>&quot;&quot;&quot;))&lt;/a>&quot;&quot;&quot;)
+        end
+        for entry in notebook_catalog
     ]
 
-    # isempty(sections) ? nothing : @htl(&quot;&quot;&quot;&lt;div class=&quot;wide subjectscontainer&quot;>
-    # &quot;&quot;&quot;)
+    isempty(slides) ? nothing : @htl(&quot;&quot;&quot;
+    &lt;div class=&quot;carousel-section&quot;>
+      &lt;div class=&quot;carousel&quot; id=&quot;carousel-notebooks&quot;>
+        &lt;button class=&quot;carousel-arrow carousel-prev&quot; type=&quot;button&quot; aria-label=&quot;Previous notebook&quot;>‹&lt;/button>
+        &lt;div class=&quot;carousel-track&quot;>
+        $(slides)
+        &lt;/div>
+        &lt;button class=&quot;carousel-arrow carousel-next&quot; type=&quot;button&quot; aria-label=&quot;Next notebook&quot;>›&lt;/button>
+      &lt;/div>
+    &lt;/div>
+    &quot;&quot;&quot;)
 end
 </code></pre>

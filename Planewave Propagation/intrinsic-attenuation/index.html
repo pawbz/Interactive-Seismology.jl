@@ -1,0 +1,201 @@
+<!DOCTYPE html><html lang="en">
+<head>
+
+<title>Seismic Attenuation — Interactive Seismology </title>
+<meta name="description" content='This notebook helps us visualize these effects of attenuation on propagating seismic waves.' />
+
+<link rel="root" href="../.." />
+
+<link rel="icon" href="../../assets/favicon.ico" />
+<link rel="icon" href="../../assets/favicon.svg" type="image/svg+xml">
+
+<link rel="stylesheet" href="../../assets/styles/index.css" type="text/css" />
+<link rel="stylesheet" href="../../assets/styles/layout.css" type="text/css" />
+<script src="../../assets/scripts/sidebar.js" type="module"></script>
+
+<link rel="pp-search-data" href="../../pp_search_data.json" />
+<script src="https://cdn.jsdelivr.net/npm/lunr@2.3.9/lunr.min.js" integrity="sha256-DFDZACuFeAqEKv/7Vnu1Tt5ALa58bcWZegGGFNgET8g=" crossorigin="anonymous" defer></script>
+<script src="../../assets/scripts/search.js" type="module" defer></script>
+
+<script src="https://cdn.jsdelivr.net/npm/lite-youtube-embed@0.3.0/src/lite-yt-embed.js" integrity="sha256-sDRYYtDc+jNi2rrJPUS5kGxXXMlmnOSCq5ek5tYAk/M=" crossorigin="anonymous" defer></script>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/lite-youtube-embed@0.3.0/src/lite-yt-embed.css" integrity="sha256-lv6SEl7Dhri7d86yiHCTuSWFb9CYROQFewxZ7Je0n5k=" crossorigin="anonymous">
+
+<script defer src='https://static.cloudflareinsights.com/beacon.min.js' data-cf-beacon='{"token": "8572a580bead4b729ad55779ba3a1cd6"}'></script>
+
+<script data-goatcounter="https://computationalthinking-stats.plutojl.org/count" async src="//computationalthinking-stats.plutojl.org/count.js"></script>
+
+<script type="importmap">{"imports":{"aVc6E":"./firebase-firestore.7f842f36.js","bEDS4":"./firebase-app.b603aaa4.js"}}</script><link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/JuliaPluto/Pluto.jl@1.0.3/frontend-dist/editor.ca0dbe6e.css"><link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/JuliaPluto/Pluto.jl@1.0.3/frontend-dist/editor.a7d04aac.css"><script type="module" src="https://cdn.jsdelivr.net/gh/JuliaPluto/Pluto.jl@1.0.3/frontend-dist/frontend.4541b03a.js"></script>
+    <meta name="viewport" content="width=device-width">
+    <meta charset="utf-8">
+
+    
+<meta name="pluto-insertion-spot-meta">
+
+
+    <meta name="theme-color" media="(prefers-color-scheme: light)" content="white">
+    <meta name="theme-color" media="(prefers-color-scheme: dark)" content="#2a2928">
+    <meta name="color-scheme" content="light dark">
+
+    
+    
+    
+    <link rel="pluto-external-source" id="pluto-logo-big" href="https://cdn.jsdelivr.net/gh/JuliaPluto/Pluto.jl@1.0.3/frontend-dist/logo.103597bc.svg">
+    <link rel="pluto-external-source" id="pluto-logo-small" href="https://cdn.jsdelivr.net/gh/JuliaPluto/Pluto.jl@1.0.3/frontend-dist/favicon_unsaturated.9ed3a6f6.svg">
+
+    <script defer="">console.log("Pluto.jl, by Fons van der Plas (https://github.com/fonsp), Mikołaj Bochenski (https://github.com/malyvsen), Michiel Dral (https://github.com/dralletje), Παναγιώτης (Panagiotis) Γεωργακόπουλος (https://github.com/pankgeorg), Paul Berg (https://github.com/Pangoraw) and friends 🌈");</script>
+
+    <script src="https://cdn.jsdelivr.net/gh/JuliaPluto/Pluto.jl@1.0.3/frontend-dist/editor.2f9fc277.js" defer=""></script>
+
+    <!-- This doesn't do anything unless activated, and it makes sure parcel bundles this -->
+    <script id="iframe-resizer-content-window-script" src="https://cdn.jsdelivr.net/gh/JuliaPluto/Pluto.jl@1.0.3/frontend-dist/editor.7a04a462.js" crossorigin="anonymous" defer=""></script>
+
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/JuliaPluto/Pluto.jl@1.0.3/frontend-dist/editor.f6933b66.css" type="text/css">
+
+    <meta rel="pluto-cdn-root" href="https://cdn.jsdelivr.net/gh/JuliaPluto/Pluto.jl@1.0.3/frontend-dist/">
+    <script data-pluto-file="launch-parameters">
+window.pluto_notebook_id = undefined;
+window.pluto_isolated_cell_ids = undefined;
+window.pluto_notebookfile = undefined;
+window.pluto_disable_ui = true;
+window.pluto_slider_server_url = undefined;
+window.pluto_binder_url = "https://mybinder.org/v2/gh/fonsp/pluto-on-binder/v1.0.3";
+window.pluto_statefile = undefined;
+window.pluto_preamble_html = undefined;
+window.pluto_recording_url = undefined;
+window.pluto_recording_audio_url = undefined;
+</script>
+
+<meta name="pluto-insertion-spot-parameters">
+
+    <script src="https://cdn.jsdelivr.net/gh/JuliaPluto/Pluto.jl@1.0.3/frontend-dist/editor.9e3719ed.js" type="module" defer=""></script>
+    <script src="https://cdn.jsdelivr.net/gh/JuliaPluto/Pluto.jl@1.0.3/frontend-dist/frontend.ae6e0116.js"></script>
+
+    <link rel="pluto-external-source" id="vmsg-wasm" href="https://cdn.jsdelivr.net/gh/JuliaPluto/Pluto.jl@1.0.3/frontend-dist/vmsg.56bb9389.wasm">
+    <!-- This script will be enabled by JS after the notebook has initialized to prevent taking up bandwidth during the initial load. -->
+    <link rel="pluto-external-source" id="MathJax-script" href="https://cdn.jsdelivr.net/gh/JuliaPluto/Pluto.jl@1.0.3/frontend-dist/tex-svg-full.b78c0ac1.js" type="text/javascript">
+    
+    
+<meta name="pluto-insertion-spot-preload">
+
+
+
+</head>
+<body>
+    <div id="pages-layout">
+        <button id="toggle-nav" title="Open navigation"></button>
+        <nav id="pages-sidebar">
+        <div>
+        <ul>
+            <li class="sidebar-about">
+                <div class="course-title">
+                    <h1><a href="../.."><span>Interactive Seismology</span></a></h1>
+                    <h2><span>Computational lab to provide the students with interactive simulations that help them to comprehend concepts of seismology</span></h2>
+                </div>
+            </li>
+            <li>
+                <div class="search-bar">
+                    <form action="../../search" method="GET">
+                        <input type="search" name="q" placeholder="Search...">
+                        <input type=submit value="🔎">
+                    </form>
+                </div>
+            </li>
+            <li class="sidebar-contact">
+                <div class="sidebar-contact-box">
+                    <span class="sidebar-contact-instructor">Instructor: <em>Pawan Bharadwaj</em>, Indian Institute of Science, Bengaluru, India</span>
+                    <strong>Bug reports</strong>
+                    <a href="mailto:pawan@iisc.ac.in">pawan@iisc.ac.in</a>
+                </div>
+            </li>
+            <li>
+<h3>Welcome</h3>
+<ul>
+<li class=' lecture tag_welcome'><a href='../../introduction/'><span class="entry-number"></span> Seismology</a></li><li class=' lecture tag_welcome'><a href='../../classes/'><span class="entry-number"></span> Lecture Schedule</a></li><li class=' lecture tag_welcome'><a href='../../logistics/'><span class="entry-number"></span> Course Logistics</a></li><li class=' lecture tag_welcome'><a href='../../references/'><span class="entry-number"></span> References</a></li>
+</ul>
+</li>
+<li>
+<h3>Introduction</h3>
+<ul>
+<li class=' lecture tag_introduction'><a href='../../Elasticity and Deformation/strain-tensor/' title='Deformation of a 2-D square element'><span class="entry-number"></span> Strain Tensor</a></li><li class=' lecture tag_introduction'><a href='../../Elasticity and Deformation/stress-tensor/' title='Traction, principal stresses, and the Mohr-Coulomb failure criterion'><span class="entry-number"></span> Stress Tensor</a></li><li class=' lecture tag_introduction'><a href='../../Elasticity and Deformation/coupled_oscillations/' title='Environment for exploring oscillations'><span class="entry-number"></span> Oscillations</a></li><li class=' lecture tag_introduction tag_oscillations tag_waves'><a href='../../Elasticity and Deformation/simple-harmonic-motion/' title='A draggable mass–spring–damper that connects initial conditions to exact oscillator solutions.'><span class="entry-number"></span> Simple Harmonic Motion — Drag, Release, Explain</a></li>
+</ul>
+</li>
+<li>
+<h3>Point Source</h3>
+<ul>
+<li class=' lecture tag_pointsource'><a href='../../Seismic Sources and Faulting/Lamb_problem/' title='Superposition of planewaves'><span class="entry-number"></span> Lamb&apos;s Problem</a></li><li class=' lecture tag_pointsource'><a href='../../Seismic Sources and Faulting/fault-dislocation/' title='Drag a slipping rectangular fault in an elastic half-space and watch GPS and InSAR respond.'><span class="entry-number"></span> Faulting and the Surface</a></li><li class=' lecture tag_pointsource'><a href='../../Elasticity and Deformation/lame-theorem/' title='A point force radiates P and S waves in one shot. Drag the force direction, drag a receiver, and watch the near-field, far-field-P, and far-field-S terms separate.'><span class="entry-number"></span> Lamé&apos;s Theorem</a></li><li class=' lecture tag_pointsource'><a href='../../Seismic Sources and Faulting/seismic-sources/' title='Representation of the displacement field due to slip across fault planes in the source region.'><span class="entry-number"></span> Seismic Source Theory</a></li>
+</ul>
+</li>
+<li>
+<h3>Planewaves</h3>
+<ul>
+<li class=' lecture tag_planewaves'><a href='../../Planewave Propagation/anisotropy/' title='This notebook helps us visualize non-circular wavefronts in a homogenoeus Earth medium due to the presence of anisotropy.'><span class="entry-number"></span> Seismic Anisotropy</a></li><li class=' lecture tag_planewaves'><a href='../../Planewave Propagation/boundary-conditions/' title='Boundary conditions at an interface between two different media'><span class="entry-number"></span> Boundary Conditions</a></li><li class='active lecture tag_planewaves'><a href='../../Planewave Propagation/intrinsic-attenuation/' title='This notebook helps us visualize these effects of attenuation on propagating seismic waves.'><span class="entry-number"></span> Seismic Attenuation</a></li><li class=' lecture tag_planewaves'><a href='../../Planewave Propagation/reflection-P-SV-free-surface/' title='In this notebook, we shall investigate the interaction of plane P waves with Earth&apos;s free surface. '><span class="entry-number"></span> P-SV Free-surface Reflection</a></li><li class=' lecture tag_planewaves'><a href='../../Planewave Propagation/reflection-transmission-SH/' title='In this notebook, we shall investigate the behavior of waves that love to hop between two geological layers like kids in a bouncy castle.'><span class="entry-number"></span> Reflected and Transmitted SH Waves</a></li>
+</ul>
+</li>
+<li>
+<h3>Surface Waves</h3>
+<ul>
+<li class=' lecture tag_surfacewaves'><a href='../../Surface Waves/Love-wave-analytic1/' title='Dive into the world of plane Love waves in a single homogeneous layer overlying a homogeneous half-space, offering a simple yet fascinating exploration of the topic.'><span class="entry-number"></span> Love Waves</a></li><li class=' lecture tag_surfacewaves'><a href='../../Surface Waves/Rayleigh-function/' title='Particles may go round and round, but don&apos;t worry, let the Rayleigh wave pass by! This notebook will help you understand the physics behind it.'><span class="entry-number"></span> Rayleigh Function</a></li>
+</ul>
+</li>
+<li>
+<h3>Ray Theory</h3>
+<ul>
+<li class=' lecture tag_raytheory'><a href='../../Ray Theory/global-seismic-arrivals/' title='What is the arrival you are looking for?'><span class="entry-number"></span> Global Bodywave Arrivals</a></li><li class=' lecture tag_raytheory'><a href='../../Ray Theory/ray-theory-eikonal-equation/' title='Paint velocity perturbations onto a background Earth model and watch how seismic rays bend, and how the first-arrival wavefront sweeps through the heterogeneity.'><span class="entry-number"></span> Ray Theory and The Eikonal Equation</a></li><li class=' lecture tag_raytheory'><a href='../../Ray Theory/ray-tomography/' title='This notebook focuses on the inverse formulation of 2-D first-arrival travel times.'><span class="entry-number"></span> Ray Tomography</a></li>
+</ul>
+</li>
+<li>
+<h3>Normal Modes</h3>
+<ul>
+<li class=' lecture tag_normalmodes'><a href='../../Earth Structure and Internal Layers/normal-modes-specnm-planets/' title='Browse precomputed free-oscillation spectra for Earth, Mars, the Moon, and Europa'><span class="entry-number"></span> PREM Earth Free Oscillations</a></li><li class=' lecture tag_normalmodes'><a href='../../Earth Structure and Internal Layers/spherical_harmonics-homo-full-sphere/'><span class="entry-number"></span> Spherical Harmonics</a></li><li class=' lecture tag_normalmodes'><a href='../../Earth Structure and Internal Layers/wave-mode-duality-1D/' title='Paint a layered 1-D string, watch its normal modes one at a time or summed together, and see how superposition turns standing waves into a traveling pulse.'><span class="entry-number"></span> Normal Modes 1D</a></li>
+</ul>
+</li>
+
+                <li><hr></li>
+            <li class="sidebar-about">
+                <div class="semester-details">
+                    <a href="https://ceas.iisc.ac.in/">Centre For Earth Sciences</a>
+                <div class="course-numbers"><span><a href="https://iisc.ac.in/">Indian Institute of Science</a></span></div>
+                </div>
+                <div class="logos">
+                    <a class="institution-logo" href="https://ceas.iisc.ac.in/" title="Centre for Earth Sciences" aria-label="Centre for Earth Sciences">
+                        <img src="../../assets/CEAS.png" alt="Centre for Earth Sciences logo">
+                    </a>
+                    <a class="institution-logo" href="https://iisc.ac.in/" title="Indian Institute of Science" aria-label="Indian Institute of Science">
+                        <img src="../../assets/IISc.svg" alt="Indian Institute of Science logo">
+                    </a>
+                    <a class="institution-logo" href="https://julialang.org/" title="Julia Programming Language" aria-label="Julia Programming Language">
+                        <img src="../../assets/julia-logo-color.svg" alt="Julia Programming Language logo">
+                    </a>
+                </div>
+            </li>
+        </ul>
+        </div>
+        </nav>
+        <div id="pages-content">
+           <div class="lecture-header" >
+    
+    <h1>Seismic Attenuation</h1>
+    
+    
+</div>
+        <div class="page-banner">
+    <div class="page-banner-info">
+        <a href="https://pawbz.github.io/Interactive-Seismology.jl/" class="page-banner-title">Interactive Seismology Notebooks</a>
+        <span class="page-banner-instructor">Instructor: <em>Pawan Bharadwaj</em>, Indian Institute of Science, Bengaluru, India</span>
+    </div>
+    <div class="page-banner-contact">
+        Bug reports: <a href="mailto:pawan@iisc.ac.in">pawan@iisc.ac.in</a>
+    </div>
+</div>
+        <pluto-editor 
+ statefile='../../generated_assets/intrinsic-attenuation_e70bfdbc.plutostate' 
+ notebookfile='../../generated_assets/intrinsic-attenuation_cadedaf0.jl' 
+
+
+	disable_ui
+></pluto-editor>
+
+        </div>
+    </div>
+</body>
+</html>

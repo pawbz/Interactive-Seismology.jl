@@ -1,29 +1,35 @@
-<!DOCTYPE html><pre class="language-julia"><code>if isempty(get(metadata[&quot;homepage&quot;], &quot;highlights&quot;, []))
-    nothing
-else
-    highlights = [
-      @htl(&quot;&quot;&quot;
-      &lt;section>
-      &lt;div class=&quot;content&quot;>
-          &lt;h2>$(x[&quot;name&quot;])&lt;/h2>
-          &lt;p>$(x[&quot;text&quot;])&lt;/p>
-      &lt;/div>
-      &lt;div class=&quot;preview&quot;>
-          &lt;img src=&quot;$(x[&quot;img&quot;])&quot;>
-      &lt;/div>
-      &lt;/section>
-      &quot;&quot;&quot;) for x in metadata[&quot;homepage&quot;][&quot;highlights&quot;]
+<!DOCTYPE html><pre class="language-julia"><code>let
+    movies_dir = joinpath(@__DIR__, &quot;..&quot;, &quot;movies&quot;)
+    gif_files = sort(filter(f -> lowercase(splitext(f)[2]) == &quot;.gif&quot;, readdir(movies_dir)))
+
+    highlight_lookup = Dict(
+        basename(x[&quot;img&quot;]) => x
+        for x in get(metadata[&quot;homepage&quot;], &quot;highlights&quot;, [])
+    )
+
+    prettify(filename) = join(uppercasefirst.(split(replace(splitext(filename)[1], r&quot;[_\-]+&quot; => &quot; &quot;))), &quot; &quot;)
+
+    slides = [
+        let
+            entry = get(highlight_lookup, gif, nothing)
+            name = entry === nothing ? prettify(gif) : entry[&quot;name&quot;]
+
+            @htl(&quot;&quot;&quot;
+            &lt;div class=&quot;carousel-slide gif-slide&quot;>
+                &lt;img src=&quot;$(root_url)/assets/movies/$(gif)&quot; loading=&quot;lazy&quot; alt=&quot;$(name)&quot;>
+            &lt;/div>&quot;&quot;&quot;)
+        end
+        for gif in gif_files
     ]
 
-    @htl(&quot;&quot;&quot;
-    &lt;div id=&quot;explore&quot; class=&quot;subjectscontainer wide&quot;>
-      &lt;div class=&quot;section-heading&quot;>
-        &lt;p class=&quot;section-kicker&quot;>Explore by experiment&lt;/p>
-        &lt;h2>Follow the signal&lt;/h2>
-        &lt;p>Begin anywhere—each notebook is a self-contained experiment with live controls and visual feedback.&lt;/p>
-      &lt;/div>
-      &lt;div class=&quot;contain&quot;>
-      $(highlights)      
+    isempty(slides) ? nothing : @htl(&quot;&quot;&quot;
+    &lt;div class=&quot;carousel-section&quot; id=&quot;explore&quot;>
+      &lt;div class=&quot;carousel&quot; id=&quot;carousel-highlights&quot;>
+        &lt;button class=&quot;carousel-arrow carousel-prev&quot; type=&quot;button&quot; aria-label=&quot;Previous highlight&quot;>‹&lt;/button>
+        &lt;div class=&quot;carousel-track&quot;>
+        $(slides)
+        &lt;/div>
+        &lt;button class=&quot;carousel-arrow carousel-next&quot; type=&quot;button&quot; aria-label=&quot;Next highlight&quot;>›&lt;/button>
       &lt;/div>
     &lt;/div>
     &quot;&quot;&quot;)
