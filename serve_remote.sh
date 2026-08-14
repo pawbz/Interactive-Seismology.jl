@@ -12,7 +12,7 @@ RUNTIME_DIR="${RUNTIME_DIR:-$REPO_DIR/.remote-server}"
 SITE_HOST="${SITE_HOST:-0.0.0.0}"
 SITE_PORT="${SITE_PORT:-8000}"
 LIVE_HOST="${LIVE_HOST:-0.0.0.0}"
-LIVE_PORT="${LIVE_PORT:-1234}"
+LIVE_PORT="${LIVE_PORT:-4321}"
 PUBLIC_HOST="${PUBLIC_HOST:-}"
 PUBLIC_SCHEME="${PUBLIC_SCHEME:-http}"
 JULIA_DEPOT_PATH="${JULIA_DEPOT_PATH:-$HOME/.julia}"
@@ -36,15 +36,15 @@ Commands:
 
 Environment overrides:
   PUBLIC_HOST       Required unless PUBLIC_LIVE_URL is supplied; e.g. 203.0.113.10
-  PUBLIC_LIVE_URL   URL embedded in live notebooks; defaults to http://PUBLIC_HOST:1234
+  PUBLIC_LIVE_URL   URL embedded in live notebooks; defaults to http://PUBLIC_HOST:4321
   SITE_PORT         Static site port (default: 8000)
-  LIVE_PORT         Pluto live-widget port (default: 1234)
+  LIVE_PORT         Pluto live-widget port (default: 4321)
   SITE_HOST         Static bind address (default: 0.0.0.0)
   LIVE_HOST         Pluto bind address (default: 0.0.0.0)
   JULIA_DEPOT_PATH  Julia package depot (default: $HOME/.julia)
 
 Open SITE_PORT and LIVE_PORT in the VM firewall. Browse only the static site URL,
-for example http://203.0.113.10:8000/; port 1234 is the live-widget API.
+for example http://203.0.113.10:8000/; port 4321 is the live-widget API.
 EOF
 }
 
