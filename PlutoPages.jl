@@ -851,6 +851,14 @@ function process_layouts(page::Page)::Page
 		  key = splitext(basename(data_file))[1]
 		  metadata[key] = include(data_file)
 	    end
+
+		# Layout templates run in isolated modules. Give the welcome template the
+		# YAML-selected notebooks and their frontmatter explicitly instead of
+		# relying on globals from this generator module.
+		notebook_catalog = [
+			(; entry..., frontmatter=Pluto.frontmatter(joinpath(dir, entry.path)))
+			for entry in DeploymentNotebooks.notebook_entries()
+		]
 		
 		input = TemplateInput(;
 			contents=read(layout_file),
@@ -861,6 +869,7 @@ function process_layouts(page::Page)::Page
 					"content" => content,
 					"page" => page,
 					"collections" => collections,
+					"notebook_catalog" => notebook_catalog,
 					"root_url" => root_url,
 					"metadata" => metadata
 				),

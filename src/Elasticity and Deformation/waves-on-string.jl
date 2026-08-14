@@ -1,11 +1,11 @@
 ### A Pluto.jl notebook ###
-# v0.20.21
+# v0.2.6
 
 #> [frontmatter]
 #> title = "Waves On A String"
 #> tags = ["introduction"]
 #> layout = "layout.jlhtml"
-#> description = "Simulates wave propagation on a string"
+#> description = "A staggered-grid finite-difference tutorial: reflection/transmission at an impedance contrast, and free-vs-fixed boundary polarity"
 
 using Markdown
 using InteractiveUtils
@@ -22,246 +22,803 @@ macro bind(def, element)
     #! format: on
 end
 
-# ╔═╡ 9185cd5d-2557-4f2d-9eeb-3d6865ca9331
-begin
-    using FFTW, PlutoPlotly, PlutoUI, LinearAlgebra
-    using ParallelStencil
-    using ParallelStencil.FiniteDifferences1D
-    using Printf, Statistics
-end
+# ╔═╡ dbfb7f10-8fe2-471b-8626-7a8894626caf
+using PlutoUI
 
-# ╔═╡ 236740c7-9c82-4d23-8133-9f7be87f6520
+# ╔═╡ 46dca275-df8b-4060-b81d-841428142791
 TableOfContents()
 
-# ╔═╡ 88fefb75-ec4f-43b1-b6f5-f28ce49e0dd0
-md"""# Waves On A String
-This notebook simulates wave propagation on a string using parallel computing techniques. The core function, `model_string`, initializes the simulation environment and defines two parallel functions: `compute_vy!` and `compute_σ!`, which update the velocity and stress fields, respectively. The simulation parameters include the shear modulus (`μ0`), density (`ρ0`), spatial grid (`xgrid`), and temporal grid (tgrid). The notebook sets up the numerical grid, allocates arrays for stress (`σ`) and velocity (`vy`), and initializes the velocity field with a Gaussian distribution. The medium's properties are heterogeneous, with boundary marked by the red line.
+# ╔═╡ f3c52928-1450-4596-87b7-b6665a1b8f6a
+md"""
+# Waves On A String
+
+Drop a velocity bump on a 1-D elastic string and watch it split into two
+pulses, run into a change in the string's density, and bounce off the ends.
+Every 2-D and 3-D finite-difference seismic code you'll meet later in this
+course does the same three things this notebook does, just in more
+dimensions: it puts different physical quantities on *different* grid points
+(a "staggered grid"), it only stays numerically stable below a specific ratio
+of time step to space step (the "Courant condition"), and it has to decide
+what happens at a boundary -- free, like Earth's actual surface, or
+artificially rigid, like a wall.
+
+A tempting first guess is to put velocity and stress on the *same* grid
+point and update them together -- it's simpler to code. It also smears the
+two fields together: a spatial derivative evaluated *at* a grid point needs
+neighbors on both sides, so collocating both fields throws away exactly the
+symmetry that makes a centered difference accurate. Offsetting them by half a
+grid cell -- a *staggered grid* -- turns every derivative in the scheme
+below into a clean, centered difference for free, which is why it tracks a
+sharp pulse without extra numerical smearing.
 
 ##### [Interactive Seismology Notebooks](https://pawbz.github.io/Interactive-Seismology.jl/)
 
-
 Instructor: *Pawan Bharadwaj*,
 Indian Institute of Science, Bengaluru, India
-
 """
 
-# ╔═╡ ab615f30-f095-4d4f-a92b-ecd18e69a20a
-md"## Medium"
-
-# ╔═╡ f4179789-c4df-405e-92f5-188ebda7a953
-begin
-    nx = 1000
-    xgrid = range(-100, 100, length=nx)
-end
-
-# ╔═╡ 4c7b8ce9-1caf-4a81-a2dd-4b4138a6fef7
-ρ0 = Float32(3.22 * 10^-3 * 10^15) # density in kg/km3
-
-# ╔═╡ d72c0058-9138-40fa-82d7-f1e1ea068d4c
-μ0 = Float32(82 * 10^9 * 10^3)
-
-# ╔═╡ 569c1f97-92d2-4ef2-a23c-aeb131f86475
-invρ0 = inv(ρ0)
-
-# ╔═╡ fb985c7e-f809-47d2-b490-4c91cafb164a
-invμ0 = inv(μ0)
-
-# ╔═╡ 77246c3a-0f49-4f43-9e4b-67cf3e4be1dd
-medium_ref_values = (; μ0, invμ0, ρ0, invρ0)
-
-# ╔═╡ 10014376-cdf6-4ae4-95e4-32c8ea4ef803
-vs0 = sqrt.(μ0 ./ ρ0)
-
-# ╔═╡ ad18ed7d-f050-455b-9a13-a2fab7de4215
-begin
-    courant_number = 0.1
-
-    # lets calculate the min distance from the center to the edge of the domain
-    r = min(xgrid[end] - xgrid[1]) * 0.5
-
-    # choose time stepping dt to satisfy Courant condition
-    dt = courant_number * step(xgrid) * inv(vs0)
-    nt = Int(floor(r / (vs0 * dt))) * 2
-    tgrid = range(0, length=nt, step=dt)
-    nothing
-end;
-
-# ╔═╡ 73aa375b-4887-4608-b699-17112c238d5a
-md"""Time $(@bind T Slider(tgrid, show_value=true)) 
-
-Interface Position $(@bind X Slider(xgrid, show_value=true, default=0))"""
-
-# ╔═╡ 82a7a1ab-88da-4c22-a075-7640991bb6ac
-md"## Governing Equations"
-
-# ╔═╡ 32a3036a-14d4-429b-a9a6-2eab02cfa1c5
+# ╔═╡ f69bc5a5-d354-41b6-8d12-61a04ef1c43d
 md"""
-Velocity $v_y$ and Stress $\sigma$
+## Governing Equations
+
+The transverse velocity ``v_y`` and shear stress ``\sigma`` on the string obey
+a coupled pair of first-order equations -- the same velocity-stress form used
+for elastic wave propagation in 2-D and 3-D finite-difference seismic codes:
 
 ```math
-\rho\,\partial_t v_y = \partial_x \sigma \quad (1)
+\rho\,\partial_t v_y = \partial_x \sigma \qquad (1)
 ```
-and 
 ```math
-	\partial_t \sigma = \mu\partial_x v_y \quad (2)
+\partial_t \sigma = \mu\,\partial_x v_y \qquad (2)
 ```
+
+Combining them eliminates ``\sigma`` and gives the familiar scalar wave
+equation ``\partial_t^2 v_y = c^2\,\partial_x^2 v_y`` with speed
+``c=\sqrt{\mu/\rho}`` -- but the widget below solves the *coupled first-order*
+pair directly, not the second-order equation, because that's what lets
+``\rho`` and ``\mu`` vary independently in space (a real seismic medium)
+without ever needing a second spatial derivative of a discontinuous
+quantity.
 """
 
-# ╔═╡ 39bfcff2-f3c1-43af-902c-67e63e2fa61f
+# ╔═╡ 7676054a-2e9a-43f4-ac46-af162541e269
 md"""
-## Simulation
+## The Staggered Grid
+
+The widget's top panel is a schematic of the grid the solver actually uses:
+``v_y`` lives on integer grid nodes ``x_i``, and ``\sigma`` lives on the
+*half*-grid nodes ``x_{i+1/2}`` sitting exactly between them. One leapfrog
+time step does two things, in order:
+
+1. **Update `` \sigma``** at every half-node from its two neighboring
+   ``v_y`` values (the orange arrows in the schematic) -- a centered
+   difference of ``v_y`` with no interpolation needed, since the two ``v_y``
+   nodes it needs are exactly ``\pm\,dx/2`` away.
+2. **Update `` v_y``** at every interior node from its two neighboring
+   ``\sigma`` values (the blue arrows) -- likewise a clean centered
+   difference.
+
+This is why the scheme is called "staggered": it isn't one grid with two
+fields interleaved awkwardly, it's two half-cell-shifted grids, each of which
+sees the *other* field sitting perfectly centered around it.
 """
 
-# ╔═╡ dab87c4b-ac71-47fb-b9a5-3cce2e8c9621
-@views function model_string(μ0, ρ0, xgrid, tgrid, X)
-    @init_parallel_stencil(Threads, Float32, 1)
+# ╔═╡ d0be7679-5df5-4ad0-93d1-8df6f94ba299
+md"""
+## Numerical Stability: The Courant Condition
 
-    @parallel function compute_vy!(vy::Data.Array, σ::Data.Array, dt::Data.Number, ρ::Data.Array, dx::Data.Number)
-        @inn(vy) = @inn(vy) - dt / @all(ρ) * (@d(σ) / dx)
-        return
-    end
+The time step ``dt`` and grid spacing ``dx`` can't be chosen independently:
+for this leapfrog scheme to stay numerically stable, information can't be
+allowed to cross more than one grid cell per time step. That requirement is
+the Courant number,
 
-    @parallel function compute_σ!(σ::Data.Array, vy::Data.Array, dt::Data.Number, μ::Data.Array, dx::Data.Number)
-        @all(σ) = @all(σ) - dt * @all(μ) * (@d(vy) / dx)
-        return
-    end
+```math
+C = \frac{v_{\max}\,dt}{dx},
+```
 
-    # Derived numerics
-    nx = length(xgrid)   # numerical grid resolution; should be a mulitple of 32-1 for optimal GPU perf
-    nt = length(tgrid)       # number of timesteps
+which must stay below ``1`` (using the fastest wave speed anywhere in the
+medium for ``v_{\max}``). Every explicit finite-difference wave solver you'll
+meet later in this course has some version of this same limit.
 
+!!! warning "Try it"
+	Push the **Courant** slider above `1` in the widget above and watch the
+	string blow up within a few steps -- that's the scheme amplifying its own
+	rounding error every iteration once the stability condition is violated,
+	not a bug.
+"""
 
-    dx = Float32(step(xgrid)) # cell size
-    dt = Float32(step(tgrid))
+# ╔═╡ 6feab4ba-89ed-4be0-87e7-c1cc1d78b6c2
+md"""
+## Reflection and Transmission at an Interface
 
-    # Array allocations
-    σ = @zeros(nx - 1)
-    vy = @zeros(nx)
+At the density jump the widget lets you drag, the string behaves like two
+different media joined at ``x=`` **Interface position**, each with its own
+mechanical impedance ``Z=\rho c`` (``c=\sqrt{\mu/\rho}``, the local wave
+speed). Matching velocity and stress across the boundary gives the (velocity)
+reflection and transmission coefficients
 
-    # Initial conditions
-    vy_initial = exp.(-0.11 .* (xgrid .+ 50) .^ 2)
-    copyto!(vy, vy_initial)
+```math
+R = \frac{Z_1-Z_2}{Z_1+Z_2}, \qquad T = \frac{2Z_1}{Z_1+Z_2},
+```
 
-    # Medium
-    μ = @zeros(nx - 1)
-    fill!(μ, Float32(μ0))
-    ρ = @zeros(nx)
-    fill!(ρ, Float32(ρ0))
+for a pulse arriving from medium 1 (the denser side) into medium 2. Both are
+printed live on the widget's main panel. Slide the **Density ratio** toward
+`1` and the interface disappears (``R\to0``); push it far from `1` and almost
+everything reflects. This is the same physics -- just in one dimension, at
+normal incidence -- as the oblique-incidence reflection coefficients in the
+P-SV and SH free-surface notebooks later in this course.
+"""
 
-    # perturb density of the string
-    iX = argmin(abs.(xgrid .- X))
-    ρ1 = view(ρ, 1:iX)
-    rmul!(ρ1, 4.0f0)
+# ╔═╡ 260264ff-24bb-425f-abb8-d3556a1bb19f
+md"""
+## Boundary Conditions: Free Surface vs. Fixed End
 
-    vysave = @zeros(nx + 1, nt)
-    # Time loop
-    for it = 1:nt
-        @parallel compute_σ!(σ, vy, dt, μ, dx)
-        @parallel compute_vy!(vy, σ, dt, ρ, dx)
+The two ends of the string need their own boundary condition, and the widget
+lets you toggle between the two extremes:
 
-        # save vy
-        vys = view(vysave, :, it)
-        copyto!(vys, vy)
-    end
-    return vysave
-end
+- **Fixed (rigid)**: the end can't move, ``v_y=0`` there always -- physically,
+  what an infinitely-hard wall looks like, one limit of the reflection
+  formula above (the far side's impedance going to infinity).
+- **Free (`` \sigma=0``)**: no wall at all -- the string's own end carries no
+  stress, since there's no material beyond it to stress against. This is the
+  boundary condition that actually applies at Earth's real surface.
 
-# ╔═╡ 6b69f053-567a-43db-972a-bdd00d0b464d
-vy_save = model_string(μ0, ρ0, xgrid, tgrid, X);
+The two behave oppositely on reflection: a pulse reflecting off a **fixed**
+end comes back **inverted**, the same story as a string tied to a wall, while
+a pulse reflecting off a **free** end comes back **the same sign** it arrived
+with. Toggle the boundary control in the widget and watch the sign of the
+returning pulse flip -- the Appendix verifies this numerically below, and
+it's the reason a seismogram's first surface-reflected arrival doesn't carry
+a sign flip the way a rigid-wall reflection would.
+"""
 
-# ╔═╡ e470ca4d-4e06-4808-a513-25ef47c125c8
+# ╔═╡ 8a11db06-56c3-42cc-b786-d22b5387bbeb
 md"## Appendix"
 
-# ╔═╡ 77710384-fc16-4ece-a7d5-62cfddb5f0f9
-md"### Plot"
+# ╔═╡ 90e40955-3aaa-4efb-b48b-21ae94a93bd5
+md"""
+### Medium and Grid
 
-# ╔═╡ b9287111-7b1f-49be-840e-8ecea5922294
-default_plotly_template(:plotly_dark)
+The distance axis is in kilometers and time in seconds throughout, so
+``\rho_0`` and ``\mu_0`` below are expressed in the matching units
+(``\mathrm{kg/km^3}`` and ``\mathrm{kg\,km^{-1}\,s^{-2}}``, i.e. a "Pa" built
+from km instead of m) rather than plain SI -- chosen to give a shear-wave
+speed ``v_{s,0}=\sqrt{\mu_0/\rho_0}\approx5\ \mathrm{km/s}``, typical of
+Earth's upper mantle.
+"""
 
-# ╔═╡ e7660617-4962-4033-97a9-e16f10968cc3
-function plot_string(vy_save, X, T)
-	iT = argmin(abs.(tgrid .- T))
-    fig = Plot(scatter(x=xgrid, y=vy_save[:, iT]), Layout(title="String's vertical displacement at $(round(T, digits=2)) s, with interface at $(round(X, digits=2)) km", width=700, height=300, xaxis=attr(title="Distance"), yaxis=attr(title="Amplitude", range=(-1.2, 1.2))))
-    add_vline!(fig,
-        X,
-        line_color="red", opacity=1,
-        layer="below", line_width=2,
-    )
-    add_vline!(fig,
-        xgrid[1],
-        line_color="white", opacity=1,
-        layer="below", line_width=2,
-    )
-    add_vline!(fig,
-        xgrid[end],
-        line_color="white", opacity=1,
-        layer="below", line_width=2,
-    )
-    plot(fig)
+# ╔═╡ fec2f28a-ecd0-4bfc-a113-448966ca023d
+ρ0 = 3.22e-3 * 1.0e15   # ≈ 3220 kg/m³ (upper-mantle olivine), expressed in kg/km³
+
+# ╔═╡ ac4eb794-7cf7-4fc2-9a9c-adf1cc7eb9ce
+μ0 = 82.0e9 * 1.0e3     # ≈ 82 GPa (upper-mantle shear modulus), expressed in kg·km⁻¹·s⁻²
+
+# ╔═╡ 858ed5e1-5881-4bb9-927f-ebe22afc3e5c
+md"### Forward Modeling"
+
+# ╔═╡ 134bee99-e691-4e4c-beba-45d3c541bd4a
+"""
+	step_string!(vy, sigma, mu, rho, dx, dt, boundary)
+
+Advance the staggered-grid velocity `vy` (at integer grid nodes) and stress
+`sigma` (at the half-grid nodes between them) by one leapfrog time step,
+using the interior stencils for ``\\partial_t\\sigma = \\mu\\,\\partial_x
+v_y`` and ``\\rho\\,\\partial_t v_y = \\partial_x \\sigma``.
+
+The two boundary velocity nodes are handled according to `boundary`:
+`"free"` mirrors the nearest interior stress across the edge (enforcing
+``\\sigma=0`` exactly at the physical boundary via a ghost point), while
+`"fixed"` leaves the boundary velocity untouched, i.e. a rigid, immovable
+end.
+"""
+function step_string!(vy, sigma, mu, rho, dx, dt, boundary)
+    nx = length(vy)
+    @inbounds for i in 1:nx-1
+        sigma[i] += dt * mu[i] * (vy[i+1] - vy[i]) / dx
+    end
+    @inbounds for i in 2:nx-1
+        vy[i] += dt / rho[i] * (sigma[i] - sigma[i-1]) / dx
+    end
+    if boundary == "free"
+        vy[1] += dt / rho[1] * (2 * sigma[1]) / dx
+        vy[end] += dt / rho[end] * (-2 * sigma[end]) / dx
+    end
+    return vy, sigma
 end
 
-# ╔═╡ 647f6d79-818f-468f-900c-cd00eb165664
-plot_string(vy_save, X, T)
+# ╔═╡ 806c8e93-15fb-402a-bab4-c58cae7dd6d2
+"""
+	simulate_string(; courant, density_ratio, interface_x, boundary, mu0, rho0,
+	                  nx=600, xmin=-100.0, xmax=100.0, n_frames=220, duration=nothing)
+
+Run the 1-D velocity-stress staggered-grid simulation of a transverse pulse
+launched at `x=-50`, propagating through a medium with a density
+discontinuity of `density_ratio` at `x=interface_x` (denser for `x <
+interface_x`), reflecting off both ends of the domain according to
+`boundary`.
+
+Returns a named tuple with the down-sampled time series `vy_frames`
+(`n_frames × nx`), `frames_t`, the spatial grid `xgrid`, the wave speeds and
+impedances `vs1`/`vs2`/`Z1`/`Z2` either side of the interface, the analytic
+reflection/transmission coefficients `R`/`T`, and `stable::Bool` (`false` if
+the Courant condition was violated and the run was aborted early, in which
+case the remaining frames repeat the last valid one).
+"""
+function simulate_string(; courant, density_ratio, interface_x, boundary,
+    mu0, rho0, nx=600, xmin=-100.0, xmax=100.0, n_frames=220, duration=nothing)
+
+    xg = range(xmin, xmax, length=nx)
+    xgrid = collect(xg)
+    dx = step(xg)
+
+    mu = fill(mu0, nx - 1)
+    rho = fill(rho0, nx)
+    ileft = count(x -> x <= interface_x, xgrid)
+    rho[1:ileft] .*= density_ratio
+
+    vs1 = sqrt(mu0 / rho[1])
+    vs2 = sqrt(mu0 / rho[end])
+    Z1, Z2 = rho[1] * vs1, rho[end] * vs2
+    R = (Z1 - Z2) / (Z1 + Z2)
+    T = 2 * Z1 / (Z1 + Z2)
+
+    vmax = max(vs1, vs2)
+    dt = courant * dx / vmax
+    dur = something(duration, 1.6 * (xmax - xmin) / sqrt(mu0 / rho0))
+    nt = max(2, round(Int, dur / dt))
+    frame_stride = max(1, nt ÷ n_frames)
+    nframes_actual = length(1:frame_stride:nt)
+
+    vy = exp.(-0.11 .* (xgrid .+ 50.0) .^ 2)
+    sigma = zeros(nx - 1)
+
+    vy_frames = zeros(nframes_actual, nx)
+    frames_t = zeros(nframes_actual)
+    stable = true
+    fidx = 0
+    for it in 1:nt
+        step_string!(vy, sigma, mu, rho, dx, dt, boundary)
+        if maximum(abs, vy) > 1.0e3
+            stable = false
+            break
+        end
+        if it % frame_stride == 0
+            fidx += 1
+            fidx > nframes_actual && break
+            vy_frames[fidx, :] .= vy
+            frames_t[fidx] = it * dt
+        end
+    end
+    if fidx < nframes_actual
+        for k in fidx+1:nframes_actual
+            vy_frames[k, :] .= fidx == 0 ? 0.0 : vy_frames[fidx, :]
+            frames_t[k] = fidx == 0 ? 0.0 : frames_t[fidx]
+        end
+    end
+
+    (; xgrid, vy_frames, frames_t, rho, mu, interface_x, vs1, vs2, Z1, Z2, R, T,
+        courant, boundary, stable, xmin, xmax, nx)
+end
+
+# ╔═╡ ddeef9e3-ba88-4db9-9e53-025b0e9bde36
+md"""
+### Verifying Reflection and Transmission
+
+`simulate_string`'s symmetric velocity initial condition launches two
+counter-propagating pulses, each carrying half the initial peak amplitude (a
+standard property of a velocity-only initial condition for this first-order
+system: the two characteristics ``v\pm\sigma/Z`` each inherit half of the
+initial profile). The check below places the interface close enough to the
+source, and stops the run early enough, that neither the outgoing twin pulse
+nor either transmitted/reflected pulse has reached a domain edge yet -- so
+the only physics left in the isolated snapshot is the interface interaction
+itself, and the simulated reflection/transmission amplitudes can be compared
+directly against the analytic ``Z``-based formulas above.
+"""
+
+# ╔═╡ 149cbe37-8c4f-4cd2-82e7-c938d6865963
+let
+    ratio_check = 4.0
+    iface = -20.0
+    vs1c = sqrt(μ0 / (ρ0 * ratio_check))
+    Z1c, Z2c = ρ0 * ratio_check * vs1c, ρ0 * sqrt(μ0 / ρ0)
+    R_analytic = (Z1c - Z2c) / (Z1c + Z2c)
+    T_analytic = 2 * Z1c / (Z1c + Z2c)
+
+    dur = 42.0 / vs1c
+    res = simulate_string(; courant=0.3, density_ratio=ratio_check, interface_x=iface,
+        boundary="fixed", mu0=μ0, rho0=ρ0, n_frames=300, duration=dur)
+
+    vy_last = res.vy_frames[end, :]
+    xg = res.xgrid
+    # the symmetric IC also launches an untouched twin pulse heading left from
+    # the source, in parallel with (and never interacting with) the interface --
+    # it stays at full amplitude, so it must be excluded from the reflected-pulse
+    # search window or it dominates the argmax below
+    twin_pos = -50.0 - vs1c * dur
+    i_refl = findall(x -> (x < iface - 3) && (x > twin_pos + 8), xg)
+    i_trans = findall(x -> x > iface + 3, xg)
+    idxR = i_refl[argmax(abs.(vy_last[i_refl]))]
+    idxT = i_trans[argmax(abs.(vy_last[i_trans]))]
+
+    peak_incident = 0.5 # the symmetric IC splits a unit-peak Gaussian into two counter-propagating waves of half the amplitude -- that's what actually reaches the interface
+    sim_R = vy_last[idxR] / peak_incident
+    sim_T = vy_last[idxT] / peak_incident
+
+    @assert isapprox(sim_R, R_analytic; atol=0.05) "reflection coefficient mismatch: simulated $(round(sim_R, digits=3)), analytic $(round(R_analytic, digits=3))"
+    @assert isapprox(sim_T, T_analytic; atol=0.05) "transmission coefficient mismatch: simulated $(round(sim_T, digits=3)), analytic $(round(T_analytic, digits=3))"
+
+    (simulated_R=round(sim_R, digits=3), analytic_R=round(R_analytic, digits=3),
+        simulated_T=round(sim_T, digits=3), analytic_T=round(T_analytic, digits=3))
+end
+
+# ╔═╡ 97527c8d-70f6-4665-b0e4-0e7be62a80a4
+md"""
+### Verifying Boundary Polarity
+
+Both boundaries in `simulate_string` share the same `boundary` type, so a run
+long enough for the first reflection to have happened -- but short enough to
+avoid a second one arriving from either wall and complicating the sign --
+directly tests the free-vs-fixed polarity claim made above: whichever
+boundary the dominant reflected pulse actually came from, both walls behave
+identically, so the sign of the largest-amplitude sample after one reflection
+is an unambiguous readout of the boundary type's effect.
+"""
+
+# ╔═╡ 9831ddbe-a0c4-459f-8217-9416b297ae04
+let
+    check_t = 25.0
+    results = map(("fixed", "free")) do bt
+        res = simulate_string(; courant=0.3, density_ratio=1.0, interface_x=0.0,
+            boundary=bt, mu0=μ0, rho0=ρ0, n_frames=300)
+        k = argmin(abs.(res.frames_t .- check_t))
+        vyk = res.vy_frames[k, :]
+        xg = res.xgrid
+        # by t=check_t only the nearer (left) wall has reflected -- the twin
+        # heading right is still mid-flight at full, untouched amplitude, so
+        # restrict the search to the side that has actually bounced
+        i_left = findall(x -> x < 0, xg)
+        idx = i_left[argmax(abs.(vyk[i_left]))]
+        vyk[idx]
+    end
+    fixed_peak, free_peak = results
+
+    @assert fixed_peak<0 "expected an inverted (negative) reflection off a fixed end, got $(round(fixed_peak, digits=4))"
+    @assert free_peak>0 "expected a same-sign (positive) reflection off a free end, got $(round(free_peak, digits=4))"
+
+    (fixed_end_peak=round(fixed_peak, digits=4), free_end_peak=round(free_peak, digits=4))
+end
+
+# ╔═╡ e091f4b2-d23d-4ad1-8820-793368159ec6
+md"### The Interactive Widget"
+
+# ╔═╡ ff461695-5ea8-4f6d-8de9-3fa5204b5794
+begin
+    """
+    A dark-canvas widget for the 1-D velocity-stress staggered-grid string
+    solver. Courant number, density ratio, interface position, and boundary
+    type are all physics inputs -- dragging any of them triggers a fresh
+    `simulate_string` solve and a push of the resulting time series back into
+    this widget (see the `wos-results` push, right below the widget). Once
+    the series is on hand, Play/pause and the time-scrub slider are pure
+    client-side state: nothing about *which frame* is currently displayed
+    needs another round trip to Julia.
+    """
+    struct WaveOnStringInput
+        courant::Float64
+        density_ratio::Float64
+        interface_x::Float64
+        boundary::String
+    end
+
+    WaveOnStringInput(; courant=0.4, density_ratio=4.0, interface_x=0.0, boundary="free") =
+        WaveOnStringInput(Float64(courant), Float64(density_ratio), Float64(interface_x), boundary)
+
+    Base.get(w::WaveOnStringInput) = Dict{String,Any}(
+        "courant" => w.courant, "density_ratio" => w.density_ratio,
+        "interface_x" => w.interface_x, "boundary" => w.boundary,
+    )
+
+    function Base.show(io::IO, ::MIME"text/html", w::WaveOnStringInput)
+        write(io, """
+<div id="wos-root" style="display:flex;flex-direction:column;align-items:center;width:100%;color:#9ca3af">
+  <style>
+    #wos-root { width: 100%; box-sizing: border-box; color: #d1d5db; font: 14px sans-serif; }
+    #wos-root .wos-title { width: 100%; box-sizing: border-box; text-align: center; margin-bottom: 10px;
+      background: #0a0f18; border: 1px solid #3b5c85; border-radius: 6px; padding: 10px 14px; }
+    #wos-root .wos-title-desc { font-size: 17px; font-weight: 700; color: #e5e7eb; }
+    #wos-root .wos-title-hint { font-size: 13px; color: #9ca3af; margin-top: 3px; }
+    #wos-root .wos-workspace { display: flex; flex-direction: column; gap: 8px; align-items: center; width: 100%; }
+    #wos-root canvas { background: #000; border: 1px solid #374151; border-radius: 6px; display: block; }
+    #wos-root .wos-panel-title { font-size: 13px; font-weight: 700; color: #e5e7eb; align-self: flex-start; margin: 4px 0 -2px 2px; }
+    #wos-root .wos-controls { width: 100%; margin-top: 10px; display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 8px; font: 14px sans-serif; }
+    #wos-root .wos-control-group { box-sizing: border-box; background: #050505; border: 1px solid #2f3744;
+      border-radius: 6px; padding: 10px 12px; }
+    #wos-root .wos-control-title { font-weight: 700; color: #e5e7eb; margin-bottom: 8px; font-size: 18px; }
+    #wos-root .wos-control-row { display: grid; grid-template-columns: minmax(90px,120px) minmax(70px,1fr) minmax(50px,70px);
+      gap: 6px; align-items: center; margin: 6px 0; }
+    #wos-root .wos-control-row input[type=range] { width: 100%; min-width: 0; }
+    #wos-root .wos-value { color: #d1d5db; text-align: right; font-variant-numeric: tabular-nums; }
+    #wos-root .wos-actions { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+    #wos-root button { border-radius: 4px; border: 1px solid #9ca3af; background: #606060; color: #f3f4f6;
+      padding: 6px 12px; font-size: 14px; cursor: pointer; }
+    #wos-root button.wos-active { background: #1d4ed8; border-color: #93c5fd; }
+    #wos-root .wos-hint { font-size: 12px; color: #6b7280; margin-top: 6px; }
+  </style>
+  <div class="wos-title">
+    <div class="wos-title-desc">Drag Courant number, density ratio, interface position, or the boundary type -- everything replays live.</div>
+    <div class="wos-title-hint">push Courant above 1 to see it blow up &middot; press Play to watch the pulse split, reflect, and transmit</div>
+  </div>
+  <div class="wos-workspace">
+    <div class="wos-panel-title">Staggered grid (schematic)</div>
+    <canvas id="wos-schem"></canvas>
+    <div class="wos-panel-title">String velocity v_y(x)</div>
+    <canvas id="wos-main"></canvas>
+  </div>
+  <div class="wos-controls">
+    <div class="wos-control-group">
+      <div class="wos-control-title">Numerics</div>
+      <label class="wos-control-row"><span>Courant C</span><input type="range" id="wos-courant" min="0.05" max="1.3" step="0.05" value="$(w.courant)"><span id="wos-courant-v" class="wos-value">$(w.courant)</span></label>
+      <label class="wos-control-row"><span>Density ratio</span><input type="range" id="wos-ratio" min="0.2" max="8" step="0.1" value="$(w.density_ratio)"><span id="wos-ratio-v" class="wos-value">$(w.density_ratio)</span></label>
+      <label class="wos-control-row"><span>Interface x</span><input type="range" id="wos-iface" min="-60" max="60" step="5" value="$(w.interface_x)"><span id="wos-iface-v" class="wos-value">$(w.interface_x)</span></label>
+    </div>
+    <div class="wos-control-group">
+      <div class="wos-control-title">Boundary</div>
+      <div class="wos-actions">
+        <button type="button" id="wos-b-free">Free (σ=0)</button>
+        <button type="button" id="wos-b-fixed">Fixed (rigid)</button>
+      </div>
+      <div class="wos-hint">Free = Earth's actual surface. Fixed = a rigid wall.</div>
+    </div>
+    <div class="wos-control-group">
+      <div class="wos-control-title">Playback</div>
+      <div class="wos-actions"><button id="wos-play" type="button">Play</button><button id="wos-reset" type="button">Reset defaults</button></div>
+      <input type="range" id="wos-time" min="0" max="1000" step="1" value="0" style="width:100%;margin-top:8px">
+    </div>
+  </div>
+</div>
+<script>
+  const par = currentScript.previousElementSibling
+  const availW = Math.min(window.innerWidth*0.86, par.clientWidth || window.innerWidth*0.86, 1400)
+  const totalW = Math.max(700, availW)
+  const DPR = Math.min(window.devicePixelRatio || 1, 2)
+
+  let courant = $(w.courant), densityRatio = $(w.density_ratio), interfaceX = $(w.interface_x)
+  let boundaryType = "$(w.boundary)"
+  let data = null   // filled in by the 'wos-results' push from Julia
+  let playing = false, rafId = null, tPhase = 0, lastTs = null
+
+  const schemCvs = par.querySelector('#wos-schem'), sctx = schemCvs.getContext('2d')
+  const mainCvs = par.querySelector('#wos-main'), mctx = mainCvs.getContext('2d')
+
+  function hidpi(cv, cx, w, h){
+    cv.width = Math.round(w*DPR); cv.height = Math.round(h*DPR)
+    cv.style.width = w+'px'; cv.style.height = h+'px'
+    cx.setTransform(DPR,0,0,DPR,0,0)
+  }
+  const SCH = 100, MCH = 380
+  hidpi(schemCvs, sctx, totalW, SCH)
+  hidpi(mainCvs, mctx, totalW, MCH)
+
+  function drawArrow(cx0,cy0,cx1,cy1,ccx,ccy){
+    sctx.beginPath()
+    sctx.moveTo(cx0,cy0)
+    sctx.quadraticCurveTo(ccx,ccy,cx1,cy1)
+    sctx.lineWidth = 1.4
+    sctx.stroke()
+    const ang = Math.atan2(cy1-ccy, cx1-ccx)
+    sctx.beginPath()
+    sctx.moveTo(cx1,cy1)
+    sctx.lineTo(cx1-7*Math.cos(ang-0.4), cy1-7*Math.sin(ang-0.4))
+    sctx.lineTo(cx1-7*Math.cos(ang+0.4), cy1-7*Math.sin(ang+0.4))
+    sctx.closePath(); sctx.fill()
+  }
+
+  function drawSchematic(){
+    sctx.clearRect(0,0,totalW,SCH)
+    const n = 5
+    const padL = 60, padR = 60
+    const usableW = totalW - padL - padR
+    const xAt = i => padL + (i/(n-1))*usableW
+    const sxAt = i => (xAt(i)+xAt(i+1))/2
+    const midY = SCH*0.5
+
+    sctx.strokeStyle = '#374151'; sctx.beginPath(); sctx.moveTo(padL-14,midY); sctx.lineTo(totalW-padR+14,midY); sctx.stroke()
+
+    sctx.strokeStyle = '#f97316'; sctx.fillStyle = '#f97316'
+    for(let i=1;i<n-2;i++){
+      drawArrow(xAt(i), midY, sxAt(i), midY-24, xAt(i)+(sxAt(i)-xAt(i))*0.5, midY-24)
+      drawArrow(xAt(i+1), midY, sxAt(i), midY-24, xAt(i+1)-(xAt(i+1)-sxAt(i))*0.5, midY-24)
+    }
+    sctx.strokeStyle = '#38bdf8'; sctx.fillStyle = '#38bdf8'
+    for(let i=2;i<n-1;i++){
+      drawArrow(sxAt(i-1), midY, xAt(i), midY+24, sxAt(i-1)+(xAt(i)-sxAt(i-1))*0.5, midY+24)
+      drawArrow(sxAt(i), midY, xAt(i), midY+24, sxAt(i)-(sxAt(i)-xAt(i))*0.5, midY+24)
+    }
+
+    for(let i=0;i<n;i++){
+      sctx.fillStyle = '#38bdf8'
+      sctx.beginPath(); sctx.arc(xAt(i), midY, 5, 0, Math.PI*2); sctx.fill()
+      sctx.strokeStyle = '#0b1220'; sctx.lineWidth=1; sctx.stroke()
+    }
+    for(let i=0;i<n-1;i++){
+      sctx.save(); sctx.translate(sxAt(i), midY); sctx.rotate(Math.PI/4)
+      sctx.fillStyle = '#f97316'; sctx.fillRect(-4,-4,8,8)
+      sctx.restore()
+    }
+
+    sctx.fillStyle = '#9ca3af'; sctx.font = '11px sans-serif'; sctx.textAlign = 'center'
+    sctx.fillText('v_y  (velocity, node i)', xAt(2), midY+40)
+    sctx.fillText('σ  (stress, half-node i+1/2)', sxAt(2), midY-34)
+    sctx.textAlign = 'left'
+    sctx.fillStyle = '#6b7280'; sctx.font = '10px sans-serif'
+    sctx.fillText('orange: σ update reads neighboring v_y   ·   blue: v_y update reads neighboring σ', padL-14, SCH-6)
+  }
+
+  function drawBoundaryMarker(px, side){
+    const y0=32, y1=MCH-52
+    // labelY sits just below the Z/R/T/C readout row and well above the
+    // x-axis tick labels at the bottom -- both would otherwise collide with
+    // this label at the domain edge, where it's drawn directly under the tick
+    const labelY = y0 + 12
+    const label = boundaryType === 'fixed' ? 'fixed' : 'free'
+    const color = boundaryType === 'fixed' ? '#9ca3af' : '#4ade80'
+    if(boundaryType === 'fixed'){
+      mctx.strokeStyle = color; mctx.lineWidth = 1.3
+      for(let y=y0; y<y1; y+=9){
+        mctx.beginPath()
+        const dx = side==='left' ? 9 : -9
+        mctx.moveTo(px, y); mctx.lineTo(px+dx, y+9)
+        mctx.stroke()
+      }
+    } else {
+      mctx.strokeStyle = color; mctx.lineWidth = 1.6
+      const midy = (y0+y1)/2, dx = side==='left' ? -13 : 13
+      mctx.beginPath(); mctx.moveTo(px,midy-16); mctx.lineTo(px+dx,midy-16); mctx.stroke()
+      mctx.beginPath(); mctx.moveTo(px,midy+16); mctx.lineTo(px+dx,midy+16); mctx.stroke()
+    }
+    mctx.fillStyle = color; mctx.font = '11px sans-serif'; mctx.textAlign = 'left'
+    const tw = mctx.measureText(label).width
+    const rawX = side==='left' ? px+4 : px-4-tw
+    const clampedX = Math.max(2, Math.min(totalW-tw-2, rawX))
+    mctx.fillText(label, clampedX, labelY)
+  }
+
+  function currentFrameIdx(){
+    if(!data) return 0
+    const nF = data.nFrames
+    const frameDT = nF>1 ? (data.framesT[1]-data.framesT[0]) : 1
+    let idx = Math.round(tPhase/frameDT)
+    return Math.max(0, Math.min(nF-1, idx))
+  }
+
+  function drawMain(){
+    mctx.clearRect(0,0,totalW,MCH)
+    const padL=48, padR=16, padT=16, padB=54
+    const x0=padL, x1=totalW-padR, y0=padT, y1=MCH-padB
+
+    if(!data){
+      mctx.fillStyle = '#6b7280'; mctx.font = '13px sans-serif'; mctx.fillText('computing...', 12, 20)
+      return
+    }
+
+    const {xgrid, nx, nFrames, vyFlat, framesT, vs1, vs2, Z1, Z2, R, T, stable, xmin, xmax, ampMax} = data
+    const ifaceX = interfaceX
+
+    const X = xv => x0 + ((xv-xmin)/(xmax-xmin))*(x1-x0)
+    const amp = Math.max(ampMax, 1e-9)
+    const Y = v => (y0+y1)/2 - (v/amp)*((y1-y0)/2)*0.92
+
+    mctx.fillStyle = 'rgba(56,189,248,0.06)'; mctx.fillRect(x0, y0, X(ifaceX)-x0, y1-y0)
+    mctx.fillStyle = 'rgba(74,222,128,0.06)'; mctx.fillRect(X(ifaceX), y0, x1-X(ifaceX), y1-y0)
+    mctx.strokeStyle = '#374151'; mctx.strokeRect(x0,y0,x1-x0,y1-y0)
+    mctx.strokeStyle = '#1f2937'; mctx.beginPath(); mctx.moveTo(x0,Y(0)); mctx.lineTo(x1,Y(0)); mctx.stroke()
+
+    if(!stable){
+      mctx.fillStyle = 'rgba(127,29,29,0.4)'; mctx.fillRect(x0,y0,x1-x0,y1-y0)
+      mctx.fillStyle = '#fca5a5'; mctx.font = 'bold 14px sans-serif'; mctx.textAlign = 'center'
+      mctx.fillText('⚠ UNSTABLE  —  C = '+courant.toFixed(2)+' > 1', (x0+x1)/2, (y0+y1)/2-8)
+      mctx.font = '12px sans-serif'
+      mctx.fillText('lower the Courant slider below 1', (x0+x1)/2, (y0+y1)/2+12)
+      mctx.textAlign = 'left'
+      return
+    }
+
+    mctx.strokeStyle = '#e5e7eb'; mctx.lineWidth = 1.6
+    mctx.beginPath(); mctx.moveTo(X(ifaceX),y0); mctx.lineTo(X(ifaceX),y1); mctx.stroke()
+
+    drawBoundaryMarker(x0, 'left')
+    drawBoundaryMarker(x1, 'right')
+
+    const fIdx = currentFrameIdx()
+    mctx.strokeStyle = '#facc15'; mctx.lineWidth = 2
+    mctx.beginPath()
+    for(let i=0;i<nx;i++){
+      const px = X(xgrid[i]), py = Y(vyFlat[fIdx*nx+i])
+      i===0 ? mctx.moveTo(px,py) : mctx.lineTo(px,py)
+    }
+    mctx.stroke()
+
+    mctx.fillStyle = '#9ca3af'; mctx.font = '11px sans-serif'; mctx.textAlign = 'center'
+    for(let k=0;k<=4;k++){
+      const xv = xmin + k*(xmax-xmin)/4, px = X(xv)
+      mctx.strokeStyle = '#374151'; mctx.beginPath(); mctx.moveTo(px,y1); mctx.lineTo(px,y1+4); mctx.stroke()
+      mctx.fillText(Math.round(xv)+'', px, y1+16)
+    }
+    mctx.fillText('distance (km)', (x0+x1)/2, y1+32)
+
+    mctx.textAlign = 'left'; mctx.fillStyle = '#d1d5db'; mctx.font = '12px sans-serif'
+    mctx.fillText('Z₁='+Z1.toExponential(2)+'   Z₂='+Z2.toExponential(2)+'   R='+R.toFixed(2)+'   T='+T.toFixed(2), x0, 12)
+    mctx.textAlign = 'right'
+    mctx.fillStyle = courant > 1 ? '#f87171' : '#9ca3af'
+    mctx.fillText('C='+courant.toFixed(2)+'   t='+framesT[fIdx].toFixed(1)+'s  ('+(fIdx+1)+'/'+nFrames+')', x1, 12)
+    mctx.textAlign = 'left'
+  }
+
+  function updateTimeSlider(){
+    if(!data) return
+    const totalDur = data.framesT[data.nFrames-1]
+    par.querySelector('#wos-time').value = totalDur>0 ? Math.round(1000*tPhase/totalDur) : 0
+  }
+
+  function emit(){
+    par.value = {courant, density_ratio: densityRatio, interface_x: interfaceX, boundary: boundaryType}
+    par.dispatchEvent(new CustomEvent('input'))
+  }
+
+  function syncBoundaryButtons(){
+    par.querySelector('#wos-b-free').classList.toggle('wos-active', boundaryType==='free')
+    par.querySelector('#wos-b-fixed').classList.toggle('wos-active', boundaryType==='fixed')
+  }
+
+  par.querySelector('#wos-courant').addEventListener('input', e=>{
+    courant = parseFloat(e.target.value); par.querySelector('#wos-courant-v').textContent = courant.toFixed(2); drawMain(); emit()
+  })
+  par.querySelector('#wos-ratio').addEventListener('input', e=>{
+    densityRatio = parseFloat(e.target.value); par.querySelector('#wos-ratio-v').textContent = densityRatio.toFixed(1); emit()
+  })
+  par.querySelector('#wos-iface').addEventListener('input', e=>{
+    interfaceX = parseFloat(e.target.value); par.querySelector('#wos-iface-v').textContent = interfaceX.toFixed(0); drawMain(); emit()
+  })
+  par.querySelector('#wos-b-free').addEventListener('click', ()=>{ boundaryType='free'; syncBoundaryButtons(); drawMain(); emit() })
+  par.querySelector('#wos-b-fixed').addEventListener('click', ()=>{ boundaryType='fixed'; syncBoundaryButtons(); drawMain(); emit() })
+
+  const playBtn = par.querySelector('#wos-play')
+  function stepAnim(ts){
+    if(lastTs===null) lastTs = ts
+    const ddt = Math.min(0.1, (ts-lastTs)/1000)
+    lastTs = ts
+    if(data){
+      const totalDur = data.framesT[data.nFrames-1]
+      const simSpeed = totalDur > 0 ? totalDur/10 : 1
+      tPhase += ddt*simSpeed
+      if(tPhase > totalDur) tPhase = 0
+    }
+    drawMain(); updateTimeSlider()
+    rafId = requestAnimationFrame(stepAnim)
+  }
+  playBtn.addEventListener('click', ()=>{
+    playing = !playing
+    playBtn.textContent = playing ? 'Pause' : 'Play'
+    if(playing){ lastTs=null; rafId = requestAnimationFrame(stepAnim) }
+    else if(rafId){ cancelAnimationFrame(rafId); rafId = null }
+  })
+
+  par.querySelector('#wos-time').addEventListener('input', e=>{
+    if(playing){ playing=false; playBtn.textContent='Play'; if(rafId){ cancelAnimationFrame(rafId); rafId=null } }
+    if(data){
+      const totalDur = data.framesT[data.nFrames-1]
+      tPhase = (parseFloat(e.target.value)/1000)*totalDur
+    }
+    drawMain()
+  })
+
+  par.querySelector('#wos-reset').addEventListener('click', ()=>{
+    courant = $(w.courant); densityRatio = $(w.density_ratio); interfaceX = $(w.interface_x); boundaryType = "$(w.boundary)"
+    par.querySelector('#wos-courant').value = courant; par.querySelector('#wos-courant-v').textContent = courant.toFixed(2)
+    par.querySelector('#wos-ratio').value = densityRatio; par.querySelector('#wos-ratio-v').textContent = densityRatio.toFixed(1)
+    par.querySelector('#wos-iface').value = interfaceX; par.querySelector('#wos-iface-v').textContent = interfaceX.toFixed(0)
+    syncBoundaryButtons()
+    tPhase = 0; playing = false; if(rafId){ cancelAnimationFrame(rafId); rafId=null }; playBtn.textContent = 'Play'
+    drawMain(); emit()
+  })
+
+  window.addEventListener('wos-results', e=>{
+    const d = e.detail ? JSON.parse(e.detail) : null
+    if(!d) return
+    data = d
+    tPhase = 0
+    drawMain(); updateTimeSlider()
+  })
+
+  syncBoundaryButtons()
+  drawSchematic(); drawMain(); emit()
+</script>
+""")
+    end
+
+    const _wos_ready = true
+end
+
+# ╔═╡ bc9056a7-6c7f-4664-8167-d6ab9792563c
+begin
+    # `WaveOnStringInput` is defined in the Appendix, displayed below this cell
+    # -- a bare reference forces Pluto to run that cell first on a cold restart.
+    # See "the one thing that will silently break on a fresh restart" in
+    # pluto-widget-SKILL.md.
+    _wos_ready
+    WideCell(@bind _wos WaveOnStringInput(); max_width=1400)
+end
+
+# ╔═╡ c6cd50d4-b42a-4aec-a6b1-b16d88940d9f
+begin
+    # Courant number, density ratio, interface position, and boundary type are
+    # all physics inputs -- each one triggers the Julia recompute below.
+    # Which already-computed frame is on screen (Play/pause, the scrub slider)
+    # is pure client-side state inside the widget; see its docstring.
+    wos_courant = Float64(_wos["courant"])
+    wos_density_ratio = Float64(_wos["density_ratio"])
+    wos_interface_x = Float64(_wos["interface_x"])
+    wos_boundary = String(_wos["boundary"])
+end
+
+# ╔═╡ b19d0fbf-d0ae-4472-aaca-89369188d6a3
+wos_result = simulate_string(; courant=wos_courant, density_ratio=wos_density_ratio,
+    interface_x=wos_interface_x, boundary=wos_boundary, mu0=μ0, rho0=ρ0)
+
+# ╔═╡ 4188a0d9-101a-474a-b9d5-69eb8808e24a
+# Push the down-sampled time series to the widget above -- it stays mounted
+# across reruns of this cell, same CustomEvent pattern used throughout this
+# repo's other widgets. This is the only place the widget's Julia side runs
+# after a slider change: playback itself never touches Julia again.
+let
+    res = wos_result
+    nx = length(res.xgrid)
+    nFrames = length(res.frames_t)
+    ampMax = maximum(abs, res.vy_frames)
+
+    num(x) = isfinite(x) ? string(round(Float64(x), digits=6)) : "0"
+    jsonarr(v) = "[" * join(num.(v), ",") * "]"
+    jsonflat(m) = "[" * join(num.(vec(permutedims(m))), ",") * "]"
+
+    payload = string(
+        "{\"xgrid\":", jsonarr(res.xgrid),
+        ",\"nx\":", nx,
+        ",\"nFrames\":", nFrames,
+        ",\"vyFlat\":", jsonflat(res.vy_frames),
+        ",\"framesT\":", jsonarr(res.frames_t),
+        ",\"vs1\":", num(res.vs1), ",\"vs2\":", num(res.vs2),
+        ",\"Z1\":", num(res.Z1), ",\"Z2\":", num(res.Z2),
+        ",\"R\":", num(res.R), ",\"T\":", num(res.T),
+        ",\"stable\":", res.stable ? "true" : "false",
+        ",\"xmin\":", num(res.xmin), ",\"xmax\":", num(res.xmax),
+        ",\"ampMax\":", num(ampMax),
+        "}",
+    )
+    HTML("""<script>
+      window.dispatchEvent(new CustomEvent('wos-results', {detail: $(repr(payload))}));
+    </script>""")
+end
 
 # ╔═╡ 00000000-0000-0000-0000-000000000001
 PLUTO_PROJECT_TOML_CONTENTS = """
 [deps]
-FFTW = "7a1cc6ca-52ef-59f5-83cd-3a7055c09341"
-LinearAlgebra = "37e2e46d-f89d-539d-b4ee-838fcccc9c8e"
-ParallelStencil = "94395366-693c-11ea-3b26-d9b7aac5d958"
-PlutoPlotly = "8e989ff0-3d88-8e9f-f020-2b208a939ff0"
 PlutoUI = "7f904dfe-b85e-4ff6-b463-dae2292396a8"
-Printf = "de0858da-6303-5e67-8744-51eddeeeb8d7"
-Statistics = "10745b16-79ce-11e8-11f9-7d13ad32a3b2"
-
-[compat]
-FFTW = "~1.10.0"
-ParallelStencil = "~0.14.3"
-PlutoPlotly = "~0.6.5"
-PlutoUI = "~0.7.72"
 """
 
 # ╔═╡ 00000000-0000-0000-0000-000000000002
 PLUTO_MANIFEST_TOML_CONTENTS = """
 # This file is machine-generated - editing it directly is not advised
 
-julia_version = "1.11.7"
+julia_version = "1.12.4"
 manifest_format = "2.0"
-project_hash = "cc32f0fd53d060efd3bbcb276dedb50615b9e4b7"
-
-[[deps.AbstractFFTs]]
-deps = ["LinearAlgebra"]
-git-tree-sha1 = "d92ad398961a3ed262d8bf04a1a2b8340f915fef"
-uuid = "621f4979-c628-5d54-868e-fcf4e3e8185c"
-version = "1.5.0"
-
-    [deps.AbstractFFTs.extensions]
-    AbstractFFTsChainRulesCoreExt = "ChainRulesCore"
-    AbstractFFTsTestExt = "Test"
-
-    [deps.AbstractFFTs.weakdeps]
-    ChainRulesCore = "d360d2e6-b24c-11e9-a2a3-2a2ae2dbcce4"
-    Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
+project_hash = "4c0a816760ff43ca9ffe29e328a423fcbd2cbca4"
 
 [[deps.AbstractPlutoDingetjes]]
-deps = ["Pkg"]
-git-tree-sha1 = "6e1d2a35f2f90a4bc7c2ed98079b2ba09c35b83a"
+git-tree-sha1 = "6c3913f4e9bdf6ba3c08041a446fb1332716cbc2"
 uuid = "6e696c72-6542-2067-7265-42206c756150"
-version = "1.3.2"
-
-[[deps.Adapt]]
-deps = ["LinearAlgebra", "Requires"]
-git-tree-sha1 = "7e35fca2bdfba44d797c53dfe63a51fabf39bfc0"
-uuid = "79e6a3ab-5dfb-504d-930d-738a2a938a0e"
-version = "4.4.0"
-
-    [deps.Adapt.extensions]
-    AdaptSparseArraysExt = "SparseArrays"
-    AdaptStaticArraysExt = "StaticArrays"
-
-    [deps.Adapt.weakdeps]
-    SparseArrays = "2f01184e-e22b-5df5-ae63-d93ebab69eaf"
-    StaticArrays = "90137ffa-7385-5640-81b9-e52037218182"
+version = "1.4.0"
 
 [[deps.ArgTools]]
 uuid = "0dad84c5-d112-42e6-8d28-ef12dabb789f"
@@ -275,23 +832,6 @@ version = "1.11.0"
 uuid = "2a0f44e3-6c83-55bd-87e4-b1978d98bd5f"
 version = "1.11.0"
 
-[[deps.CellArrays]]
-deps = ["Adapt", "StaticArrays"]
-git-tree-sha1 = "db45cc84e9a2ef63e65c1ae206c9d4706197c099"
-uuid = "d35fcfd7-7af4-4c67-b1aa-d78070614af4"
-version = "0.3.2"
-
-    [deps.CellArrays.weakdeps]
-    AMDGPU = "21141c5a-9bdb-4563-92ae-f87d6854732e"
-    CUDA = "052768ef-5323-5732-b1bb-66c8b64840ba"
-    Metal = "dde4c033-4e86-420c-a63e-0dd931031962"
-
-[[deps.ColorSchemes]]
-deps = ["ColorTypes", "ColorVectorSpace", "Colors", "FixedPointNumbers", "PrecompileTools", "Random"]
-git-tree-sha1 = "b0fd3f56fa442f81e0a47815c92245acfaaa4e34"
-uuid = "35d6a980-a343-548e-a6ea-1d62b119f2f4"
-version = "3.31.0"
-
 [[deps.ColorTypes]]
 deps = ["FixedPointNumbers", "Random"]
 git-tree-sha1 = "67e11ee83a43eb71ddc950302c53bf33f0690dfe"
@@ -302,76 +842,30 @@ weakdeps = ["StyledStrings"]
     [deps.ColorTypes.extensions]
     StyledStringsExt = "StyledStrings"
 
-[[deps.ColorVectorSpace]]
-deps = ["ColorTypes", "FixedPointNumbers", "LinearAlgebra", "Requires", "Statistics", "TensorCore"]
-git-tree-sha1 = "8b3b6f87ce8f65a2b4f857528fd8d70086cd72b1"
-uuid = "c3611d14-8923-5661-9e6a-0046d554d3a4"
-version = "0.11.0"
-
-    [deps.ColorVectorSpace.extensions]
-    SpecialFunctionsExt = "SpecialFunctions"
-
-    [deps.ColorVectorSpace.weakdeps]
-    SpecialFunctions = "276daf66-3868-5448-9aa4-cd146d93841b"
-
-[[deps.Colors]]
-deps = ["ColorTypes", "FixedPointNumbers", "Reexport"]
-git-tree-sha1 = "37ea44092930b1811e666c3bc38065d7d87fcc74"
-uuid = "5ae59095-9a9b-59fe-a467-6f913c188581"
-version = "0.13.1"
-
 [[deps.CompilerSupportLibraries_jll]]
 deps = ["Artifacts", "Libdl"]
 uuid = "e66e0078-7015-5450-92f7-15fbd957f2ae"
-version = "1.1.1+0"
+version = "1.3.0+1"
 
 [[deps.Dates]]
 deps = ["Printf"]
 uuid = "ade2ca70-3891-5945-98fb-dc099432e06a"
 version = "1.11.0"
 
-[[deps.DelimitedFiles]]
-deps = ["Mmap"]
-git-tree-sha1 = "9e2f36d3c96a820c678f2f1f1782582fcf685bae"
-uuid = "8bb1440f-4735-579b-a4ab-409b98df4dab"
-version = "1.9.1"
-
-[[deps.DocStringExtensions]]
-git-tree-sha1 = "7442a5dfe1ebb773c29cc2962a8980f47221d76c"
-uuid = "ffbed154-4ef7-542d-bbb7-c09d3a79fcae"
-version = "0.9.5"
-
 [[deps.Downloads]]
 deps = ["ArgTools", "FileWatching", "LibCURL", "NetworkOptions"]
 uuid = "f43a241f-c20a-4ad4-852c-f6b1247861c6"
-version = "1.6.0"
-
-[[deps.FFTW]]
-deps = ["AbstractFFTs", "FFTW_jll", "Libdl", "LinearAlgebra", "MKL_jll", "Preferences", "Reexport"]
-git-tree-sha1 = "97f08406df914023af55ade2f843c39e99c5d969"
-uuid = "7a1cc6ca-52ef-59f5-83cd-3a7055c09341"
-version = "1.10.0"
-
-[[deps.FFTW_jll]]
-deps = ["Artifacts", "JLLWrappers", "Libdl"]
-git-tree-sha1 = "6d6219a004b8cf1e0b4dbe27a2860b8e04eba0be"
-uuid = "f5851436-0d7a-5f13-b9de-f02708fd171a"
-version = "3.3.11+0"
+version = "1.7.0"
 
 [[deps.FileWatching]]
 uuid = "7b1f6079-737a-58dc-b8bc-7a2ca5c1b5ee"
 version = "1.11.0"
 
 [[deps.FixedPointNumbers]]
-deps = ["Statistics"]
-git-tree-sha1 = "05882d6995ae5c12bb5f36dd2ed3f61c98cbb172"
+deps = ["Random", "Statistics"]
+git-tree-sha1 = "59af96b98217c6ef4ae0dfe065ac7c20831d1a84"
 uuid = "53c48c17-4a7d-5ca2-90c5-79b7896eea93"
-version = "0.8.5"
-
-[[deps.HashArrayMappedTries]]
-git-tree-sha1 = "2eaa69a7cab70a52b9687c8bf950a5a93ec895ae"
-uuid = "076d061b-32b6-4027-95e0-9a2c6f6d7e74"
-version = "0.2.0"
+version = "0.8.6"
 
 [[deps.Hyperscript]]
 deps = ["Test"]
@@ -381,48 +875,25 @@ version = "0.0.5"
 
 [[deps.HypertextLiteral]]
 deps = ["Tricks"]
-git-tree-sha1 = "7134810b1afce04bbc1045ca1985fbe81ce17653"
+git-tree-sha1 = "d1a86724f81bcd184a38fd284ce183ec067d71a0"
 uuid = "ac1192a8-f4b3-4bfe-ba22-af5b92cd3ab2"
-version = "0.9.5"
+version = "1.0.0"
 
 [[deps.IOCapture]]
 deps = ["Logging", "Random"]
-git-tree-sha1 = "b6d6bfdd7ce25b0f9b2f6b3dd56b2673a66c8770"
+git-tree-sha1 = "0ee181ec08df7d7c911901ea38baf16f755114dc"
 uuid = "b5f81e59-6552-4d32-b1f0-c071b021bf89"
-version = "0.2.5"
-
-[[deps.IntelOpenMP_jll]]
-deps = ["Artifacts", "JLLWrappers", "LazyArtifacts", "Libdl"]
-git-tree-sha1 = "ec1debd61c300961f98064cfb21287613ad7f303"
-uuid = "1d5cc7b8-4909-519e-a0f8-d0f5ad9712d0"
-version = "2025.2.0+0"
+version = "1.0.0"
 
 [[deps.InteractiveUtils]]
 deps = ["Markdown"]
 uuid = "b77e0a4c-d291-57a0-90e8-8db25a27a240"
 version = "1.11.0"
 
-[[deps.JLLWrappers]]
-deps = ["Artifacts", "Preferences"]
-git-tree-sha1 = "0533e564aae234aff59ab625543145446d8b6ec2"
-uuid = "692b3bcd-3c85-4b1f-b108-f13ce0eb3210"
-version = "1.7.1"
-
-[[deps.JSON]]
-deps = ["Dates", "Mmap", "Parsers", "Unicode"]
-git-tree-sha1 = "31e996f0a15c7b280ba9f76636b3ff9e2ae58c9a"
-uuid = "682c06a0-de6a-54ab-a142-c8b1cf79cde6"
-version = "0.21.4"
-
-[[deps.LaTeXStrings]]
-git-tree-sha1 = "dda21b8cbd6a6c40d9d02a73230f9d70fed6918c"
-uuid = "b964fa9f-0449-5b57-a5c2-d3ea65f4040f"
-version = "1.4.0"
-
-[[deps.LazyArtifacts]]
-deps = ["Artifacts", "Pkg"]
-uuid = "4af54fe1-eca0-43a8-85a7-787d91b784e3"
-version = "1.11.0"
+[[deps.JuliaSyntaxHighlighting]]
+deps = ["StyledStrings"]
+uuid = "ac6e5ff7-fb65-4e79-a425-ec3bc9c03011"
+version = "1.12.0"
 
 [[deps.LibCURL]]
 deps = ["LibCURL_jll", "MozillaCACerts_jll"]
@@ -430,24 +901,14 @@ uuid = "b27032c2-a3e7-50c8-80cd-2d36dbcbfd21"
 version = "0.6.4"
 
 [[deps.LibCURL_jll]]
-deps = ["Artifacts", "LibSSH2_jll", "Libdl", "MbedTLS_jll", "Zlib_jll", "nghttp2_jll"]
+deps = ["Artifacts", "LibSSH2_jll", "Libdl", "OpenSSL_jll", "Zlib_jll", "nghttp2_jll"]
 uuid = "deac9b47-8bc7-5906-a0fe-35ac56dc84c0"
-version = "8.6.0+0"
-
-[[deps.LibGit2]]
-deps = ["Base64", "LibGit2_jll", "NetworkOptions", "Printf", "SHA"]
-uuid = "76f85450-5226-5b5a-8eaa-529ad045b433"
-version = "1.11.0"
-
-[[deps.LibGit2_jll]]
-deps = ["Artifacts", "LibSSH2_jll", "Libdl", "MbedTLS_jll"]
-uuid = "e37daf67-58a4-590a-8e99-b0245dd2ffc5"
-version = "1.7.2+0"
+version = "8.15.0+0"
 
 [[deps.LibSSH2_jll]]
-deps = ["Artifacts", "Libdl", "MbedTLS_jll"]
+deps = ["Artifacts", "Libdl", "OpenSSL_jll"]
 uuid = "29816b5a-b9ab-546f-933c-edad1886dfa8"
-version = "1.11.0+1"
+version = "1.11.3+1"
 
 [[deps.Libdl]]
 uuid = "8f399da3-3557-5675-b5ff-fb832c97cbdb"
@@ -456,7 +917,7 @@ version = "1.11.0"
 [[deps.LinearAlgebra]]
 deps = ["Libdl", "OpenBLAS_jll", "libblastrampoline_jll"]
 uuid = "37e2e46d-f89d-539d-b4ee-838fcccc9c8e"
-version = "1.11.0"
+version = "1.12.0"
 
 [[deps.Logging]]
 uuid = "56ddb016-857b-54e1-b83d-db4d58db5568"
@@ -467,147 +928,38 @@ git-tree-sha1 = "c64d943587f7187e751162b3b84445bbbd79f691"
 uuid = "6c6e2e6c-3030-632d-7369-2d6c69616d65"
 version = "1.1.0"
 
-[[deps.MKL_jll]]
-deps = ["Artifacts", "IntelOpenMP_jll", "JLLWrappers", "LazyArtifacts", "Libdl", "oneTBB_jll"]
-git-tree-sha1 = "282cadc186e7b2ae0eeadbd7a4dffed4196ae2aa"
-uuid = "856f044c-d86e-5d09-b602-aeab76dc8ba7"
-version = "2025.2.0+0"
-
-[[deps.MacroTools]]
-git-tree-sha1 = "1e0228a030642014fe5cfe68c2c0a818f9e3f522"
-uuid = "1914dd2f-81c6-5fcd-8719-6d5c9610ff09"
-version = "0.5.16"
-
 [[deps.Markdown]]
-deps = ["Base64"]
+deps = ["Base64", "JuliaSyntaxHighlighting", "StyledStrings"]
 uuid = "d6f4376e-aef5-505a-96c1-9c027394607a"
-version = "1.11.0"
-
-[[deps.MbedTLS_jll]]
-deps = ["Artifacts", "Libdl"]
-uuid = "c8ffd9c3-330d-5841-b78e-0817d7145fa1"
-version = "2.28.6+0"
-
-[[deps.Mmap]]
-uuid = "a63ad114-7e13-5084-954f-fe012c677804"
 version = "1.11.0"
 
 [[deps.MozillaCACerts_jll]]
 uuid = "14a3606d-f60d-562e-9121-12d972cd8159"
-version = "2023.12.12"
+version = "2025.11.4"
 
 [[deps.NetworkOptions]]
 uuid = "ca575930-c2e3-43a9-ace4-1e988b2c1908"
-version = "1.2.0"
+version = "1.3.0"
 
 [[deps.OpenBLAS_jll]]
 deps = ["Artifacts", "CompilerSupportLibraries_jll", "Libdl"]
 uuid = "4536629a-c528-5b80-bd46-f80d51c5b363"
-version = "0.3.27+1"
+version = "0.3.29+0"
 
-[[deps.OrderedCollections]]
-git-tree-sha1 = "05868e21324cede2207c6f0f466b4bfef6d5e7ee"
-uuid = "bac558e1-5e72-5ebc-8fee-abe8a469f55d"
-version = "1.8.1"
-
-[[deps.ParallelStencil]]
-deps = ["CellArrays", "MacroTools", "Random", "StaticArrays"]
-git-tree-sha1 = "e4438da7cfc068487b430844bc7ef366c7bb97ff"
-uuid = "94395366-693c-11ea-3b26-d9b7aac5d958"
-version = "0.14.3"
-
-    [deps.ParallelStencil.extensions]
-    ParallelStencil_AMDGPUExt = "AMDGPU"
-    ParallelStencil_CUDAExt = "CUDA"
-    ParallelStencil_EnzymeExt = "Enzyme"
-    ParallelStencil_MetalExt = "Metal"
-
-    [deps.ParallelStencil.weakdeps]
-    AMDGPU = "21141c5a-9bdb-4563-92ae-f87d6854732e"
-    CUDA = "052768ef-5323-5732-b1bb-66c8b64840ba"
-    Enzyme = "7da242da-08ed-463a-9acd-ee780be4f1d9"
-    Metal = "dde4c033-4e86-420c-a63e-0dd931031962"
-    Polyester = "f517fe37-dbe3-4b94-8317-1923a5111588"
-
-[[deps.Parameters]]
-deps = ["OrderedCollections", "UnPack"]
-git-tree-sha1 = "34c0e9ad262e5f7fc75b10a9952ca7692cfc5fbe"
-uuid = "d96e819e-fc66-5662-9728-84c9c7592b0a"
-version = "0.12.3"
-
-[[deps.Parsers]]
-deps = ["Dates", "PrecompileTools", "UUIDs"]
-git-tree-sha1 = "7d2f8f21da5db6a806faf7b9b292296da42b2810"
-uuid = "69de0a69-1ddd-5017-9359-2bf0b02dc9f0"
-version = "2.8.3"
-
-[[deps.Pkg]]
-deps = ["Artifacts", "Dates", "Downloads", "FileWatching", "LibGit2", "Libdl", "Logging", "Markdown", "Printf", "Random", "SHA", "TOML", "Tar", "UUIDs", "p7zip_jll"]
-uuid = "44cfe95a-1eb2-52ea-b672-e2afdf69b78f"
-version = "1.11.0"
-weakdeps = ["REPL"]
-
-    [deps.Pkg.extensions]
-    REPLExt = "REPL"
-
-[[deps.PlotlyBase]]
-deps = ["ColorSchemes", "Colors", "Dates", "DelimitedFiles", "DocStringExtensions", "JSON", "LaTeXStrings", "Logging", "Parameters", "Pkg", "REPL", "Requires", "Statistics", "UUIDs"]
-git-tree-sha1 = "28278bb0053da0fd73537be94afd1682cc5a0a83"
-uuid = "a03496cd-edff-5a9b-9e67-9cda94a718b5"
-version = "0.8.21"
-
-    [deps.PlotlyBase.extensions]
-    DataFramesExt = "DataFrames"
-    DistributionsExt = "Distributions"
-    IJuliaExt = "IJulia"
-    JSON3Ext = "JSON3"
-
-    [deps.PlotlyBase.weakdeps]
-    DataFrames = "a93c6f00-e57d-5684-b7b6-d8193f3e46c0"
-    Distributions = "31c24e10-a181-5473-b8eb-7969acd0382f"
-    IJulia = "7073ff75-c697-5162-941a-fcdaad2a7d2a"
-    JSON3 = "0f8b85d8-7281-11e9-16c2-39a750bddbf1"
-
-[[deps.PlutoPlotly]]
-deps = ["AbstractPlutoDingetjes", "Artifacts", "ColorSchemes", "Colors", "Dates", "Downloads", "HypertextLiteral", "InteractiveUtils", "LaTeXStrings", "Markdown", "Pkg", "PlotlyBase", "PrecompileTools", "Reexport", "ScopedValues", "Scratch", "TOML"]
-git-tree-sha1 = "8acd04abc9a636ef57004f4c2e6f3f6ed4611099"
-uuid = "8e989ff0-3d88-8e9f-f020-2b208a939ff0"
-version = "0.6.5"
-
-    [deps.PlutoPlotly.extensions]
-    PlotlyKaleidoExt = "PlotlyKaleido"
-    UnitfulExt = "Unitful"
-
-    [deps.PlutoPlotly.weakdeps]
-    PlotlyKaleido = "f2990250-8cf9-495f-b13a-cce12b45703c"
-    Unitful = "1986cc42-f94f-5a68-af5c-568840ba703d"
+[[deps.OpenSSL_jll]]
+deps = ["Artifacts", "Libdl"]
+uuid = "458c3c95-2e84-50aa-8efc-19380b2a3a95"
+version = "3.5.4+0"
 
 [[deps.PlutoUI]]
-deps = ["AbstractPlutoDingetjes", "Base64", "ColorTypes", "Dates", "Downloads", "FixedPointNumbers", "Hyperscript", "HypertextLiteral", "IOCapture", "InteractiveUtils", "JSON", "Logging", "MIMEs", "Markdown", "Random", "Reexport", "URIs", "UUIDs"]
-git-tree-sha1 = "f53232a27a8c1c836d3998ae1e17d898d4df2a46"
+deps = ["AbstractPlutoDingetjes", "Base64", "ColorTypes", "Dates", "Downloads", "FixedPointNumbers", "Hyperscript", "HypertextLiteral", "IOCapture", "InteractiveUtils", "Logging", "MIMEs", "Markdown", "Random", "Reexport", "URIs", "UUIDs"]
+git-tree-sha1 = "e189d0623e7ce9c37389bac17e80aac3b0302e75"
 uuid = "7f904dfe-b85e-4ff6-b463-dae2292396a8"
-version = "0.7.72"
-
-[[deps.PrecompileTools]]
-deps = ["Preferences"]
-git-tree-sha1 = "5aa36f7049a63a1528fe8f7c3f2113413ffd4e1f"
-uuid = "aea7be01-6a6a-4083-8856-8a6e6704d82a"
-version = "1.2.1"
-
-[[deps.Preferences]]
-deps = ["TOML"]
-git-tree-sha1 = "0f27480397253da18fe2c12a4ba4eb9eb208bf3d"
-uuid = "21216c6a-2e73-6563-6e65-726566657250"
-version = "1.5.0"
+version = "0.7.83"
 
 [[deps.Printf]]
 deps = ["Unicode"]
 uuid = "de0858da-6303-5e67-8744-51eddeeeb8d7"
-version = "1.11.0"
-
-[[deps.REPL]]
-deps = ["InteractiveUtils", "Markdown", "Sockets", "StyledStrings", "Unicode"]
-uuid = "3fa0cd96-eef1-5676-8a61-b3b8758bbffb"
 version = "1.11.0"
 
 [[deps.Random]]
@@ -620,54 +972,13 @@ git-tree-sha1 = "45e428421666073eab6f2da5c9d310d99bb12f9b"
 uuid = "189a3867-3050-52da-a836-e630ba90ab69"
 version = "1.2.2"
 
-[[deps.Requires]]
-deps = ["UUIDs"]
-git-tree-sha1 = "62389eeff14780bfe55195b7204c0d8738436d64"
-uuid = "ae029012-a4dd-5104-9daa-d747884805df"
-version = "1.3.1"
-
 [[deps.SHA]]
 uuid = "ea8e919c-243c-51af-8825-aaa63cd721ce"
 version = "0.7.0"
 
-[[deps.ScopedValues]]
-deps = ["HashArrayMappedTries", "Logging"]
-git-tree-sha1 = "c3b2323466378a2ba15bea4b2f73b081e022f473"
-uuid = "7e506255-f358-4e82-b7e4-beb19740aa63"
-version = "1.5.0"
-
-[[deps.Scratch]]
-deps = ["Dates"]
-git-tree-sha1 = "9b81b8393e50b7d4e6d0a9f14e192294d3b7c109"
-uuid = "6c6a2e73-6563-6170-7368-637461726353"
-version = "1.3.0"
-
 [[deps.Serialization]]
 uuid = "9e88b42a-f829-5b0c-bbe9-9e923198166b"
 version = "1.11.0"
-
-[[deps.Sockets]]
-uuid = "6462fe0b-24de-5631-8697-dd941f90decc"
-version = "1.11.0"
-
-[[deps.StaticArrays]]
-deps = ["LinearAlgebra", "PrecompileTools", "Random", "StaticArraysCore"]
-git-tree-sha1 = "b8693004b385c842357406e3af647701fe783f98"
-uuid = "90137ffa-7385-5640-81b9-e52037218182"
-version = "1.9.15"
-
-    [deps.StaticArrays.extensions]
-    StaticArraysChainRulesCoreExt = "ChainRulesCore"
-    StaticArraysStatisticsExt = "Statistics"
-
-    [deps.StaticArrays.weakdeps]
-    ChainRulesCore = "d360d2e6-b24c-11e9-a2a3-2a2ae2dbcce4"
-    Statistics = "10745b16-79ce-11e8-11f9-7d13ad32a3b2"
-
-[[deps.StaticArraysCore]]
-git-tree-sha1 = "6ab403037779dae8c514bad259f32a447262455a"
-uuid = "1e83bf80-4336-4d27-bf5d-d5a4f845583c"
-version = "1.4.4"
 
 [[deps.Statistics]]
 deps = ["LinearAlgebra"]
@@ -685,46 +996,25 @@ version = "1.11.1"
 uuid = "f489334b-da3d-4c2e-b8f0-e476e12c162b"
 version = "1.11.0"
 
-[[deps.TOML]]
-deps = ["Dates"]
-uuid = "fa267f1f-6049-4f14-aa54-33bafae1ed76"
-version = "1.0.3"
-
-[[deps.Tar]]
-deps = ["ArgTools", "SHA"]
-uuid = "a4e569a6-e804-4fa4-b0f3-eef7a1d5b13e"
-version = "1.10.0"
-
-[[deps.TensorCore]]
-deps = ["LinearAlgebra"]
-git-tree-sha1 = "1feb45f88d133a655e001435632f019a9a1bcdb6"
-uuid = "62fd8b95-f654-4bbd-a8a5-9c27f68ccd50"
-version = "0.1.1"
-
 [[deps.Test]]
 deps = ["InteractiveUtils", "Logging", "Random", "Serialization"]
 uuid = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
 version = "1.11.0"
 
 [[deps.Tricks]]
-git-tree-sha1 = "372b90fe551c019541fafc6ff034199dc19c8436"
+git-tree-sha1 = "311349fd1c93a31f783f977a71e8b062a57d4101"
 uuid = "410a4b4d-49e4-4fbc-ab6d-cb71b17b3775"
-version = "0.1.12"
+version = "0.1.13"
 
 [[deps.URIs]]
-git-tree-sha1 = "bef26fb046d031353ef97a82e3fdb6afe7f21b1a"
+git-tree-sha1 = "908fec9df6c5de98548ead82a468c95ccf6cd263"
 uuid = "5c2747f8-b7ea-4ff2-ba2e-563bfd36b1d4"
-version = "1.6.1"
+version = "1.7.0"
 
 [[deps.UUIDs]]
 deps = ["Random", "SHA"]
 uuid = "cf7118a7-6976-5b1a-9a39-7adc72f591a4"
 version = "1.11.0"
-
-[[deps.UnPack]]
-git-tree-sha1 = "387c1f73762231e86e0c9c5443ce3b4a0a9a0c2b"
-uuid = "3a884ed6-31ef-47d7-9d2a-63182c4928ed"
-version = "1.0.2"
 
 [[deps.Unicode]]
 uuid = "4ec0a83e-493e-50e2-b9ac-8f72acf5a8f5"
@@ -733,53 +1023,44 @@ version = "1.11.0"
 [[deps.Zlib_jll]]
 deps = ["Libdl"]
 uuid = "83775a58-1f1d-513f-b197-d71354ab007a"
-version = "1.2.13+1"
+version = "1.3.1+2"
 
 [[deps.libblastrampoline_jll]]
 deps = ["Artifacts", "Libdl"]
 uuid = "8e850b90-86db-534c-a0d3-1478176c7d93"
-version = "5.11.0+0"
+version = "5.15.0+0"
 
 [[deps.nghttp2_jll]]
 deps = ["Artifacts", "Libdl"]
 uuid = "8e850ede-7688-5339-a07c-302acd2aaf8d"
-version = "1.59.0+0"
-
-[[deps.oneTBB_jll]]
-deps = ["Artifacts", "JLLWrappers", "LazyArtifacts", "Libdl"]
-git-tree-sha1 = "1350188a69a6e46f799d3945beef36435ed7262f"
-uuid = "1317d2d5-d96f-522e-a858-c73665f53c3e"
-version = "2022.0.0+1"
-
-[[deps.p7zip_jll]]
-deps = ["Artifacts", "Libdl"]
-uuid = "3f19e933-33d8-53b3-aaab-bd5110c3b7a0"
-version = "17.4.0+2"
+version = "1.64.0+1"
 """
 
 # ╔═╡ Cell order:
-# ╠═236740c7-9c82-4d23-8133-9f7be87f6520
-# ╟─88fefb75-ec4f-43b1-b6f5-f28ce49e0dd0
-# ╟─73aa375b-4887-4608-b699-17112c238d5a
-# ╟─647f6d79-818f-468f-900c-cd00eb165664
-# ╟─ab615f30-f095-4d4f-a92b-ecd18e69a20a
-# ╠═f4179789-c4df-405e-92f5-188ebda7a953
-# ╠═ad18ed7d-f050-455b-9a13-a2fab7de4215
-# ╠═4c7b8ce9-1caf-4a81-a2dd-4b4138a6fef7
-# ╠═d72c0058-9138-40fa-82d7-f1e1ea068d4c
-# ╠═569c1f97-92d2-4ef2-a23c-aeb131f86475
-# ╠═fb985c7e-f809-47d2-b490-4c91cafb164a
-# ╠═77246c3a-0f49-4f43-9e4b-67cf3e4be1dd
-# ╠═10014376-cdf6-4ae4-95e4-32c8ea4ef803
-# ╟─82a7a1ab-88da-4c22-a075-7640991bb6ac
-# ╟─32a3036a-14d4-429b-a9a6-2eab02cfa1c5
-# ╟─39bfcff2-f3c1-43af-902c-67e63e2fa61f
-# ╠═dab87c4b-ac71-47fb-b9a5-3cce2e8c9621
-# ╠═6b69f053-567a-43db-972a-bdd00d0b464d
-# ╟─e470ca4d-4e06-4808-a513-25ef47c125c8
-# ╠═9185cd5d-2557-4f2d-9eeb-3d6865ca9331
-# ╟─77710384-fc16-4ece-a7d5-62cfddb5f0f9
-# ╠═b9287111-7b1f-49be-840e-8ecea5922294
-# ╠═e7660617-4962-4033-97a9-e16f10968cc3
+# ╠═46dca275-df8b-4060-b81d-841428142791
+# ╟─f3c52928-1450-4596-87b7-b6665a1b8f6a
+# ╟─bc9056a7-6c7f-4664-8167-d6ab9792563c
+# ╠═c6cd50d4-b42a-4aec-a6b1-b16d88940d9f
+# ╠═b19d0fbf-d0ae-4472-aaca-89369188d6a3
+# ╟─4188a0d9-101a-474a-b9d5-69eb8808e24a
+# ╟─f69bc5a5-d354-41b6-8d12-61a04ef1c43d
+# ╟─7676054a-2e9a-43f4-ac46-af162541e269
+# ╟─d0be7679-5df5-4ad0-93d1-8df6f94ba299
+# ╟─6feab4ba-89ed-4be0-87e7-c1cc1d78b6c2
+# ╟─260264ff-24bb-425f-abb8-d3556a1bb19f
+# ╟─8a11db06-56c3-42cc-b786-d22b5387bbeb
+# ╠═dbfb7f10-8fe2-471b-8626-7a8894626caf
+# ╟─90e40955-3aaa-4efb-b48b-21ae94a93bd5
+# ╠═fec2f28a-ecd0-4bfc-a113-448966ca023d
+# ╠═ac4eb794-7cf7-4fc2-9a9c-adf1cc7eb9ce
+# ╟─858ed5e1-5881-4bb9-927f-ebe22afc3e5c
+# ╠═134bee99-e691-4e4c-beba-45d3c541bd4a
+# ╠═806c8e93-15fb-402a-bab4-c58cae7dd6d2
+# ╟─ddeef9e3-ba88-4db9-9e53-025b0e9bde36
+# ╠═149cbe37-8c4f-4cd2-82e7-c938d6865963
+# ╟─97527c8d-70f6-4665-b0e4-0e7be62a80a4
+# ╠═9831ddbe-a0c4-459f-8217-9416b297ae04
+# ╟─e091f4b2-d23d-4ad1-8820-793368159ec6
+# ╠═ff461695-5ea8-4f6d-8de9-3fa5204b5794
 # ╟─00000000-0000-0000-0000-000000000001
 # ╟─00000000-0000-0000-0000-000000000002

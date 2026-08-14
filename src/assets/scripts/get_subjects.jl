@@ -22,12 +22,11 @@ let
     slides = [
         let
             notebook_path = joinpath(@__DIR__, "..", "..", entry.path)
-            frontmatter = Pluto.frontmatter(notebook_path)
 
-            name = get(frontmatter, "title", splitext(basename(entry.path))[1])
-            desc = get(frontmatter, "description", nothing)
+            name = get(entry.frontmatter, "title", splitext(basename(entry.path))[1])
+            desc = get(entry.frontmatter, "description", nothing)
             desc = desc isa AbstractString && !isempty(strip(desc)) ? desc : introductory_excerpt(notebook_path)
-            image = get(frontmatter, "image", nothing)
+            image = get(entry.frontmatter, "image", nothing)
             href = root_url * "/" * splitext(entry.path)[1] * "/"
 
             @htl("""
@@ -36,7 +35,7 @@ let
                     <p class="slide-section">$(entry.section)</p>
                     <h3>$(name)</h3>$(desc === nothing ? nothing : @htl("<p>$(desc)</p>"))</div>$(image === nothing || isempty(image) ? nothing : @htl("""<div class="slide-preview"><img src="$(image)" loading="lazy" alt="$(name)"></div>"""))</a>""")
         end
-        for entry in DeploymentNotebooks.notebook_entries()
+        for entry in notebook_catalog
     ]
 
     isempty(slides) ? nothing : @htl("""
