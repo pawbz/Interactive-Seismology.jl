@@ -76,25 +76,31 @@
     #pages-sidebar::after {
         position: absolute;
         right: 0;
-        top: 0;
+        top: 50%;
         display: grid;
-        width: 2.75rem;
-        height: 3.25rem;
+        width: 2.25rem;
+        height: 4.5rem;
         place-items: center;
         border: 1px solid #e4dacb;
-        border-top: 0;
         border-right: 0;
-        border-radius: 0 0 0 2px;
+        border-radius: 0 0.75rem 0.75rem 0;
         background: var(--sidebar-bg);
         box-shadow: 0 8px 20px rgb(0 0 0 / 12%);
         color: var(--sidebar-accent-1);
-        content: "☰";
-        font-size: 1.2rem;
+        content: "›";
+        cursor: pointer;
+        font-family: Georgia, serif;
+        font-size: 2rem;
         line-height: 1;
+        transform: translateY(-50%);
     }
     #pages-sidebar:hover,
     #pages-sidebar:focus-within {
         transform: translateX(0);
+    }
+    #pages-sidebar:not(:hover):not(:focus-within) > div {
+        visibility: hidden;
+        pointer-events: none;
     }
     #pages-sidebar:hover::after,
     #pages-sidebar:focus-within::after {

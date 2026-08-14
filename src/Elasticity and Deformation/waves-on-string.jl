@@ -125,6 +125,26 @@ meet later in this course has some version of this same limit.
 	string blow up within a few steps -- that's the scheme amplifying its own
 	rounding error every iteration once the stability condition is violated,
 	not a bug.
+
+Staying *below* `1` isn't free either. The grid spacing ``dx`` is fixed, so
+lowering the Courant number only shrinks ``dt`` -- and for this leapfrog
+scheme, doing that while ``dx`` stays put makes the *phase* (not amplitude)
+error **worse**, not better. In fact this scheme has an exact, counter-intuitive
+property: at ``C=1`` itself, right at the edge of instability, the numerical
+and physical dispersion relations coincide *exactly* for every resolvable
+wavenumber -- zero phase error, not just less of it. Moving away from `` C=1
+`` in either direction reintroduces error: push `` C`` above `1` and the
+scheme goes unstable (previous admonition); pull it well below `1` and the
+scheme stays stable but starts mis-timing the different wavelengths making up
+the pulse relative to each other.
+
+!!! tip "Try it too"
+	The widget opens near `` C=0.9``, close enough to the exact-cancellation
+	point that the pulse looks clean. Drag **Courant** down to around `0.1`
+	and press Play: a faint, oscillatory ripple trails behind the main pulse
+	-- numerical dispersion, an artifact of the discretization, not a real
+	physical echo. Push `` C`` back up toward `1` (staying below it) and the
+	ripple all but disappears again.
 """
 
 # ╔═╡ 6feab4ba-89ed-4be0-87e7-c1cc1d78b6c2
@@ -142,11 +162,12 @@ R = \frac{Z_1-Z_2}{Z_1+Z_2}, \qquad T = \frac{2Z_1}{Z_1+Z_2},
 ```
 
 for a pulse arriving from medium 1 (the denser side) into medium 2. Both are
-printed live on the widget's main panel. Slide the **Density ratio** toward
-`1` and the interface disappears (``R\to0``); push it far from `1` and almost
-everything reflects. This is the same physics -- just in one dimension, at
-normal incidence -- as the oblique-incidence reflection coefficients in the
-P-SV and SH free-surface notebooks later in this course.
+printed live on the widget's main panel. Edit the density-ratio number box
+floating over medium 1 toward `1` and the interface disappears (``R\to0``);
+push it far from `1` and almost everything reflects. This is the same
+physics -- just in one dimension, at normal incidence -- as the
+oblique-incidence reflection coefficients in the P-SV and SH free-surface
+notebooks later in this course.
 """
 
 # ╔═╡ 260264ff-24bb-425f-abb8-d3556a1bb19f
@@ -229,13 +250,24 @@ end
 # ╔═╡ 806c8e93-15fb-402a-bab4-c58cae7dd6d2
 """
 	simulate_string(; courant, density_ratio, interface_x, boundary, mu0, rho0,
-	                  nx=600, xmin=-100.0, xmax=100.0, n_frames=220, duration=nothing)
+	                  nx=600, xmin=-100.0, xmax=100.0, n_frames=220, duration=nothing,
+	                  pulse_width=0.5)
 
 Run the 1-D velocity-stress staggered-grid simulation of a transverse pulse
 launched at `x=-50`, propagating through a medium with a density
 discontinuity of `density_ratio` at `x=interface_x` (denser for `x <
 interface_x`), reflecting off both ends of the domain according to
 `boundary`.
+
+`pulse_width` sets the launched Gaussian's sharpness (larger = narrower =
+more high-wavenumber content relative to the fixed grid spacing `dx`, hence
+more visible numerical dispersion at a low Courant number -- see "Numerical
+Stability" below). The default is narrow enough to show a trailing ripple at
+small `courant`; the Appendix's own verification cells pass a much broader,
+well-resolved `pulse_width` instead, since they're checking the *physics*
+(reflection/transmission, boundary polarity), not the *numerics*, and a
+narrow pulse's own dispersion would otherwise show up as spurious error in
+those checks.
 
 Returns a named tuple with the down-sampled time series `vy_frames`
 (`n_frames × nx`), `frames_t`, the spatial grid `xgrid`, the wave speeds and
@@ -245,7 +277,8 @@ the Courant condition was violated and the run was aborted early, in which
 case the remaining frames repeat the last valid one).
 """
 function simulate_string(; courant, density_ratio, interface_x, boundary,
-    mu0, rho0, nx=600, xmin=-100.0, xmax=100.0, n_frames=220, duration=nothing)
+    mu0, rho0, nx=600, xmin=-100.0, xmax=100.0, n_frames=220, duration=nothing,
+    pulse_width=0.5)
 
     xg = range(xmin, xmax, length=nx)
     xgrid = collect(xg)
@@ -269,7 +302,7 @@ function simulate_string(; courant, density_ratio, interface_x, boundary,
     frame_stride = max(1, nt ÷ n_frames)
     nframes_actual = length(1:frame_stride:nt)
 
-    vy = exp.(-0.11 .* (xgrid .+ 50.0) .^ 2)
+    vy = exp.(-pulse_width .* (xgrid .+ 50.0) .^ 2)
     sigma = zeros(nx - 1)
 
     vy_frames = zeros(nframes_actual, nx)
@@ -326,8 +359,11 @@ let
     T_analytic = 2 * Z1c / (Z1c + Z2c)
 
     dur = 42.0 / vs1c
+    # a broad, well-resolved pulse -- this check is validating the reflection/
+    # transmission physics, not the FD scheme's own numerical dispersion, so it
+    # deliberately does NOT use the widget's default (narrower) pulse_width
     res = simulate_string(; courant=0.3, density_ratio=ratio_check, interface_x=iface,
-        boundary="fixed", mu0=μ0, rho0=ρ0, n_frames=300, duration=dur)
+        boundary="fixed", mu0=μ0, rho0=ρ0, n_frames=300, duration=dur, pulse_width=0.11)
 
     vy_last = res.vy_frames[end, :]
     xg = res.xgrid
@@ -370,7 +406,7 @@ let
     check_t = 25.0
     results = map(("fixed", "free")) do bt
         res = simulate_string(; courant=0.3, density_ratio=1.0, interface_x=0.0,
-            boundary=bt, mu0=μ0, rho0=ρ0, n_frames=300)
+            boundary=bt, mu0=μ0, rho0=ρ0, n_frames=300, pulse_width=0.11)
         k = argmin(abs.(res.frames_t .- check_t))
         vyk = res.vy_frames[k, :]
         xg = res.xgrid
@@ -411,7 +447,7 @@ begin
         boundary::String
     end
 
-    WaveOnStringInput(; courant=0.4, density_ratio=4.0, interface_x=0.0, boundary="free") =
+    WaveOnStringInput(; courant=0.9, density_ratio=4.0, interface_x=0.0, boundary="free") =
         WaveOnStringInput(Float64(courant), Float64(density_ratio), Float64(interface_x), boundary)
 
     Base.get(w::WaveOnStringInput) = Dict{String,Any}(
@@ -445,23 +481,31 @@ begin
       padding: 6px 12px; font-size: 14px; cursor: pointer; }
     #wos-root button.wos-active { background: #1d4ed8; border-color: #93c5fd; }
     #wos-root .wos-hint { font-size: 12px; color: #6b7280; margin-top: 6px; }
+    #wos-root .wos-panel { position: relative; }
+    #wos-root .wos-ratio-input { position: absolute; width: 58px; font-size: 11px; text-align: center;
+      pointer-events: auto; background: #0b0b0b; color: #e5e7eb; border: 1px solid #4ade80; border-radius: 3px;
+      padding: 2px; font-variant-numeric: tabular-nums; }
   </style>
   <div class="wos-title">
-    <div class="wos-title-desc">Drag Courant number, density ratio, interface position, or the boundary type -- everything replays live.</div>
+    <div class="wos-title-desc">Drag the interface line and edit the density-ratio box directly on the plot; Courant and boundary type control everything else.</div>
     <div class="wos-title-hint">push Courant above 1 to see it blow up &middot; press Play to watch the pulse split, reflect, and transmit</div>
   </div>
   <div class="wos-workspace">
     <div class="wos-panel-title">Staggered grid (schematic)</div>
     <canvas id="wos-schem"></canvas>
-    <div class="wos-panel-title">String velocity v_y(x)</div>
-    <canvas id="wos-main"></canvas>
+    <div class="wos-panel-title">String velocity v_y(x) -- drag the white interface line, edit the density-ratio box</div>
+    <div class="wos-panel">
+      <canvas id="wos-main"></canvas>
+      <div id="wos-overlay" style="position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none">
+        <input type="number" id="wos-ratio-input" class="wos-ratio-input" min="0.2" max="8" step="0.1" value="$(w.density_ratio)" title="density ratio, medium 1 (left of interface) / baseline">
+      </div>
+    </div>
   </div>
   <div class="wos-controls">
     <div class="wos-control-group">
       <div class="wos-control-title">Numerics</div>
       <label class="wos-control-row"><span>Courant C</span><input type="range" id="wos-courant" min="0.05" max="1.3" step="0.05" value="$(w.courant)"><span id="wos-courant-v" class="wos-value">$(w.courant)</span></label>
-      <label class="wos-control-row"><span>Density ratio</span><input type="range" id="wos-ratio" min="0.2" max="8" step="0.1" value="$(w.density_ratio)"><span id="wos-ratio-v" class="wos-value">$(w.density_ratio)</span></label>
-      <label class="wos-control-row"><span>Interface x</span><input type="range" id="wos-iface" min="-60" max="60" step="5" value="$(w.interface_x)"><span id="wos-iface-v" class="wos-value">$(w.interface_x)</span></label>
+      <div class="wos-hint">Density ratio and interface position: drag directly on the plot above.</div>
     </div>
     <div class="wos-control-group">
       <div class="wos-control-title">Boundary</div>
@@ -488,9 +532,11 @@ begin
   let boundaryType = "$(w.boundary)"
   let data = null   // filled in by the 'wos-results' push from Julia
   let playing = false, rafId = null, tPhase = 0, lastTs = null
+  let draggingIface = false
 
   const schemCvs = par.querySelector('#wos-schem'), sctx = schemCvs.getContext('2d')
   const mainCvs = par.querySelector('#wos-main'), mctx = mainCvs.getContext('2d')
+  const ratioInput = par.querySelector('#wos-ratio-input')
 
   function hidpi(cv, cx, w, h){
     cv.width = Math.round(w*DPR); cv.height = Math.round(h*DPR)
@@ -500,6 +546,27 @@ begin
   const SCH = 100, MCH = 380
   hidpi(schemCvs, sctx, totalW, SCH)
   hidpi(mainCvs, mctx, totalW, MCH)
+
+  // Shared main-panel coordinate transform -- used by both drawMain and the
+  // interface-drag mouse handlers so a click and its own drawn line always
+  // agree on where "the line" actually is.
+  const MPAD = {l:48, r:16, t:16, b:54}
+  function domainMinMax(){ return data ? [data.xmin, data.xmax] : [-100, 100] }
+  function mainX(xv, xmin, xmax){
+    const x0 = MPAD.l, x1 = totalW-MPAD.r
+    return x0 + ((xv-xmin)/(xmax-xmin))*(x1-x0)
+  }
+  function mainXInv(px, xmin, xmax){
+    const x0 = MPAD.l, x1 = totalW-MPAD.r
+    return xmin + ((px-x0)/(x1-x0))*(xmax-xmin)
+  }
+  function positionRatioInput(){
+    const [xmin, xmax] = domainMinMax()
+    const lineX = mainX(interfaceX, xmin, xmax)
+    const cx = (MPAD.l + lineX)/2
+    ratioInput.style.left = Math.round(cx-29) + 'px'
+    ratioInput.style.top = (MPAD.t+6) + 'px'
+  }
 
   function drawArrow(cx0,cy0,cx1,cy1,ccx,ccy){
     sctx.beginPath()
@@ -595,8 +662,8 @@ begin
 
   function drawMain(){
     mctx.clearRect(0,0,totalW,MCH)
-    const padL=48, padR=16, padT=16, padB=54
-    const x0=padL, x1=totalW-padR, y0=padT, y1=MCH-padB
+    const x0=MPAD.l, x1=totalW-MPAD.r, y0=MPAD.t, y1=MCH-MPAD.b
+    positionRatioInput()
 
     if(!data){
       mctx.fillStyle = '#6b7280'; mctx.font = '13px sans-serif'; mctx.fillText('computing...', 12, 20)
@@ -606,7 +673,7 @@ begin
     const {xgrid, nx, nFrames, vyFlat, framesT, vs1, vs2, Z1, Z2, R, T, stable, xmin, xmax, ampMax} = data
     const ifaceX = interfaceX
 
-    const X = xv => x0 + ((xv-xmin)/(xmax-xmin))*(x1-x0)
+    const X = xv => mainX(xv, xmin, xmax)
     const amp = Math.max(ampMax, 1e-9)
     const Y = v => (y0+y1)/2 - (v/amp)*((y1-y0)/2)*0.92
 
@@ -625,7 +692,8 @@ begin
       return
     }
 
-    mctx.strokeStyle = '#e5e7eb'; mctx.lineWidth = 1.6
+    // draggable directly (mousedown/mousemove below) -- brighter while held
+    mctx.strokeStyle = draggingIface ? '#ffffff' : '#e5e7eb'; mctx.lineWidth = draggingIface ? 2.6 : 1.6
     mctx.beginPath(); mctx.moveTo(X(ifaceX),y0); mctx.lineTo(X(ifaceX),y1); mctx.stroke()
 
     drawBoundaryMarker(x0, 'left')
@@ -675,12 +743,42 @@ begin
   par.querySelector('#wos-courant').addEventListener('input', e=>{
     courant = parseFloat(e.target.value); par.querySelector('#wos-courant-v').textContent = courant.toFixed(2); drawMain(); emit()
   })
-  par.querySelector('#wos-ratio').addEventListener('input', e=>{
-    densityRatio = parseFloat(e.target.value); par.querySelector('#wos-ratio-v').textContent = densityRatio.toFixed(1); emit()
+  ratioInput.addEventListener('input', e=>{
+    const v = parseFloat(e.target.value)
+    if(!isFinite(v) || v<=0) return
+    densityRatio = Math.max(0.2, Math.min(8, v))
+    drawMain(); emit()
   })
-  par.querySelector('#wos-iface').addEventListener('input', e=>{
-    interfaceX = parseFloat(e.target.value); par.querySelector('#wos-iface-v').textContent = interfaceX.toFixed(0); drawMain(); emit()
+
+  // Interface line: drag it directly on the canvas rather than a slider,
+  // same pattern as the layer-boundary drag in wave-mode-duality-1D.jl.
+  function nearIfaceLine(px){
+    const [xmin,xmax] = domainMinMax()
+    return Math.abs(px - mainX(interfaceX, xmin, xmax)) < 10
+  }
+  mainCvs.addEventListener('mousedown', e=>{
+    if(!data) return
+    const rect = mainCvs.getBoundingClientRect()
+    if(nearIfaceLine(e.clientX-rect.left)) draggingIface = true
   })
+  mainCvs.addEventListener('mousemove', e=>{
+    if(draggingIface || !data) return
+    const rect = mainCvs.getBoundingClientRect()
+    mainCvs.style.cursor = nearIfaceLine(e.clientX-rect.left) ? 'ew-resize' : 'default'
+  })
+  window.addEventListener('mousemove', e=>{
+    if(!draggingIface || !data) return
+    const rect = mainCvs.getBoundingClientRect()
+    const px = Math.max(0, Math.min(totalW, e.clientX-rect.left))
+    const [xmin,xmax] = domainMinMax()
+    let xv = mainXInv(px, xmin, xmax)
+    interfaceX = Math.max(xmin+20, Math.min(xmax-20, xv))
+    drawMain(); emit()
+  })
+  window.addEventListener('mouseup', ()=>{
+    if(draggingIface){ draggingIface = false; drawMain() }
+  })
+
   par.querySelector('#wos-b-free').addEventListener('click', ()=>{ boundaryType='free'; syncBoundaryButtons(); drawMain(); emit() })
   par.querySelector('#wos-b-fixed').addEventListener('click', ()=>{ boundaryType='fixed'; syncBoundaryButtons(); drawMain(); emit() })
 
@@ -717,8 +815,7 @@ begin
   par.querySelector('#wos-reset').addEventListener('click', ()=>{
     courant = $(w.courant); densityRatio = $(w.density_ratio); interfaceX = $(w.interface_x); boundaryType = "$(w.boundary)"
     par.querySelector('#wos-courant').value = courant; par.querySelector('#wos-courant-v').textContent = courant.toFixed(2)
-    par.querySelector('#wos-ratio').value = densityRatio; par.querySelector('#wos-ratio-v').textContent = densityRatio.toFixed(1)
-    par.querySelector('#wos-iface').value = interfaceX; par.querySelector('#wos-iface-v').textContent = interfaceX.toFixed(0)
+    ratioInput.value = densityRatio
     syncBoundaryButtons()
     tPhase = 0; playing = false; if(rafId){ cancelAnimationFrame(rafId); rafId=null }; playBtn.textContent = 'Play'
     drawMain(); emit()
