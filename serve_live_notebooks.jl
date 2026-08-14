@@ -34,6 +34,14 @@ settings = options(ARGS)
 notebooks = notebook_paths()
 isempty(notebooks.live) && error("live-notebooks.yml does not contain a live notebook")
 
+live_notebooks_file = get(ENV, "LIVE_NOTEBOOKS_FILE", "")
+if !isempty(live_notebooks_file)
+    mkpath(dirname(live_notebooks_file))
+    open(live_notebooks_file, "w") do io
+        foreach(notebook -> println(io, notebook), notebooks.live)
+    end
+end
+
 println("Starting live server for: $(join(notebooks.live, ", "))")
 PlutoSliderServer.run_directory(
     SOURCE_DIRECTORY;
