@@ -2,10 +2,10 @@
 # v0.2.6
 
 #> [frontmatter]
-#> title = "P-SV Free-surface Reflection"
-#> layout = "layout.jlhtml"
+#> title = "Reflected and Transmitted SH Waves"
 #> tags = ["planewaves"]
-#> description = "In this notebook, we shall investigate the interaction of plane P waves with Earth's free surface. "
+#> layout = "layout.jlhtml"
+#> description = "In this notebook, we shall investigate the behavior of waves that love to hop between two geological layers like kids in a bouncy castle."
 
 using Markdown
 using InteractiveUtils
@@ -33,9 +33,10 @@ TableOfContents()
 
 # ╔═╡ 32a757ff-aa7a-41d5-b8b3-6ac9e0125875
 md"""
-# P-SV Free-surface Reflection
-In this notebook, we will delve into the analysis of the reflection coefficients of P and S waves at a free surface, which is a solid-vacuum boundary. By assuming a free surface at `z=0`, we will apply stress-free boundary conditions to derive the expressions for the reflection coefficients of both P and S waves. This analysis is crucial for understanding the behavior of seismic waves as they interact with the Earth's surface.
-
+# SH Reflection & Transmission Coefficients
+In this notebook, we analyze the amplitudes of reflected and transmitted 
+plane waves at the interface between two geological layers. 
+Assuming a horizontal interface at `z=0`, we use boundary conditions to derive expressions for the reflected and transmitted amplitudes. For simplicity, we focus on shear-horizontal (SH) waves.
 
 ##### [Interactive Seismology Notebooks](https://pawbz.github.io/Interactive-Seismology.jl/)
 
@@ -66,13 +67,6 @@ end
 md"In 2D, a harmonic plane wave with an frequency `ω`, amplitude `A`, horizontal slowness `p` and vertical slowness `η` is defined below."
 
 # ╔═╡ 6043b904-6991-4776-bc1b-13eda3fcc936
-"""
-	plane(p, η, A)
-
-A harmonic plane-wave potential with horizontal slowness `p`, vertical slowness `η`, and
-amplitude `A`, sharing the notebook-wide symbolic angular frequency `ω` and coordinates
-`x`, `z`, `t`.
-"""
 plane(p, η, A) = A * exp(ı * ω * (t - (p * x + η * z)))
 
 # ╔═╡ c7c52926-6e2e-4c4c-a01f-09f57c2ececd
@@ -86,78 +80,170 @@ p^2 + η^2 = \frac{1}{β^2}
 is satisfied."
 
 # ╔═╡ fbc6cd6c-0b3b-44e9-b2a6-5edb0eeced1b
-@syms A A₁ A₂
+@syms A Aₜ Aᵣ
 
 # ╔═╡ 8dad08c2-b9a8-40ec-a8ef-c9383e5ec7b1
 @syms p::Real
 
 # ╔═╡ 13b5abc9-10be-4ef1-817d-bcee1271c89e
-@syms η₁ η₂
+@syms η ηₜ
+
+# ╔═╡ 49e3a1a5-9d1a-4ece-b563-2bd6ee909b5a
+md"""
+## Setup
+The key steps involved in this analysis are:
+1. **Defining the Plane Waves**: We define the mathematical expressions for the incident, reflected, and transmitted SH waves using their amplitudes, horizontal slowness `p`, and vertical slowness `η`.
+2. **Applying Boundary Conditions**: We impose the kinematic boundary condition (continuity of displacement) and the dynamic boundary condition (continuity of traction) at the interface to derive equations relating the amplitudes of the waves.
+3. **Solving for Coefficients**: We solve the derived equations to obtain the reflection and transmission coefficients, which describe the amplitudes of the reflected and transmitted waves relative to the incident wave.
+
+This analysis helps in understanding how SH waves interact with geological layers, which is crucial for interpreting seismic data and exploring subsurface structures.
+"""
 
 # ╔═╡ aae7b893-4b33-44ae-b01c-6345a1180d0d
 md"""
-## Potentials : Incident P-wave, Reflected P-wave and Reflected SV-wave 
-For the P-SV system on a free surface, all the waves are traveling in the same medium. The velocity of the P-wave is denoted by `α` and the velocity of the S-wave is denoted by `β`. The plane waves representing potentials share the same horizontal slowness `p`.
-
-- Now, we create an incident wave using the `plane` function with parameters `p`, `η₁`, and `A`, representing the horizontal slowness, verticle slowness, and amplitude, respectively. 
-- Then, two reflected waves, `reflect1` and `reflect2`, are also defined using the `plane` function. The first reflected wave, `reflect1`, uses the parameters `p`, `-η₁`, and `A₁`, indicating a reflection with opposite vertical slowness and a different amplitude. 
-- Similarly, the second reflected wave, `reflect2`, is defined with `p`, `-η₂`, and `A₂`, representing another reflection with a different vertical slowness and amplitude. This setup models the behavior of P and S incident and reflected waves at a free surface.
+## Continuity in Displacement; Kinematic Boundary Conditions
+For two solids welded in contact, the kinematic boundary condition is that all three components of the displacement have to be continuous across the boundary.
+We begin with expressions of the incident, transmitted and reflected plane waves.
+Note that all these plane waves share the same horizontal slowness `p`.
 """
 
 # ╔═╡ f488f9f3-e73b-42ae-b3c2-2262661fd839
-incident = plane(p, η₁, A)
+u_incident = plane(p, η, A)
 
 # ╔═╡ 4dc428b0-f141-4e94-9edb-e847780333aa
-reflect1 = plane(p, -η₁, A₁)
+u_reflected = plane(p, -η, Aᵣ)
 
 # ╔═╡ 8940ee90-2dd1-448c-92cd-09fd1ebbaea7
-reflect2 = plane(p, -η₂, A₂)
+u_transmitted = plane(p, ηₜ, Aₜ)
 
-# ╔═╡ a1213dc4-3ea9-4b26-aa82-a15cc3e72401
-md"""
-## Particle Displacements
-We now write expressions for particle displacements given plane wave potentials.
-Depending on whether the incident wave is P or S, these expressions change.
-"""
+# ╔═╡ 9f28cf9f-6a45-4773-a371-63743c8dc4c8
+md"As the displacement is continuous across the boundary, we shall now substitute `z=0` in the plane waves defined above, and impose a condition that the displacement due to the incident and the reflected waves in the first layer should be equal to the displacement due to the transmitted wave."
+
+# ╔═╡ 0b930000-d544-48ba-ae5e-f4737e258cf4
+u_z0 = substitute(u_incident + u_reflected - u_transmitted, z => 0) ~ 0
+
+# ╔═╡ 6e132f9a-4808-41ac-90a6-81fb4ab8b4b6
+md"Lets assume the amplitude of the incident planewave to be 1 for simplicity. In other words, `A_r` and `A_t` now denote the amplitude relative to the incident wave."
+
+# ╔═╡ 63dde687-8f19-466c-a3f4-a80a4991eafa
+eq_displacement = simplify(Symbolics.symbolic_linear_solve(u_z0, A)) ~ 1
+
+# ╔═╡ f3fa9d28-2591-496c-8976-064af0b96038
+u_z0
 
 # ╔═╡ 52d2ba9b-826a-4805-9583-f1a80b10a926
 md"""
-## Free-surface Condition
-At the free-surface i.e. z=0 , kinematic boundary condition does not exist.
-We have two dynamic boundary conditions `σ_{zz}=0` and `σ_{xz}=0` and two unknowns (`A_{1}`,`A_{2}`) to estimate (when assuming `A=1`).
+## Continuity in Traction; Dynamic Boundary Conditions
+Apparently, a continuity in displacement is not sufficient for us to uniquely 
+determine both Aₜ and Aᵣ, given A. We should also employ the dynamic boundary condition, i.e., a constraint that traction on the surface `z=0` is continuous. Specifically, here the component `σyz` of the stress tensor has to be continuous.
 """
 
 # ╔═╡ 7cf515f8-2496-4bde-b3b3-9d39d971764a
-@syms λ::Real μ::Real
+@variables μ₁::Real μ₂::Real
+
+# ╔═╡ 040f1440-14c4-491b-b792-570aa3c2080b
+σyz_incident = expand_derivatives.(μ₁ .* Dz.(u_incident))
+
+# ╔═╡ 3525bf50-b0e5-4c3b-ba75-77689a5799f4
+σyz_transmitted = expand_derivatives.(μ₂ .* Dz.(u_transmitted))
+
+# ╔═╡ 0dfd91aa-f9e1-4d93-a471-0bf99e476af5
+σyz_reflected = expand_derivatives.(μ₁ .* Dz.(u_reflected))
+
+# ╔═╡ bbf3e71e-b41d-4a85-b9dd-5e96d355cdda
+md"Similar to the displacement case, we now impose the continuity in `σyz`."
+
+# ╔═╡ 06a568fa-ba94-4c5f-815d-f30c6c8a4260
+σyz_z0 = substitute.(σyz_incident .+ σyz_reflected .- σyz_transmitted, z => 0) .~ 0
+
+# ╔═╡ b1a1be64-c635-4002-9031-8752b8dbb408
+eq_traction = (η * μ₁) * simplify(Symbolics.symbolic_linear_solve(σyz_z0, A)) ~ (η * μ₁)
+
+# ╔═╡ de6162f2-ac93-4397-8b40-75480ff951a4
+Markdown.MD(Markdown.Admonition("danger", "Note",
+    [md"""
+   The remaining element σyx doesn't have to be continuous as it doesn't determine the traction on the interface `z=0`.
+   	"""]
+))
+
+# ╔═╡ 080fde69-99e2-4292-8cd3-3edae2debd88
+md"""
+Finally, we can solve for the reflection and transmission amplitudes, `A_r` and `A_t`,
+for the 2-D SH problem.
+"""
+
+# ╔═╡ 6746517c-043e-4137-8255-a6230d36a886
+SHAₜ, SHAᵣ = simplify.(Symbolics.symbolic_linear_solve([eq_displacement, eq_traction], [Aₜ, Aᵣ]))
+
+# ╔═╡ 4bd8cd77-8770-467f-8374-7cabd128c1e6
+plane(p, ηₜ, SHAₜ)
+
+# ╔═╡ dfc70c3b-bcb4-462f-99f6-7e79e505fca7
+plane(p, -η, SHAᵣ)
 
 # ╔═╡ 5729b459-b283-41ce-95be-c4d33a7c28c0
-md"## Example"
+md"## MOHO Example"
 
 # ╔═╡ 281cb873-760c-411f-98b5-1c64d218e7e9
 md"""
-We shall begin defining a function that computes the ray parameter, given the
-angle of incidence `θ`.
+We shall begin defining a function that computes the ray parameter, given
+the angle of incidence `θ`.
 """
 
 # ╔═╡ 3d50985b-b79a-45ab-ba1f-5287936c56d9
 @syms θ::Real
 
 # ╔═╡ a7cb9cd5-7013-461b-960d-5da73db62aea
-md"We now compute the vertical component of the slowness vector for both the reflected waves using the 
+md"We can then compute the vertical component of the slowness vector using the 
 dispersion relation."
 
+# ╔═╡ 602dcab9-b563-46e9-a694-4561c8acd9a7
+md"Similarly, the vertical component of the slowness vector in the second layer can be computed."
+
 # ╔═╡ 8c81ddb5-bf4d-4610-bfea-3d1a27ffd61f
-md"""
-We can finally update the expressions of reflection coefficients using input parameters and plot them.
+md"We can finally, update the expression of `SHAᵣ` and `SHAₜ` using the MOHO parameters and plot them"
+
+# ╔═╡ a089ab5b-4703-4d4d-a7ab-11197b4b907c
 """
+    sh_interface_coefficients(β₁, β₂, ρ₁, ρ₂, θ)
+
+Return the transmitted and reflected SH displacement-amplitude coefficients at
+incident angle `θ` (radians). This is the direct numerical form of the
+Symbolics derivation above; keeping it separate prevents a symbolic
+`substitute`/`simplify` pass for every point in the interactive sweep.
+"""
+function sh_interface_coefficients(
+    β₁::Float64,
+    β₂::Float64,
+    ρ₁::Float64,
+    ρ₂::Float64,
+    θ::Float64,
+)
+    p = sin(θ) / β₁
+    η₁ = sqrt((inv(β₁)^2 - p^2) + 0im)
+    η₂ = sqrt((inv(β₂)^2 - p^2) + 0im)
+    q₁ = ρ₁ * β₁^2 * η₁
+    q₂ = ρ₂ * β₂^2 * η₂
+    denominator = q₁ + q₂
+
+    return (
+        transmitted = ComplexF64(2q₁ / denominator),
+        reflected = ComplexF64((q₁ - q₂) / denominator),
+    )
+end
+
+SHAₜ_ex(θ) = sh_interface_coefficients(β₁MOHO, β₂MOHO, ρ₁MOHO, ρ₂MOHO, Float64(θ)).transmitted
+SHAᵣ_ex(θ) = sh_interface_coefficients(β₁MOHO, β₂MOHO, ρ₁MOHO, ρ₂MOHO, Float64(θ)).reflected
 
 # ╔═╡ eeee5555-5555-5555-5555-555555555555
 md"""
 ### Verifying the coefficients
-At normal incidence (`θ=0`), there is no mode conversion: a P wave striking the surface
-head-on reflects only as P (and likewise for S), so the mode-converted amplitude should
-vanish, and since a free surface reflects all incident energy, the direct reflection
-coefficient's magnitude should be exactly 1.
+At normal incidence (`θ=0`), the reflection and transmission coefficients reduce to the
+classic impedance-ratio result (the same formula as an acoustic wave hitting a welded
+boundary): with impedance `Z = ρβ` in each layer,
+```math
+A_r(0) = \frac{Z_1-Z_2}{Z_1+Z_2}, \qquad A_t(0) = \frac{2Z_1}{Z_1+Z_2}
+```
 """
 
 # ╔═╡ dba7ea14-e0dd-4dc4-ad9c-4627fd16cc62
@@ -170,15 +256,14 @@ The sign of the vertical slowness in the transmitted field above is chosen to pr
 """]
 ))
 
-# ╔═╡ 602f13f9-6d14-41fd-9183-b8255d64399b
+# ╔═╡ cccc9999-9999-9999-9999-999999999999
 Markdown.MD(Markdown.Admonition("note", "Observations",
     [md"""
-- The angle of reflection of the S-wave is always less than that of the P-reflected wave. This is because the vertical slowness of the S-reflected wave (`η_β`) is always greater than that of the P-reflected wave.
-- The wavenumber of the S-reflected wave is higher than that of the P-wave. The wavenumber of the S-reflected wave increases as `β` becomes smaller compared to `α`.
-- When `β` is very small, the amplitude of the S-reflected wave is negligible.
-- A negative reflection coefficient indicates a phase change of the reflected wave by π.
-- The P-reflection coefficient and S-reflection coefficient follow the conservation of energy. The P-reflection coefficient is maximum when the S-reflection coefficient is minimum.
-"""]
+   - The angle of incidence (70°, in this reference example) is greater than the critical angle.
+   - The amplitude of the inhomogeneous (evanescent) transmitted wave decays exponentially away from the boundary.
+   - There is a phase change in the reflected wave.
+   - The exponential decay rate is a function of the angular frequency.
+   	"""]
 ))
 
 # ╔═╡ aaaa7777-7777-7777-7777-777777777777
@@ -187,87 +272,90 @@ md"## The Interactive Widget"
 # ╔═╡ dddd4444-4444-4444-4444-444444444444
 begin
     """A draggable coefficient-vs-angle canvas: the incidence angle is set by
-    dragging directly on the reflectivity curves, not by a slider. Only the
-    medium properties (`alpha`, `beta`, `rho`) and the incident-wave type feed
-    back to Julia -- angle, frequency, and which waves are drawn are pure
+    dragging directly on the reflection/transmission curves, not by a slider.
+    Only the layer properties (`beta1`,`rho1`,`beta2`,`rho2`) feed back to Julia
+    -- angle, frequency, amplitude/phase mode, and which waves are drawn are pure
     client-side state, since a full angle sweep of the coefficients is pushed to
     the widget once (see the cell above `## Appendix`) and everything else is
     cheap trigonometry over that sweep."""
-    struct PSVWidgetInput
-        alpha::Float64
-        beta::Float64
-        rho::Float64
-        incident_type::String
+    struct SHWidgetInput
+        beta1::Float64
+        beta2::Float64
+        rho1::Float64
+        rho2::Float64
     end
 
-    PSVWidgetInput(; alpha=3.9, beta=2.0, rho=2.9, incident_type="P") =
-        PSVWidgetInput(Float64(alpha), Float64(beta), Float64(rho), incident_type)
+    SHWidgetInput(; beta1=3.9, beta2=4.49, rho1=2.9, rho2=3.38) =
+        SHWidgetInput(Float64(beta1), Float64(beta2), Float64(rho1), Float64(rho2))
 
-    Base.get(w::PSVWidgetInput) = Dict{String,Any}(
-        "alpha" => w.alpha, "beta" => w.beta, "rho" => w.rho, "incident_type" => w.incident_type,
+    Base.get(w::SHWidgetInput) = Dict{String,Any}(
+        "beta1" => w.beta1, "beta2" => w.beta2, "rho1" => w.rho1, "rho2" => w.rho2,
     )
 
-    function Base.show(io::IO, ::MIME"text/html", w::PSVWidgetInput)
+    function Base.show(io::IO, ::MIME"text/html", w::SHWidgetInput)
         write(io, """
-<div id="psvwidget" style="display:flex;flex-direction:column;align-items:center;width:100%;color:#9ca3af">
+<div id="shwidget" style="display:flex;flex-direction:column;align-items:center;width:100%;color:#9ca3af">
   <style>
-    pluto-cell:has(#psvwidget) {
+    pluto-cell:has(#shwidget) {
       width: min(80vw, 1100px) !important;
       margin-left: calc((100% - min(80vw, 1100px)) / 2) !important;
     }
-    #psvwidget { width: 100%; box-sizing: border-box; color: #d1d5db; font: 14px sans-serif; }
-    #psvwidget .psv-title { width: 100%; box-sizing: border-box; text-align: center; margin-bottom: 10px;
+    #shwidget { width: 100%; box-sizing: border-box; color: #d1d5db; font: 14px sans-serif; }
+    #shwidget .sh-title { width: 100%; box-sizing: border-box; text-align: center; margin-bottom: 10px;
       background: #0a0f18; border: 1px solid #3b5c85; border-radius: 6px; padding: 10px 14px; }
-    #psvwidget .psv-title-desc { font-size: 17px; font-weight: 700; color: #e5e7eb; }
-    #psvwidget .psv-title-hint { font-size: 13px; color: #9ca3af; margin-top: 3px; }
-    #psvwidget .psv-workspace { display: flex; gap: 12px; align-items: flex-start; justify-content: center;
+    #shwidget .sh-title-desc { font-size: 17px; font-weight: 700; color: #e5e7eb; }
+    #shwidget .sh-title-hint { font-size: 13px; color: #9ca3af; margin-top: 3px; }
+    #shwidget .sh-workspace { display: flex; gap: 12px; align-items: flex-start; justify-content: center;
       width: 100%; flex-wrap: wrap; }
-    #psvwidget .psv-controls { width: min(var(--totalw,900px),100%); margin-top: 10px; display: grid;
+    #shwidget .sh-controls { width: min(var(--totalw,900px),100%); margin-top: 10px; display: grid;
       grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 8px; font: 14px sans-serif; }
-    #psvwidget .psv-control-group { box-sizing: border-box; background: #050505; border: 1px solid #2f3744;
+    #shwidget .sh-control-group { box-sizing: border-box; background: #050505; border: 1px solid #2f3744;
       border-radius: 6px; padding: 10px 12px; }
-    #psvwidget .psv-control-title { font-weight: 700; color: #e5e7eb; margin-bottom: 8px; font-size: 18px; }
-    #psvwidget .psv-control-row { display: grid; grid-template-columns: minmax(60px,90px) minmax(70px,1fr) minmax(50px,70px);
+    #shwidget .sh-control-title { font-weight: 700; color: #e5e7eb; margin-bottom: 8px; font-size: 18px; }
+    #shwidget .sh-control-row { display: grid; grid-template-columns: minmax(60px,90px) minmax(70px,1fr) minmax(50px,70px);
       gap: 6px; align-items: center; margin: 6px 0; }
-    #psvwidget .psv-control-row input[type=range] { width: 100%; min-width: 0; }
-    #psvwidget .psv-value { color: #d1d5db; text-align: right; font-variant-numeric: tabular-nums; }
-    #psvwidget .psv-actions { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
-    #psvwidget button { border-radius: 4px; border: 1px solid #9ca3af; background: #606060; color: #f3f4f6;
+    #shwidget .sh-control-row input[type=range] { width: 100%; min-width: 0; }
+    #shwidget .sh-value { color: #d1d5db; text-align: right; font-variant-numeric: tabular-nums; }
+    #shwidget .sh-actions { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+    #shwidget button { border-radius: 4px; border: 1px solid #9ca3af; background: #606060; color: #f3f4f6;
       padding: 6px 12px; font-size: 14px; cursor: pointer; }
-    #psvwidget label { color: #d1d5db; }
+    #shwidget label { color: #d1d5db; }
   </style>
-  <div class="psv-title">
-    <div class="psv-title-desc">Drag the angle axis on the coefficient plot to see how the reflected P and S waves change.</div>
-    <div class="psv-title-hint">drag left/right on the coefficient plot &middot; hover a curve to identify it &middot; press play to animate</div>
+  <div class="sh-title">
+    <div class="sh-title-desc">Drag the angle axis on the coefficient plot to see how the reflected and transmitted SH waves change.</div>
+    <div class="sh-title-hint">drag left/right on the coefficient plot &middot; hover a curve to identify it &middot; press play to animate</div>
   </div>
-  <div class="psv-workspace">
-    <canvas id="psvrefl" style="background:#000;border:1px solid #374151;border-radius:6px;display:block"></canvas>
-    <canvas id="psvwave" style="background:#000;border:1px solid #374151;border-radius:6px;display:block"></canvas>
+  <div class="sh-workspace">
+    <canvas id="shrefl" style="background:#000;border:1px solid #374151;border-radius:6px;display:block"></canvas>
+    <canvas id="shwave" style="background:#000;border:1px solid #374151;border-radius:6px;display:block"></canvas>
   </div>
-  <div class="psv-controls">
-    <div class="psv-control-group">
-      <div class="psv-control-title">Medium</div>
-      <label class="psv-control-row"><span>α (km/s)</span><input type="range" id="psv-alpha" min="2" max="6" step="0.1" value="$(w.alpha)"><span id="psv-alpha-v" class="psv-value">$(w.alpha)</span></label>
-      <label class="psv-control-row"><span>β (km/s)</span><input type="range" id="psv-beta" min="2" max="6" step="0.1" value="$(w.beta)"><span id="psv-beta-v" class="psv-value">$(w.beta)</span></label>
-      <label class="psv-control-row"><span>ρ (g/cm³)</span><input type="range" id="psv-rho" min="2" max="6" step="0.1" value="$(w.rho)"><span id="psv-rho-v" class="psv-value">$(w.rho)</span></label>
+  <div class="sh-controls">
+    <div class="sh-control-group">
+      <div class="sh-control-title">Layer 1</div>
+      <label class="sh-control-row"><span>β₁ (km/s)</span><input type="range" id="sh-beta1" min="2" max="6" step="0.1" value="$(w.beta1)"><span id="sh-beta1-v" class="sh-value">$(w.beta1)</span></label>
+      <label class="sh-control-row"><span>ρ₁ (g/cm³)</span><input type="range" id="sh-rho1" min="2" max="6" step="0.1" value="$(w.rho1)"><span id="sh-rho1-v" class="sh-value">$(w.rho1)</span></label>
     </div>
-    <div class="psv-control-group">
-      <div class="psv-control-title">Incidence</div>
-      <div class="psv-actions">
-        <label><input type="radio" name="psv-itype" id="psv-itype-p" $(w.incident_type == "P" ? "checked" : "")> incident <b style="color:#f97316">P</b></label>
-        <label><input type="radio" name="psv-itype" id="psv-itype-s" $(w.incident_type == "S" ? "checked" : "")> incident <b style="color:#38bdf8">S</b></label>
-      </div>
-      <label class="psv-control-row"><span>ω</span><input type="range" id="psv-omega" min="0.1" max="2" step="0.1" value="0.3"><span id="psv-omega-v" class="psv-value">0.3</span></label>
-      <div class="psv-actions"><button id="psv-play" type="button">Play</button></div>
+    <div class="sh-control-group">
+      <div class="sh-control-title">Layer 2</div>
+      <label class="sh-control-row"><span>β₂ (km/s)</span><input type="range" id="sh-beta2" min="2" max="6" step="0.1" value="$(w.beta2)"><span id="sh-beta2-v" class="sh-value">$(w.beta2)</span></label>
+      <label class="sh-control-row"><span>ρ₂ (g/cm³)</span><input type="range" id="sh-rho2" min="2" max="6" step="0.1" value="$(w.rho2)"><span id="sh-rho2-v" class="sh-value">$(w.rho2)</span></label>
     </div>
-    <div class="psv-control-group">
-      <div class="psv-control-title">Display</div>
-      <div class="psv-actions">
-        <label><input type="checkbox" id="psv-show-i" checked> Incident</label>
-        <label><input type="checkbox" id="psv-show-r1" checked> Reflected 1</label>
-        <label><input type="checkbox" id="psv-show-r2" checked> Reflected 2</label>
+    <div class="sh-control-group">
+      <div class="sh-control-title">Incidence &amp; Display</div>
+      <label class="sh-control-row"><span>ω</span><input type="range" id="sh-omega" min="0.1" max="2" step="0.1" value="0.3"><span id="sh-omega-v" class="sh-value">0.3</span></label>
+      <div class="sh-actions">
+        <label><input type="checkbox" id="sh-show-i" checked> Incident</label>
+        <label><input type="checkbox" id="sh-show-r" checked> Reflected</label>
+        <label><input type="checkbox" id="sh-show-t" checked> Transmitted</label>
       </div>
-      <div class="psv-actions" style="margin-top:8px"><button id="psv-reset" type="button">Reset defaults</button></div>
+      <div class="sh-actions" style="margin-top:8px">
+        <label><input type="radio" name="sh-mode" id="sh-mode-amp" checked> Amplitude</label>
+        <label><input type="radio" name="sh-mode" id="sh-mode-phase"> Phase</label>
+      </div>
+      <div class="sh-actions" style="margin-top:8px">
+        <button id="sh-play" type="button">Play</button>
+        <button id="sh-reset" type="button">Reset defaults</button>
+      </div>
     </div>
   </div>
 </div>
@@ -279,14 +367,14 @@ begin
   const SEC = Math.round(Math.min(totalW/2 - 10, 380))
   const DPR = Math.min(window.devicePixelRatio || 1, 2)
 
-  let alpha = $(w.alpha), beta = $(w.beta), rho = $(w.rho), incidentType = "$(w.incident_type)"
-  let thetaDeg = 40, omega = 0.3
-  let showI = true, showR1 = true, showR2 = true
+  let beta1 = $(w.beta1), beta2 = $(w.beta2), rho1 = $(w.rho1), rho2 = $(w.rho2)
+  let thetaDeg = 50, omega = 0.3
+  let showI = true, showR = true, showT = true, phaseMode = false
   let hoverCurve = -1, playing = false, tPhase = 0, rafId = null
-  let sweep = null   // filled in by the 'psv-results' push from Julia, below
+  let sweep = null   // filled in by the 'sh-results' push from Julia, below
 
-  const reflCvs = par.querySelector('#psvrefl'), rctx = reflCvs.getContext('2d')
-  const waveCvs = par.querySelector('#psvwave'), wctx = waveCvs.getContext('2d')
+  const reflCvs = par.querySelector('#shrefl'), rctx = reflCvs.getContext('2d')
+  const waveCvs = par.querySelector('#shwave'), wctx = waveCvs.getContext('2d')
   function hidpi(cv, cx, w, h){
     cv.width = Math.round(w*DPR); cv.height = Math.round(h*DPR)
     cv.style.width = w+'px'; cv.style.height = h+'px'
@@ -296,11 +384,11 @@ begin
   hidpi(waveCvs, wctx, SEC, SEC)
 
   // ---- reflectivity canvas: quarter-circle polar plot (angle 0-90deg sweeping
-  // clockwise from "up"), matching the notebook's own Reference Plots section --
-  // the radial axis is the diverging coefficient value itself, so the pole
-  // (r=RVMIN) sits at the plot's inner corner and the outer arc is r=RVMAX.
+  // clockwise from "up"), matching the P-SV notebook's own widget -- the radial
+  // axis is the diverging coefficient (or phase) value, so the pole sits at the
+  // plot's inner corner and the outer arc is the current mode's max magnitude.
   const RPOLE = {x: 46, y: SEC-30}
-  const RVMIN = -2, RVMAX = 2
+  function yRange(){ return phaseMode ? Math.PI*1.1 : 2.2 }
   const RMAX = Math.max(60, Math.min(SEC-RPOLE.x-34, RPOLE.y-32))
   function angDir(thetaDeg){
     const rad = thetaDeg*Math.PI/180
@@ -308,7 +396,8 @@ begin
   }
   function polarXY(thetaDeg, v){
     const [dx,dy] = angDir(thetaDeg)
-    const r = RMAX * (v-RVMIN)/(RVMAX-RVMIN)
+    const vmax = yRange()
+    const r = RMAX * (v+vmax)/(2*vmax)
     return [RPOLE.x + dx*r, RPOLE.y + dy*r]
   }
   function polarThetaOf(px, py){
@@ -316,46 +405,55 @@ begin
     return Math.max(0, Math.min(90, Math.atan2(dx, -dy) * 180/Math.PI))
   }
 
-  const CURVES = [
-    {key:'A1', part:'abs', label:'|P-reflection|', color:'#f97316', dash:[]},
-    {key:'A1', part:'re',  label:'Re(P-reflection)', color:'#f97316', dash:[6,3]},
-    {key:'A1', part:'im',  label:'Im(P-reflection)', color:'#f97316', dash:[1,3]},
-    {key:'A2', part:'abs', label:'|S-reflection|', color:'#38bdf8', dash:[]},
-    {key:'A2', part:'re',  label:'Re(S-reflection)', color:'#38bdf8', dash:[6,3]},
-    {key:'A2', part:'im',  label:'Im(S-reflection)', color:'#38bdf8', dash:[1,3]},
-  ]
+  function getCurves(){
+    if(phaseMode) return [
+      {key:'Ar', part:'phase', label:'Phase(Reflection)', color:'#f97316', dash:[]},
+      {key:'At', part:'phase', label:'Phase(Transmission)', color:'#38bdf8', dash:[]},
+    ]
+    return [
+      {key:'Ar', part:'abs', label:'|Reflection|', color:'#f97316', dash:[]},
+      {key:'Ar', part:'re',  label:'Re(Reflection)', color:'#f97316', dash:[6,3]},
+      {key:'Ar', part:'im',  label:'Im(Reflection)', color:'#f97316', dash:[1,3]},
+      {key:'At', part:'abs', label:'|Transmission|', color:'#38bdf8', dash:[]},
+      {key:'At', part:'re',  label:'Re(Transmission)', color:'#38bdf8', dash:[6,3]},
+      {key:'At', part:'im',  label:'Im(Transmission)', color:'#38bdf8', dash:[1,3]},
+    ]
+  }
 
   function curveValue(c, i){
     const re = sweep[c.key+'_re'][i], im = sweep[c.key+'_im'][i]
     if(c.part === 'abs') return Math.hypot(re, im)
     if(c.part === 're') return re
-    return im
+    if(c.part === 'im') return im
+    return Math.atan2(im, re)
   }
 
   function sweepIndex(theta){ return Math.max(0, Math.min(sweep.theta_deg.length-1, Math.round(theta*2))) }
 
   function drawReflectivity(){
     rctx.clearRect(0,0,SEC,SEC)
+    const vmax = yRange()
 
     // radial gridlines: concentric quarter-circle arcs at nice diverging values
-    const rticks = [-2,-1,0,1,2]
+    const rticks = phaseMode ? [-Math.PI,-Math.PI/2,0,Math.PI/2,Math.PI] : [-2,-1,0,1,2]
+    const rtickLabels = phaseMode ? ['-π','-π/2','0','π/2','π'] : rticks.map(String)
     rctx.font = '10px sans-serif'; rctx.textAlign = 'center'
-    rticks.forEach(v => {
-      const r = RMAX*(v-RVMIN)/(RVMAX-RVMIN)
+    rticks.forEach((v,ti) => {
+      const r = RMAX*(v+vmax)/(2*vmax)
       rctx.strokeStyle = v===0 ? '#4b5563' : '#242b38'
       rctx.lineWidth = v===0 ? 1.3 : 1
       rctx.beginPath(); rctx.arc(RPOLE.x, RPOLE.y, r, -Math.PI/2, 0); rctx.stroke()
       rctx.fillStyle = '#6b7280'
-      rctx.fillText(String(v), RPOLE.x+r, RPOLE.y+14)
+      rctx.fillText(rtickLabels[ti], RPOLE.x+r, RPOLE.y+14)
     })
 
     // angular gridlines (spokes) every 15deg, with degree labels -- clamped to
     // stay inside the canvas (see pluto-widget-style's tick-label-clipping note)
     rctx.strokeStyle = '#242b38'; rctx.lineWidth = 1
     for(let d=0; d<=90; d+=15){
-      const [x,y] = polarXY(d, RVMAX)
+      const [x,y] = polarXY(d, vmax)
       rctx.beginPath(); rctx.moveTo(RPOLE.x,RPOLE.y); rctx.lineTo(x,y); rctx.stroke()
-      const [lx,ly] = polarXY(d, RVMAX*1.1)
+      const [lx,ly] = polarXY(d, vmax*1.1)
       const label = d+'°'
       rctx.fillStyle = '#6b7280'; rctx.font = '10px sans-serif'; rctx.textAlign = 'center'
       const tw = rctx.measureText(label).width
@@ -373,7 +471,8 @@ begin
       return
     }
 
-    CURVES.forEach((c, idx) => {
+    const curves = getCurves()
+    curves.forEach((c, idx) => {
       const isHover = idx === hoverCurve
       rctx.globalAlpha = (hoverCurve === -1 || isHover) ? 1 : 0.2
       rctx.strokeStyle = c.color; rctx.lineWidth = isHover ? 2.6 : 1.6
@@ -388,10 +487,9 @@ begin
       rctx.globalAlpha = 1
     })
 
-    // draggable angle cursor -- a filled wedge (matching the reference plots'
-    // own "Animation" marker) plus the spoke line on top
+    // draggable angle cursor -- a filled wedge plus the spoke line on top
     const thetaRad = thetaDeg*Math.PI/180
-    const [cx,cy] = polarXY(thetaDeg, RVMAX)
+    const [cx,cy] = polarXY(thetaDeg, vmax)
     rctx.fillStyle = 'rgba(228,255,135,0.22)'
     rctx.beginPath()
     rctx.moveTo(RPOLE.x, RPOLE.y)
@@ -403,7 +501,7 @@ begin
     rctx.fillText(Math.round(thetaDeg)+'°', Math.min(cx+4, SEC-30), Math.max(cy-4, 12))
 
     if(hoverCurve >= 0){
-      const c = CURVES[hoverCurve]
+      const c = curves[hoverCurve]
       const v = curveValue(c, sweepIndex(thetaDeg))
       const label = c.label + '  ' + v.toFixed(3)
       rctx.font = '12px sans-serif'
@@ -425,30 +523,27 @@ begin
   }
   function nearestCurve(mx, my){
     if(!sweep) return -1
+    const curves = getCurves()
     let best = -1, bestD = 8
-    CURVES.forEach((c, idx) => {
+    curves.forEach((c, idx) => {
       const d = distToPolyline(mx, my, c)
       if(d < bestD){ bestD = d; best = idx }
     })
     return best
   }
 
-  // ---- wavefield canvas: x in [-200,200], z in [-200,0] (free surface at top) ----
+  // ---- wavefield canvas: x in [-200,200], z in [-200,200], interface at z=0 ----
   const REARTH_X = 200, REARTH_Z = 200
   const off = document.createElement('canvas')
-  const OFFW = 110, OFFH = 90
+  const OFFW = 110, OFFH = 110
   off.width = OFFW; off.height = OFFH
   const offCtx = off.getContext('2d')
 
-  // Diverging "seismic" colormap: blue (negative) - white (zero) - red (positive).
   function seismicColor(v, vmax){
     const t = Math.max(-1, Math.min(1, vmax > 0 ? v/vmax : 0))
-    if(t >= 0){
-      return [255, Math.round(255*(1-t)), Math.round(255*(1-t))]
-    } else {
-      const s = -t
-      return [Math.round(255*(1-s)), Math.round(255*(1-s)), 255]
-    }
+    if(t >= 0) return [255, Math.round(255*(1-t)), Math.round(255*(1-t))]
+    const s = -t
+    return [Math.round(255*(1-s)), Math.round(255*(1-s)), 255]
   }
 
   function drawWavefield(){
@@ -460,36 +555,38 @@ begin
     }
     const i0 = sweepIndex(thetaDeg)
     const p = sweep.p[i0]
-    const eta1 = sweep.eta1_re[i0]   // incident/reflected-1 leg is always real for a valid 0-90deg angle
-    const eta2_re = sweep.eta2_re[i0], eta2_im = sweep.eta2_im[i0]
-    const isReal2 = Math.abs(eta2_im) < 1e-6
-    const eU2re = isReal2 ? -eta2_re : eta2_re
-    const eU2im = isReal2 ? -eta2_im : eta2_im
-    const a1 = sweep.A1_re[i0], b1 = sweep.A1_im[i0]
-    const a2 = sweep.A2_re[i0], b2 = sweep.A2_im[i0]
+    const eta = sweep.eta_re[i0]   // layer-1 leg is always real for a valid 0-90deg angle
+    const etat_re = sweep.etat_re[i0], etat_im = sweep.etat_im[i0]
+    const isReal_t = Math.abs(etat_im) < 1e-6
+    const eUt_re = isReal_t ? etat_re : -etat_re
+    const eUt_im = isReal_t ? etat_im : -etat_im
+    const ar = sweep.Ar_re[i0], ai = sweep.Ar_im[i0]
+    const at = sweep.At_re[i0], bt = sweep.At_im[i0]
     const t = tPhase
 
     const img = offCtx.createImageData(OFFW, OFFH)
-    // first pass: compute raw values to find a robust color scale
     const vals = new Float64Array(OFFW*OFFH)
     let vmax = 1e-6
     for(let j=0;j<OFFH;j++){
-      const z = -(j/(OFFH-1))*REARTH_Z
+      const z = -REARTH_Z + (j/(OFFH-1))*2*REARTH_Z
       for(let i=0;i<OFFW;i++){
         const x = -REARTH_X + (i/(OFFW-1))*2*REARTH_X
         let U = 0
-        if(showI){
-          const phase = omega*(t - p*x - eta1*z)
-          U += Math.cos(phase)
-        }
-        if(showR1){
-          const phase = omega*(t - p*x + eta1*z)
-          U += a1*Math.cos(phase) - b1*Math.sin(phase)
-        }
-        if(showR2){
-          const mag = Math.exp(omega*eU2im*z)
-          const phase = omega*(t - p*x) - omega*eU2re*z
-          U += mag*(a2*Math.cos(phase) - b2*Math.sin(phase))
+        if(z <= 0){
+          if(showI){
+            const phase = omega*(t - p*x - eta*z)
+            U += Math.cos(phase)
+          }
+          if(showR){
+            const phase = omega*(t - p*x + eta*z)
+            U += ar*Math.cos(phase) - ai*Math.sin(phase)
+          }
+        } else {
+          if(showT){
+            const mag = Math.exp(omega*eUt_im*z)
+            const phase = omega*(t - p*x) - omega*eUt_re*z
+            U += mag*(at*Math.cos(phase) - bt*Math.sin(phase))
+          }
         }
         vals[j*OFFW+i] = U
         vmax = Math.max(vmax, Math.abs(U))
@@ -503,23 +600,23 @@ begin
     wctx.imageSmoothingEnabled = true
     wctx.drawImage(off, 0, 0, OFFW, OFFH, 0, 0, SEC, SEC)
 
-    // free-surface line + labels
+    const midY = SEC/2
     wctx.strokeStyle = '#facc15'; wctx.lineWidth = 2
-    wctx.beginPath(); wctx.moveTo(0,1); wctx.lineTo(SEC,1); wctx.stroke()
+    wctx.beginPath(); wctx.moveTo(0,midY); wctx.lineTo(SEC,midY); wctx.stroke()
     wctx.fillStyle = '#facc15'; wctx.font = '12px sans-serif'
-    wctx.fillText('Free surface', SEC*0.55, 16)
+    wctx.fillText('Interface', SEC*0.6, midY-6)
     wctx.fillStyle = '#e5e7eb'
-    wctx.fillText('(α,β,ρ)', 10, SEC-10)
+    wctx.fillText('(β₁,ρ₁)', 10, 16)
+    wctx.fillText('(β₂,ρ₂)', 10, SEC-10)
   }
 
   function redraw(){ drawReflectivity(); drawWavefield() }
 
   function emit(){
-    par.value = {alpha, beta, rho, incident_type: incidentType}
+    par.value = {beta1, beta2, rho1, rho2}
     par.dispatchEvent(new CustomEvent('input'))
   }
 
-  // ---- interaction: dragging the angle cursor on the reflectivity canvas ----
   let draggingTheta = false
   reflCvs.addEventListener('mousedown', e=>{ draggingTheta = true; thetaDeg = polarThetaOf(e.offsetX, e.offsetY); redraw() })
   reflCvs.addEventListener('mousemove', e=>{
@@ -534,26 +631,28 @@ begin
   window.addEventListener('mouseup', ()=>{ draggingTheta = false })
   reflCvs.addEventListener('mouseleave', ()=>{ if(hoverCurve !== -1){ hoverCurve = -1; redraw() } })
 
-  // ---- controls ----
-  par.querySelector('#psv-alpha').addEventListener('input', e=>{
-    alpha = parseFloat(e.target.value); par.querySelector('#psv-alpha-v').textContent = alpha.toFixed(1); emit()
+  par.querySelector('#sh-beta1').addEventListener('input', e=>{
+    beta1 = parseFloat(e.target.value); par.querySelector('#sh-beta1-v').textContent = beta1.toFixed(1); emit()
   })
-  par.querySelector('#psv-beta').addEventListener('input', e=>{
-    beta = parseFloat(e.target.value); par.querySelector('#psv-beta-v').textContent = beta.toFixed(1); emit()
+  par.querySelector('#sh-beta2').addEventListener('input', e=>{
+    beta2 = parseFloat(e.target.value); par.querySelector('#sh-beta2-v').textContent = beta2.toFixed(1); emit()
   })
-  par.querySelector('#psv-rho').addEventListener('input', e=>{
-    rho = parseFloat(e.target.value); par.querySelector('#psv-rho-v').textContent = rho.toFixed(1); emit()
+  par.querySelector('#sh-rho1').addEventListener('input', e=>{
+    rho1 = parseFloat(e.target.value); par.querySelector('#sh-rho1-v').textContent = rho1.toFixed(1); emit()
   })
-  par.querySelector('#psv-itype-p').addEventListener('change', ()=>{ incidentType = 'P'; emit() })
-  par.querySelector('#psv-itype-s').addEventListener('change', ()=>{ incidentType = 'S'; emit() })
-  par.querySelector('#psv-omega').addEventListener('input', e=>{
-    omega = parseFloat(e.target.value); par.querySelector('#psv-omega-v').textContent = omega.toFixed(1); drawWavefield()
+  par.querySelector('#sh-rho2').addEventListener('input', e=>{
+    rho2 = parseFloat(e.target.value); par.querySelector('#sh-rho2-v').textContent = rho2.toFixed(1); emit()
   })
-  par.querySelector('#psv-show-i').addEventListener('change', e=>{ showI = e.target.checked; drawWavefield() })
-  par.querySelector('#psv-show-r1').addEventListener('change', e=>{ showR1 = e.target.checked; drawWavefield() })
-  par.querySelector('#psv-show-r2').addEventListener('change', e=>{ showR2 = e.target.checked; drawWavefield() })
+  par.querySelector('#sh-omega').addEventListener('input', e=>{
+    omega = parseFloat(e.target.value); par.querySelector('#sh-omega-v').textContent = omega.toFixed(1); drawWavefield()
+  })
+  par.querySelector('#sh-show-i').addEventListener('change', e=>{ showI = e.target.checked; drawWavefield() })
+  par.querySelector('#sh-show-r').addEventListener('change', e=>{ showR = e.target.checked; drawWavefield() })
+  par.querySelector('#sh-show-t').addEventListener('change', e=>{ showT = e.target.checked; drawWavefield() })
+  par.querySelector('#sh-mode-amp').addEventListener('change', ()=>{ phaseMode = false; hoverCurve = -1; redraw() })
+  par.querySelector('#sh-mode-phase').addEventListener('change', ()=>{ phaseMode = true; hoverCurve = -1; redraw() })
 
-  const playBtn = par.querySelector('#psv-play')
+  const playBtn = par.querySelector('#sh-play')
   function stepAnim(){
     tPhase += 0.12
     drawWavefield()
@@ -565,22 +664,22 @@ begin
     if(playing){ rafId = requestAnimationFrame(stepAnim) } else if(rafId){ cancelAnimationFrame(rafId); rafId = null }
   })
 
-  par.querySelector('#psv-reset').addEventListener('click', ()=>{
-    alpha = $(w.alpha); beta = $(w.beta); rho = $(w.rho); incidentType = "$(w.incident_type)"
-    thetaDeg = 40; omega = 0.3; showI = true; showR1 = true; showR2 = true
-    par.querySelector('#psv-alpha').value = alpha; par.querySelector('#psv-alpha-v').textContent = alpha.toFixed(1)
-    par.querySelector('#psv-beta').value = beta; par.querySelector('#psv-beta-v').textContent = beta.toFixed(1)
-    par.querySelector('#psv-rho').value = rho; par.querySelector('#psv-rho-v').textContent = rho.toFixed(1)
-    par.querySelector('#psv-omega').value = omega; par.querySelector('#psv-omega-v').textContent = omega.toFixed(1)
-    par.querySelector('#psv-itype-p').checked = (incidentType === 'P')
-    par.querySelector('#psv-itype-s').checked = (incidentType === 'S')
-    par.querySelector('#psv-show-i').checked = true
-    par.querySelector('#psv-show-r1').checked = true
-    par.querySelector('#psv-show-r2').checked = true
+  par.querySelector('#sh-reset').addEventListener('click', ()=>{
+    beta1 = $(w.beta1); beta2 = $(w.beta2); rho1 = $(w.rho1); rho2 = $(w.rho2)
+    thetaDeg = 50; omega = 0.3; showI = true; showR = true; showT = true; phaseMode = false
+    par.querySelector('#sh-beta1').value = beta1; par.querySelector('#sh-beta1-v').textContent = beta1.toFixed(1)
+    par.querySelector('#sh-beta2').value = beta2; par.querySelector('#sh-beta2-v').textContent = beta2.toFixed(1)
+    par.querySelector('#sh-rho1').value = rho1; par.querySelector('#sh-rho1-v').textContent = rho1.toFixed(1)
+    par.querySelector('#sh-rho2').value = rho2; par.querySelector('#sh-rho2-v').textContent = rho2.toFixed(1)
+    par.querySelector('#sh-omega').value = omega; par.querySelector('#sh-omega-v').textContent = omega.toFixed(1)
+    par.querySelector('#sh-show-i').checked = true
+    par.querySelector('#sh-show-r').checked = true
+    par.querySelector('#sh-show-t').checked = true
+    par.querySelector('#sh-mode-amp').checked = true
     redraw(); emit()
   })
 
-  window.addEventListener('psv-results', e=>{
+  window.addEventListener('sh-results', e=>{
     const d = e.detail ? JSON.parse(e.detail) : null
     if(!d) return
     sweep = d
@@ -592,174 +691,94 @@ begin
 """)
     end
 
-    const _psv_ready = true
+    const _sh_ready = true
 end
+
 
 # ╔═╡ bbbb2222-2222-2222-2222-222222222222
 begin
-    # `PSVWidgetInput` is defined in the Appendix, displayed below this cell -- a
+    # `SHWidgetInput` is defined in the Appendix, displayed below this cell -- a
     # bare reference forces Pluto to run that cell first on a cold restart. See
     # "the one thing that will silently break on a fresh restart" in
     # pluto-widget-SKILL.md.
-    _psv_ready
-    @bind _psv PSVWidgetInput()
+    _sh_ready
+    @bind _sh SHWidgetInput()
 end
 
 # ╔═╡ afdb5b7d-d670-4a98-a91d-3ff638fb0294
 begin
-    # Only the medium parameters and the incident-wave type need a Julia recompute
-    # (they feed the Symbolics-derived coefficients below) -- angle, frequency, and
-    # display toggles live entirely client-side inside the widget (see its
-    # docstring for why: everything downstream of theta is pre-swept once and
-    # pushed to the widget, so dragging theta never touches Julia at all).
-    αin = Float64(_psv["alpha"])
-    βin = Float64(_psv["beta"])
-    ρin = Float64(_psv["rho"])
-    incident_waves = String(_psv["incident_type"])
+    # Only the layer parameters need a Julia recompute (they feed the
+    # direct numerical coefficients below) -- angle, frequency, and display
+    # toggles live entirely client-side inside the widget: everything downstream
+    # of theta is pre-swept once and pushed to the widget, so dragging theta never
+    # touches Julia at all.
+    β₁MOHO = Float64(_sh["beta1"])
+    β₂MOHO = Float64(_sh["beta2"])
+    ρ₁MOHO = Float64(_sh["rho1"])
+    ρ₂MOHO = Float64(_sh["rho2"])
 end
-
-
-# ╔═╡ b4a603fb-5ee7-4c97-8e1d-fd0a89692503
-begin
-    if (incident_waves == "P")
-        UxInc = expand_derivatives.(Dx.(incident))
-        UzInc = expand_derivatives.(Dz.(incident))
-    else
-        UxInc = expand_derivatives.(-Dz.(incident))
-        UzInc = expand_derivatives.(Dz.(incident))
-    end
-end
-
-# ╔═╡ 040f1440-14c4-491b-b792-570aa3c2080b
-σzz_incident = expand_derivatives.(λ .* Dx.(UxInc) .+ λ .* Dz.(UzInc)) + expand_derivatives.(2 .* μ .* Dz.(UzInc))
-
-# ╔═╡ f51dfb73-b5ef-4de8-b4c3-fc8814a31485
-σxz_incident = expand_derivatives.(μ .* Dx.(UzInc) .+ μ .* Dz.(UxInc))
-
-# ╔═╡ 74484bb8-a9dc-4b54-894e-3bf86c18278e
-begin
-    if (incident_waves == "P")
-        UxRef1 = expand_derivatives.(Dx.(reflect1))
-        UzRef1 = expand_derivatives.(Dz.(reflect1))
-    else
-        UxRef1 = expand_derivatives.(-Dz.(reflect1))
-        UzRef1 = expand_derivatives.(Dx.(reflect1))
-    end
-end
-
-# ╔═╡ 3525bf50-b0e5-4c3b-ba75-77689a5799f4
-σzz_reflect1 = expand_derivatives.(λ .* Dx.(UxRef1) .+ λ .* Dz.(UzRef1)) + expand_derivatives.(2 .* μ .* Dz.(UzRef1))
-
-# ╔═╡ 860ac07f-391b-4d62-bf9d-a32abea7cd60
-σxz_reflect1 = expand_derivatives.(μ .* Dx.(UzRef1) .+ μ .* Dz.(UxRef1))
-
-# ╔═╡ fdba06fe-e596-4122-b2d5-81b67dd78a97
-begin
-    if (incident_waves == "P")
-        UxRef2 = expand_derivatives.(-Dz.(reflect2))
-        UzRef2 = expand_derivatives.(Dx.(reflect2))
-    else
-        UxRef2 = expand_derivatives.(Dx.(reflect2))
-        UzRef2 = expand_derivatives.(Dz.(reflect2))
-    end
-
-end
-
-# ╔═╡ 0dfd91aa-f9e1-4d93-a471-0bf99e476af5
-σzz_reflect2 = expand_derivatives.(λ .* Dx.(UxRef2) .+ λ .* Dz.(UzRef2)) + expand_derivatives.(2 .* μ .* Dz.(UzRef2))
-
-# ╔═╡ 06a568fa-ba94-4c5f-815d-f30c6c8a4260
-σzz_z0 = substitute.(σzz_incident .+ σzz_reflect1 .+ σzz_reflect2, z => 0) .~ 0
-
-# ╔═╡ 64164ec7-a3cf-41d0-bcef-e55475eabeea
-σzz = simplify(substitute(σzz_z0, Dict([A => 1, t => 0, x => 0])))
-
-# ╔═╡ 47f2439f-28a1-4ad9-8d8d-67a4a30af5ea
-σxz_reflect2 = expand_derivatives.(μ .* Dx.(UzRef2) .+ μ .* Dz.(UxRef2))
-
-# ╔═╡ b4030cef-75ef-40d1-b75d-0e5f233a3023
-σxz_z0 = substitute.(σxz_incident .+ σxz_reflect1 .+ σxz_reflect2, z => 0) .~ 0
-
-# ╔═╡ 605195de-f4a1-4331-9b82-78e4a061f0a4
-σxz = simplify(substitute(σxz_z0, Dict([A => 1, t => 0, x => 0])))
-
-# ╔═╡ a95e361b-d195-4ec0-b2fd-cd9adb79efc5
-sol = simplify.(Symbolics.symbolic_linear_solve([σzz, σxz], [A₁, A₂]))
 
 # ╔═╡ 284e4a79-6cfe-4c4a-939b-55fc69611ecb
 """
-	rp(θ)
+	pMOHO(θ)
 
-The ray parameter (horizontal slowness) of a wave incident at angle `θ` (radians),
-using whichever of `αin`/`βin` matches the current `incident_waves` type.
+The ray parameter (horizontal slowness) of an SH wave incident from layer 1 at
+angle `θ` (radians).
 """
-rp(θ) = (incident_waves == "P") ? sin(θ) / αin : sin(θ) / βin
+pMOHO(θ) = sin(θ) / β₁MOHO
 
 # ╔═╡ a06affae-47c3-4dfa-a997-ee75b35ab122
 """
-	ηz1(θ)
+	ηMOHO(θ)
 
-Vertical slowness of the leg sharing the incident wave's type (the direct
-reflection: P→P or S→S). Always real for `θ ∈ [0, π/2]`, since a wave cannot be
-incident past its own critical angle.
+Vertical slowness in layer 1 (incident/reflected legs). Always real for
+`θ ∈ [0, π/2]`, since a wave cannot be incident past its own critical angle.
 """
-ηz1(θ) = (incident_waves == "P") ? sqrt((inv(αin)^2 - (rp(θ))^2) + 0im) : sqrt((inv(βin)^2 - (rp(θ))^2) + 0im)
+ηMOHO(θ) = sqrt((inv(β₁MOHO)^2 - (pMOHO(θ))^2) + 0im)
 
-# ╔═╡ edb72f1f-6c99-48fb-b32d-fc4fe7d3328e
-ηz1(45)
-
-# ╔═╡ 23d62611-aeb5-4ed3-897d-822c0d17781c
+# ╔═╡ 8d0636a6-3863-4934-949b-da5a65f329c8
 """
-	ηz2(θ)
+	ηₜMOHO(θ)
 
-Vertical slowness of the mode-converted leg (P→S or S→P). Complex once `θ`
-exceeds this leg's critical angle -- see the sign convention noted where it's
-used to build the wavefield, below.
+Vertical slowness in layer 2 (transmitted leg). Complex once `θ` exceeds the
+critical angle `asin(β₁MOHO/β₂MOHO)` -- see the sign convention noted where
+it's used to build the wavefield, below.
 """
-ηz2(θ) = (incident_waves == "S") ? sqrt((inv(αin)^2 - (rp(θ))^2) + 0im) : sqrt((inv(βin)^2 - (rp(θ))^2) + 0im)
-
-# ╔═╡ 4c871d5c-1b62-4b1c-9c1e-37cae19cbe0e
-ηz2(45)
-
-# ╔═╡ a089ab5b-4703-4d4d-a7ab-11197b4b907c
-begin
-    # `substitute`/`simplify` on a fully-numeric SymbolicUtils expression no longer
-    # auto-collapses to a native Julia number on this Symbolics version (unlike when
-    # this notebook was first written) -- `Symbolics.value` explicitly unwraps it, since
-    # every downstream use (comparisons, `Float64(...)`, `real`/`imag` for the JSON push)
-    # needs a real `ComplexF64`, not a symbolic wrapper that merely *prints* like one.
-    Avec = broadcast([sol[1], sol[2]]) do x
-        θ -> ComplexF64(Symbolics.value(simplify(substitute(x, [η₁ => ηz1(θ), η₂ => ηz2(θ), p => rp(θ), λ => ρin * (αin^2 - 2 * βin^2), μ => βin^2 * ρin]))))
-    end
-    if ((incident_waves == "S"))
-        Avec = reverse(Avec)
-    end
-end
+ηₜMOHO(θ) = sqrt((inv(β₂MOHO)^2 - (pMOHO(θ))^2) + 0im)
 
 # ╔═╡ ffff6666-6666-6666-6666-666666666666
 let
-    A1_normal = abs(Avec[1](0.0))
-    A2_normal = abs(Avec[2](0.0))
-    @assert A2_normal<1e-8 "expected no mode conversion at normal incidence, got |A2|=$(A2_normal)"
-    @assert abs(A1_normal-1)<1e-8 "expected total reflection at normal incidence, got |A1|=$(A1_normal)"
-    (direct_reflection_magnitude=A1_normal, mode_converted_magnitude=A2_normal)
+    Z1 = ρ₁MOHO * β₁MOHO
+    Z2 = ρ₂MOHO * β₂MOHO
+    Ar_expected = (Z1 - Z2) / (Z1 + Z2)
+    At_expected = 2Z1 / (Z1 + Z2)
+    Ar_computed = real(SHAᵣ_ex(0.0))
+    At_computed = real(SHAₜ_ex(0.0))
+    @assert isapprox(Ar_computed, Ar_expected; atol=1e-8) "reflection coefficient at normal incidence should be $(Ar_expected), got $(Ar_computed)"
+    @assert isapprox(At_computed, At_expected; atol=1e-8) "transmission coefficient at normal incidence should be $(At_expected), got $(At_computed)"
+    (reflection_at_normal_incidence=Ar_computed, transmission_at_normal_incidence=At_computed)
 end
 
 # ╔═╡ cccc3333-3333-3333-3333-333333333333
 # Push angle-swept slowness/coefficient curves to the widget above -- it stays
-# mounted across reruns of this cell (its `@bind` cell doesn't depend on medium
+# mounted across reruns of this cell (its `@bind` cell doesn't depend on layer
 # parameters), same CustomEvent pattern geoid-kernel uses to push computed maps
 # back to an already-rendered widget. This is the ONLY place the widget's Julia
-# side runs after a medium-parameter change: everything angle/frequency/display
+# side runs after a layer-parameter change: everything angle/frequency/display
 # related happens client-side from these arrays.
 let
     thetas_deg = 0:0.5:90
     thetas_rad = deg2rad.(thetas_deg)
-    p_sweep = rp.(thetas_rad)
-    eta1_sweep = ηz1.(thetas_rad)
-    eta2_sweep = ηz2.(thetas_rad)
-    A1_sweep = Avec[1].(thetas_rad)
-    A2_sweep = Avec[2].(thetas_rad)
+    p_sweep = pMOHO.(thetas_rad)
+    eta_sweep = ηMOHO.(thetas_rad)
+    etat_sweep = ηₜMOHO.(thetas_rad)
+    Ar_sweep = Vector{ComplexF64}(undef, length(thetas_rad))
+    At_sweep = Vector{ComplexF64}(undef, length(thetas_rad))
+    for i in eachindex(thetas_rad)
+        coefficients = sh_interface_coefficients(β₁MOHO, β₂MOHO, ρ₁MOHO, ρ₂MOHO, thetas_rad[i])
+        Ar_sweep[i] = coefficients.reflected
+        At_sweep[i] = coefficients.transmitted
+    end
 
     num(x) = isfinite(x) ? string(round(Float64(x), digits=6)) : "0"
     jsonarr(v) = "[" * join(num.(v), ",") * "]"
@@ -767,15 +786,14 @@ let
     payload = string(
         "{\"theta_deg\":", jsonarr(thetas_deg),
         ",\"p\":", jsonarr(real.(p_sweep)),
-        ",\"eta1_re\":", jsonarr(real.(eta1_sweep)), ",\"eta1_im\":", jsonarr(imag.(eta1_sweep)),
-        ",\"eta2_re\":", jsonarr(real.(eta2_sweep)), ",\"eta2_im\":", jsonarr(imag.(eta2_sweep)),
-        ",\"A1_re\":", jsonarr(real.(A1_sweep)), ",\"A1_im\":", jsonarr(imag.(A1_sweep)),
-        ",\"A2_re\":", jsonarr(real.(A2_sweep)), ",\"A2_im\":", jsonarr(imag.(A2_sweep)),
-        ",\"incident_type\":\"", incident_waves, "\"",
+        ",\"eta_re\":", jsonarr(real.(eta_sweep)), ",\"eta_im\":", jsonarr(imag.(eta_sweep)),
+        ",\"etat_re\":", jsonarr(real.(etat_sweep)), ",\"etat_im\":", jsonarr(imag.(etat_sweep)),
+        ",\"Ar_re\":", jsonarr(real.(Ar_sweep)), ",\"Ar_im\":", jsonarr(imag.(Ar_sweep)),
+        ",\"At_re\":", jsonarr(real.(At_sweep)), ",\"At_im\":", jsonarr(imag.(At_sweep)),
         "}",
     )
     HTML("""<script>
-      window.dispatchEvent(new CustomEvent('psv-results', {detail: $(repr(payload))}));
+      window.dispatchEvent(new CustomEvent('sh-results', {detail: $(repr(payload))}));
     </script>""")
 end
 
@@ -1536,7 +1554,7 @@ version = "1.64.0+1"
 # ╔═╡ Cell order:
 # ╠═08429397-3964-4600-bc14-c45d22c915ec
 # ╟─32a757ff-aa7a-41d5-b8b3-6ac9e0125875
-# ╟─bbbb2222-2222-2222-2222-222222222222
+# ╠═bbbb2222-2222-2222-2222-222222222222
 # ╟─afdb5b7d-d670-4a98-a91d-3ff638fb0294
 # ╟─4476bf78-39e3-4674-a152-db19fe80929a
 # ╠═927dcc43-202c-4ad2-a76c-837d41f1ed6c
@@ -1550,45 +1568,46 @@ version = "1.64.0+1"
 # ╠═fbc6cd6c-0b3b-44e9-b2a6-5edb0eeced1b
 # ╠═8dad08c2-b9a8-40ec-a8ef-c9383e5ec7b1
 # ╠═13b5abc9-10be-4ef1-817d-bcee1271c89e
+# ╟─49e3a1a5-9d1a-4ece-b563-2bd6ee909b5a
 # ╟─aae7b893-4b33-44ae-b01c-6345a1180d0d
 # ╠═f488f9f3-e73b-42ae-b3c2-2262661fd839
 # ╠═4dc428b0-f141-4e94-9edb-e847780333aa
 # ╠═8940ee90-2dd1-448c-92cd-09fd1ebbaea7
-# ╟─a1213dc4-3ea9-4b26-aa82-a15cc3e72401
-# ╠═b4a603fb-5ee7-4c97-8e1d-fd0a89692503
-# ╠═74484bb8-a9dc-4b54-894e-3bf86c18278e
-# ╠═fdba06fe-e596-4122-b2d5-81b67dd78a97
+# ╟─9f28cf9f-6a45-4773-a371-63743c8dc4c8
+# ╠═0b930000-d544-48ba-ae5e-f4737e258cf4
+# ╟─6e132f9a-4808-41ac-90a6-81fb4ab8b4b6
+# ╠═63dde687-8f19-466c-a3f4-a80a4991eafa
+# ╠═f3fa9d28-2591-496c-8976-064af0b96038
 # ╟─52d2ba9b-826a-4805-9583-f1a80b10a926
 # ╠═7cf515f8-2496-4bde-b3b3-9d39d971764a
 # ╠═040f1440-14c4-491b-b792-570aa3c2080b
 # ╠═3525bf50-b0e5-4c3b-ba75-77689a5799f4
 # ╠═0dfd91aa-f9e1-4d93-a471-0bf99e476af5
-# ╠═f51dfb73-b5ef-4de8-b4c3-fc8814a31485
-# ╠═860ac07f-391b-4d62-bf9d-a32abea7cd60
-# ╠═47f2439f-28a1-4ad9-8d8d-67a4a30af5ea
+# ╟─bbf3e71e-b41d-4a85-b9dd-5e96d355cdda
 # ╠═06a568fa-ba94-4c5f-815d-f30c6c8a4260
-# ╠═b4030cef-75ef-40d1-b75d-0e5f233a3023
-# ╠═64164ec7-a3cf-41d0-bcef-e55475eabeea
-# ╠═605195de-f4a1-4331-9b82-78e4a061f0a4
-# ╠═a95e361b-d195-4ec0-b2fd-cd9adb79efc5
+# ╠═b1a1be64-c635-4002-9031-8752b8dbb408
+# ╟─de6162f2-ac93-4397-8b40-75480ff951a4
+# ╟─080fde69-99e2-4292-8cd3-3edae2debd88
+# ╠═6746517c-043e-4137-8255-a6230d36a886
+# ╠═4bd8cd77-8770-467f-8374-7cabd128c1e6
+# ╠═dfc70c3b-bcb4-462f-99f6-7e79e505fca7
 # ╟─5729b459-b283-41ce-95be-c4d33a7c28c0
 # ╟─281cb873-760c-411f-98b5-1c64d218e7e9
 # ╠═3d50985b-b79a-45ab-ba1f-5287936c56d9
 # ╠═284e4a79-6cfe-4c4a-939b-55fc69611ecb
 # ╟─a7cb9cd5-7013-461b-960d-5da73db62aea
 # ╠═a06affae-47c3-4dfa-a997-ee75b35ab122
-# ╠═23d62611-aeb5-4ed3-897d-822c0d17781c
-# ╠═edb72f1f-6c99-48fb-b32d-fc4fe7d3328e
-# ╠═4c871d5c-1b62-4b1c-9c1e-37cae19cbe0e
+# ╟─602dcab9-b563-46e9-a694-4561c8acd9a7
+# ╠═8d0636a6-3863-4934-949b-da5a65f329c8
 # ╟─8c81ddb5-bf4d-4610-bfea-3d1a27ffd61f
 # ╠═a089ab5b-4703-4d4d-a7ab-11197b4b907c
-# ╠═eeee5555-5555-5555-5555-555555555555
+# ╟─eeee5555-5555-5555-5555-555555555555
 # ╠═ffff6666-6666-6666-6666-666666666666
 # ╠═cccc3333-3333-3333-3333-333333333333
 # ╟─dba7ea14-e0dd-4dc4-ad9c-4627fd16cc62
 # ╟─ea3b7089-bda8-4694-8042-98534b1739bd
 # ╠═ab40f79c-3d8a-11ed-0697-a7b794dbba99
-# ╠═602f13f9-6d14-41fd-9183-b8255d64399b
+# ╟─cccc9999-9999-9999-9999-999999999999
 # ╟─aaaa7777-7777-7777-7777-777777777777
 # ╠═dddd4444-4444-4444-4444-444444444444
 # ╟─00000000-0000-0000-0000-000000000001

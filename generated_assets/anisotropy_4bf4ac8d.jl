@@ -28,14 +28,9 @@ begin
     using PlutoTeachingTools
     using Symbolics
     using SymbolicUtils
-    using Tullio
-    using Plots
-    using TensorOperations
     using LinearAlgebra
     using Einsum
     using Unitful
-    using PlotThemes
-    theme(:dark)
 end
 
 # ╔═╡ b48fc46c-47b2-4090-83fb-710b1974c2a2
@@ -61,32 +56,45 @@ Indian Institute of Science, Bengaluru, India
 """
 
 
-# ╔═╡ fbe96b0a-84f8-4cae-905c-ba093b1b4340
-md"""
-Select medium type $(@bind cmedium Select([colivine => "olivine", ctrans=>"transverse anisotropic (z-axis symmetry)", ciso =>  "isotropic"]))
-"""
+# ╔═╡ e28c94fd-f04d-442c-8b19-be84d565d5c7
+nothing
 
-# ╔═╡ 109f4df4-aa1b-400c-b9d4-ff3604afa7d3
-@warn "The rest of the notebook reacts to the choice made above."
-
-# ╔═╡ b99cb15b-b51b-4bd6-ac88-d5f6b99bf10b
-aside(tip(md"**Mantle anisotropy**
-Mapping anisotropy in the upper mantle helps identify the preferential orientation of olivine crystals, and therefore helps investigate plate motions."))
+# ╔═╡ 99e819ab-a88c-41a0-9bbf-27d49fe19557
+begin
+    # Superseded by the Julia-driven canvas widget near the top of this notebook.
+    nothing
+end
 
 # ╔═╡ 56efaf7d-2b8b-4540-b0e8-b722edd1d8f8
 md"""
-For the transverse anisotropy option, if selected above, adjust the five independent elastic constants to interact with the wavefronts.
+## Read the velocity surface
 
-A (GPa) $(@bind Ap Slider(range(50, stop=300, length=100), default=272, show_value=true))
+The widget draws the full 3-D wavefront of a homogeneous VTI medium as one
+rotatable surface: qP (amber), qS₁ (blue) and qS₂ (cyan) are drawn together,
+radius equal to velocity times the chosen travel time. Drag inside the canvas
+to orbit; a sphere would mean speed is independent of direction, so any
+stretching or dimpling away from a sphere *is* the anisotropy.
 
-C (GPa) $(@bind Cp Slider(range(50, stop=300, length=100), default=160, show_value=true))
+Try first making `A = C` and `L = N`: all three surfaces collapse toward
+spheres, the isotropic reference. Then restore contrast between the
+horizontal (`A`, `N`) and vertical (`C`, `L`) constants and watch the surfaces
+elongate along the symmetry axis while staying circular in cross-section
+around it — that circular cross-section (rotate to look straight down the
+axis) is what makes this medium VTI rather than fully general anisotropy.
 
-L (GPa) $(@bind Lp Slider(range(50, stop=300, length=100), default=60, show_value=true))
-
-N (GPa) $(@bind Np Slider(range(50, stop=300, length=100), default=50, show_value=true))
-
-F (GPa) $(@bind Fp Slider(range(50, stop=300, length=100), default=60, show_value=true))
-
+Two more things worth toggling:
+* **Phase vs. group velocity.** The segmented control switches between the
+  phase-velocity surface (loci of equal wave-phase, what the Christoffel
+  eigenproblem below actually solves for) and the group-velocity — or *ray* —
+  surface (where the wave's energy has actually travelled to). They agree
+  for isotropic media and can diverge sharply for strong anisotropy; the
+  group surface is the one that answers "where does the wavefront actually
+  go after time `t`."
+* **Crystal orientation.** The Plunge/Trend sliders tilt the medium's
+  symmetry axis (its LPO fabric axis) away from vertical. Turn on the
+  "crystal axis" legend item to see the axis itself as a magenta arrow, and
+  watch the whole velocity surface tilt rigidly with it — this is the direct
+  visual link between *aligned crystals* and *directional wave speed*.
 """
 
 # ╔═╡ 3bfab7cf-8b35-408d-8d25-ce6a37a0f19e
@@ -272,10 +280,10 @@ utrail1 = exp(ı * ω * (t - p * dot(s, x)))
 utrail = Symbolics.scalarize(g .* utrail1)
 
 # ╔═╡ 0b2cf81d-98c3-42f9-a688-7069358003d6
-@einsum uddot[i] := cmedium[i, j, k, l] * D[j](D[l](u[k]))
+@einsum uddot[i] := ctrans[i, j, k, l] * D[j](D[l](u[k]))
 
 # ╔═╡ dbbc72ec-64a8-4566-b044-44fbbd1d4cbf
-@einsum uddot_trail1[i] := cmedium[i, j, k, l] * expand_derivatives(D[j](D[l](utrail[k])))
+@einsum uddot_trail1[i] := ctrans[i, j, k, l] * expand_derivatives(D[j](D[l](utrail[k])))
 
 # ╔═╡ 12d0f4cd-ffe1-44e2-80e5-25dc5ab0dfd5
 @einsum uddot_trail2[i] := expand_derivatives(Dt(Dt(utrail[i]))) * ρ
@@ -353,166 +361,509 @@ md"""
 # ╔═╡ ebf4953d-abc5-4530-af51-8b68096a0113
 md"## Appendix"
 
-# ╔═╡ 5f027a58-d752-4c5c-b933-f63bb9c98d26
-begin
-    # planes to be analyzed
-    struct xy end
-    struct yz end
-    struct zx end
-end
-
-# ╔═╡ 9d45dd60-4a80-4894-b350-36127a584e0b
-@syms θ # azimuth
-
-# ╔═╡ e0e0841d-953f-4d4f-abb4-90e7b49b0869
-begin
-    # substitute the components of the slowness vector given θ and the plane
-    ssubs(::xy) = [s[1] => sin(θ), s[2] => cos(θ), s[3] => 0]
-    ssubs(::yz) = [s[1] => 0, s[2] => sin(θ), s[3] => cos(θ)]
-    ssubs(::zx) = [s[1] => cos(θ), s[2] => 0, s[3] => sin(θ)]
-end
-
-# ╔═╡ 5cbb7aed-70d1-4122-9b0c-63ce1e15d2bb
-ρp = 4u"g/cm^3" # fix density
-
-# ╔═╡ 99e819ab-a88c-41a0-9bbf-27d49fe19557
-begin
-	θp = 0:0.01:2pi
-	Vp = sqrt.(Cp .+ (Ap - Cp).*sin.(θp).^2) ./ sqrt(ρp)
-	Vsh = sqrt.((Np .* sin.(θp).^2 .+ Lp .* cos.(θp).^2) ./ ρp)
-	plot(rad2deg.(θp), Vp, label="qP")
-	plot!(rad2deg.(θp), Vsh, label="qSH")
-	title!("Vertical Transverse Isotropy (VTI)")
-	xlabel!("Propagation angle (°)")
-	ylabel!("Velocity (km/s)")
-end
-
-# ╔═╡ b95076ef-632e-4826-9bc1-f811c72fe1c5
-# return phase velocities (qP, qS1, qS2) for each θ
-function get_phase_velocity(θgrid, M)
-    V = broadcast(θgrid) do θ
-        E = eigen(map(M) do m
-            m(θ)
-        end)
-
-        return broadcast(E.values) do e
-            u"km/s"(sqrt(e * u"GPa" / ρp))
-        end
-    end
-    return hcat(V...)
-end
-
-# ╔═╡ 83f8924d-0db4-484c-8c6e-40acb1b01b26
-# substitute a given array of expressions with UI elastic constants
-function subsp(X)
-    # map(X) do x
-        substitute(X, [A => Ap, L => Lp, C => Cp, F => Fp, N => Np, λ => Ap - 2Np, μ => Lp])
-    # end
-end
-
-# ╔═╡ 13677e27-65f5-4606-8ded-a0f36ae4bb95
-# return a function of azimuth θ that generates the Christoffel matrix
-function get_Christoffel_matrix(M, plane)
-    mp = map(M) do x
-        (subsp(substitute(x, ssubs(plane))))
-    end
-    mpfn = map(mp) do x
-        build_function(x, θ, expression=Val{false})
-    end
-
-    return mpfn
-end
-
-# ╔═╡ 502cde6b-b1a4-4994-86ce-72d56345f3d3
-# generate the functions and store, for further plotting
-begin
-    Mxy = get_Christoffel_matrix(M, xy())
-    Myz = get_Christoffel_matrix(M, yz())
-    Mzx = get_Christoffel_matrix(M, zx())
-end;
-
-# ╔═╡ 816abdd5-74de-415b-a19b-95b7ad7cdf0c
-θgrid = range(0, stop=2π, length=50) # need an azimuth grid to slice wavefronts along each plane
-
-# ╔═╡ 8ff5c871-08a3-4b94-b2ea-2e3eaca16308
-md"### Plots"
-
-# ╔═╡ ae9536aa-3d38-4d22-b887-39c0c56e9f0e
-begin
-    @userplot PolarPS
-
-    @recipe function f(h::PolarPS)
-
-        w := 2
-        lims := (0, 10) # maximum 10 km, so that we can talk about tmax=1 s
-        proj := :polar
-        axis := nothing
-        yguidefontsize := 10
-
-        frame := nothing
-
-        @series begin
-            label --> "qS₂"
-            θgrid, reshape(h.args[1], 3, :)[1, :]
-        end
-        @series begin
-            label --> "qS₁"
-            linestyle := :dot
-            θgrid, reshape(h.args[1], 3, :)[2, :]
-        end
-        @series begin
-            label --> "qP"
-            θgrid, reshape(h.args[1], 3, :)[3, :]
-        end
-    end
-end
-
-# ╔═╡ cc5de715-11ae-4a01-9ab9-ba610bd6882d
-function plot_wavefronts()
-    @gif for t in range(0, stop=1, length=50)
-        p1 = polarps(t .* get_phase_velocity(θgrid, Mxy), title="xy projection")
-        p2 = polarps(t .* get_phase_velocity(θgrid, Myz), title="yz projection")
-        p3 = polarps(t .* get_phase_velocity(θgrid, Mzx), title="zx projection")
-        plot(p1, p2, p3, layout=(1, 3))
-    end
-end
-
-# ╔═╡ e28c94fd-f04d-442c-8b19-be84d565d5c7
-plot_wavefronts()
-
 # ╔═╡ 0989b0f0-06c6-4353-9933-ec713563f0c6
 md"""
-## TODO
-* vis. particle motion `g` for quasiP and quasiS phases
-* vis. for group velocity vs. phase velocity
-* planes waves incident on a horizontal interface
+## What this model shows—and its limits
+
+This is a homogeneous VTI medium: every difference in wavefront shape comes
+from the stiffness tensor and its orientation, not from a spatial velocity
+anomaly — there is no heterogeneity anywhere in this widget. Within that
+scope the 3-D view is now fairly complete: it shows phase velocity *and* the
+group/ray-velocity surface, *and* per-mode particle-motion (polarization)
+directions, *and* lets the symmetry axis itself be tilted to stand in for a
+rotated crystal fabric.
+
+What it still does not show: wave amplitude, attenuation, and mode
+conversion at interfaces (that needs a boundary, which this whole-space
+model doesn't have) — see the reflection/transmission notebooks for that —
+and it is restricted to transverse isotropy (5 constants), not fully general
+triclinic anisotropy (21 constants), so it cannot represent, e.g., the
+orthorhombic asymmetry of a single olivine crystal beyond the VTI
+approximation used here.
 """
+
+# ╔═╡ aa111111-1111-4111-8111-111111111111
+"""
+	vti_wavefront_payload_3d(A, C, L, N, F, density, time, plunge_deg, trend_deg;
+		ntheta=17, nphi=33, arrow_step=4)
+
+Sample the full 3-D phase-velocity surface (qP, qS1, qS2) of a homogeneous VTI
+medium over a `(theta, phi)` grid on the unit sphere, plus the corresponding
+group-velocity (ray) surface and per-mode particle-motion (polarization)
+directions. Love constants are in GPa, `density` in g/cm³, so `sqrt(C/density)`
+comes out in km/s; multiplying by `time` gives plotted distance in km.
+
+The VTI symmetry axis is tilted away from vertical `z` by `plunge_deg` (angle
+from vertical) along azimuth `trend_deg`, modelling a lattice-preferred
+orientation whose fabric axis is not vertical. Phase velocity in a lab-frame
+direction `n` is evaluated by rotating `n` into the (fixed) crystal frame
+before contracting with the VTI stiffness tensor — a physically exact
+shortcut since phase velocity is a frame-invariant scalar of direction.
+
+Group velocity uses the standard tangential-gradient construction
+``U = v\\,\\hat n + \\nabla_S v`` (``\\nabla_S`` the gradient along the unit
+sphere), evaluated with finite differences on the sampled grid: it is the
+group/ray velocity, i.e. where a wave packet's *energy* actually travels,
+which for a genuinely anisotropic medium is not generally parallel to the
+phase-velocity direction `n` itself.
+
+Returns a named tuple with the sampled grid size, flattened Cartesian vertex
+arrays for the phase and group-velocity surfaces (dims `(mode, itheta, iphi,
+xyz)`), subsampled polarization arrow data, the rotated crystal-axis triad,
+and stability/anisotropy summary scalars.
+"""
+function vti_wavefront_payload_3d(
+    A::Float64, C::Float64, L::Float64, N::Float64, F::Float64,
+    density::Float64, time::Float64,
+    plunge_deg::Float64, trend_deg::Float64;
+    ntheta::Int=17, nphi::Int=33, arrow_step::Int=4,
+)
+    stiffness = [A A-2N F 0.0 0.0 0.0;
+                 A-2N A F 0.0 0.0 0.0;
+                 F F C 0.0 0.0 0.0;
+                 0.0 0.0 0.0 L 0.0 0.0;
+                 0.0 0.0 0.0 0.0 L 0.0;
+                 0.0 0.0 0.0 0.0 0.0 N]
+    pairs = ((1, 1), (2, 2), (3, 3), (2, 3), (1, 3), (1, 2))
+    index(i, j) = findfirst(p -> (i == p[1] && j == p[2]) || (i == p[2] && j == p[1]), pairs)
+    c = Array{Float64}(undef, 3, 3, 3, 3)
+    for i in 1:3, j in 1:3, k in 1:3, l in 1:3
+        c[i, j, k, l] = stiffness[index(i, j), index(k, l)]
+    end
+
+    θ0, φ0 = deg2rad(plunge_deg), deg2rad(trend_deg)
+    cθ0, sθ0 = cos(θ0), sin(θ0)
+    cφ0, sφ0 = cos(φ0), sin(φ0)
+    Ry = [cθ0 0.0 sθ0; 0.0 1.0 0.0; -sθ0 0.0 cθ0]
+    Rz = [cφ0 -sφ0 0.0; sφ0 cφ0 0.0; 0.0 0.0 1.0]
+    R = Rz * Ry # crystal symmetry axis in the lab frame is R*[0,0,1]
+    Rt = R'
+
+    θs = collect(range(0.0, π, length=ntheta))
+    φs = [(i - 1) * 2π / nphi for i in 1:nphi]
+
+    vphase = Array{Float64}(undef, 3, ntheta, nphi)
+    polvec = Array{Float64}(undef, 3, 3, ntheta, nphi)
+
+    stable = true
+    for iθ in 1:ntheta, iφ in 1:nphi
+        θ, φ = θs[iθ], φs[iφ]
+        sθ, cθ = sincos(θ)
+        sφ, cφ = sincos(φ)
+        n_lab = (sθ * cφ, sθ * sφ, cθ)
+        n_cry = (Rt[1, 1] * n_lab[1] + Rt[1, 2] * n_lab[2] + Rt[1, 3] * n_lab[3],
+                 Rt[2, 1] * n_lab[1] + Rt[2, 2] * n_lab[2] + Rt[2, 3] * n_lab[3],
+                 Rt[3, 1] * n_lab[1] + Rt[3, 2] * n_lab[2] + Rt[3, 3] * n_lab[3])
+        Γ = zeros(3, 3)
+        for i in 1:3, k in 1:3, j in 1:3, l in 1:3
+            Γ[i, k] += c[i, j, k, l] * n_cry[j] * n_cry[l]
+        end
+        E = eigen(Symmetric(Γ))
+        stable &= minimum(E.values) > 0.0
+        for m in 1:3
+            λ = max(E.values[m], 0.0)
+            vphase[m, iθ, iφ] = sqrt(λ / density)
+            polvec[m, :, iθ, iφ] .= R * E.vectors[:, m] # rotate polarization back to lab frame
+        end
+    end
+
+    dθ = θs[2] - θs[1]
+    dφ = φs[2] - φs[1]
+    phase_xyz = Array{Float64}(undef, 3, ntheta, nphi, 3)
+    group_xyz = Array{Float64}(undef, 3, ntheta, nphi, 3)
+    for m in 1:3, iθ in 1:ntheta, iφ in 1:nphi
+        θ = θs[iθ]
+        sθ, cθ = sincos(θ)
+        φ = φs[iφ]
+        sφ, cφ = sincos(φ)
+        n = (sθ * cφ, sθ * sφ, cθ)
+        θhat = (cθ * cφ, cθ * sφ, -sθ)
+        φhat = (-sφ, cφ, 0.0)
+
+        dvdθ = if iθ == 1
+            (vphase[m, 2, iφ] - vphase[m, 1, iφ]) / dθ
+        elseif iθ == ntheta
+            (vphase[m, ntheta, iφ] - vphase[m, ntheta-1, iφ]) / dθ
+        else
+            (vphase[m, iθ+1, iφ] - vphase[m, iθ-1, iφ]) / (2dθ)
+        end
+        iφprev = iφ == 1 ? nphi : iφ - 1
+        iφnext = iφ == nphi ? 1 : iφ + 1
+        dvdφ = (vphase[m, iθ, iφnext] - vphase[m, iθ, iφprev]) / (2dφ)
+        invsinθ = 1.0 / max(sθ, 1e-9)
+
+        v = vphase[m, iθ, iφ]
+        U = v .* n .+ dvdθ .* θhat .+ (invsinθ * dvdφ) .* φhat
+
+        phase_xyz[m, iθ, iφ, :] .= time .* v .* n
+        group_xyz[m, iθ, iφ, :] .= time .* U
+    end
+
+    arrow_pts = NTuple{6,Float64}[]
+    arrow_mode = Int[]
+    for m in 1:3, iθ in 1:arrow_step:ntheta, iφ in 1:arrow_step:nphi
+        p = @view phase_xyz[m, iθ, iφ, :]
+        d = @view polvec[m, :, iθ, iφ]
+        push!(arrow_pts, (p[1], p[2], p[3], d[1], d[2], d[3]))
+        push!(arrow_mode, m)
+    end
+
+    qP = @view vphase[3, :, :]
+    anisotropy_percent = 100 * (maximum(qP) - minimum(qP)) / max(sum(qP) / length(qP), eps())
+
+    return (
+        ntheta=ntheta, nphi=nphi,
+        phase_xyz=phase_xyz, group_xyz=group_xyz,
+        arrow_pts=arrow_pts, arrow_mode=arrow_mode,
+        axis_sym=R * [0.0, 0.0, 1.0], axis_a=R * [1.0, 0.0, 0.0], axis_b=R * [0.0, 1.0, 0.0],
+        stable=stable, anisotropy_percent=anisotropy_percent,
+    )
+end
+
+# ╔═╡ aa333333-3333-4333-8333-333333333333
+"""
+	ani_push_message(payload)
+
+Serialize a [`vti_wavefront_payload_3d`](@ref) result into the flat JSON the
+widget's `<script>` expects: mode-major flattened vertex arrays for the phase
+and group-velocity surfaces (so a JS index `((mode*ntheta+itheta)*nphi+iphi)*3`
+recovers each `x,y,z`), the polarization arrow list, and the crystal-axis
+triad.
+"""
+function ani_push_message(payload)
+    number(x) = isfinite(x) ? string(round(Float64(x), digits=6)) : "0"
+    arr(values) = "[" * join(number.(values), ",") * "]"
+    # (mode,itheta,iphi,xyz) -> flatten with xyz fastest, then iphi, then itheta, then mode slowest
+    flat(A) = vec(permutedims(A, (4, 3, 2, 1)))
+
+    arrows_json = join([
+        "{\"mode\":$(m),\"p\":$(arr([p[1], p[2], p[3]])),\"d\":$(arr([p[4], p[5], p[6]]))}"
+        for (m, p) in zip(payload.arrow_mode, payload.arrow_pts)
+    ], ",")
+
+    return string(
+        "{\"ntheta\":", payload.ntheta, ",\"nphi\":", payload.nphi,
+        ",\"phaseXYZ\":", arr(flat(payload.phase_xyz)),
+        ",\"groupXYZ\":", arr(flat(payload.group_xyz)),
+        ",\"arrows\":[", arrows_json, "]",
+        ",\"axisSym\":", arr(payload.axis_sym),
+        ",\"axisA\":", arr(payload.axis_a),
+        ",\"axisB\":", arr(payload.axis_b),
+        ",\"stable\":", payload.stable,
+        ",\"anisotropyPercent\":", number(payload.anisotropy_percent),
+        "}",
+    )
+end
+
+# ╔═╡ aa222222-2222-4222-8222-222222222222
+begin
+    struct VTIWavefrontInput
+        time::Float64
+        density::Float64
+        A::Float64
+        C::Float64
+        L::Float64
+        N::Float64
+        F::Float64
+        plunge::Float64
+        trend::Float64
+    end
+
+    VTIWavefrontInput(; time=0.8, density=4.0, A=272.0, C=160.0, L=60.0, N=50.0, F=60.0, plunge=0.0, trend=0.0) =
+        VTIWavefrontInput(Float64(time), Float64(density), Float64(A), Float64(C), Float64(L), Float64(N), Float64(F), Float64(plunge), Float64(trend))
+
+    Base.get(w::VTIWavefrontInput) = Dict{String,Any}(
+        "time" => w.time, "density" => w.density, "A" => w.A, "C" => w.C,
+        "L" => w.L, "N" => w.N, "F" => w.F, "plunge" => w.plunge, "trend" => w.trend,
+    )
+
+    function Base.show(io::IO, ::MIME"text/html", w::VTIWavefrontInput)
+        write(io, """
+        <div id="ani-widget"><style>
+        #ani-widget{width:100%;max-width:1400px;margin:auto;color:#e5e7eb;font:14px system-ui,sans-serif}#ani-widget *{box-sizing:border-box}
+        #ani-widget .ani-title{padding:10px 14px;margin-bottom:10px;text-align:center;background:#0a0f18;border:1px solid #3b5c85;border-radius:6px}#ani-widget .ani-title b{font-size:17px}#ani-widget .ani-hint{margin-top:3px;color:#9ca3af;font-size:13px}
+        #ani-widget .ani-workspace{display:block}#ani-widget .ani-panel,#ani-widget .ani-group{min-width:0;padding:10px;background:#050505;border:1px solid #2f3744;border-radius:6px}
+        #ani-widget .ani-panel-title{font-size:15px;font-weight:700;color:#f3f4f6}#ani-widget .ani-caption{min-height:20px;margin:4px 0 7px;color:#9ca3af;font-size:13px;line-height:1.3}
+        #ani-widget canvas{display:block;width:100%;height:480px;background:#000;border:1px solid #374151;border-radius:4px;cursor:grab}#ani-widget canvas:active{cursor:grabbing}
+        #ani-widget .ani-legend{display:flex;gap:14px;flex-wrap:wrap;align-items:center;margin-top:9px;font-size:12.5px}#ani-widget .ani-key{display:inline-flex;align-items:center;gap:5px;cursor:pointer;user-select:none}.ani-dot{width:18px;height:3px;border-radius:2px;background:currentColor}#ani-widget .ani-key input{accent-color:currentColor;margin:0}
+        #ani-widget .ani-seg{display:inline-flex;border:1px solid #4b5563;border-radius:4px;overflow:hidden;margin-left:auto}#ani-widget .ani-seg button{border:none;background:#111827;color:#9ca3af;padding:5px 10px;font-size:12.5px;cursor:pointer}#ani-widget .ani-seg button.active{background:#3b5c85;color:#fff}
+        #ani-widget .ani-controls{display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:8px;margin-top:10px}#ani-widget .ani-group-title{margin-bottom:7px;font-size:16px;font-weight:700}#ani-widget .ani-row{display:grid;grid-template-columns:minmax(70px,115px) minmax(70px,1fr) minmax(42px,62px);gap:7px;align-items:center;margin:7px 0;color:#d1d5db}#ani-widget input[type=range]{width:100%;min-width:0;accent-color:#f59e0b}#ani-widget .ani-value{color:#fbbf24;text-align:right;font-variant-numeric:tabular-nums}#ani-widget button.ani-btn{border:1px solid #9ca3af;border-radius:4px;padding:6px 12px;background:#606060;color:#f3f4f6;font-size:14px;cursor:pointer}#ani-widget .ani-status{margin-top:8px;color:#9ca3af;font-size:13px}
+        @media(max-width:760px){#ani-widget canvas{height:340px}}
+        </style><div class="ani-title"><b>Directional stiffness turns a spherical wavefront into a velocity surface.</b><div class="ani-hint">Drag the 3-D view to orbit &middot; tilt the crystal &middot; compare phase and ray (group) velocity surfaces</div></div>
+        <div class="ani-workspace"><section class="ani-panel"><div class="ani-panel-title">3-D wavefront</div><div class="ani-caption" id="ani-caption">radius = velocity &times; time, in the direction shown</div><canvas id="ani-3d"></canvas>
+        <div class="ani-legend">
+        <label class="ani-key" id="ani-key-qP" style="color:#f59e0b"><input type="checkbox" id="ani-show-qP" checked><i class="ani-dot"></i>qP</label>
+        <label class="ani-key" id="ani-key-qS1" style="color:#60a5fa"><input type="checkbox" id="ani-show-qS1" checked><i class="ani-dot"></i>qS&#8321;</label>
+        <label class="ani-key" id="ani-key-qS2" style="color:#22d3ee"><input type="checkbox" id="ani-show-qS2" checked><i class="ani-dot"></i>qS&#8322;</label>
+        <label class="ani-key" style="color:#e879f9"><input type="checkbox" id="ani-show-axes"><i class="ani-dot"></i>crystal axis</label>
+        <label class="ani-key" style="color:#d1d5db"><input type="checkbox" id="ani-show-pol"><i class="ani-dot"></i>polarization</label>
+        <div class="ani-seg" id="ani-seg-surface"><button data-v="phase" class="active">Phase velocity</button><button data-v="group">Group velocity (ray)</button></div>
+        </div>
+        </section></div>
+        <div class="ani-controls">
+        <section class="ani-group"><div class="ani-group-title">Propagation</div><label class="ani-row"><span>Time</span><input id="ani-time" type="range" min="0.2" max="1.2" step="0.1" value="$(w.time)"><span id="ani-time-v" class="ani-value"></span></label><label class="ani-row"><span>Density</span><input id="ani-density" type="range" min="2.5" max="5" step="0.1" value="$(w.density)"><span id="ani-density-v" class="ani-value"></span></label></section>
+        <section class="ani-group"><div class="ani-group-title">P-wave Love constants</div><label class="ani-row"><span>A</span><input id="ani-A" type="range" min="50" max="300" step="1" value="$(w.A)"><span id="ani-A-v" class="ani-value"></span></label><label class="ani-row"><span>C</span><input id="ani-C" type="range" min="50" max="300" step="1" value="$(w.C)"><span id="ani-C-v" class="ani-value"></span></label><label class="ani-row"><span>F</span><input id="ani-F" type="range" min="-100" max="150" step="1" value="$(w.F)"><span id="ani-F-v" class="ani-value"></span></label></section>
+        <section class="ani-group"><div class="ani-group-title">Shear Love constants</div><label class="ani-row"><span>L</span><input id="ani-L" type="range" min="20" max="140" step="1" value="$(w.L)"><span id="ani-L-v" class="ani-value"></span></label><label class="ani-row"><span>N</span><input id="ani-N" type="range" min="20" max="140" step="1" value="$(w.N)"><span id="ani-N-v" class="ani-value"></span></label></section>
+        <section class="ani-group"><div class="ani-group-title">Crystal orientation (LPO fabric axis)</div><label class="ani-row"><span>Plunge</span><input id="ani-plunge" type="range" min="0" max="90" step="1" value="$(w.plunge)"><span id="ani-plunge-v" class="ani-value"></span></label><label class="ani-row"><span>Trend</span><input id="ani-trend" type="range" min="0" max="360" step="1" value="$(w.trend)"><span id="ani-trend-v" class="ani-value"></span></label><button id="ani-reset" type="button" class="ani-btn" style="margin-top:4px">Reset VTI example</button></section>
+        </div><div id="ani-status" class="ani-status"></div></div>
+        <script>
+        (function(){
+        const root=document.currentScript.previousElementSibling;
+        const by=id=>root.querySelector('#'+id);
+        const state={time:$(w.time),density:$(w.density),A:$(w.A),C:$(w.C),L:$(w.L),N:$(w.N),F:$(w.F),plunge:$(w.plunge),trend:$(w.trend)};
+        const ids={"ani-time":"time","ani-density":"density","ani-A":"A","ani-C":"C","ani-L":"L","ani-N":"N","ani-F":"F","ani-plunge":"plunge","ani-trend":"trend"};
+        let data=null;
+        let surfaceMode='phase';
+        let showAxes=false, showPol=false;
+        let visible={qP:true,qS1:true,qS2:true};
+        let cam={az:0.6,el:0.35};
+        let camD=10; // camera distance in DATA units; rescaled per-draw to the data's own extent
+        function labels(){
+          for(const [id,key] of Object.entries(ids)){
+            const v=state[key];
+            by(id+'-v').textContent = key==='time' ? v.toFixed(1)+' s' : key==='density' ? v.toFixed(1)+' g/cm³' : (key==='plunge'||key==='trend') ? v.toFixed(0)+'°' : v.toFixed(0)+' GPa';
+          }
+        }
+        function emit(){ root.value={...state}; root.dispatchEvent(new CustomEvent('input')); }
+        function setup(c){
+          const r=c.getBoundingClientRect(), d=devicePixelRatio||1;
+          c.width=Math.round(r.width*d); c.height=Math.round(r.height*d);
+          const x=c.getContext('2d'); x.setTransform(d,0,0,d,0,0);
+          return [x, r.width, r.height];
+        }
+        function rot(p, az, el){
+          let [x,y,z]=p;
+          let x1=x*Math.cos(az)+z*Math.sin(az);
+          let z1=-x*Math.sin(az)+z*Math.cos(az);
+          let y2=y*Math.cos(el)-z1*Math.sin(el);
+          let z2=y*Math.sin(el)+z1*Math.cos(el);
+          return [x1,y2,z2];
+        }
+        function project(p, W, H, scale){
+          const [x,y,z]=rot(p, cam.az, cam.el);
+          const f=1/(1+z/camD);
+          return {sx:W/2+x*scale*f, sy:H/2-y*scale*f, depth:z, f};
+        }
+        const MODE_COLOR={1:'#22d3ee',2:'#60a5fa',3:'#f59e0b'};
+        const MODE_KEY={1:'qS2',2:'qS1',3:'qP'};
+        function idxXYZ(m0, ith, iph, nphi, ntheta){ return (((m0*ntheta)+ith)*nphi+iph)*3; }
+        function autoScale(){
+          if(!data) return 1;
+          let mx=1e-9;
+          for(const v of data.phaseXYZ) mx=Math.max(mx, Math.abs(v));
+          for(const v of data.groupXYZ) mx=Math.max(mx, Math.abs(v));
+          return mx;
+        }
+        function drawAxes(x, W, H, scale, R){
+          const pts=[[R,0,0],[0,R,0],[0,0,R]], labs=['x','y','z'], cols=['#ef4444','#22c55e','#3b82f6'];
+          for(let i=0;i<3;i++){
+            const o=project([0,0,0],W,H,scale), t=project(pts[i],W,H,scale);
+            x.strokeStyle=cols[i]; x.globalAlpha=0.85; x.lineWidth=1.4;
+            x.beginPath(); x.moveTo(o.sx,o.sy); x.lineTo(t.sx,t.sy); x.stroke();
+            x.fillStyle=cols[i]; x.globalAlpha=1; x.font='700 13px sans-serif';
+            x.fillText(labs[i], t.sx+4, t.sy-4);
+            const nt=project([-pts[i][0],-pts[i][1],-pts[i][2]],W,H,scale);
+            x.globalAlpha=0.35; x.beginPath(); x.moveTo(o.sx,o.sy); x.lineTo(nt.sx,nt.sy); x.stroke();
+          }
+          x.globalAlpha=1;
+        }
+        function drawArrowHead2D(x, sx, sy, dx, dy, color){
+          const len=Math.hypot(dx,dy); if(len<1e-6) return;
+          const ux=dx/len, uy=dy/len, ah=6, aw=3.5;
+          const bx=sx-ux*ah, by=sy-uy*ah;
+          x.beginPath();
+          x.moveTo(sx,sy);
+          x.lineTo(bx-uy*aw, by+ux*aw);
+          x.lineTo(bx+uy*aw, by-ux*aw);
+          x.closePath();
+          x.fillStyle=color; x.fill();
+        }
+        function drawCrystalAxes(x, W, H, scale, R){
+          if(!data) return;
+          const arrows=[[data.axisA, '#a78bfa', 0.55],[data.axisB,'#a78bfa',0.55],[data.axisSym,'#e879f9',1.0]];
+          for(const [v,color,alpha] of arrows){
+            const tip=[v[0]*R*0.9, v[1]*R*0.9, v[2]*R*0.9];
+            const o=project([0,0,0],W,H,scale), t=project(tip,W,H,scale);
+            x.globalAlpha=alpha; x.strokeStyle=color; x.lineWidth=2.2;
+            x.beginPath(); x.moveTo(o.sx,o.sy); x.lineTo(t.sx,t.sy); x.stroke();
+            drawArrowHead2D(x, t.sx, t.sy, t.sx-o.sx, t.sy-o.sy, color);
+          }
+          x.globalAlpha=1;
+        }
+        function drawPolarization(x, W, H, scale){
+          if(!data) return;
+          for(const a of data.arrows){
+            if(!visible[MODE_KEY[a.mode]]) continue;
+            const p=[a.p[0],a.p[1],a.p[2]];
+            const r=Math.hypot(p[0],p[1],p[2]);
+            const arrowLen=Math.max(r*0.16, 0.02);
+            const tip=[p[0]+a.d[0]*arrowLen, p[1]+a.d[1]*arrowLen, p[2]+a.d[2]*arrowLen];
+            const base=[p[0]-a.d[0]*arrowLen, p[1]-a.d[1]*arrowLen, p[2]-a.d[2]*arrowLen];
+            const o=project(base,W,H,scale), t=project(tip,W,H,scale);
+            x.globalAlpha=0.85; x.strokeStyle=MODE_COLOR[a.mode]; x.lineWidth=1.6;
+            x.beginPath(); x.moveTo(o.sx,o.sy); x.lineTo(t.sx,t.sy); x.stroke();
+            drawArrowHead2D(x, t.sx, t.sy, t.sx-o.sx, t.sy-o.sy, MODE_COLOR[a.mode]);
+          }
+          x.globalAlpha=1;
+        }
+        function buildSegments(arr, ntheta, nphi){
+          const segs=[];
+          for(let m0=0;m0<3;m0++){
+            const key=MODE_KEY[m0+1];
+            if(!visible[key]) continue;
+            const pt=(ith,iph)=>{const b=idxXYZ(m0,ith,iph,nphi,ntheta); return [arr[b],arr[b+1],arr[b+2]];};
+            for(let iph=0; iph<nphi; iph++){
+              for(let ith=0; ith<ntheta-1; ith++){
+                segs.push([pt(ith,iph), pt(ith+1,iph), m0+1]);
+              }
+            }
+            for(let ith=0; ith<ntheta; ith++){
+              for(let iph=0; iph<nphi; iph++){
+                const iph2=(iph+1)%nphi;
+                segs.push([pt(ith,iph), pt(ith,iph2), m0+1]);
+              }
+            }
+          }
+          return segs;
+        }
+        function draw(){
+          const c=by('ani-3d');
+          const [x,W,H]=setup(c);
+          x.fillStyle='#000'; x.fillRect(0,0,W,H);
+          if(!data){ return; }
+          const R=autoScale();
+          camD=R*3.5; // keep the camera well outside the largest sampled radius (any mode)
+          const scale=Math.min(W,H)*0.34/R;
+          const arr = surfaceMode==='phase' ? data.phaseXYZ : data.groupXYZ;
+          const segs=buildSegments(arr, data.ntheta, data.nphi);
+          const withDepth=segs.map(s=>{
+            const o=project(s[0],W,H,scale), t=project(s[1],W,H,scale);
+            const depth=(o.depth+t.depth)/2;
+            return {o,t,depth,mode:s[2]};
+          });
+          withDepth.sort((a,b)=>a.depth-b.depth);
+          let dmin=Infinity, dmax=-Infinity;
+          for(const s of withDepth){ dmin=Math.min(dmin,s.depth); dmax=Math.max(dmax,s.depth); }
+          const drange=Math.max(dmax-dmin, 1e-6);
+          x.lineWidth=1.1;
+          for(const s of withDepth){
+            const t=(s.depth-dmin)/drange;
+            const alpha=0.22+0.68*t;
+            x.globalAlpha=alpha;
+            x.strokeStyle=MODE_COLOR[s.mode];
+            x.beginPath(); x.moveTo(s.o.sx,s.o.sy); x.lineTo(s.t.sx,s.t.sy); x.stroke();
+          }
+          x.globalAlpha=1;
+          drawAxes(x,W,H,scale,R*1.15);
+          if(showAxes) drawCrystalAxes(x,W,H,scale,R*1.15);
+          if(showPol) drawPolarization(x,W,H,scale);
+          by('ani-caption').textContent = (surfaceMode==='phase' ? 'Phase-velocity surface' : 'Group-velocity (ray/energy) surface') + ' — radius = velocity × '+state.time.toFixed(1)+' s. Drag to orbit.';
+          by('ani-status').textContent = data.stable ? 'Vertical qP anisotropy: '+data.anisotropyPercent.toFixed(1)+'%' : 'Warning: this stiffness set is not mechanically stable in every sampled direction.';
+        }
+        let dragging=false, lastX=0, lastY=0;
+        const canvas=by('ani-3d');
+        canvas.addEventListener('mousedown', e=>{ dragging=true; lastX=e.clientX; lastY=e.clientY; });
+        window.addEventListener('mouseup', ()=>{ dragging=false; });
+        window.addEventListener('mousemove', e=>{
+          if(!dragging) return;
+          const dx=e.clientX-lastX, dy=e.clientY-lastY;
+          lastX=e.clientX; lastY=e.clientY;
+          cam.az += dx*0.008;
+          cam.el = Math.max(-1.5, Math.min(1.5, cam.el + dy*0.008));
+          draw();
+        });
+        canvas.addEventListener('touchstart', e=>{ if(e.touches.length===1){ dragging=true; lastX=e.touches[0].clientX; lastY=e.touches[0].clientY; } }, {passive:true});
+        canvas.addEventListener('touchmove', e=>{
+          if(!dragging || e.touches.length!==1) return;
+          const dx=e.touches[0].clientX-lastX, dy=e.touches[0].clientY-lastY;
+          lastX=e.touches[0].clientX; lastY=e.touches[0].clientY;
+          cam.az += dx*0.008; cam.el=Math.max(-1.5,Math.min(1.5,cam.el+dy*0.008));
+          draw();
+        }, {passive:true});
+        canvas.addEventListener('touchend', ()=>{ dragging=false; });
+        function change(e){
+          const key=ids[e.target.id]; if(!key) return;
+          e.stopImmediatePropagation();
+          state[key]=Number(e.target.value);
+          labels(); emit();
+        }
+        root.addEventListener('input', change, true);
+        root.addEventListener('change', change, true);
+        by('ani-reset').onclick=()=>{
+          Object.assign(state,{time:.8,density:4,A:272,C:160,L:60,N:50,F:60,plunge:0,trend:0});
+          for(const [id,key] of Object.entries(ids)) by(id).value=state[key];
+          labels(); emit();
+        };
+        by('ani-show-qP').addEventListener('change', e=>{ visible.qP=e.target.checked; draw(); });
+        by('ani-show-qS1').addEventListener('change', e=>{ visible.qS1=e.target.checked; draw(); });
+        by('ani-show-qS2').addEventListener('change', e=>{ visible.qS2=e.target.checked; draw(); });
+        by('ani-show-axes').addEventListener('change', e=>{ showAxes=e.target.checked; draw(); });
+        by('ani-show-pol').addEventListener('change', e=>{ showPol=e.target.checked; draw(); });
+        root.querySelectorAll('#ani-seg-surface button').forEach(btn=>{
+          btn.addEventListener('click', ()=>{
+            surfaceMode=btn.dataset.v;
+            root.querySelectorAll('#ani-seg-surface button').forEach(b=>b.classList.toggle('active', b===btn));
+            draw();
+          });
+        });
+        window.addEventListener('ani-results', e=>{ data = e.detail ? JSON.parse(e.detail) : null; draw(); });
+        window.addEventListener('resize', draw);
+        labels(); draw();
+        })();
+        </script></div>
+        """)
+    end
+    const _ani_ready = true
+end
+
+# ╔═╡ fbe96b0a-84f8-4cae-905c-ba093b1b4340
+begin
+    # `VTIWavefrontInput` is defined at the end of the Appendix. The bare
+    # reference makes the dependency explicit on a cold Pluto load.
+    _ani_ready
+    PlutoUI.WideCell(@bind _ani VTIWavefrontInput(); max_width=1400)
+end
+
+# ╔═╡ 109f4df4-aa1b-400c-b9d4-ff3604afa7d3
+begin
+    ani_safe = _ani isa AbstractDict ? _ani : Dict{String,Any}()
+    ani_time = clamp(Float64(get(ani_safe, "time", 0.8)), 0.2, 1.2)
+    ani_density = clamp(Float64(get(ani_safe, "density", 4.0)), 2.5, 5.0)
+    ani_A = clamp(Float64(get(ani_safe, "A", 272.0)), 50.0, 300.0)
+    ani_C = clamp(Float64(get(ani_safe, "C", 160.0)), 50.0, 300.0)
+    ani_L = clamp(Float64(get(ani_safe, "L", 60.0)), 20.0, 140.0)
+    ani_N = clamp(Float64(get(ani_safe, "N", 50.0)), 20.0, 140.0)
+    ani_F = clamp(Float64(get(ani_safe, "F", 60.0)), -100.0, 150.0)
+    ani_plunge = clamp(Float64(get(ani_safe, "plunge", 0.0)), 0.0, 90.0)
+    ani_trend = clamp(Float64(get(ani_safe, "trend", 0.0)), 0.0, 360.0)
+end
+
+# ╔═╡ b99cb15b-b51b-4bd6-ac88-d5f6b99bf10b
+let
+    payload = vti_wavefront_payload_3d(ani_A, ani_C, ani_L, ani_N, ani_F, ani_density, ani_time, ani_plunge, ani_trend)
+    message = ani_push_message(payload)
+    HTML("""<script>
+      window.dispatchEvent(new CustomEvent('ani-results', {detail: $(repr(message))}));
+    </script>""")
+end
 
 # ╔═╡ 00000000-0000-0000-0000-000000000001
 PLUTO_PROJECT_TOML_CONTENTS = """
 [deps]
 Einsum = "b7d42ee7-0b51-5a75-98ca-779d3107e4c0"
 LinearAlgebra = "37e2e46d-f89d-539d-b4ee-838fcccc9c8e"
-PlotThemes = "ccf2f8ad-2431-5c83-bf29-c5338b663b6a"
-Plots = "91a5bcdd-55d7-5caf-9e0b-520d859cae80"
 PlutoTeachingTools = "661c6b06-c737-4d37-b85c-46df65de6f69"
 PlutoUI = "7f904dfe-b85e-4ff6-b463-dae2292396a8"
 SymbolicUtils = "d1185830-fcd6-423d-90d6-eec64667417b"
 Symbolics = "0c5d862f-8b57-4792-8d23-62f2024744c7"
-TensorOperations = "6aa20fa7-93e2-5fca-9bc0-fbd0db3c71a2"
-Tullio = "bc48ee85-29a4-5162-ae0b-a64e1601d4bc"
 Unitful = "1986cc42-f94f-5a68-af5c-568840ba703d"
 
 [compat]
 Einsum = "~0.4.1"
-PlotThemes = "~3.3.0"
-Plots = "~1.41.1"
 PlutoTeachingTools = "~0.4.6"
 PlutoUI = "~0.7.73"
 SymbolicUtils = "~3.32.0"
 Symbolics = "~6.57.0"
-TensorOperations = "~5.3.1"
-Tullio = "~0.3.8"
 Unitful = "~1.25.1"
 """
 
@@ -522,7 +873,7 @@ PLUTO_MANIFEST_TOML_CONTENTS = """
 
 julia_version = "1.12.4"
 manifest_format = "2.0"
-project_hash = "4f3d3c246b9edc1410dc15e2f4989ad1616188ae"
+project_hash = "3d0c311a717a73fee64aac659d8f1176df9b45bd"
 
 [[deps.ADTypes]]
 git-tree-sha1 = "27cecae79e5cc9935255f90c53bb831cc3c870d7"
@@ -642,23 +993,6 @@ git-tree-sha1 = "a2d308fcd4c2fb90e943cf9cd2fbfa9c32b69733"
 uuid = "e2ed5e7c-b2de-5872-ae92-c73ca462fb04"
 version = "0.2.2"
 
-[[deps.BitFlags]]
-git-tree-sha1 = "0691e34b3bb8be9307330f88d1a3c3f25466c24d"
-uuid = "d1d4a3ce-64b1-5f1a-9ba4-7e7e69966f35"
-version = "0.1.9"
-
-[[deps.Bzip2_jll]]
-deps = ["Artifacts", "JLLWrappers", "Libdl"]
-git-tree-sha1 = "1b96ea4a01afe0ea4090c5c8039690672dd13f2e"
-uuid = "6e34b625-4abd-537c-b88f-471c36dfa7a0"
-version = "1.0.9+0"
-
-[[deps.Cairo_jll]]
-deps = ["Artifacts", "Bzip2_jll", "CompilerSupportLibraries_jll", "Fontconfig_jll", "FreeType2_jll", "Glib_jll", "JLLWrappers", "LZO_jll", "Libdl", "Pixman_jll", "Xorg_libXext_jll", "Xorg_libXrender_jll", "Zlib_jll", "libpng_jll"]
-git-tree-sha1 = "fde3bf89aead2e723284a8ff9cdf5b551ed700e8"
-uuid = "83423d85-b0ee-5818-9007-b63ccbeb887a"
-version = "1.18.5+0"
-
 [[deps.ChainRulesCore]]
 deps = ["Compat", "LinearAlgebra"]
 git-tree-sha1 = "e4c6a16e77171a5f5e25e9646617ab1c276c5607"
@@ -669,18 +1003,6 @@ weakdeps = ["SparseArrays"]
     [deps.ChainRulesCore.extensions]
     ChainRulesCoreSparseArraysExt = "SparseArrays"
 
-[[deps.CodecZlib]]
-deps = ["TranscodingStreams", "Zlib_jll"]
-git-tree-sha1 = "962834c22b66e32aa10f7611c08c8ca4e20749a9"
-uuid = "944b1d66-785c-5afd-91f1-9de20f533193"
-version = "0.7.8"
-
-[[deps.ColorSchemes]]
-deps = ["ColorTypes", "ColorVectorSpace", "Colors", "FixedPointNumbers", "PrecompileTools", "Random"]
-git-tree-sha1 = "b0fd3f56fa442f81e0a47815c92245acfaaa4e34"
-uuid = "35d6a980-a343-548e-a6ea-1d62b119f2f4"
-version = "3.31.0"
-
 [[deps.ColorTypes]]
 deps = ["FixedPointNumbers", "Random"]
 git-tree-sha1 = "67e11ee83a43eb71ddc950302c53bf33f0690dfe"
@@ -690,22 +1012,6 @@ weakdeps = ["StyledStrings"]
 
     [deps.ColorTypes.extensions]
     StyledStringsExt = "StyledStrings"
-
-[[deps.ColorVectorSpace]]
-deps = ["ColorTypes", "FixedPointNumbers", "LinearAlgebra", "Requires", "Statistics", "TensorCore"]
-git-tree-sha1 = "8b3b6f87ce8f65a2b4f857528fd8d70086cd72b1"
-uuid = "c3611d14-8923-5661-9e6a-0046d554d3a4"
-version = "0.11.0"
-weakdeps = ["SpecialFunctions"]
-
-    [deps.ColorVectorSpace.extensions]
-    SpecialFunctionsExt = "SpecialFunctions"
-
-[[deps.Colors]]
-deps = ["ColorTypes", "FixedPointNumbers", "Reexport"]
-git-tree-sha1 = "37ea44092930b1811e666c3bc38065d7d87fcc74"
-uuid = "5ae59095-9a9b-59fe-a467-6f913c188581"
-version = "0.13.1"
 
 [[deps.Combinatorics]]
 git-tree-sha1 = "08c8b6831dc00bfea825826be0bc8336fc369860"
@@ -751,12 +1057,6 @@ weakdeps = ["InverseFunctions"]
     [deps.CompositionsBase.extensions]
     CompositionsBaseInverseFunctionsExt = "InverseFunctions"
 
-[[deps.ConcurrentUtilities]]
-deps = ["Serialization", "Sockets"]
-git-tree-sha1 = "d9d26935a0bcffc87d2613ce14c527c99fc543fd"
-uuid = "f0e56b4a-5159-44fe-b623-3e5288b988bb"
-version = "2.5.0"
-
 [[deps.ConstructionBase]]
 git-tree-sha1 = "b4b092499347b18a015186eae3042f72267106cb"
 uuid = "187b0558-2788-49d3-abe0-74a17ed4e7c9"
@@ -767,11 +1067,6 @@ weakdeps = ["IntervalSets", "LinearAlgebra", "StaticArrays"]
     ConstructionBaseIntervalSetsExt = "IntervalSets"
     ConstructionBaseLinearAlgebraExt = "LinearAlgebra"
     ConstructionBaseStaticArraysExt = "StaticArrays"
-
-[[deps.Contour]]
-git-tree-sha1 = "439e35b0b36e2e5881738abc8857bd92ad6ff9a8"
-uuid = "d38c429a-6771-53c6-b99e-75d170b6e991"
-version = "0.6.3"
 
 [[deps.DataAPI]]
 git-tree-sha1 = "abe83f3a2f1b857aac70ef8b269080af17764bbe"
@@ -788,18 +1083,6 @@ version = "0.19.1"
 deps = ["Printf"]
 uuid = "ade2ca70-3891-5945-98fb-dc099432e06a"
 version = "1.11.0"
-
-[[deps.Dbus_jll]]
-deps = ["Artifacts", "Expat_jll", "JLLWrappers", "Libdl"]
-git-tree-sha1 = "473e9afc9cf30814eb67ffa5f2db7df82c3ad9fd"
-uuid = "ee1fde0b-3d02-5ea6-8484-8dfef6360eab"
-version = "1.16.2+0"
-
-[[deps.DelimitedFiles]]
-deps = ["Mmap"]
-git-tree-sha1 = "9e2f36d3c96a820c678f2f1f1782582fcf685bae"
-uuid = "8bb1440f-4735-579b-a4ab-409b98df4dab"
-version = "1.9.1"
 
 [[deps.DiffRules]]
 deps = ["IrrationalConstants", "LogExpFunctions", "NaNMath", "Random", "SpecialFunctions"]
@@ -869,24 +1152,6 @@ git-tree-sha1 = "bddad79635af6aec424f53ed8aad5d7555dc6f00"
 uuid = "4e289a0a-7415-4d19-859d-a7e5c4648b56"
 version = "1.0.5"
 
-[[deps.EpollShim_jll]]
-deps = ["Artifacts", "JLLWrappers", "Libdl"]
-git-tree-sha1 = "8a4be429317c42cfae6a7fc03c31bad1970c310d"
-uuid = "2702e6a9-849d-5ed8-8c21-79e8b8f9ee43"
-version = "0.0.20230411+1"
-
-[[deps.ExceptionUnwrapping]]
-deps = ["Test"]
-git-tree-sha1 = "d36f682e590a83d63d1c7dbd287573764682d12a"
-uuid = "460bff9d-24e4-43bc-9d9f-a8973cb893f4"
-version = "0.1.11"
-
-[[deps.Expat_jll]]
-deps = ["Artifacts", "JLLWrappers", "Libdl"]
-git-tree-sha1 = "27af30de8b5445644e8ffe3bcb0d72049c089cf1"
-uuid = "2e619515-83b5-522b-bb60-26c02a35a201"
-version = "2.7.3+0"
-
 [[deps.ExprTools]]
 git-tree-sha1 = "27415f162e6028e81c72b82ef756bf321213b6ec"
 uuid = "e2ba6199-217a-4e67-a87a-7c52f15ade04"
@@ -896,18 +1161,6 @@ version = "0.1.10"
 git-tree-sha1 = "c13f0b150373771b0fdc1713c97860f8df12e6c2"
 uuid = "55351af7-c7e9-48d6-89ff-24e801d99491"
 version = "0.10.14"
-
-[[deps.FFMPEG]]
-deps = ["FFMPEG_jll"]
-git-tree-sha1 = "95ecf07c2eea562b5adbd0696af6db62c0f52560"
-uuid = "c87230d0-a227-11e9-1b43-d7ebe4e7570a"
-version = "0.4.5"
-
-[[deps.FFMPEG_jll]]
-deps = ["Artifacts", "Bzip2_jll", "FreeType2_jll", "FriBidi_jll", "JLLWrappers", "LAME_jll", "Libdl", "Ogg_jll", "OpenSSL_jll", "Opus_jll", "PCRE2_jll", "Zlib_jll", "libaom_jll", "libass_jll", "libfdk_aac_jll", "libvorbis_jll", "x264_jll", "x265_jll"]
-git-tree-sha1 = "ccc81ba5e42497f4e76553a5545665eed577a663"
-uuid = "b22a6f82-2f65-5046-a5b2-351ab43fb4e5"
-version = "8.0.0+0"
 
 [[deps.FileWatching]]
 uuid = "7b1f6079-737a-58dc-b8bc-7a2ca5c1b5ee"
@@ -931,28 +1184,10 @@ git-tree-sha1 = "05882d6995ae5c12bb5f36dd2ed3f61c98cbb172"
 uuid = "53c48c17-4a7d-5ca2-90c5-79b7896eea93"
 version = "0.8.5"
 
-[[deps.Fontconfig_jll]]
-deps = ["Artifacts", "Bzip2_jll", "Expat_jll", "FreeType2_jll", "JLLWrappers", "Libdl", "Libuuid_jll", "Zlib_jll"]
-git-tree-sha1 = "f85dac9a96a01087df6e3a749840015a0ca3817d"
-uuid = "a3f928ae-7b40-5064-980b-68af3947d34b"
-version = "2.17.1+0"
-
 [[deps.Format]]
 git-tree-sha1 = "9c68794ef81b08086aeb32eeaf33531668d5f5fc"
 uuid = "1fa38f19-a742-5d3f-a2b9-30dd87b9d5f8"
 version = "1.3.7"
-
-[[deps.FreeType2_jll]]
-deps = ["Artifacts", "Bzip2_jll", "JLLWrappers", "Libdl", "Zlib_jll"]
-git-tree-sha1 = "2c5512e11c791d1baed2049c5652441b28fc6a31"
-uuid = "d7e528f0-a631-5988-bf34-fe36492bcfd7"
-version = "2.13.4+0"
-
-[[deps.FriBidi_jll]]
-deps = ["Artifacts", "JLLWrappers", "Libdl"]
-git-tree-sha1 = "7a214fdac5ed5f59a22c2d9a885a16da1c74bbc7"
-uuid = "559328eb-81f9-559d-9380-de523a88c83c"
-version = "1.0.17+0"
 
 [[deps.FunctionWrappers]]
 git-tree-sha1 = "d62485945ce5ae9c0c48f124a84998d755bae00e"
@@ -970,70 +1205,17 @@ deps = ["Random"]
 uuid = "9fa8497b-333b-5362-9e8d-4d0656e87820"
 version = "1.11.0"
 
-[[deps.GLFW_jll]]
-deps = ["Artifacts", "JLLWrappers", "Libdl", "Libglvnd_jll", "Xorg_libXcursor_jll", "Xorg_libXi_jll", "Xorg_libXinerama_jll", "Xorg_libXrandr_jll", "libdecor_jll", "xkbcommon_jll"]
-git-tree-sha1 = "fcb0584ff34e25155876418979d4c8971243bb89"
-uuid = "0656b61e-2033-5cc2-a64a-77c0f6c09b89"
-version = "3.4.0+2"
-
 [[deps.GPUArraysCore]]
 deps = ["Adapt"]
 git-tree-sha1 = "83cf05ab16a73219e5f6bd1bdfa9848fa24ac627"
 uuid = "46192b85-c4d5-4398-a991-12ede77f4527"
 version = "0.2.0"
 
-[[deps.GR]]
-deps = ["Artifacts", "Base64", "DelimitedFiles", "Downloads", "GR_jll", "HTTP", "JSON", "Libdl", "LinearAlgebra", "Preferences", "Printf", "Qt6Wayland_jll", "Random", "Serialization", "Sockets", "TOML", "Tar", "Test", "p7zip_jll"]
-git-tree-sha1 = "f52c27dd921390146624f3aab95f4e8614ad6531"
-uuid = "28b8d3ca-fb5f-59d9-8090-bfdbd6d07a71"
-version = "0.73.18"
-
-[[deps.GR_jll]]
-deps = ["Artifacts", "Bzip2_jll", "Cairo_jll", "FFMPEG_jll", "Fontconfig_jll", "FreeType2_jll", "GLFW_jll", "JLLWrappers", "JpegTurbo_jll", "Libdl", "Libtiff_jll", "Pixman_jll", "Qt6Base_jll", "Zlib_jll", "libpng_jll"]
-git-tree-sha1 = "4b0406b866ea9fdbaf1148bc9c0b887e59f9af68"
-uuid = "d2c73de3-f751-5644-a686-071e5b155ba9"
-version = "0.73.18+0"
-
-[[deps.GettextRuntime_jll]]
-deps = ["Artifacts", "CompilerSupportLibraries_jll", "JLLWrappers", "Libdl", "Libiconv_jll"]
-git-tree-sha1 = "45288942190db7c5f760f59c04495064eedf9340"
-uuid = "b0724c58-0f36-5564-988d-3bb0596ebc4a"
-version = "0.22.4+0"
-
 [[deps.Ghostscript_jll]]
 deps = ["Artifacts", "JLLWrappers", "JpegTurbo_jll", "Libdl", "Zlib_jll"]
 git-tree-sha1 = "38044a04637976140074d0b0621c1edf0eb531fd"
 uuid = "61579ee1-b43e-5ca0-a5da-69d92c66a64b"
 version = "9.55.1+0"
-
-[[deps.Glib_jll]]
-deps = ["Artifacts", "GettextRuntime_jll", "JLLWrappers", "Libdl", "Libffi_jll", "Libiconv_jll", "Libmount_jll", "PCRE2_jll", "Zlib_jll"]
-git-tree-sha1 = "50c11ffab2a3d50192a228c313f05b5b5dc5acb2"
-uuid = "7746bdde-850d-59dc-9ae8-88ece973131d"
-version = "2.86.0+0"
-
-[[deps.Graphite2_jll]]
-deps = ["Artifacts", "JLLWrappers", "Libdl"]
-git-tree-sha1 = "8a6dbda1fd736d60cc477d99f2e7a042acfa46e8"
-uuid = "3b182d85-2403-5c21-9c21-1e1f0cc25472"
-version = "1.3.15+0"
-
-[[deps.Grisu]]
-git-tree-sha1 = "53bb909d1151e57e2484c3d1b53e19552b887fb2"
-uuid = "42e2da0e-8278-4e71-bc24-59509adca0fe"
-version = "1.0.2"
-
-[[deps.HTTP]]
-deps = ["Base64", "CodecZlib", "ConcurrentUtilities", "Dates", "ExceptionUnwrapping", "Logging", "LoggingExtras", "MbedTLS", "NetworkOptions", "OpenSSL", "PrecompileTools", "Random", "SimpleBufferStream", "Sockets", "URIs", "UUIDs"]
-git-tree-sha1 = "5e6fe50ae7f23d171f44e311c2960294aaa0beb5"
-uuid = "cd3eb016-35fb-5094-929b-558a96fad6f3"
-version = "1.10.19"
-
-[[deps.HarfBuzz_jll]]
-deps = ["Artifacts", "Cairo_jll", "Fontconfig_jll", "FreeType2_jll", "Glib_jll", "Graphite2_jll", "JLLWrappers", "Libdl", "Libffi_jll"]
-git-tree-sha1 = "f923f9a774fcf3f5cb761bfa43aeadd689714813"
-uuid = "2e76f6c2-a576-52d4-95c1-20adfe4de566"
-version = "8.5.1+0"
 
 [[deps.HypergeometricFunctions]]
 deps = ["LinearAlgebra", "OpenLibm_jll", "SpecialFunctions"]
@@ -1100,12 +1282,6 @@ git-tree-sha1 = "a3f24677c21f5bbe9d2a714f95dcd58337fb2856"
 uuid = "82899510-4779-5014-852e-03e436cf321d"
 version = "1.0.0"
 
-[[deps.JLFzf]]
-deps = ["REPL", "Random", "fzf_jll"]
-git-tree-sha1 = "82f7acdc599b65e0f8ccd270ffa1467c21cb647b"
-uuid = "1019f520-868f-41f5-a6de-eb00f4b6a39c"
-version = "0.1.11"
-
 [[deps.JLLWrappers]]
 deps = ["Artifacts", "Preferences"]
 git-tree-sha1 = "0533e564aae234aff59ab625543145446d8b6ec2"
@@ -1134,39 +1310,6 @@ version = "3.1.3+0"
 deps = ["StyledStrings"]
 uuid = "ac6e5ff7-fb65-4e79-a425-ec3bc9c03011"
 version = "1.12.0"
-
-[[deps.LAME_jll]]
-deps = ["Artifacts", "JLLWrappers", "Libdl"]
-git-tree-sha1 = "059aabebaa7c82ccb853dd4a0ee9d17796f7e1bc"
-uuid = "c1c5ebd0-6772-5130-a774-d5fcae4a789d"
-version = "3.100.3+0"
-
-[[deps.LERC_jll]]
-deps = ["Artifacts", "JLLWrappers", "Libdl"]
-git-tree-sha1 = "aaafe88dccbd957a8d82f7d05be9b69172e0cee3"
-uuid = "88015f11-f218-50d7-93a8-a6af411a945d"
-version = "4.0.1+0"
-
-[[deps.LLVMOpenMP_jll]]
-deps = ["Artifacts", "JLLWrappers", "Libdl"]
-git-tree-sha1 = "eb62a3deb62fc6d8822c0c4bef73e4412419c5d8"
-uuid = "1d63c593-3942-5779-bab2-d838dc0a180e"
-version = "18.1.8+0"
-
-[[deps.LRUCache]]
-git-tree-sha1 = "5519b95a490ff5fe629c4a7aa3b3dfc9160498b3"
-uuid = "8ac3fa9e-de4c-5943-b1dc-09c6b5f20637"
-version = "1.6.2"
-weakdeps = ["Serialization"]
-
-    [deps.LRUCache.extensions]
-    SerializationExt = ["Serialization"]
-
-[[deps.LZO_jll]]
-deps = ["Artifacts", "JLLWrappers", "Libdl"]
-git-tree-sha1 = "1c602b1127f4751facb671441ca72715cc95938a"
-uuid = "dd4b983a-f0e5-5f8d-a1b7-129d4a5fb1ac"
-version = "2.10.3+0"
 
 [[deps.LaTeXStrings]]
 git-tree-sha1 = "dda21b8cbd6a6c40d9d02a73230f9d70fed6918c"
@@ -1220,42 +1363,6 @@ version = "1.11.3+1"
 uuid = "8f399da3-3557-5675-b5ff-fb832c97cbdb"
 version = "1.11.0"
 
-[[deps.Libffi_jll]]
-deps = ["Artifacts", "JLLWrappers", "Libdl"]
-git-tree-sha1 = "c8da7e6a91781c41a863611c7e966098d783c57a"
-uuid = "e9f186c6-92d2-5b65-8a66-fee21dc1b490"
-version = "3.4.7+0"
-
-[[deps.Libglvnd_jll]]
-deps = ["Artifacts", "JLLWrappers", "Libdl", "Xorg_libX11_jll", "Xorg_libXext_jll"]
-git-tree-sha1 = "d36c21b9e7c172a44a10484125024495e2625ac0"
-uuid = "7e76a0d4-f3c7-5321-8279-8d96eeed0f29"
-version = "1.7.1+1"
-
-[[deps.Libiconv_jll]]
-deps = ["Artifacts", "JLLWrappers", "Libdl"]
-git-tree-sha1 = "be484f5c92fad0bd8acfef35fe017900b0b73809"
-uuid = "94ce4f54-9a6c-5748-9c1c-f9c7231a4531"
-version = "1.18.0+0"
-
-[[deps.Libmount_jll]]
-deps = ["Artifacts", "JLLWrappers", "Libdl"]
-git-tree-sha1 = "3acf07f130a76f87c041cfb2ff7d7284ca67b072"
-uuid = "4b2f31a3-9ecc-558c-b454-b3730dcb73e9"
-version = "2.41.2+0"
-
-[[deps.Libtiff_jll]]
-deps = ["Artifacts", "JLLWrappers", "JpegTurbo_jll", "LERC_jll", "Libdl", "XZ_jll", "Zlib_jll", "Zstd_jll"]
-git-tree-sha1 = "f04133fe05eff1667d2054c53d59f9122383fe05"
-uuid = "89763e89-9b03-5906-acba-b20f662cd828"
-version = "4.7.2+0"
-
-[[deps.Libuuid_jll]]
-deps = ["Artifacts", "JLLWrappers", "Libdl"]
-git-tree-sha1 = "2a7a12fc0a4e7fb773450d17975322aa77142106"
-uuid = "38a345b3-de98-5d2b-a5d3-14cd9215e700"
-version = "2.41.2+0"
-
 [[deps.LinearAlgebra]]
 deps = ["Libdl", "OpenBLAS_jll", "libblastrampoline_jll"]
 uuid = "37e2e46d-f89d-539d-b4ee-838fcccc9c8e"
@@ -1301,23 +1408,6 @@ version = "0.5.16"
 deps = ["Base64", "JuliaSyntaxHighlighting", "StyledStrings"]
 uuid = "d6f4376e-aef5-505a-96c1-9c027394607a"
 version = "1.11.0"
-
-[[deps.MbedTLS]]
-deps = ["Dates", "MbedTLS_jll", "MozillaCACerts_jll", "NetworkOptions", "Random", "Sockets"]
-git-tree-sha1 = "c067a280ddc25f196b5e7df3877c6b226d390aaf"
-uuid = "739be429-bea8-5141-9913-cc70e7f3736d"
-version = "1.1.9"
-
-[[deps.MbedTLS_jll]]
-deps = ["Artifacts", "JLLWrappers", "Libdl"]
-git-tree-sha1 = "926c6af3a037c68d02596a44c22ec3595f5f760b"
-uuid = "c8ffd9c3-330d-5841-b78e-0817d7145fa1"
-version = "2.28.6+0"
-
-[[deps.Measures]]
-git-tree-sha1 = "c13304c81eec1ed3af7fc20e75fb6b26092a1102"
-uuid = "442fdcdd-2543-5da2-b0f3-8c86c306513e"
-version = "0.3.2"
 
 [[deps.Missings]]
 deps = ["DataAPI"]
@@ -1374,12 +1464,6 @@ weakdeps = ["Adapt"]
     [deps.OffsetArrays.extensions]
     OffsetArraysAdaptExt = "Adapt"
 
-[[deps.Ogg_jll]]
-deps = ["Artifacts", "JLLWrappers", "Libdl"]
-git-tree-sha1 = "b6aa4566bb7ae78498a5e68943863fa8b5231b59"
-uuid = "e7412a2a-1a6e-54c0-be00-318e2571c051"
-version = "1.3.6+0"
-
 [[deps.OpenBLAS_jll]]
 deps = ["Artifacts", "CompilerSupportLibraries_jll", "Libdl"]
 uuid = "4536629a-c528-5b80-bd46-f80d51c5b363"
@@ -1389,12 +1473,6 @@ version = "0.3.29+0"
 deps = ["Artifacts", "Libdl"]
 uuid = "05823500-19ac-5b8b-9628-191a04bc5112"
 version = "0.8.7+0"
-
-[[deps.OpenSSL]]
-deps = ["BitFlags", "Dates", "MozillaCACerts_jll", "NetworkOptions", "OpenSSL_jll", "Sockets"]
-git-tree-sha1 = "386b47442468acfb1add94bf2d85365dea10cbab"
-uuid = "4d8831e6-92b7-49fb-bdf8-b643e874388c"
-version = "1.6.0"
 
 [[deps.OpenSSL_jll]]
 deps = ["Artifacts", "Libdl"]
@@ -1407,21 +1485,10 @@ git-tree-sha1 = "1346c9208249809840c91b26703912dff463d335"
 uuid = "efe28fd5-8261-553b-a9e1-b2916fc3738e"
 version = "0.5.6+0"
 
-[[deps.Opus_jll]]
-deps = ["Artifacts", "JLLWrappers", "Libdl"]
-git-tree-sha1 = "c392fc5dd032381919e3b22dd32d6443760ce7ea"
-uuid = "91d4177d-7536-5919-b921-800302f37372"
-version = "1.5.2+0"
-
 [[deps.OrderedCollections]]
 git-tree-sha1 = "05868e21324cede2207c6f0f466b4bfef6d5e7ee"
 uuid = "bac558e1-5e72-5ebc-8fee-abe8a469f55d"
 version = "1.8.1"
-
-[[deps.PCRE2_jll]]
-deps = ["Artifacts", "Libdl"]
-uuid = "efcefdf7-47ab-520b-bdef-62a2eaa19f15"
-version = "10.44.0+1"
 
 [[deps.PDMats]]
 deps = ["LinearAlgebra", "SparseArrays", "SuiteSparse"]
@@ -1433,70 +1500,22 @@ weakdeps = ["StatsBase"]
     [deps.PDMats.extensions]
     StatsBaseExt = "StatsBase"
 
-[[deps.PackageExtensionCompat]]
-git-tree-sha1 = "fb28e33b8a95c4cee25ce296c817d89cc2e53518"
-uuid = "65ce6f38-6b18-4e1d-a461-8949797d7930"
-version = "1.0.2"
-weakdeps = ["Requires", "TOML"]
-
-[[deps.Pango_jll]]
-deps = ["Artifacts", "Cairo_jll", "Fontconfig_jll", "FreeType2_jll", "FriBidi_jll", "Glib_jll", "HarfBuzz_jll", "JLLWrappers", "Libdl"]
-git-tree-sha1 = "1f7f9bbd5f7a2e5a9f7d96e51c9754454ea7f60b"
-uuid = "36c8627f-9965-5494-a995-c6b170f724f3"
-version = "1.56.4+0"
-
 [[deps.Parsers]]
 deps = ["Dates", "PrecompileTools", "UUIDs"]
 git-tree-sha1 = "7d2f8f21da5db6a806faf7b9b292296da42b2810"
 uuid = "69de0a69-1ddd-5017-9359-2bf0b02dc9f0"
 version = "2.8.3"
 
-[[deps.Pixman_jll]]
-deps = ["Artifacts", "CompilerSupportLibraries_jll", "JLLWrappers", "LLVMOpenMP_jll", "Libdl"]
-git-tree-sha1 = "db76b1ecd5e9715f3d043cec13b2ec93ce015d53"
-uuid = "30392449-352a-5448-841d-b1acce4e97dc"
-version = "0.44.2+0"
-
 [[deps.Pkg]]
 deps = ["Artifacts", "Dates", "Downloads", "FileWatching", "LibGit2", "Libdl", "Logging", "Markdown", "Printf", "Random", "SHA", "TOML", "Tar", "UUIDs", "p7zip_jll"]
 uuid = "44cfe95a-1eb2-52ea-b672-e2afdf69b78f"
 version = "1.12.1"
-weakdeps = ["REPL"]
 
     [deps.Pkg.extensions]
     REPLExt = "REPL"
 
-[[deps.PlotThemes]]
-deps = ["PlotUtils", "Statistics"]
-git-tree-sha1 = "41031ef3a1be6f5bbbf3e8073f210556daeae5ca"
-uuid = "ccf2f8ad-2431-5c83-bf29-c5338b663b6a"
-version = "3.3.0"
-
-[[deps.PlotUtils]]
-deps = ["ColorSchemes", "Colors", "Dates", "PrecompileTools", "Printf", "Random", "Reexport", "StableRNGs", "Statistics"]
-git-tree-sha1 = "3ca9a356cd2e113c420f2c13bea19f8d3fb1cb18"
-uuid = "995b91a9-d308-5afd-9ec6-746e21dbc043"
-version = "1.4.3"
-
-[[deps.Plots]]
-deps = ["Base64", "Contour", "Dates", "Downloads", "FFMPEG", "FixedPointNumbers", "GR", "JLFzf", "JSON", "LaTeXStrings", "Latexify", "LinearAlgebra", "Measures", "NaNMath", "Pkg", "PlotThemes", "PlotUtils", "PrecompileTools", "Printf", "REPL", "Random", "RecipesBase", "RecipesPipeline", "Reexport", "RelocatableFolders", "Requires", "Scratch", "Showoff", "SparseArrays", "Statistics", "StatsBase", "TOML", "UUIDs", "UnicodeFun", "Unzip"]
-git-tree-sha1 = "12ce661880f8e309569074a61d3767e5756a199f"
-uuid = "91a5bcdd-55d7-5caf-9e0b-520d859cae80"
-version = "1.41.1"
-
-    [deps.Plots.extensions]
-    FileIOExt = "FileIO"
-    GeometryBasicsExt = "GeometryBasics"
-    IJuliaExt = "IJulia"
-    ImageInTerminalExt = "ImageInTerminal"
-    UnitfulExt = "Unitful"
-
-    [deps.Plots.weakdeps]
-    FileIO = "5789e2e9-d7fb-5bc7-8068-2c6fae9b9549"
-    GeometryBasics = "5c1252a2-5f33-56bf-86c9-59e7332b4326"
-    IJulia = "7073ff75-c697-5162-941a-fcdaad2a7d2a"
-    ImageInTerminal = "d8c32880-2388-543b-8c61-d9f865259254"
-    Unitful = "1986cc42-f94f-5a68-af5c-568840ba703d"
+    [deps.Pkg.weakdeps]
+    REPL = "3fa0cd96-eef1-5676-8a61-b3b8758bbffb"
 
 [[deps.PlutoTeachingTools]]
 deps = ["Downloads", "HypertextLiteral", "Latexify", "Markdown", "PlutoUI"]
@@ -1554,30 +1573,6 @@ git-tree-sha1 = "1d36ef11a9aaf1e8b74dacc6a731dd1de8fd493d"
 uuid = "43287f4e-b6f4-7ad1-bb20-aadabca52c3d"
 version = "1.3.0"
 
-[[deps.Qt6Base_jll]]
-deps = ["Artifacts", "CompilerSupportLibraries_jll", "Fontconfig_jll", "Glib_jll", "JLLWrappers", "Libdl", "Libglvnd_jll", "OpenSSL_jll", "Vulkan_Loader_jll", "Xorg_libSM_jll", "Xorg_libXext_jll", "Xorg_libXrender_jll", "Xorg_libxcb_jll", "Xorg_xcb_util_cursor_jll", "Xorg_xcb_util_image_jll", "Xorg_xcb_util_keysyms_jll", "Xorg_xcb_util_renderutil_jll", "Xorg_xcb_util_wm_jll", "Zlib_jll", "libinput_jll", "xkbcommon_jll"]
-git-tree-sha1 = "34f7e5d2861083ec7596af8b8c092531facf2192"
-uuid = "c0090381-4147-56d7-9ebc-da0b1113ec56"
-version = "6.8.2+2"
-
-[[deps.Qt6Declarative_jll]]
-deps = ["Artifacts", "JLLWrappers", "Libdl", "Qt6Base_jll", "Qt6ShaderTools_jll"]
-git-tree-sha1 = "da7adf145cce0d44e892626e647f9dcbe9cb3e10"
-uuid = "629bc702-f1f5-5709-abd5-49b8460ea067"
-version = "6.8.2+1"
-
-[[deps.Qt6ShaderTools_jll]]
-deps = ["Artifacts", "JLLWrappers", "Libdl", "Qt6Base_jll"]
-git-tree-sha1 = "9eca9fc3fe515d619ce004c83c31ffd3f85c7ccf"
-uuid = "ce943373-25bb-56aa-8eca-768745ed7b5a"
-version = "6.8.2+1"
-
-[[deps.Qt6Wayland_jll]]
-deps = ["Artifacts", "JLLWrappers", "Libdl", "Qt6Base_jll", "Qt6Declarative_jll"]
-git-tree-sha1 = "8f528b0851b5b7025032818eb5abbeb8a736f853"
-uuid = "e99dba38-086e-5de3-a5b1-6e4c66e897c3"
-version = "6.8.2+2"
-
 [[deps.QuadGK]]
 deps = ["DataStructures", "LinearAlgebra"]
 git-tree-sha1 = "9da16da70037ba9d701192e27befedefb91ec284"
@@ -1590,11 +1585,6 @@ version = "2.11.2"
     [deps.QuadGK.weakdeps]
     Enzyme = "7da242da-08ed-463a-9acd-ee780be4f1d9"
 
-[[deps.REPL]]
-deps = ["InteractiveUtils", "JuliaSyntaxHighlighting", "Markdown", "Sockets", "StyledStrings", "Unicode"]
-uuid = "3fa0cd96-eef1-5676-8a61-b3b8758bbffb"
-version = "1.11.0"
-
 [[deps.Random]]
 deps = ["SHA"]
 uuid = "9a3f8284-a2c9-5f02-9a11-845980a1fd5c"
@@ -1605,12 +1595,6 @@ deps = ["PrecompileTools"]
 git-tree-sha1 = "5c3d09cc4f31f5fc6af001c250bf1278733100ff"
 uuid = "3cdcf5f2-1ef4-517c-9805-6587b60abb01"
 version = "1.3.4"
-
-[[deps.RecipesPipeline]]
-deps = ["Dates", "NaNMath", "PlotUtils", "PrecompileTools", "RecipesBase"]
-git-tree-sha1 = "45cf9fd0ca5839d06ef333c8201714e888486342"
-uuid = "01d81517-befc-4cb6-b9ec-a95719d0359c"
-version = "0.6.12"
 
 [[deps.RecursiveArrayTools]]
 deps = ["Adapt", "ArrayInterface", "DocStringExtensions", "GPUArraysCore", "LinearAlgebra", "RecipesBase", "StaticArraysCore", "Statistics", "SymbolicIndexingInterface"]
@@ -1648,12 +1632,6 @@ version = "3.39.0"
 git-tree-sha1 = "45e428421666073eab6f2da5c9d310d99bb12f9b"
 uuid = "189a3867-3050-52da-a836-e630ba90ab69"
 version = "1.2.2"
-
-[[deps.RelocatableFolders]]
-deps = ["SHA", "Scratch"]
-git-tree-sha1 = "ffdaf70d81cf6ff22c2b6e733c900c3321cab864"
-uuid = "05181044-ff0b-4ac5-8273-598c1e38db00"
-version = "1.0.1"
 
 [[deps.Requires]]
 deps = ["UUIDs"]
@@ -1756,12 +1734,6 @@ git-tree-sha1 = "566c4ed301ccb2a44cbd5a27da5f885e0ed1d5df"
 uuid = "53ae85a6-f571-4167-b2af-e1d143709226"
 version = "1.7.0"
 
-[[deps.Scratch]]
-deps = ["Dates"]
-git-tree-sha1 = "9b81b8393e50b7d4e6d0a9f14e192294d3b7c109"
-uuid = "6c6a2e73-6563-6170-7368-637461726353"
-version = "1.3.0"
-
 [[deps.Serialization]]
 uuid = "9e88b42a-f829-5b0c-bbe9-9e923198166b"
 version = "1.11.0"
@@ -1771,17 +1743,6 @@ deps = ["ConstructionBase", "Future", "MacroTools", "StaticArraysCore"]
 git-tree-sha1 = "c5391c6ace3bc430ca630251d02ea9687169ca68"
 uuid = "efcf1570-3423-57d1-acb7-fd33fddbac46"
 version = "1.1.2"
-
-[[deps.Showoff]]
-deps = ["Dates", "Grisu"]
-git-tree-sha1 = "91eddf657aca81df9ae6ceb20b959ae5653ad1de"
-uuid = "992d4aef-0814-514b-bc4d-f2e9a6c4116f"
-version = "1.0.3"
-
-[[deps.SimpleBufferStream]]
-git-tree-sha1 = "f305871d2f381d21527c770d4788c06c097c9bc1"
-uuid = "777ac1f9-54b0-4bf8-805c-2214025038e7"
-version = "1.2.0"
 
 [[deps.Sockets]]
 uuid = "6462fe0b-24de-5631-8697-dd941f90decc"
@@ -1807,12 +1768,6 @@ weakdeps = ["ChainRulesCore"]
 
     [deps.SpecialFunctions.extensions]
     SpecialFunctionsChainRulesCoreExt = "ChainRulesCore"
-
-[[deps.StableRNGs]]
-deps = ["Random"]
-git-tree-sha1 = "95af145932c2ed859b63329952ce8d633719f091"
-uuid = "860ef19b-820b-49d6-a774-d7a799459cd3"
-version = "1.0.3"
 
 [[deps.StaticArrays]]
 deps = ["LinearAlgebra", "PrecompileTools", "Random", "StaticArraysCore"]
@@ -1862,26 +1817,6 @@ weakdeps = ["ChainRulesCore", "InverseFunctions"]
     [deps.StatsFuns.extensions]
     StatsFunsChainRulesCoreExt = "ChainRulesCore"
     StatsFunsInverseFunctionsExt = "InverseFunctions"
-
-[[deps.Strided]]
-deps = ["LinearAlgebra", "StridedViews", "TupleTools"]
-git-tree-sha1 = "c2e72c33ac8871d104901db736aecb36b223f10c"
-uuid = "5e0ebb24-38b0-5f93-81fe-25c709ecae67"
-version = "2.3.2"
-
-[[deps.StridedViews]]
-deps = ["LinearAlgebra", "PackageExtensionCompat"]
-git-tree-sha1 = "425158c52aa58d42593be6861befadf8b2541e9b"
-uuid = "4db3bf67-4bd7-4b4e-b153-31dc3fb37143"
-version = "0.4.1"
-
-    [deps.StridedViews.extensions]
-    StridedViewsCUDAExt = "CUDA"
-    StridedViewsPtrArraysExt = "PtrArrays"
-
-    [deps.StridedViews.weakdeps]
-    CUDA = "052768ef-5323-5732-b1bb-66c8b64840ba"
-    PtrArrays = "43287f4e-b6f4-7ad1-bb20-aadabca52c3d"
 
 [[deps.StyledStrings]]
 uuid = "f489334b-da3d-4c2e-b8f0-e476e12c162b"
@@ -1969,29 +1904,6 @@ git-tree-sha1 = "67e469338d9ce74fc578f7db1736a74d93a49eb8"
 uuid = "ed4db957-447d-4319-bfb6-7fa9ae7ecf34"
 version = "0.1.3"
 
-[[deps.TensorCore]]
-deps = ["LinearAlgebra"]
-git-tree-sha1 = "1feb45f88d133a655e001435632f019a9a1bcdb6"
-uuid = "62fd8b95-f654-4bbd-a8a5-9c27f68ccd50"
-version = "0.1.1"
-
-[[deps.TensorOperations]]
-deps = ["LRUCache", "LinearAlgebra", "PackageExtensionCompat", "PrecompileTools", "Preferences", "PtrArrays", "Strided", "StridedViews", "TupleTools", "VectorInterface"]
-git-tree-sha1 = "874d1dfcb9f444c750928cf4e4556098c05f88c5"
-uuid = "6aa20fa7-93e2-5fca-9bc0-fbd0db3c71a2"
-version = "5.3.1"
-
-    [deps.TensorOperations.extensions]
-    TensorOperationsBumperExt = "Bumper"
-    TensorOperationsChainRulesCoreExt = "ChainRulesCore"
-    TensorOperationscuTENSORExt = ["cuTENSOR", "CUDA"]
-
-    [deps.TensorOperations.weakdeps]
-    Bumper = "8ce10254-0962-460f-a3d8-1f77fea1446e"
-    CUDA = "052768ef-5323-5732-b1bb-66c8b64840ba"
-    ChainRulesCore = "d360d2e6-b24c-11e9-a2a3-2a2ae2dbcce4"
-    cuTENSOR = "011b41b2-24ef-40a8-b3eb-fa098493e9e1"
-
 [[deps.TermInterface]]
 git-tree-sha1 = "d673e0aca9e46a2f63720201f55cc7b3e7169b16"
 uuid = "8ea1fca8-c5ef-4a55-8b96-4e9afe9c9a3c"
@@ -2014,38 +1926,10 @@ version = "0.5.29"
     [deps.TimerOutputs.weakdeps]
     FlameGraphs = "08572546-2f56-4bcf-ba4e-bab62c3a3f89"
 
-[[deps.TranscodingStreams]]
-git-tree-sha1 = "0c45878dcfdcfa8480052b6ab162cdd138781742"
-uuid = "3bb67fe8-82b1-5028-8e26-92a6c54297fa"
-version = "0.11.3"
-
 [[deps.Tricks]]
 git-tree-sha1 = "372b90fe551c019541fafc6ff034199dc19c8436"
 uuid = "410a4b4d-49e4-4fbc-ab6d-cb71b17b3775"
 version = "0.1.12"
-
-[[deps.Tullio]]
-deps = ["DiffRules", "LinearAlgebra", "Requires"]
-git-tree-sha1 = "972698b132b9df8791ae74aa547268e977b55f68"
-uuid = "bc48ee85-29a4-5162-ae0b-a64e1601d4bc"
-version = "0.3.8"
-
-    [deps.Tullio.extensions]
-    TullioCUDAExt = "CUDA"
-    TullioChainRulesCoreExt = "ChainRulesCore"
-    TullioFillArraysExt = "FillArrays"
-    TullioTrackerExt = "Tracker"
-
-    [deps.Tullio.weakdeps]
-    CUDA = "052768ef-5323-5732-b1bb-66c8b64840ba"
-    ChainRulesCore = "d360d2e6-b24c-11e9-a2a3-2a2ae2dbcce4"
-    FillArrays = "1a297f60-69ca-5386-bcde-b61e274b549b"
-    Tracker = "9f7883ad-71c0-57eb-9f7f-b5c9e6d3789c"
-
-[[deps.TupleTools]]
-git-tree-sha1 = "41e43b9dc950775eac654b9f845c839cd2f1821e"
-uuid = "9d95972d-f1c8-5527-a6e0-b4b365fa01f6"
-version = "1.6.0"
 
 [[deps.URIs]]
 git-tree-sha1 = "bef26fb046d031353ef97a82e3fdb6afe7f21b1a"
@@ -2060,12 +1944,6 @@ version = "1.11.0"
 [[deps.Unicode]]
 uuid = "4ec0a83e-493e-50e2-b9ac-8f72acf5a8f5"
 version = "1.11.0"
-
-[[deps.UnicodeFun]]
-deps = ["REPL"]
-git-tree-sha1 = "53915e50200959667e78a92a418594b428dffddf"
-uuid = "1cfade01-22cf-5700-b092-accc4b62d6e1"
-version = "0.4.1"
 
 [[deps.Unitful]]
 deps = ["Dates", "LinearAlgebra", "Random"]
@@ -2094,254 +1972,15 @@ git-tree-sha1 = "25008b734a03736c41e2a7dc314ecb95bd6bbdb0"
 uuid = "a7c27f48-0311-42f6-a7f8-2c11e75eb415"
 version = "0.1.6"
 
-[[deps.Unzip]]
-git-tree-sha1 = "ca0969166a028236229f63514992fc073799bb78"
-uuid = "41fe7b60-77ed-43a1-b4f0-825fd5a5650d"
-version = "0.2.0"
-
-[[deps.VectorInterface]]
-deps = ["LinearAlgebra"]
-git-tree-sha1 = "9166406dedd38c111a6574e9814be83d267f8aec"
-uuid = "409d34a3-91d5-4945-b6ec-7529ddf182d8"
-version = "0.5.0"
-
-[[deps.Vulkan_Loader_jll]]
-deps = ["Artifacts", "JLLWrappers", "Libdl", "Wayland_jll", "Xorg_libX11_jll", "Xorg_libXrandr_jll", "xkbcommon_jll"]
-git-tree-sha1 = "2f0486047a07670caad3a81a075d2e518acc5c59"
-uuid = "a44049a8-05dd-5a78-86c9-5fde0876e88c"
-version = "1.3.243+0"
-
-[[deps.Wayland_jll]]
-deps = ["Artifacts", "EpollShim_jll", "Expat_jll", "JLLWrappers", "Libdl", "Libffi_jll"]
-git-tree-sha1 = "96478df35bbc2f3e1e791bc7a3d0eeee559e60e9"
-uuid = "a2964d1f-97da-50d4-b82a-358c7fce9d89"
-version = "1.24.0+0"
-
-[[deps.XZ_jll]]
-deps = ["Artifacts", "JLLWrappers", "Libdl"]
-git-tree-sha1 = "fee71455b0aaa3440dfdd54a9a36ccef829be7d4"
-uuid = "ffd25f8a-64ca-5728-b0f7-c24cf3aae800"
-version = "5.8.1+0"
-
-[[deps.Xorg_libICE_jll]]
-deps = ["Artifacts", "JLLWrappers", "Libdl"]
-git-tree-sha1 = "a3ea76ee3f4facd7a64684f9af25310825ee3668"
-uuid = "f67eecfb-183a-506d-b269-f58e52b52d7c"
-version = "1.1.2+0"
-
-[[deps.Xorg_libSM_jll]]
-deps = ["Artifacts", "JLLWrappers", "Libdl", "Xorg_libICE_jll"]
-git-tree-sha1 = "9c7ad99c629a44f81e7799eb05ec2746abb5d588"
-uuid = "c834827a-8449-5923-a945-d239c165b7dd"
-version = "1.2.6+0"
-
-[[deps.Xorg_libX11_jll]]
-deps = ["Artifacts", "JLLWrappers", "Libdl", "Xorg_libxcb_jll", "Xorg_xtrans_jll"]
-git-tree-sha1 = "b5899b25d17bf1889d25906fb9deed5da0c15b3b"
-uuid = "4f6342f7-b3d2-589e-9d20-edeb45f2b2bc"
-version = "1.8.12+0"
-
-[[deps.Xorg_libXau_jll]]
-deps = ["Artifacts", "JLLWrappers", "Libdl"]
-git-tree-sha1 = "aa1261ebbac3ccc8d16558ae6799524c450ed16b"
-uuid = "0c0b7dd1-d40b-584c-a123-a41640f87eec"
-version = "1.0.13+0"
-
-[[deps.Xorg_libXcursor_jll]]
-deps = ["Artifacts", "JLLWrappers", "Libdl", "Xorg_libXfixes_jll", "Xorg_libXrender_jll"]
-git-tree-sha1 = "6c74ca84bbabc18c4547014765d194ff0b4dc9da"
-uuid = "935fb764-8cf2-53bf-bb30-45bb1f8bf724"
-version = "1.2.4+0"
-
-[[deps.Xorg_libXdmcp_jll]]
-deps = ["Artifacts", "JLLWrappers", "Libdl"]
-git-tree-sha1 = "52858d64353db33a56e13c341d7bf44cd0d7b309"
-uuid = "a3789734-cfe1-5b06-b2d0-1dd0d9d62d05"
-version = "1.1.6+0"
-
-[[deps.Xorg_libXext_jll]]
-deps = ["Artifacts", "JLLWrappers", "Libdl", "Xorg_libX11_jll"]
-git-tree-sha1 = "a4c0ee07ad36bf8bbce1c3bb52d21fb1e0b987fb"
-uuid = "1082639a-0dae-5f34-9b06-72781eeb8cb3"
-version = "1.3.7+0"
-
-[[deps.Xorg_libXfixes_jll]]
-deps = ["Artifacts", "JLLWrappers", "Libdl", "Xorg_libX11_jll"]
-git-tree-sha1 = "75e00946e43621e09d431d9b95818ee751e6b2ef"
-uuid = "d091e8ba-531a-589c-9de9-94069b037ed8"
-version = "6.0.2+0"
-
-[[deps.Xorg_libXi_jll]]
-deps = ["Artifacts", "JLLWrappers", "Libdl", "Xorg_libXext_jll", "Xorg_libXfixes_jll"]
-git-tree-sha1 = "a376af5c7ae60d29825164db40787f15c80c7c54"
-uuid = "a51aa0fd-4e3c-5386-b890-e753decda492"
-version = "1.8.3+0"
-
-[[deps.Xorg_libXinerama_jll]]
-deps = ["Artifacts", "JLLWrappers", "Libdl", "Xorg_libXext_jll"]
-git-tree-sha1 = "a5bc75478d323358a90dc36766f3c99ba7feb024"
-uuid = "d1454406-59df-5ea1-beac-c340f2130bc3"
-version = "1.1.6+0"
-
-[[deps.Xorg_libXrandr_jll]]
-deps = ["Artifacts", "JLLWrappers", "Libdl", "Xorg_libXext_jll", "Xorg_libXrender_jll"]
-git-tree-sha1 = "aff463c82a773cb86061bce8d53a0d976854923e"
-uuid = "ec84b674-ba8e-5d96-8ba1-2a689ba10484"
-version = "1.5.5+0"
-
-[[deps.Xorg_libXrender_jll]]
-deps = ["Artifacts", "JLLWrappers", "Libdl", "Xorg_libX11_jll"]
-git-tree-sha1 = "7ed9347888fac59a618302ee38216dd0379c480d"
-uuid = "ea2f1a96-1ddc-540d-b46f-429655e07cfa"
-version = "0.9.12+0"
-
-[[deps.Xorg_libxcb_jll]]
-deps = ["Artifacts", "JLLWrappers", "Libdl", "Xorg_libXau_jll", "Xorg_libXdmcp_jll"]
-git-tree-sha1 = "bfcaf7ec088eaba362093393fe11aa141fa15422"
-uuid = "c7cfdc94-dc32-55de-ac96-5a1b8d977c5b"
-version = "1.17.1+0"
-
-[[deps.Xorg_libxkbfile_jll]]
-deps = ["Artifacts", "JLLWrappers", "Libdl", "Xorg_libX11_jll"]
-git-tree-sha1 = "e3150c7400c41e207012b41659591f083f3ef795"
-uuid = "cc61e674-0454-545c-8b26-ed2c68acab7a"
-version = "1.1.3+0"
-
-[[deps.Xorg_xcb_util_cursor_jll]]
-deps = ["Artifacts", "JLLWrappers", "Libdl", "Xorg_xcb_util_image_jll", "Xorg_xcb_util_jll", "Xorg_xcb_util_renderutil_jll"]
-git-tree-sha1 = "9750dc53819eba4e9a20be42349a6d3b86c7cdf8"
-uuid = "e920d4aa-a673-5f3a-b3d7-f755a4d47c43"
-version = "0.1.6+0"
-
-[[deps.Xorg_xcb_util_image_jll]]
-deps = ["Artifacts", "JLLWrappers", "Libdl", "Xorg_xcb_util_jll"]
-git-tree-sha1 = "f4fc02e384b74418679983a97385644b67e1263b"
-uuid = "12413925-8142-5f55-bb0e-6d7ca50bb09b"
-version = "0.4.1+0"
-
-[[deps.Xorg_xcb_util_jll]]
-deps = ["Artifacts", "JLLWrappers", "Libdl", "Xorg_libxcb_jll"]
-git-tree-sha1 = "68da27247e7d8d8dafd1fcf0c3654ad6506f5f97"
-uuid = "2def613f-5ad1-5310-b15b-b15d46f528f5"
-version = "0.4.1+0"
-
-[[deps.Xorg_xcb_util_keysyms_jll]]
-deps = ["Artifacts", "JLLWrappers", "Libdl", "Xorg_xcb_util_jll"]
-git-tree-sha1 = "44ec54b0e2acd408b0fb361e1e9244c60c9c3dd4"
-uuid = "975044d2-76e6-5fbe-bf08-97ce7c6574c7"
-version = "0.4.1+0"
-
-[[deps.Xorg_xcb_util_renderutil_jll]]
-deps = ["Artifacts", "JLLWrappers", "Libdl", "Xorg_xcb_util_jll"]
-git-tree-sha1 = "5b0263b6d080716a02544c55fdff2c8d7f9a16a0"
-uuid = "0d47668e-0667-5a69-a72c-f761630bfb7e"
-version = "0.3.10+0"
-
-[[deps.Xorg_xcb_util_wm_jll]]
-deps = ["Artifacts", "JLLWrappers", "Libdl", "Xorg_xcb_util_jll"]
-git-tree-sha1 = "f233c83cad1fa0e70b7771e0e21b061a116f2763"
-uuid = "c22f9ab0-d5fe-5066-847c-f4bb1cd4e361"
-version = "0.4.2+0"
-
-[[deps.Xorg_xkbcomp_jll]]
-deps = ["Artifacts", "JLLWrappers", "Libdl", "Xorg_libxkbfile_jll"]
-git-tree-sha1 = "801a858fc9fb90c11ffddee1801bb06a738bda9b"
-uuid = "35661453-b289-5fab-8a00-3d9160c6a3a4"
-version = "1.4.7+0"
-
-[[deps.Xorg_xkeyboard_config_jll]]
-deps = ["Artifacts", "JLLWrappers", "Libdl", "Xorg_xkbcomp_jll"]
-git-tree-sha1 = "00af7ebdc563c9217ecc67776d1bbf037dbcebf4"
-uuid = "33bec58e-1273-512f-9401-5d533626f822"
-version = "2.44.0+0"
-
-[[deps.Xorg_xtrans_jll]]
-deps = ["Artifacts", "JLLWrappers", "Libdl"]
-git-tree-sha1 = "a63799ff68005991f9d9491b6e95bd3478d783cb"
-uuid = "c5fb5394-a638-5e4d-96e5-b29de1b5cf10"
-version = "1.6.0+0"
-
 [[deps.Zlib_jll]]
 deps = ["Libdl"]
 uuid = "83775a58-1f1d-513f-b197-d71354ab007a"
 version = "1.3.1+2"
 
-[[deps.Zstd_jll]]
-deps = ["Artifacts", "JLLWrappers", "Libdl"]
-git-tree-sha1 = "446b23e73536f84e8037f5dce465e92275f6a308"
-uuid = "3161d3a3-bdf6-5164-811a-617609db77b4"
-version = "1.5.7+1"
-
-[[deps.eudev_jll]]
-deps = ["Artifacts", "JLLWrappers", "Libdl"]
-git-tree-sha1 = "c3b0e6196d50eab0c5ed34021aaa0bb463489510"
-uuid = "35ca27e7-8b34-5b7f-bca9-bdc33f59eb06"
-version = "3.2.14+0"
-
-[[deps.fzf_jll]]
-deps = ["Artifacts", "JLLWrappers", "Libdl"]
-git-tree-sha1 = "b6a34e0e0960190ac2a4363a1bd003504772d631"
-uuid = "214eeab7-80f7-51ab-84ad-2988db7cef09"
-version = "0.61.1+0"
-
-[[deps.libaom_jll]]
-deps = ["Artifacts", "JLLWrappers", "Libdl"]
-git-tree-sha1 = "371cc681c00a3ccc3fbc5c0fb91f58ba9bec1ecf"
-uuid = "a4ae2306-e953-59d6-aa16-d00cac43593b"
-version = "3.13.1+0"
-
-[[deps.libass_jll]]
-deps = ["Artifacts", "Bzip2_jll", "FreeType2_jll", "FriBidi_jll", "HarfBuzz_jll", "JLLWrappers", "Libdl", "Zlib_jll"]
-git-tree-sha1 = "125eedcb0a4a0bba65b657251ce1d27c8714e9d6"
-uuid = "0ac62f75-1d6f-5e53-bd7c-93b484bb37c0"
-version = "0.17.4+0"
-
 [[deps.libblastrampoline_jll]]
 deps = ["Artifacts", "Libdl"]
 uuid = "8e850b90-86db-534c-a0d3-1478176c7d93"
 version = "5.15.0+0"
-
-[[deps.libdecor_jll]]
-deps = ["Artifacts", "Dbus_jll", "JLLWrappers", "Libdl", "Libglvnd_jll", "Pango_jll", "Wayland_jll", "xkbcommon_jll"]
-git-tree-sha1 = "9bf7903af251d2050b467f76bdbe57ce541f7f4f"
-uuid = "1183f4f0-6f2a-5f1a-908b-139f9cdfea6f"
-version = "0.2.2+0"
-
-[[deps.libevdev_jll]]
-deps = ["Artifacts", "JLLWrappers", "Libdl"]
-git-tree-sha1 = "56d643b57b188d30cccc25e331d416d3d358e557"
-uuid = "2db6ffa8-e38f-5e21-84af-90c45d0032cc"
-version = "1.13.4+0"
-
-[[deps.libfdk_aac_jll]]
-deps = ["Artifacts", "JLLWrappers", "Libdl"]
-git-tree-sha1 = "646634dd19587a56ee2f1199563ec056c5f228df"
-uuid = "f638f0a6-7fb0-5443-88ba-1cc74229b280"
-version = "2.0.4+0"
-
-[[deps.libinput_jll]]
-deps = ["Artifacts", "JLLWrappers", "Libdl", "eudev_jll", "libevdev_jll", "mtdev_jll"]
-git-tree-sha1 = "91d05d7f4a9f67205bd6cf395e488009fe85b499"
-uuid = "36db933b-70db-51c0-b978-0f229ee0e533"
-version = "1.28.1+0"
-
-[[deps.libpng_jll]]
-deps = ["Artifacts", "JLLWrappers", "Libdl", "Zlib_jll"]
-git-tree-sha1 = "07b6a107d926093898e82b3b1db657ebe33134ec"
-uuid = "b53b4c65-9356-5827-b1ea-8c7a1a84506f"
-version = "1.6.50+0"
-
-[[deps.libvorbis_jll]]
-deps = ["Artifacts", "JLLWrappers", "Libdl", "Ogg_jll"]
-git-tree-sha1 = "11e1772e7f3cc987e9d3de991dd4f6b2602663a5"
-uuid = "f27f6e37-5d2b-51aa-960f-b287f2bc3b7a"
-version = "1.3.8+0"
-
-[[deps.mtdev_jll]]
-deps = ["Artifacts", "JLLWrappers", "Libdl"]
-git-tree-sha1 = "b4d631fd51f2e9cdd93724ae25b2efc198b059b1"
-uuid = "009596ad-96f7-51b1-9f1b-5ce2d5e8a71e"
-version = "1.1.7+0"
 
 [[deps.nghttp2_jll]]
 deps = ["Artifacts", "Libdl"]
@@ -2352,24 +1991,6 @@ version = "1.64.0+1"
 deps = ["Artifacts", "CompilerSupportLibraries_jll", "Libdl"]
 uuid = "3f19e933-33d8-53b3-aaab-bd5110c3b7a0"
 version = "17.7.0+0"
-
-[[deps.x264_jll]]
-deps = ["Artifacts", "JLLWrappers", "Libdl"]
-git-tree-sha1 = "14cc7083fc6dff3cc44f2bc435ee96d06ed79aa7"
-uuid = "1270edf5-f2f9-52d2-97e9-ab00b5d0237a"
-version = "10164.0.1+0"
-
-[[deps.x265_jll]]
-deps = ["Artifacts", "JLLWrappers", "Libdl"]
-git-tree-sha1 = "e7b67590c14d487e734dcb925924c5dc43ec85f3"
-uuid = "dfaa095f-4041-5dcd-9319-2fabd8486b76"
-version = "4.1.0+0"
-
-[[deps.xkbcommon_jll]]
-deps = ["Artifacts", "JLLWrappers", "Libdl", "Xorg_libxcb_jll", "Xorg_xkeyboard_config_jll"]
-git-tree-sha1 = "fbf139bce07a534df0e699dbb5f5cc9346f95cc1"
-uuid = "d8fb68d0-12a3-5cfd-a85a-d49703b185fd"
-version = "1.9.2+0"
 """
 
 # ╔═╡ Cell order:
@@ -2379,8 +2000,8 @@ version = "1.9.2+0"
 # ╟─fbe96b0a-84f8-4cae-905c-ba093b1b4340
 # ╟─109f4df4-aa1b-400c-b9d4-ff3604afa7d3
 # ╟─b99cb15b-b51b-4bd6-ac88-d5f6b99bf10b
-# ╠═e28c94fd-f04d-442c-8b19-be84d565d5c7
-# ╠═99e819ab-a88c-41a0-9bbf-27d49fe19557
+# ╟─e28c94fd-f04d-442c-8b19-be84d565d5c7
+# ╟─99e819ab-a88c-41a0-9bbf-27d49fe19557
 # ╟─56efaf7d-2b8b-4540-b0e8-b722edd1d8f8
 # ╟─3bfab7cf-8b35-408d-8d25-ce6a37a0f19e
 # ╟─d2027f44-361b-4d00-9efb-86fe2c7e9b68
@@ -2443,19 +2064,10 @@ version = "1.9.2+0"
 # ╠═747ca67e-60d7-44a4-bac1-78cfa9b20cc7
 # ╟─4a66af73-6b29-475e-9c71-8e62ee69802a
 # ╟─ebf4953d-abc5-4530-af51-8b68096a0113
-# ╠═5f027a58-d752-4c5c-b933-f63bb9c98d26
-# ╠═9d45dd60-4a80-4894-b350-36127a584e0b
-# ╠═e0e0841d-953f-4d4f-abb4-90e7b49b0869
-# ╠═13677e27-65f5-4606-8ded-a0f36ae4bb95
-# ╠═502cde6b-b1a4-4994-86ce-72d56345f3d3
-# ╠═b95076ef-632e-4826-9bc1-f811c72fe1c5
-# ╠═5cbb7aed-70d1-4122-9b0c-63ce1e15d2bb
-# ╠═83f8924d-0db4-484c-8c6e-40acb1b01b26
-# ╠═816abdd5-74de-415b-a19b-95b7ad7cdf0c
 # ╠═5f12d3e9-4d5c-434c-bdef-bcc74b79705e
-# ╟─8ff5c871-08a3-4b94-b2ea-2e3eaca16308
-# ╠═ae9536aa-3d38-4d22-b887-39c0c56e9f0e
-# ╠═cc5de715-11ae-4a01-9ab9-ba610bd6882d
 # ╟─0989b0f0-06c6-4353-9933-ec713563f0c6
+# ╠═aa111111-1111-4111-8111-111111111111
+# ╠═aa333333-3333-4333-8333-333333333333
+# ╠═aa222222-2222-4222-8222-222222222222
 # ╟─00000000-0000-0000-0000-000000000001
 # ╟─00000000-0000-0000-0000-000000000002
