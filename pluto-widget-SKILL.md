@@ -137,6 +137,75 @@ Two details that make this hold together:
   at this data scale (dozens of short polylines) it's cheap enough that simplicity beats the minor
   redundant-redraw cost, and it keeps the tooltip position glued to the cursor without extra bookkeeping.
 
+## Prefer a draggable handle on the visualization over a slider, when one already exists
+
+If the quantity a slider would control already has a natural visual representation somewhere in the
+widget — a layer-boundary line on a cross-section, a "current value" cursor already drawn on a curve panel
+— make *that* draggable instead of adding a separate `<input type=range>` for it. `Love-wave-analytic1.jl`'s
+`LoveWaveInput` does this twice: dragging the boundary line on the wavefield cross-section sets the layer
+thickness `H` directly (no `H` slider at all), and dragging the vertical frequency-cursor line already drawn
+on the dispersion-curve panel sets the animation/mode-search frequency (no separate frequency slider). This
+reads better than a slider for two reasons: the control *is* the thing it controls (no separate widget the
+viewer has to connect to the line by reading a label), and it makes the value's physical meaning immediate
+(dragging the boundary down and watching `H` grow teaches the geometry directly, the way a slider's abstract
+number can't).
+
+**Two things this pattern requires that a plain slider doesn't:**
+
+1. **A fixed display scale, if the dragged quantity also determines part of the coordinate mapping.** If a
+   canvas's own vertical extent is proportional to the value being dragged (e.g. `zmax = 3*H`, so deeper
+   layers get a taller canvas), the boundary line's fractional position (`H/zmax`) stays constant *regardless
+   of `H`* — it visually never moves, which silently defeats the whole point of making it draggable. Fix by
+   decoupling the axis range from the dragged value: pick a fixed constant covering the full slider range
+   (e.g. `const ZMAX = 150.0` in JS, matching a `const ZMAX_LW = 150.0` on the Julia side used to build the
+   pushed grids) so the boundary's on-screen position actually changes as the value changes. Show the current
+   numeric value as a live label at the handle itself (`'H = ' + state.Hp.toFixed(0) + ' km'`) — this is the
+   readout that used to live next to the (now-removed) slider, and it needs a new home.
+2. **Click-vs-drag disambiguation, if the same canvas already has a `click` handler for something else.** A
+   `mousedown`→`mousemove`→`mouseup` drag sequence still fires a normal `click` event afterward if the
+   pointer didn't move far, which will spuriously trigger any unrelated click handler on that same canvas
+   (e.g. the fade-all-highlight family's click-to-toggle from the section above, if the frequency cursor and
+   the mode curves share one dispersion canvas). Guard it with a flag set only while a real drag happened:
+
+   ```js
+   let freqDrag = false, freqDragHappened = false
+   canvas.addEventListener('mousedown', ev => {
+     if (/* pointer is within a few px of the handle */) { freqDrag = true; freqDragHappened = false }
+   })
+   window.addEventListener('mousemove', ev => {
+     if (!freqDrag) return
+     freqDragHappened = true
+     // update state from ev, redraw
+   })
+   window.addEventListener('mouseup', () => { if (freqDrag) { freqDrag = false; publish() } })
+   canvas.addEventListener('click', ev => {
+     if (freqDragHappened) { freqDragHappened = false; return }  // suppress the post-drag click
+     // ...existing click-to-toggle logic...
+   })
+   ```
+
+   Without this, dragging the frequency cursor also randomly toggles whichever mode curve happens to be
+   nearest the release point — confirmed as a real bug during development, not a hypothetical.
+
+## Nest a control group inside the panel it most directly affects, not a generic top-level strip
+
+When a widget has multiple canvas panels and a control clearly belongs to one of them conceptually (medium
+properties belong with the cross-section that visualizes the medium; receiver distance belongs with the
+seismogram recorded at that receiver), put that control's `.{p}-control-group` *inside* that panel's own
+`.{p}-panel` div — below the canvas and its caption — rather than collecting every control into one
+undifferentiated strip above all the panels. `Love-wave-analytic1.jl` nests a "Medium" group (β₁/ρ₁/β₂/ρ₂
+sliders) inside the wavefield panel's card, and a "Receiver" group (the distance slider) inside the
+seismogram panel's card. This reads as "this panel, and the knobs that drive it" as one visual unit instead
+of asking the viewer to mentally match a slider in a top strip to the panel it happens to affect several
+rows down. A nested group still gets its own small heading (`.{p}-mini-title`, ~13px bold — smaller than the
+top-level `.{p}-control-title` at 20px, since it's a subsection of a panel rather than a peer of the whole
+widget) so it reads as a labeled unit distinct from the panel's title/caption.
+
+This isn't a rule to nest *every* control — a value genuinely global to the whole widget (not tied to one
+panel more than another) still belongs in an ordinary top-level control-group. Use this only when a control
+has an obvious single-panel home; forcing every control into some panel just to avoid a top strip produces
+the opposite problem (controls scattered across cards with no coherent "global settings" location).
+
 ## Visual design tokens
 
 Dark theme, extracted from the two reference widgets after a 2026 readability pass for 16:9 laptop/projector

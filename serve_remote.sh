@@ -82,6 +82,12 @@ process_rss_kib() {
     ps -o rss= -p "$1" 2>/dev/null | tr -d '[:space:]' || true
 }
 
+process_pss_kib() {
+    local smaps_rollup="/proc/$1/smaps_rollup"
+    [[ -r "$smaps_rollup" ]] || return 0
+    awk '/^Pss:/ { print $2; exit }' "$smaps_rollup" 2>/dev/null || true
+}
+
 process_tree_pids() {
     local parent="$1"
     local child
@@ -119,17 +125,28 @@ show_live_memory() {
     live_pid="$(<"$LIVE_PID_FILE")"
 
     local -a pids=()
-    local pid rss total_kib=0
+    local pid rss pss total_rss_kib=0 total_pss_kib=0 pss_processes=0
     while IFS= read -r pid; do
         [[ "$pid" =~ ^[0-9]+$ ]] && pids+=("$pid")
     done < <(process_tree_pids "$live_pid")
 
     for pid in "${pids[@]}"; do
         rss="$(process_rss_kib "$pid")"
-        [[ "$rss" =~ ^[0-9]+$ ]] && total_kib=$((total_kib + rss))
+        [[ "$rss" =~ ^[0-9]+$ ]] && total_rss_kib=$((total_rss_kib + rss))
+        pss="$(process_pss_kib "$pid")"
+        if [[ "$pss" =~ ^[0-9]+$ ]]; then
+            total_pss_kib=$((total_pss_kib + pss))
+            pss_processes=$((pss_processes + 1))
+        fi
     done
 
-    echo "live-widget RAM (approximate RSS, process tree): $(format_memory "$total_kib") across ${#pids[@]} process(es)"
+    if ((pss_processes > 0)); then
+        echo "live-widget RAM (PSS, process tree): $(format_memory "$total_pss_kib") across ${#pids[@]} process(es)"
+        echo "  Summed RSS (includes shared pages more than once): $(format_memory "$total_rss_kib")"
+    else
+        echo "live-widget RAM (summed RSS, process tree): $(format_memory "$total_rss_kib") across ${#pids[@]} process(es)"
+        echo "  PSS is unavailable: /proc/<pid>/smaps_rollup is not readable."
+    fi
     [[ -f "$LIVE_NOTEBOOKS_FILE" ]] || {
         echo "  Per-notebook RAM will be available after the next live-widget restart."
         return
@@ -139,7 +156,7 @@ show_live_memory() {
     # exact for folders with one live notebook; shared folders stay grouped.
     local -a groups=()
     local notebook notebook_dir group cwd
-    declare -A group_notebooks=() group_rss=() group_processes=()
+    declare -A group_notebooks=() group_rss=() group_pss=() group_processes=()
     while IFS= read -r notebook; do
         [[ -n "$notebook" ]] || continue
         notebook_dir="$(dirname "$notebook")"
@@ -152,16 +169,20 @@ show_live_memory() {
         fi
     done < "$LIVE_NOTEBOOKS_FILE"
 
-    local unassigned_kib=0 unassigned_processes=0
+    local unassigned_rss_kib=0 unassigned_pss_kib=0 unassigned_processes=0
     for pid in "${pids[@]}"; do
         rss="$(process_rss_kib "$pid")"
         rss="${rss:-0}"
+        pss="$(process_pss_kib "$pid")"
+        pss="${pss:-0}"
         cwd="$(process_cwd "$pid")"
         if [[ -n "$cwd" && -n "${group_notebooks[$cwd]+x}" ]]; then
             group_rss["$cwd"]=$(( ${group_rss[$cwd]:-0} + rss ))
+            group_pss["$cwd"]=$(( ${group_pss[$cwd]:-0} + pss ))
             group_processes["$cwd"]=$(( ${group_processes[$cwd]:-0} + 1 ))
         else
-            unassigned_kib=$((unassigned_kib + rss))
+            unassigned_rss_kib=$((unassigned_rss_kib + rss))
+            unassigned_pss_kib=$((unassigned_pss_kib + pss))
             unassigned_processes=$((unassigned_processes + 1))
         fi
     done
@@ -175,13 +196,27 @@ show_live_memory() {
         else
             label="$members"
         fi
-        printf '  %s: %s (%s process(es))\n' \
-            "$label" \
-            "$(format_memory "${group_rss[$group]:-0}")" \
-            "${group_processes[$group]:-0}"
+        if ((pss_processes > 0)); then
+            printf '  %s: PSS %s; RSS %s (%s process(es))\n' \
+                "$label" \
+                "$(format_memory "${group_pss[$group]:-0}")" \
+                "$(format_memory "${group_rss[$group]:-0}")" \
+                "${group_processes[$group]:-0}"
+        else
+            printf '  %s: RSS %s (%s process(es))\n' \
+                "$label" \
+                "$(format_memory "${group_rss[$group]:-0}")" \
+                "${group_processes[$group]:-0}"
+        fi
     done
-    printf '  server/other live processes: %s (%s process(es))\n' \
-        "$(format_memory "$unassigned_kib")" "$unassigned_processes"
+    if ((pss_processes > 0)); then
+        printf '  server/other live processes: PSS %s; RSS %s (%s process(es))\n' \
+            "$(format_memory "$unassigned_pss_kib")" \
+            "$(format_memory "$unassigned_rss_kib")" "$unassigned_processes"
+    else
+        printf '  server/other live processes: RSS %s (%s process(es))\n' \
+            "$(format_memory "$unassigned_rss_kib")" "$unassigned_processes"
+    fi
 }
 
 stop_service() {

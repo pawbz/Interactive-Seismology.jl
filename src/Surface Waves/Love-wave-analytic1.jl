@@ -23,7 +23,7 @@ macro bind(def, element)
 end
 
 # ╔═╡ 66ae626f-2543-4897-946f-8e51ecbb95e0
-using PlutoPlotly, PlutoUI, Roots, Symbolics, SymbolicUtils, FFTW, PlutoTeachingTools, Latexify, PlutoUI, Peaks
+using PlutoUI, Roots, Symbolics, SymbolicUtils, FFTW, PlutoTeachingTools, Latexify, Peaks
 
 # ╔═╡ 9b02e72d-be6b-485d-a186-ba2fe2dcd6fb
 ChooseDisplayMode()
@@ -48,34 +48,12 @@ Indian Institute of Science, Bengaluru, India
 
 """
 
-# ╔═╡ 87b80ede-1da7-4c24-ada9-4327f0bb755e
-@bind tt Clock(0.1)
-
-# ╔═╡ 19a31e92-8226-4ce5-aa04-933552953a9d
-TwoColumn(md"""
-$(@bind medium confirm(medium_input()))""", md"""
-                                          $(@bind freq_rec (freq_rec_input()))
-                                          	"""
-)
-
-# ╔═╡ 2d89a043-dfd3-4662-8c29-8829987fa39c
-@bind modes confirm(mode_input())
-
-# ╔═╡ 226f1f5c-bfe6-4865-82b8-d39b964f47ca
-TwoColumn(md"""
-		  Receiver location (km) 
-		  $(@bind xrecposUI Slider(range(0, 3000, step=1), default=2000, show_value=true))
-		  """,
-		  md"""
-		  Frequency band
-		  $(@bind freqsUI RangeSlider(range(first(freqgrid), step=step(freqgrid), length=length(freqgrid)), show_value=true))
-		  """
-		  )
-
-# ╔═╡ e3f0470d-0317-4a9e-a93b-388b6efca5c4
+# ╔═╡ 4479381e-b424-4599-b692-877e4a15405e
 md"""
-Select time for stationary phase analysis (s)
-$(@bind tUI Slider(tgrid, default=div(maximum(tgrid), 2), show_value=true))
+## The Interactive Widget
+Adjust the medium and operating frequency below; the dashboard's dispersion, wavefield,
+seismogram and stationary-phase panels react to your choices. Click a curve to include or
+exclude that mode from the animated wavefield.
 """
 
 # ╔═╡ 9f106bb0-b0c6-4c5b-bdf2-f17c15693b82
@@ -102,7 +80,7 @@ We shall now consider a trail solution for the $y$-component of the displacement
 """
 
 # ╔═╡ b120da8e-dcd6-4280-819b-0e20b4675080
-@syms p::Real η₂::Complex
+@syms p::Real η₂::Complex{Real}
 
 # ╔═╡ c74c4a58-b47e-4509-aadd-7400c350ff6c
 @syms ı::Complex{Real} # imaginary unit, going to substitute with im later
@@ -130,7 +108,7 @@ L1(u) = Dt(Dt(u)) - μ₁ / ρ₁ * (Dx(Dx(u)) + Dz(Dz(u)))
 md"We now write an expression for the wavefield in the top layer using the vertical component of the slowness vector $\eta_1$ and amplitudes $A_1$ and $B_1$."
 
 # ╔═╡ dc709a17-ab03-406f-b232-d7658872a95e
-@syms A₁::Real B₁::Real η₁::Complex
+@syms A₁::Real B₁::Real η₁::Complex{Real}
 
 # ╔═╡ 83e2b2b3-f84a-4926-9332-b5570d52be8b
 u1 = trail_soln(p, η₁, A₁, B₁)
@@ -206,15 +184,6 @@ md"""
 This section reacts to the medium configuration selected above. In order to have a non-trivial solution, we need the two expressions for $A₂$ should be equal to each other. We begin by simplifying these expressions, substitute the UI medium configuration and plot them in following three ranges.
 """
 
-# ╔═╡ 7bd5a551-3379-4270-81d0-9506292e6d8c
-crange1 = range(medium.β₁, stop=medium.β₂, length=1000)
-
-# ╔═╡ b3e662bf-8d13-418b-886c-b29456d62454
-crange2 = range(medium.β₁ - 0.5, stop=medium.β₁, length=100)
-
-# ╔═╡ 3fa22358-6d61-4b9a-9aa8-39d2b1c6a917
-crange3 = range(medium.β₂, stop=medium.β₂ + 0.5, length=100)
-
 # ╔═╡ bfb54c6f-a52c-4a10-87c7-9788f2f63629
 ex1 = simplify(A₂ex1 * arguments(A₂ex1)[2] / A₁)
 
@@ -223,6 +192,15 @@ ex2 = simplify(A₂ex2 * arguments(A₂ex1)[2] / A₁)
 
 # ╔═╡ b5c5f1d0-0075-4727-a6a9-8b20d6f65bc4
 md"Note that the goal here is to find zeros of the function `F` defined below,  which outputs `ex1-ex2` for a given horizontal slowness `p`."
+
+# ╔═╡ ad269679-e1f9-4d9d-827f-468e36f27bfc
+md"""
+`F`, `U1` and `U2` below are built **once**, directly from the symbolic derivation above,
+with `μ₁`, `μ₂`, `H` left as *symbolic* (not substituted) parameters -- so `build_function`
+compiles them a single time at notebook load, and every widget interaction below is just a
+numeric call into an already-compiled function. No `substitute`/`build_function` call ever
+runs again as the medium or frequency change.
+"""
 
 # ╔═╡ b2858a78-4498-4374-9ee0-c68f3dfca6e8
 md"From the above plots, we can observe that there are no zeros in either (0,β₁) or (β₂, ∞). Therefore, we will now find the zeros of `F` in the interval [β₁, β₂]. The `find_zeros` function from the [`Roots.jl`](https://github.com/JuliaMath/Roots.jl) package can be used to search for all zeros in a specified interval in a derivative-free fashion. We only consider the real part of `F` as the imaginary part is zero in [β₁, β₂]. The zeros correspond to the eigenvalue phase velocities."
@@ -263,45 +241,840 @@ function getη(p, β)
 end
 
 # ╔═╡ 039a52c9-01b8-4028-9eae-1ff5b779fd78
+"""
+	compute_phase_velocities(F_func, freq, medium_params)
+
+Root-find `F_func(p, 2πfreq, η₁, η₂, μ₁, μ₂, H) = 0` over `p ∈ [1/β₁, 1/β₂]` at a
+single frequency, returning the eigenvalue phase velocities `1/p` sorted ascending.
+`F_func` is the generalized (medium-agnostic) `F` built once in the Appendix --
+`μ₁`, `μ₂`, `H` are computed here from `medium_params` and passed in numerically,
+so no symbolic substitution happens on this (reactive) path.
+"""
 function compute_phase_velocities(F_func, freq, medium_params)
-    Fmedium = p -> F_func(p, 2 * pi * freq, getη(p, medium_params.β₁), getη(p, medium_params.β₂))
+    μ1 = medium_params.β₁^2 * medium_params.ρ₁
+    μ2 = medium_params.β₂^2 * medium_params.ρ₂
+    Fmedium = p -> F_func(p, 2 * pi * freq, getη(p, medium_params.β₁), getη(p, medium_params.β₂), μ1, μ2, medium_params.Hp)
     return sort(inv.(find_zeros(real ∘ Fmedium, inv(medium_params.β₁), inv(medium_params.β₂))))
 end
 
 # ╔═╡ a69a71b4-6dbc-4de7-a8d7-5cc3ad744d94
+"""
+	compute_dispersion_curves(F_func, freqgrid, medium_params)
+
+[`compute_phase_velocities`](@ref) repeated over every frequency in `freqgrid[2:end]`,
+giving each mode's phase-velocity dispersion curve.
+"""
 function compute_dispersion_curves(F_func, freqgrid, medium_params)
+    μ1 = medium_params.β₁^2 * medium_params.ρ₁
+    μ2 = medium_params.β₂^2 * medium_params.ρ₂
     return map(freqgrid[2:end]) do f
-        F1 = p -> F_func(p, 2 * pi * f, getη(p, medium_params.β₁), getη(p, medium_params.β₂))
+        F1 = p -> F_func(p, 2 * pi * f, getη(p, medium_params.β₁), getη(p, medium_params.β₂), μ1, μ2, medium_params.Hp)
         sort(inv.(find_zeros(real ∘ F1, inv(medium_params.β₁), inv(medium_params.β₂))))
     end
 end
 
-# ╔═╡ 355e039d-db6d-48b4-a7d7-5f73686e6d56
-# substitute values of medium parameters into the expression x, instead of μ, η.
-# then return a function of horizontal slowness f(p) that can be plotted
-function subs_βρ(x, medium_params; output_function=true)
-    x = substitute(x, [H => medium_params.Hp, μ₁ => medium_params.β₁ * medium_params.β₁ * medium_params.ρ₁, μ₂ => medium_params.β₂ * medium_params.β₂ * medium_params.ρ₂])
-    if (output_function)
-        return build_function(x, p, ω, η₁, η₂, expression=Val{false})
-    else
-        x
-    end
+# ╔═╡ 7bd19e44-b4f5-43f3-b6be-b557ca95c67f
+md"In order to plot the displacement wavefield, we will now build functions that output the particle displacement in the first and second layers for input $x$, $z$, $t$ and $p$."
+
+# ╔═╡ 16c826bf-fa48-423c-bfec-195f7fc502f8
+md"""
+## TODO
+- plot phase velocities as a function of period, too
+"""
+
+# ╔═╡ 28fbc1e8-2323-4d0d-8f43-e6c1041c7f8d
+md"""
+### Verifying the Root-Search Interval
+`F` has no real zeros outside `[β₁, β₂]` -- confirming it is safe to search only that
+interval for the eigenvalue phase velocities below.
+"""
+
+# ╔═╡ 361a3181-857a-4454-9fe6-64c8ae3be9cf
+md"### Dashboard Data Pipeline"
+
+# ╔═╡ 749ed9e6-a16e-49ee-9f70-909aa0493b0d
+begin
+	const NX_LW = 70
+	const NZ_LW = 35
+	const NFRAMES_LW = 16
+	const ZMAX_LW = 150.0
 end
 
-# ╔═╡ 90bc6374-1f5b-407a-8d05-1e84ec5a6690
-subs_βρ(ex1, medium, output_function=true)
+# ╔═╡ 648572e8-2cf4-4a1f-932d-02aa2160b6d9
+begin
+	jsnum(x) = ismissing(x) || x === nothing || !isfinite(x) ? "NaN" : string(x)
+	flatten_js(v) = join(jsnum.(v), ",")
+	flatten_rowmajor_js(M) = join(jsnum.(vec(permutedims(M))), ",")
+	flatten_frames_js(frames) = join((flatten_rowmajor_js(M) for M in frames), ",")
+end
 
-# ╔═╡ ad269679-e1f9-4d9d-827f-468e36f27bfc
-F = subs_βρ(ex1 - ex2, medium; output_function=true)
+# ╔═╡ beb71023-cd94-4fd2-8108-c68ad8b58055
+begin
+	struct LovePush
+	    freqgrid::Any
+	    phase_velocities::Any
+	    group_velocities::Any
+	    cn::Any
+	    freq::Float64
+	    nx::Int
+	    nz::Int
+	    nframes::Int
+	    Hp::Float64
+	    zmax::Float64
+	    xmax::Float64
+	    wmax::Float64
+	    U1_frames::Any
+	    U2_frames::Any
+	    tgrid::Any
+	    record::Any
+	    arrival1::Float64
+	    arrival2::Float64
+	    phaseArr::Any
+	    minPoints::Any
+	    maxPoints::Any
+	end
+
+	function Base.show(io::IO, ::MIME"text/html", p::LovePush)
+	    write(io, """
+	    <script>
+	    {
+	      const root = document.getElementById('lwwidget')
+	      if (root) {
+	        root.dispatchEvent(new CustomEvent('lw-data', { detail: {
+	          freqgrid: [$(flatten_js(p.freqgrid))],
+	          phase_velocities: [$(join(["[" * flatten_js(v) * "]" for v in p.phase_velocities], ","))],
+	          group_velocities: [$(join(["[" * flatten_js(v) * "]" for v in p.group_velocities], ","))],
+	          cn: [$(flatten_js(p.cn))],
+	          freq: $(p.freq),
+	          nx: $(p.nx), nz: $(p.nz), nframes: $(p.nframes),
+	          Hp: $(p.Hp), zmax: $(p.zmax), xmax: $(p.xmax), wmax: $(p.wmax),
+	          U1_frames: [$(flatten_frames_js(p.U1_frames))],
+	          U2_frames: [$(flatten_frames_js(p.U2_frames))],
+	          tgrid: [$(flatten_js(p.tgrid))],
+	          record: [$(flatten_js(p.record))],
+	          arrival1: $(p.arrival1), arrival2: $(p.arrival2),
+	          phaseArr: [$(flatten_js(p.phaseArr))],
+	          minPoints: [$(flatten_js(p.minPoints .- 1))],
+	          maxPoints: [$(flatten_js(p.maxPoints .- 1))],
+	        }}))
+	      }
+	    }
+	    </script>
+	    """)
+	end
+end
+
+# ╔═╡ 42190b26-0b30-4b2d-bc1f-dbb3323d7bb4
+md"### The Interactive Widget"
+
+# ╔═╡ e80a6231-6f27-4fe4-a862-32976ba3ab92
+begin
+	"""
+		LoveWaveInput(; Hp, β1, β2, ρ1, ρ2, freq, xrecpos, freqmin, freqmax, t, selectedModes)
+
+	The single interactive dashboard: draggable medium boundary and frequency
+	cursor, β/ρ and receiver sliders, plus the wavefield animation, dispersion
+	curves with click-to-toggle mode selection, a frequency-band brush, a
+	seismogram with a draggable time cursor, and a stationary-phase panel. None
+	of these fields touch the symbolic pipeline -- Julia only evaluates
+	already-built closed-form functions over small grids, so every interaction
+	stays cheap.
+	"""
+	struct LoveWaveInput
+	    Hp::Float64
+	    β1::Float64
+	    β2::Float64
+	    ρ1::Float64
+	    ρ2::Float64
+	    freq::Float64
+	    xrecpos::Float64
+	    freqmin::Float64
+	    freqmax::Float64
+	    t::Float64
+	    selectedModes::Vector{Int}
+	end
+
+	LoveWaveInput(; Hp=35.0, β1=3.5, β2=4.5, ρ1=2.6, ρ2=3.4, freq=0.08,
+	    xrecpos=2000.0, freqmin=0.0, freqmax=0.4995, t=500.0, selectedModes=[1]) =
+	    LoveWaveInput(Hp, β1, β2, ρ1, ρ2, freq, xrecpos, freqmin, freqmax, t, selectedModes)
+
+	Base.get(w::LoveWaveInput) = Dict{String,Any}(
+	    "Hp" => w.Hp, "β1" => w.β1, "β2" => w.β2, "ρ1" => w.ρ1, "ρ2" => w.ρ2, "freq" => w.freq,
+	    "xrecpos" => w.xrecpos, "freqmin" => w.freqmin, "freqmax" => w.freqmax,
+	    "t" => w.t, "selectedModes" => w.selectedModes,
+	)
+
+	function Base.show(io::IO, ::MIME"text/html", w::LoveWaveInput)
+	    write(io, """
+	    <div id="lwwidget">
+	    <style>
+	    #lwwidget{font-family:sans-serif;color:#d1d5db}
+	    #lwwidget .lw-titlebar{background:#0a0f18;border:1px solid #3b5c85;border-radius:6px;padding:12px 16px;margin-bottom:14px;text-align:center}
+	    #lwwidget .lw-titlebar-headline{font-size:18px;font-weight:700;color:#f3f4f6}
+	    #lwwidget .lw-titlebar-sub{font-size:13px;color:#9ca3af;margin-top:4px}
+	    #lwwidget .lw-row{display:flex;gap:14px;flex-wrap:wrap;margin-bottom:14px}
+	    #lwwidget .lw-panel{background:#000;border:1px solid #374151;border-radius:6px;padding:8px;flex:1 1 560px}
+	    #lwwidget .lw-panel-title{font-size:14px;font-weight:700;color:#f3f4f6;margin-bottom:4px}
+	    #lwwidget .lw-caption{font-size:13px;color:#9ca3af;margin-top:4px}
+	    #lwwidget canvas{display:block;cursor:crosshair;max-width:100%;height:auto}
+	    #lwwidget .lw-mini-group{background:#0b0b0b;border:1px solid #1f2937;border-radius:6px;padding:8px 10px;margin-top:10px}
+	    #lwwidget .lw-mini-title{font-size:13px;font-weight:700;color:#e5e7eb;margin-bottom:6px}
+	    #lwwidget .lw-controls{display:flex;gap:14px;flex-wrap:wrap;align-items:center}
+	    #lwwidget .lw-control-item{flex:1 1 130px;min-width:110px}
+	    #lwwidget .lw-label{font-size:13px;color:#9ca3af;display:flex;justify-content:space-between;margin-bottom:2px}
+	    #lwwidget .lw-value{color:#f3f4f6;font-weight:600}
+	    #lwwidget input[type=range]{width:100%;accent-color:#3b82f6}
+	    #lwwidget button{border-radius:4px;border:1px solid #9ca3af;background:#606060;color:#f3f4f6;padding:6px 12px;font-size:14px;cursor:pointer}
+	    #lwwidget button.active{background:#2563eb;border-color:#93c5fd}
+	    #lwwidget .lw-legend{display:flex;gap:12px;flex-wrap:wrap;font-size:12px;color:#9ca3af;margin-top:4px}
+	    #lwwidget .lw-swatch{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:4px;vertical-align:middle}
+	    </style>
+
+	    <div class="lw-titlebar">
+	      <div class="lw-titlebar-headline">Adjust the medium and watch the eigenvalue phase velocities, wavefield, and seismogram respond.</div>
+	      <div class="lw-titlebar-sub">drag the boundary line to set H &middot; drag &beta;/&rho; sliders &middot; drag the dispersion panel's cursor to change frequency &middot; click a curve to toggle a mode &middot; drag the band below it for the seismogram's frequency window &middot; drag the seismogram's cursor for time</div>
+	    </div>
+
+	    <div class="lw-row">
+	      <div class="lw-panel" style="flex:1 1 560px">
+	        <div class="lw-panel-title">Love-wave Displacement</div>
+	        <canvas id="lw-wave" width="560" height="340"></canvas>
+	        <div class="lw-caption" id="lw-wave-caption">Loading…</div>
+	        <div style="display:flex;gap:10px;align-items:center;margin-top:6px">
+	          <button id="lw-play">Play</button>
+	          <div style="flex:1">
+	            <div class="lw-label"><span>speed</span><span class="lw-value" id="lw-speed-v">5</span></div>
+	            <input type="range" id="lw-speed" min="1" max="15" step="1" value="5">
+	          </div>
+	        </div>
+	        <div class="lw-mini-group">
+	          <div class="lw-mini-title">Medium</div>
+	          <div class="lw-controls">
+	            <div class="lw-control-item"><div class="lw-label"><span>β₁ (km/s)</span><span class="lw-value" id="lw-β1-v">$(w.β1)</span></div>
+	              <input type="range" id="lw-β1" min="1" max="7" step="0.2" value="$(w.β1)"></div>
+	            <div class="lw-control-item"><div class="lw-label"><span>ρ₁ (gm/cc)</span><span class="lw-value" id="lw-ρ1-v">$(w.ρ1)</span></div>
+	              <input type="range" id="lw-ρ1" min="1" max="7" step="0.2" value="$(w.ρ1)"></div>
+	            <div class="lw-control-item"><div class="lw-label"><span>β₂ (km/s)</span><span class="lw-value" id="lw-β2-v">$(w.β2)</span></div>
+	              <input type="range" id="lw-β2" min="1" max="7" step="0.2" value="$(w.β2)"></div>
+	            <div class="lw-control-item"><div class="lw-label"><span>ρ₂ (gm/cc)</span><span class="lw-value" id="lw-ρ2-v">$(w.ρ2)</span></div>
+	              <input type="range" id="lw-ρ2" min="1" max="7" step="0.2" value="$(w.ρ2)"></div>
+	          </div>
+	        </div>
+	      </div>
+	      <div class="lw-panel" style="flex:1 1 560px">
+	        <div class="lw-panel-title">Dispersion Curves &amp; Mode Selection</div>
+	        <canvas id="lw-disp" width="560" height="260"></canvas>
+	        <canvas id="lw-brush" width="560" height="34" style="cursor:ew-resize"></canvas>
+	        <div class="lw-caption" id="lw-disp-caption">Drag the dashed cursor to change frequency. Click a curve to include/exclude that mode. Drag the shaded band below to set the seismogram's frequency window.</div>
+	        <div class="lw-legend" id="lw-legend"></div>
+	      </div>
+	    </div>
+
+	    <div class="lw-row">
+	      <div class="lw-panel" style="flex:1 1 560px">
+	        <div class="lw-panel-title">Seismogram (fundamental mode)</div>
+	        <canvas id="lw-seis" width="560" height="240"></canvas>
+	        <div class="lw-caption" id="lw-seis-caption">Drag to move the time cursor (blue). Red lines mark the β₁/β₂ arrival window.</div>
+	        <div class="lw-mini-group">
+	          <div class="lw-mini-title">Receiver</div>
+	          <div class="lw-controls">
+	            <div class="lw-control-item"><div class="lw-label"><span>Distance (km)</span><span class="lw-value" id="lw-xrecpos-v">$(w.xrecpos)</span></div>
+	              <input type="range" id="lw-xrecpos" min="0" max="3000" step="10" value="$(w.xrecpos)"></div>
+	          </div>
+	        </div>
+	      </div>
+	      <div class="lw-panel" style="flex:1 1 560px">
+	        <div class="lw-panel-title">Stationary Phase Analysis</div>
+	        <canvas id="lw-phase" width="560" height="240"></canvas>
+	        <div class="lw-caption" id="lw-phase-caption">Phase = k(f)·x − ωt at the current time cursor; markers show stationary points.</div>
+	      </div>
+	    </div>
+
+	    <script>
+	    {
+	      // Pluto re-runs this whole <script> block on every re-render of this cell (e.g. a
+	      // kernel restart while the tab stays connected), but window-level listeners and a
+	      // running requestAnimationFrame loop survive that -- nothing else ever tears them
+	      // down. Without this, each re-render stacks a fresh, duplicate set of mousemove/
+	      // mouseup listeners on top of the previous ones, and an in-progress animation loop
+	      // never stops, which is why the page can grind to a halt after enough re-renders.
+	      if (window.__lwCleanup) { window.__lwCleanup() }
+	      const lwInstance = {}
+	      window.__lwCurrentInstance = lwInstance
+	      const lwController = new AbortController()
+	      window.__lwCleanup = () => lwController.abort()
+	      const lwSignal = { signal: lwController.signal }
+
+	      const root = document.getElementById('lwwidget')
+	      const ZMAX = 150.0
+	      const state = {
+	        Hp: $(w.Hp), β1: $(w.β1), β2: $(w.β2), ρ1: $(w.ρ1), ρ2: $(w.ρ2), freq: $(w.freq),
+	        xrecpos: $(w.xrecpos), freqmin: $(w.freqmin), freqmax: $(w.freqmax),
+	        t: $(w.t), selectedModes: [$(join(w.selectedModes, ","))]
+	      }
+	      let userTouchedModes = false
+	      let data = null
+
+	      const MODE_COLORS = ['#3b82f6', '#ef4444', '#22c55e', '#eab308']
+
+	      function publish() {
+	        root.value = { ...state, selectedModes: state.selectedModes.slice() }
+	        root.dispatchEvent(new CustomEvent('input'))
+	      }
+	      root.value = { ...state, selectedModes: state.selectedModes.slice() }
+
+	      function lerp(a, b, t) { return a + (b - a) * t }
+	      function clamp(v, a, b) { return Math.max(a, Math.min(b, v)) }
+	      function divColorRGB(v, vmax) {
+	        if (vmax <= 0) vmax = 1e-9
+	        const t = clamp(v / vmax, -1, 1)
+	        let r, g, b
+	        if (t >= 0) { r = lerp(0, 239, t); g = lerp(0, 68, t); b = lerp(0, 68, t) }
+	        else { const s = -t; r = lerp(0, 59, s); g = lerp(0, 130, s); b = lerp(0, 246, s) }
+	        return [Math.round(r), Math.round(g), Math.round(b)]
+	      }
+
+	      function drawTickLabel(ctx, label, x, y, align, minX, maxX) {
+	        ctx.font = '11px sans-serif'
+	        ctx.fillStyle = '#9ca3af'
+	        const w2 = ctx.measureText(label).width
+	        let px = x
+	        if (align === 'center') px = x - w2 / 2
+	        else if (align === 'right') px = x - w2
+	        px = clamp(px, minX, maxX - w2)
+	        ctx.textAlign = 'left'
+	        ctx.fillText(label, px, y)
+	      }
+
+	      // ---------- Panel A: Wavefield ----------
+	      const waveCanvas = root.querySelector('#lw-wave')
+	      const waveCtx = waveCanvas.getContext('2d')
+	      const WAVE_M = { l: 44, r: 12, t: 12, b: 26 }
+	      const offscreen = document.createElement('canvas')
+	      const offCtx = offscreen.getContext('2d')
+
+	      function waveLayout() {
+	        return { plotX: WAVE_M.l, plotY: WAVE_M.t, plotW: waveCanvas.width - WAVE_M.l - WAVE_M.r, plotH: waveCanvas.height - WAVE_M.t - WAVE_M.b }
+	      }
+	      function waveBoundaryY() {
+	        const L = waveLayout()
+	        return L.plotY + L.plotH * (state.Hp / ZMAX)
+	      }
+
+	      function drawWavefield(frameIdx) {
+	        const ctx = waveCtx
+	        const W = waveCanvas.width, H = waveCanvas.height
+	        ctx.fillStyle = '#000'; ctx.fillRect(0, 0, W, H)
+	        if (!data || !data.U1_frames) {
+	          ctx.fillStyle = '#9ca3af'; ctx.font = '13px sans-serif'; ctx.fillText('Loading…', 20, 40)
+	          return
+	        }
+	        const L = waveLayout()
+	        const plotX = L.plotX, plotY = L.plotY, plotW = L.plotW, plotH = L.plotH
+	        const nx = data.nx, nz = data.nz
+	        offscreen.width = nx; offscreen.height = nz * 2
+	        const img = offCtx.createImageData(nx, nz * 2)
+	        const perFrame = nz * nx
+	        const base1 = frameIdx * perFrame
+	        const base2 = frameIdx * perFrame
+	        for (let iz = 0; iz < nz; iz++) {
+	          for (let ix = 0; ix < nx; ix++) {
+	            const v1 = data.U1_frames[base1 + iz * nx + ix]
+	            const rgb1 = divColorRGB(v1, data.wmax)
+	            let p = (iz * nx + ix) * 4
+	            img.data[p] = rgb1[0]; img.data[p + 1] = rgb1[1]; img.data[p + 2] = rgb1[2]; img.data[p + 3] = 255
+	          }
+	        }
+	        for (let iz = 0; iz < nz; iz++) {
+	          for (let ix = 0; ix < nx; ix++) {
+	            const v2 = data.U2_frames[base2 + iz * nx + ix]
+	            const rgb2 = divColorRGB(v2, data.wmax)
+	            let p = ((nz + iz) * nx + ix) * 4
+	            img.data[p] = rgb2[0]; img.data[p + 1] = rgb2[1]; img.data[p + 2] = rgb2[2]; img.data[p + 3] = 255
+	          }
+	        }
+	        offCtx.putImageData(img, 0, 0)
+	        ctx.imageSmoothingEnabled = true
+	        ctx.drawImage(offscreen, 0, 0, nx, nz * 2, plotX, plotY, plotW, plotH)
+
+	        const boundaryY = waveBoundaryY()
+	        ctx.strokeStyle = '#f3f4f6'; ctx.setLineDash([]); ctx.lineWidth = 3
+	        ctx.beginPath(); ctx.moveTo(plotX, boundaryY); ctx.lineTo(plotX + plotW, boundaryY); ctx.stroke()
+	        ctx.strokeStyle = '#9ca3af'; ctx.setLineDash([5, 4]); ctx.lineWidth = 1.5
+	        ctx.beginPath(); ctx.moveTo(plotX, plotY); ctx.lineTo(plotX + plotW, plotY); ctx.stroke()
+	        ctx.setLineDash([])
+	        ctx.font = '12px sans-serif'; ctx.fillStyle = '#f3f4f6'
+	        ctx.fillText('Free Surface', plotX + 6, plotY + 14)
+	        ctx.fillText('Boundary (drag) H = ' + state.Hp.toFixed(0) + ' km', plotX + 6, boundaryY - 4)
+
+	        ctx.fillStyle = '#9ca3af'; ctx.font = '11px sans-serif'; ctx.textAlign = 'center'
+	        drawTickLabel(ctx, '0', plotX, H - 8, 'left', 0, W)
+	        drawTickLabel(ctx, data.xmax.toFixed(0), plotX + plotW, H - 8, 'right', 0, W)
+	        ctx.save(); ctx.translate(12, plotY + plotH / 2); ctx.rotate(-Math.PI / 2)
+	        ctx.textAlign = 'center'; ctx.fillText('Depth (km)', 0, 0); ctx.restore()
+	        ctx.textAlign = 'center'; ctx.fillText('Distance (km)', plotX + plotW / 2, H - 2)
+	      }
+
+	      let waveDrag = false
+	      function waveHpFromEvent(ev) {
+	        const rect = waveCanvas.getBoundingClientRect()
+	        const scaleY = waveCanvas.height / rect.height
+	        const py = (ev.clientY - rect.top) * scaleY
+	        const L = waveLayout()
+	        const frac = clamp((py - L.plotY) / L.plotH, 0, 1)
+	        return clamp(frac * ZMAX, 10, 100)
+	      }
+	      waveCanvas.addEventListener('mousedown', function (ev) {
+	        const rect = waveCanvas.getBoundingClientRect()
+	        const scaleY = waveCanvas.height / rect.height
+	        const py = (ev.clientY - rect.top) * scaleY
+	        if (Math.abs(py - waveBoundaryY()) <= 12) waveDrag = true
+	      })
+	      window.addEventListener('mousemove', function (ev) {
+	        if (!waveDrag) return
+	        state.Hp = waveHpFromEvent(ev)
+	        drawWavefield(frameIdx)
+	      }, lwSignal)
+	      window.addEventListener('mouseup', function () {
+	        if (waveDrag) { waveDrag = false; publish() }
+	      }, lwSignal)
+
+	      // ---------- Panel B: Dispersion curves ----------
+	      const dispCanvas = root.querySelector('#lw-disp')
+	      const dispCtx = dispCanvas.getContext('2d')
+	      const DM = { l: 40, r: 12, t: 10, b: 18, split: 0.56, gap: 20 }
+
+	      function dispLayout() {
+	        const W = dispCanvas.width, H = dispCanvas.height
+	        const plotW = W - DM.l - DM.r
+	        const topH = (H - DM.t - DM.b - DM.gap) * DM.split
+	        const botH = (H - DM.t - DM.b - DM.gap) * (1 - DM.split)
+	        const topY = DM.t, botY = DM.t + topH + DM.gap
+	        return { W, H, plotW, topH, botH, topY, botY, plotX: DM.l }
+	      }
+	      function dispFmax() {
+	        return (data && data.freqgrid) ? data.freqgrid[data.freqgrid.length - 1] : 0.4995
+	      }
+
+	      function seriesRange(arrs) {
+	        let mn = Infinity, mx = -Infinity
+	        for (const arr of arrs) for (const v of arr) if (isFinite(v)) { if (v < mn) mn = v; if (v > mx) mx = v }
+	        if (!isFinite(mn)) { mn = 0; mx = 1 }
+	        const pad = (mx - mn) * 0.1 || 1
+	        return [mn - pad, mx + pad]
+	      }
+
+	      function drawDispersion() {
+	        const ctx = dispCtx
+	        const L = dispLayout()
+	        ctx.fillStyle = '#000'; ctx.fillRect(0, 0, L.W, L.H)
+	        if (!data || !data.freqgrid) {
+	          ctx.fillStyle = '#9ca3af'; ctx.font = '13px sans-serif'; ctx.fillText('Loading…', 20, 30)
+	          return
+	        }
+	        const fg = data.freqgrid, fmax = fg[fg.length - 1]
+	        const xOf = f => L.plotX + (f / fmax) * L.plotW
+	        const [pmin, pmax] = seriesRange(data.phase_velocities)
+	        const [gmin, gmax] = seriesRange(data.group_velocities)
+	        const yOfTop = v => L.topY + L.topH - (v - pmin) / (pmax - pmin) * L.topH
+	        const yOfBot = v => L.botY + L.botH - (v - gmin) / (gmax - gmin) * L.botH
+
+	        ctx.strokeStyle = '#1f2937'; ctx.lineWidth = 1
+	        ctx.strokeRect(L.plotX, L.topY, L.plotW, L.topH)
+	        ctx.strokeRect(L.plotX, L.botY, L.plotW, L.botH)
+
+	        ctx.font = '11px sans-serif'; ctx.fillStyle = '#9ca3af'; ctx.textAlign = 'left'
+	        ctx.fillText('Phase Velocity (km/s)', L.plotX, L.topY - 2)
+	        ctx.fillText('Group Velocity (km/s)', L.plotX, L.botY - 2)
+
+	        window._lwDispCurves = []
+	        for (let m = 0; m < data.phase_velocities.length; m++) {
+	          const sel = state.selectedModes.indexOf(m + 1) >= 0
+	          ctx.globalAlpha = sel ? 1.0 : 0.28
+	          ctx.strokeStyle = MODE_COLORS[m % MODE_COLORS.length]
+	          ctx.lineWidth = sel ? 2.2 : 1.4
+	          const pts = []
+	          ctx.beginPath(); let started = false
+	          for (let i = 0; i < fg.length; i++) {
+	            const v = data.phase_velocities[m][i]
+	            if (!isFinite(v)) { started = false; continue }
+	            const x = xOf(fg[i]), y = yOfTop(v)
+	            pts.push([x, y])
+	            if (!started) { ctx.moveTo(x, y); started = true } else ctx.lineTo(x, y)
+	          }
+	          ctx.stroke()
+	          window._lwDispCurves.push({ mode: m + 1, pts })
+
+	          const pts2 = []
+	          ctx.beginPath(); started = false
+	          for (let i = 0; i < fg.length; i++) {
+	            const v = data.group_velocities[m][i]
+	            if (!isFinite(v)) { started = false; continue }
+	            const x = xOf(fg[i]), y = yOfBot(v)
+	            pts2.push([x, y])
+	            if (!started) { ctx.moveTo(x, y); started = true } else ctx.lineTo(x, y)
+	          }
+	          ctx.stroke()
+	          window._lwDispCurves.push({ mode: m + 1, pts: pts2 })
+	        }
+	        ctx.globalAlpha = 1.0
+
+	        const cx = xOf(state.freq)
+	        ctx.strokeStyle = '#eab308'; ctx.setLineDash([4, 3]); ctx.lineWidth = 2
+	        ctx.beginPath(); ctx.moveTo(cx, L.topY); ctx.lineTo(cx, L.topY + L.topH); ctx.stroke()
+	        ctx.beginPath(); ctx.moveTo(cx, L.botY); ctx.lineTo(cx, L.botY + L.botH); ctx.stroke()
+	        ctx.setLineDash([])
+	        ctx.fillStyle = '#eab308'; ctx.font = '11px sans-serif'; ctx.textAlign = 'center'
+	        ctx.fillText(state.freq.toFixed(3) + ' Hz', cx, L.topY - 2)
+
+	        drawTickLabel(ctx, '0', L.plotX, L.botY + L.botH + 13, 'left', 0, L.W)
+	        drawTickLabel(ctx, fmax.toFixed(2) + ' Hz', L.plotX + L.plotW, L.botY + L.botH + 13, 'right', 0, L.W)
+
+	        const legend = root.querySelector('#lw-legend')
+	        let html = ''
+	        for (let m = 0; m < (data.cn ? data.cn.length : 0); m++) {
+	          const sel = state.selectedModes.indexOf(m + 1) >= 0
+	          html += '<span data-mode="' + (m + 1) + '" style="cursor:pointer;opacity:' + (sel ? 1 : 0.45) + '">' +
+	            '<span class="lw-swatch" style="background:' + MODE_COLORS[m % MODE_COLORS.length] + '"></span>' +
+	            'Mode ' + (m + 1) + ': ' + data.cn[m].toFixed(2) + ' km/s</span>'
+	        }
+	        legend.innerHTML = html
+	        legend.querySelectorAll('[data-mode]').forEach(function (el) {
+	          el.addEventListener('click', function () { toggleMode(parseInt(el.getAttribute('data-mode'))) })
+	        })
+	      }
+
+	      function toggleMode(m) {
+	        userTouchedModes = true
+	        const idx = state.selectedModes.indexOf(m)
+	        if (idx >= 0) { if (state.selectedModes.length > 1) state.selectedModes.splice(idx, 1) }
+	        else state.selectedModes.push(m)
+	        drawDispersion()
+	        publish()
+	      }
+
+	      function distToSeg(px, py, x1, y1, x2, y2) {
+	        const dx = x2 - x1, dy = y2 - y1
+	        const len2 = dx * dx + dy * dy
+	        if (len2 === 0) return Math.hypot(px - x1, py - y1)
+	        let t = ((px - x1) * dx + (py - y1) * dy) / len2
+	        t = clamp(t, 0, 1)
+	        return Math.hypot(px - (x1 + t * dx), py - (y1 + t * dy))
+	      }
+
+	      let freqDrag = false
+	      let freqDragHappened = false
+	      function dispFreqFromEvent(ev) {
+	        const rect = dispCanvas.getBoundingClientRect()
+	        const scaleX = dispCanvas.width / rect.width
+	        const px = (ev.clientX - rect.left) * scaleX
+	        const L = dispLayout()
+	        const frac = clamp((px - L.plotX) / L.plotW, 0, 1)
+	        return clamp(frac * dispFmax(), 0.01, 0.25)
+	      }
+	      dispCanvas.addEventListener('mousedown', function (ev) {
+	        const rect = dispCanvas.getBoundingClientRect()
+	        const scaleX = dispCanvas.width / rect.width
+	        const px = (ev.clientX - rect.left) * scaleX
+	        const L = dispLayout()
+	        const cx = L.plotX + (state.freq / dispFmax()) * L.plotW
+	        if (Math.abs(px - cx) <= 10) { freqDrag = true; freqDragHappened = false }
+	      })
+	      window.addEventListener('mousemove', function (ev) {
+	        if (!freqDrag) return
+	        freqDragHappened = true
+	        state.freq = dispFreqFromEvent(ev)
+	        drawDispersion()
+	      }, lwSignal)
+	      window.addEventListener('mouseup', function () {
+	        if (freqDrag) { freqDrag = false; publish() }
+	      }, lwSignal)
+
+	      dispCanvas.addEventListener('click', function (ev) {
+	        if (freqDragHappened) { freqDragHappened = false; return }
+	        const rect = dispCanvas.getBoundingClientRect()
+	        const scaleX = dispCanvas.width / rect.width, scaleY = dispCanvas.height / rect.height
+	        const px = (ev.clientX - rect.left) * scaleX, py = (ev.clientY - rect.top) * scaleY
+	        let best = null, bestD = 10
+	        for (const c of (window._lwDispCurves || [])) {
+	          for (let i = 0; i < c.pts.length - 1; i++) {
+	            const d = distToSeg(px, py, c.pts[i][0], c.pts[i][1], c.pts[i + 1][0], c.pts[i + 1][1])
+	            if (d < bestD) { bestD = d; best = c.mode }
+	          }
+	        }
+	        if (best !== null) toggleMode(best)
+	      })
+
+	      // ---------- Frequency-band brush ----------
+	      const brushCanvas = root.querySelector('#lw-brush')
+	      const brushCtx = brushCanvas.getContext('2d')
+
+	      function brushXOf(f) {
+	        const fmax = dispFmax()
+	        return DM.l + (f / fmax) * (brushCanvas.width - DM.l - DM.r)
+	      }
+	      function brushFOf(x) {
+	        const fmax = dispFmax()
+	        const plotW = brushCanvas.width - DM.l - DM.r
+	        return clamp((x - DM.l) / plotW, 0, 1) * fmax
+	      }
+
+	      function drawBrush() {
+	        const ctx = brushCtx
+	        const W = brushCanvas.width, H = brushCanvas.height
+	        ctx.fillStyle = '#000'; ctx.fillRect(0, 0, W, H)
+	        ctx.strokeStyle = '#1f2937'; ctx.strokeRect(DM.l, 4, W - DM.l - DM.r, H - 8)
+	        const x0 = brushXOf(state.freqmin), x1 = brushXOf(state.freqmax)
+	        ctx.fillStyle = 'rgba(59,130,246,0.35)'
+	        ctx.fillRect(x0, 4, x1 - x0, H - 8)
+	        ctx.fillStyle = '#3b82f6'
+	        ctx.beginPath(); ctx.arc(x0, H / 2, 6, 0, 2 * Math.PI); ctx.fill()
+	        ctx.beginPath(); ctx.arc(x1, H / 2, 6, 0, 2 * Math.PI); ctx.fill()
+	        ctx.fillStyle = '#e5e7eb'; ctx.font = '11px sans-serif'; ctx.textAlign = 'center'
+	        ctx.fillText(state.freqmin.toFixed(3) + '–' + state.freqmax.toFixed(3) + ' Hz', W / 2, H - 20)
+	      }
+
+	      let brushDrag = null
+	      brushCanvas.addEventListener('mousedown', function (ev) {
+	        const rect = brushCanvas.getBoundingClientRect()
+	        const scaleX = brushCanvas.width / rect.width
+	        const px = (ev.clientX - rect.left) * scaleX
+	        const x0 = brushXOf(state.freqmin), x1 = brushXOf(state.freqmax)
+	        brushDrag = Math.abs(px - x0) <= Math.abs(px - x1) ? 'min' : 'max'
+	      })
+	      window.addEventListener('mousemove', function (ev) {
+	        if (!brushDrag) return
+	        const rect = brushCanvas.getBoundingClientRect()
+	        const scaleX = brushCanvas.width / rect.width
+	        const f = brushFOf((ev.clientX - rect.left) * scaleX)
+	        if (brushDrag === 'min') state.freqmin = Math.min(f, state.freqmax)
+	        else state.freqmax = Math.max(f, state.freqmin)
+	        drawBrush()
+	      }, lwSignal)
+	      window.addEventListener('mouseup', function () {
+	        if (brushDrag) { brushDrag = null; publish() }
+	      }, lwSignal)
+
+	      // ---------- Panel C: Seismogram ----------
+	      const seisCanvas = root.querySelector('#lw-seis')
+	      const seisCtx = seisCanvas.getContext('2d')
+	      const SM = { l: 48, r: 12, t: 12, b: 26 }
+
+	      function seisLayout() {
+	        const W = seisCanvas.width, H = seisCanvas.height
+	        return { W, H, plotX: SM.l, plotY: SM.t, plotW: W - SM.l - SM.r, plotH: H - SM.t - SM.b }
+	      }
+
+	      function drawSeismogram() {
+	        const ctx = seisCtx
+	        const L = seisLayout()
+	        ctx.fillStyle = '#000'; ctx.fillRect(0, 0, L.W, L.H)
+	        if (!data || !data.record) {
+	          ctx.fillStyle = '#9ca3af'; ctx.font = '13px sans-serif'; ctx.fillText('Loading…', 20, 30)
+	          return
+	        }
+	        const tg = data.tgrid, tmax = tg[tg.length - 1]
+	        let amax = 1e-9
+	        for (const v of data.record) if (Math.abs(v) > amax) amax = Math.abs(v)
+	        amax *= 1.15
+	        const xOf = t => L.plotX + (t / tmax) * L.plotW
+	        const yOf = v => L.plotY + L.plotH / 2 - (v / amax) * (L.plotH / 2)
+
+	        ctx.strokeStyle = '#1f2937'; ctx.strokeRect(L.plotX, L.plotY, L.plotW, L.plotH)
+	        ctx.strokeStyle = '#4b5563'; ctx.beginPath()
+	        ctx.moveTo(L.plotX, yOf(0)); ctx.lineTo(L.plotX + L.plotW, yOf(0)); ctx.stroke()
+
+	        ctx.strokeStyle = '#ef4444'; ctx.setLineDash([5, 4]); ctx.lineWidth = 1.3
+	        for (const a of [data.arrival1, data.arrival2]) {
+	          if (a >= 0 && a <= tmax) {
+	            const x = xOf(a)
+	            ctx.beginPath(); ctx.moveTo(x, L.plotY); ctx.lineTo(x, L.plotY + L.plotH); ctx.stroke()
+	          }
+	        }
+	        ctx.setLineDash([])
+
+	        ctx.strokeStyle = '#e5e7eb'; ctx.lineWidth = 1.4
+	        ctx.beginPath()
+	        for (let i = 0; i < tg.length; i++) {
+	          const x = xOf(tg[i]), y = yOf(data.record[i])
+	          if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y)
+	        }
+	        ctx.stroke()
+
+	        const tx = xOf(state.t)
+	        ctx.strokeStyle = '#3b82f6'; ctx.lineWidth = 2
+	        ctx.beginPath(); ctx.moveTo(tx, L.plotY); ctx.lineTo(tx, L.plotY + L.plotH); ctx.stroke()
+
+	        drawTickLabel(ctx, '0', L.plotX, L.H - 8, 'left', 0, L.W)
+	        drawTickLabel(ctx, tmax.toFixed(0) + ' s', L.plotX + L.plotW, L.H - 8, 'right', 0, L.W)
+	      }
+
+	      let seisDrag = false
+	      function seisTFromEvent(ev) {
+	        const L = seisLayout()
+	        const rect = seisCanvas.getBoundingClientRect()
+	        const scaleX = seisCanvas.width / rect.width
+	        const px = (ev.clientX - rect.left) * scaleX
+	        const tg = data ? data.tgrid : null
+	        const tmax = tg ? tg[tg.length - 1] : 1000
+	        return clamp((px - L.plotX) / L.plotW, 0, 1) * tmax
+	      }
+	      seisCanvas.addEventListener('mousedown', function (ev) { seisDrag = true; state.t = seisTFromEvent(ev); drawSeismogram() })
+	      window.addEventListener('mousemove', function (ev) { if (seisDrag) { state.t = seisTFromEvent(ev); drawSeismogram() } }, lwSignal)
+	      window.addEventListener('mouseup', function () { if (seisDrag) { seisDrag = false; publish() } }, lwSignal)
+
+	      // ---------- Panel D: Stationary phase ----------
+	      const phaseCanvas = root.querySelector('#lw-phase')
+	      const phaseCtx = phaseCanvas.getContext('2d')
+	      const PM = { l: 48, r: 12, t: 12, b: 26 }
+
+	      function drawPhase() {
+	        const ctx = phaseCtx
+	        const W = phaseCanvas.width, H = phaseCanvas.height
+	        ctx.fillStyle = '#000'; ctx.fillRect(0, 0, W, H)
+	        if (!data || !data.phaseArr) {
+	          ctx.fillStyle = '#9ca3af'; ctx.font = '13px sans-serif'; ctx.fillText('Loading…', 20, 30)
+	          return
+	        }
+	        const plotX = PM.l, plotY = PM.t, plotW = W - PM.l - PM.r, plotH = H - PM.t - PM.b
+	        const fg = data.freqgrid, fmax = fg[fg.length - 1]
+	        const [pmin, pmax] = seriesRange([data.phaseArr])
+	        const xOf = f => plotX + (f / fmax) * plotW
+	        const yOf = v => plotY + plotH - (v - pmin) / (pmax - pmin) * plotH
+
+	        ctx.strokeStyle = '#1f2937'; ctx.strokeRect(plotX, plotY, plotW, plotH)
+	        ctx.strokeStyle = '#e5e7eb'; ctx.lineWidth = 1.4
+	        ctx.beginPath()
+	        for (let i = 0; i < fg.length; i++) {
+	          const x = xOf(fg[i]), y = yOf(data.phaseArr[i])
+	          if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y)
+	        }
+	        ctx.stroke()
+
+	        ctx.fillStyle = '#3b82f6'
+	        for (const i of (data.minPoints || [])) {
+	          const x = xOf(fg[i]), y = yOf(data.phaseArr[i])
+	          ctx.beginPath(); ctx.arc(x, y, 4, 0, 2 * Math.PI); ctx.fill()
+	        }
+	        ctx.fillStyle = '#ef4444'
+	        for (const i of (data.maxPoints || [])) {
+	          const x = xOf(fg[i]), y = yOf(data.phaseArr[i])
+	          ctx.beginPath(); ctx.arc(x, y, 4, 0, 2 * Math.PI); ctx.fill()
+	        }
+
+	        drawTickLabel(ctx, '0', plotX, H - 8, 'left', 0, W)
+	        drawTickLabel(ctx, fmax.toFixed(2) + ' Hz', plotX + plotW, H - 8, 'right', 0, W)
+	      }
+
+	      function drawAll() {
+	        const n = (data && data.nframes) ? data.nframes : 1
+	        drawWavefield(Math.min(frameIdx, n - 1))
+	        drawDispersion()
+	        drawBrush()
+	        drawSeismogram()
+	        drawPhase()
+	        const capt = root.querySelector('#lw-wave-caption')
+	        if (data && data.cn) {
+	          capt.textContent = 'Summing ' + state.selectedModes.length + ' of ' + data.cn.length + ' mode(s) at f = ' + state.freq.toFixed(3) + ' Hz'
+	        }
+	      }
+
+	      root.addEventListener('lw-data', function (ev) {
+	        data = ev.detail
+	        const n = data.cn ? data.cn.length : 1
+	        let next
+	        if (!userTouchedModes) {
+	          next = []
+	          for (let i = 1; i <= n; i++) next.push(i)
+	        } else {
+	          next = state.selectedModes.filter(function (i) { return i >= 1 && i <= n })
+	          if (next.length === 0) next = [1]
+	        }
+	        const changed = next.length !== state.selectedModes.length ||
+	          next.some(function (v, i) { return v !== state.selectedModes[i] })
+	        state.selectedModes = next
+	        drawAll()
+	        if (changed) publish()
+	      })
+
+	      // ---------- animation loop ----------
+	      let playing = false, rafId = null, lastTick = 0, frameIdx = 0
+	      const playBtn = root.querySelector('#lw-play')
+	      playBtn.addEventListener('click', function () {
+	        playing = !playing
+	        playBtn.textContent = playing ? 'Pause' : 'Play'
+	        playBtn.className = playing ? 'active' : ''
+	        if (playing) { lastTick = 0; rafId = requestAnimationFrame(tick) }
+	      })
+	      const speedEl = root.querySelector('#lw-speed')
+	      const speedVEl = root.querySelector('#lw-speed-v')
+	      speedEl.addEventListener('input', function () { speedVEl.textContent = speedEl.value })
+	      function tick(now) {
+	        if (window.__lwCurrentInstance !== lwInstance) return  // a newer render replaced us; stop
+	        if (!playing) return
+	        const fps = parseFloat(speedEl.value)
+	        if (now - lastTick > 1000 / fps) {
+	          const n = (data && data.nframes) ? data.nframes : 1
+	          frameIdx = (frameIdx + 1) % n
+	          drawWavefield(frameIdx)
+	          lastTick = now
+	        }
+	        rafId = requestAnimationFrame(tick)
+	      }
+
+	      // ---------- control sliders (β/ρ + receiver) ----------
+	      const ids = {β1:'lw-β1', β2:'lw-β2', ρ1:'lw-ρ1', ρ2:'lw-ρ2', xrecpos:'lw-xrecpos'}
+	      for (const k in ids) {
+	        const el = root.querySelector('#'+ids[k])
+	        const vEl = root.querySelector('#'+ids[k]+'-v')
+	        el.addEventListener('input', () => { vEl.textContent = el.value })
+	        el.addEventListener('change', () => {
+	          state[k] = parseFloat(el.value)
+	          publish()
+	        })
+	      }
+
+	      drawAll()
+	    }
+	    </script>
+	    </div>
+	    """)
+	end
+
+	const _lw_ready = true
+end
+
+# ╔═╡ bec713a8-708f-42e9-a7ef-35c16f597336
+begin
+	_lw_ready
+	WideCell(@bind lw LoveWaveInput(); max_width=1400)
+end
+
+# ╔═╡ 60c6e69b-c00b-4ffd-87b7-237bb5d3dfcc
+medium = (; Hp=lw["Hp"], β₁=lw["β1"], β₂=lw["β2"], ρ₁=lw["ρ1"], ρ₂=lw["ρ2"])
+
+# ╔═╡ b3e662bf-8d13-418b-886c-b29456d62454
+crange2 = range(medium.β₁ - 0.5, stop=medium.β₁, length=100)
+
+# ╔═╡ 3fa22358-6d61-4b9a-9aa8-39d2b1c6a917
+crange3 = range(medium.β₂, stop=medium.β₂ + 0.5, length=100)
+
+# ╔═╡ 831be90d-f2ae-4290-b195-34dbb2b2f294
+begin
+	xrecpos = lw["xrecpos"]
+	freqmin = lw["freqmin"]
+	freqmax = lw["freqmax"]
+	tcursor = lw["t"]
+	selected_modes = Int.(lw["selectedModes"])
+end
+
+# ╔═╡ 1e4a9c31-9b1a-4b64-9a49-6a7b7cb4f4e1
+F = let expr = ex1 - ex2
+    build_function(expr, p, ω, η₁, η₂, μ₁, μ₂, H, expression=Val{false})
+end
 
 # ╔═╡ cc173455-2ed0-42f3-a9c0-0dfdbbe982ee
-cn = compute_phase_velocities(F, freq_rec.freq, medium)
-
-# ╔═╡ ad78f0ef-460d-4b62-8bbc-0f7059214b38
-# need prettier labels for MultiCheckBox
-names_cn = map(enumerate(cn)) do (i, c)
-    c => string(i, ") ", floor(c, digits=2))
-end
+cn = compute_phase_velocities(F, lw["freq"], medium)
 
 # ╔═╡ 5d81104e-16a1-4c44-89a3-a492821021ed
 cn_vec = compute_dispersion_curves(F, freqgrid, medium)
@@ -327,300 +1100,125 @@ group_velocities = map(wavenumbers) do k
     get_group_velocity(k)
 end;
 
-# ╔═╡ 7bd19e44-b4f5-43f3-b6be-b557ca95c67f
-md"In order to plot the displacement wavefield, we will now build functions that output the particle displacement in the first and second layers for input $x$, $z$, $t$ and $p$."
-
-# ╔═╡ cdaefb2c-818e-4d66-b1c3-f6ac8829ba45
-function subs_u1(u, medium_params; output_function=true)
-    u = substitute(subs_βρ(u, medium_params; output_function=false), [ı => im, B₁ => 1, A₁ => 1, B₂ => 0])
-    if (output_function)
-        build_function(u, x, z, t, p, ω, η₁, η₂, expression=Val{false})
-    else
-        u
-    end
-end
-
-# ╔═╡ 236e2338-f057-4c33-80e2-7dd8ea9ce206
-function subs_u2(u, medium_params; output_function=true)
-    A₂p = subs_u1(A₂ex1, medium, output_function=false)
-    u = substitute(subs_βρ(u, medium_params; output_function=false), [ı => im, B₁ => 1, A₁ => 1, B₂ => 0, A₂ => A₂p])
-    if (output_function)
-        build_function(u, x, z, t, p, ω, η₁, η₂, expression=Val{false})
-    else
-        u
-    end
-end
-
-# ╔═╡ 8912a771-1914-42a7-a35b-43cb63971a41
-U1 = subs_u1(u1, medium)
-
-# ╔═╡ d49ae6c9-a4ee-45f0-99c3-ab9f23ab895d
-U2 = subs_u2(u2, medium)
-
-# ╔═╡ db4a22f5-74eb-477e-9426-065dcfd1751c
-md"### UI"
-
-# ╔═╡ ccbb61f1-c7a1-4cc1-a5c8-0555dd664e16
-function medium_input()
-
-    return PlutoUI.combine() do Child
-        inputs1 = [
-            md""" 
-   H (km) $(Child("Hp", Slider(range(10, 100, step=5), default=35, show_value=true)))""",
-            md"""
-            β₁ (km/s) $(Child("β₁", Slider(cgrid, default=3.5, show_value=true)))
-            """,
-            md"""
-            β₂ (km/s) $(Child("β₂", Slider(cgrid, default=4.5, show_value=true)))
-            """,
-            md"""
-            ρ₁ (gm/cc) $(Child("ρ₁", Slider(range(1, 7, step=0.2), default=2.6, show_value=true)))
-            """,
-            md"""
-            ρ₂ (gm/cc) $(Child("ρ₂", Slider(range(1, 7, step=0.2), default=3.4, show_value=true)))
-            """
-        ]
-
-        md"""
-##### Medium
-Choose the depth of the boundary between the top layer and the halfspace.
-Slide to adjust the seismic velocities ∈ [1, 7] km/s and densities ∈ [1, 7] gm/cc of the top layer and the halfspace. By default, the parameters corresponding to the curst and mantle will be chosen.
-  $(inputs1)
-        """
-    end
-end
-
-# ╔═╡ 6f16123f-ad37-4054-9950-4deb73363f09
-function freq_rec_input()
-
-    return PlutoUI.combine() do Child
-        inputs1 = [
-            md"""
-                     receiver location (km) $(Child("xrecpos", Slider(range(0, 3000, step=1), default=2000, show_value=true)))
-                     """,
-			    md"""
-                   
-                     """,
-        ]
-       
-        inputs2 = [
-            md"""
-             frequency (Hz) $(Child("freq", Slider(range(0.0, 0.25, step=0.01), default=0.08, show_value=true)))
-            """,
-        
-        ]
-
-        md"""
-##### Wavefield Animation
-  $(inputs2)
-        """
-    end
-end
-
-# ╔═╡ d76e9b6a-a33c-4342-985e-48f8ee91bf71
-function mode_input()
-
-    return PlutoUI.combine() do Child
-
-        input = [md""" 
-        cₙ (km/s) $(Child("c", MultiCheckBox(names_cn, select_all=true, default=cn)))
-        """,]
-
-        return md"""
-#### Phase-velocity Eigenvalues
-  Depending on the parameters chosen above, the estimated phase-velocity eigenvalues (cₙ) are given below. Select them to plot the corresponding eigenfunction (uₙ) i.e., displacement wavefield of a particular mode. You may also select multiple eigenfunctions to plot their superposition. For example, for the crust-mantle configuration, we can notice the first higher-order mode for frequency $0.08$Hz.
-$(input)
-"""
-    end
-end
-
-# ╔═╡ b79f409d-a91e-4e4b-8e16-dff4769924f6
-md"### Plots"
-
-# ╔═╡ 730defe8-8e5e-4162-88d4-0766e7df5c7b
-function plot_roots(x1, x2, cgrid, medium_params, freq)
-
-    f1 = subs_βρ(x1, medium_params)
-    f2 = subs_βρ(x2, medium_params)
-	
-    a = [f1(inv(c), 2 * pi * freq, getη(inv(c), medium_params.β₁), getη(inv(c), medium_params.β₂))  for c in cgrid]
-    b = [f2(inv(c), 2 * pi * freq, getη(inv(c), medium_params.β₁), getη(inv(c), medium_params.β₂)) for c in cgrid]
-
-    trace1 = scatter(x=cgrid, y=real.(a), mode="lines", line_color="red", name="real(ex1)")
-    trace2 = scatter(x=cgrid, y=imag.(a), mode="lines", line_color="blue", name="imag(ex1)")
-    trace3 = scatter(x=cgrid, y=real.(b), mode="lines", line_color="red", line_dash="dash", name="real(ex2)")
-    trace4 = scatter(x=cgrid, y=imag.(b), mode="lines", line_color="blue", line_dash="dash", name="imag(ex2)")
-    trace5 = scatter(x=[medium_params.β₁], y=[0], mode="markers", marker_size=8, marker_color="black", marker_symbol="dot", name="β₁")
-    trace6 = scatter(x=[medium_params.β₂], y=[0], mode="markers", marker_size=8, marker_color="black", marker_symbol="line-ns-open", name="β₂")
-
-    layout = Layout(title="F(c)=ex1(c) - ex2(c)",
-        xaxis_title="phase velocity (c)",
-        margin=attr(l=50, r=50, b=50, t=50),
-        legend=attr(x=10, y=1.3),
-        width=700,
-        height=400,
-        xaxis_range=[cgrid[1], cgrid[end]])
-
-    plot([trace1, trace2, trace3, trace4, trace5, trace6], layout)
-end
-
-# ╔═╡ ca8f817d-8715-40d4-9f48-ded6a79b421e
-plot_roots(ex1, ex2, crange1, medium, freq_rec.freq)
-
-# ╔═╡ ed15bab9-c0dd-467a-93cf-e6edb5f03216
-plot_roots(ex1, ex2, crange2, medium, freq_rec.freq)
-
-# ╔═╡ ffb3cf31-0d33-48eb-9be0-cfa4e009b315
-plot_roots(ex1, ex2, crange3, medium, freq_rec.freq)
-
-# ╔═╡ fdfc93ee-3cf4-456b-9ca9-7098c04dac26
+# ╔═╡ 50b57477-3da3-4c67-8fc1-f19a608dbfe2
 begin
-	function create_grid(medium_params)
-	    # we need to discretize space before plotting 
-	    xgrid = range(50, stop=250, length=100)
-	    zgrid1 = range(0, stop=medium_params.Hp, length=100)
-	    zgrid2 = range(medium_params.Hp, stop=200, length=100)
-	    return (; xgrid, zgrid1, zgrid2)
+	phase_arr = wavenumbers[1] .* xrecpos .- 2π .* freqgrid[2:end] .* tcursor
+	min_points, _ = findminima(phase_arr)
+	max_points, _ = findmaxima(phase_arr)
+end
+
+# ╔═╡ f7fcbbf9-f938-46b4-83b7-d959a0208079
+let
+	μ1 = medium.β₁^2 * medium.ρ₁
+	μ2 = medium.β₂^2 * medium.ρ₂
+	f_below = maximum(abs ∘ real, F.(inv.(crange2), 2π * lw["freq"], getη.(inv.(crange2), medium.β₁), getη.(inv.(crange2), medium.β₂), μ1, μ2, medium.Hp))
+	f_above = maximum(abs ∘ real, F.(inv.(crange3), 2π * lw["freq"], getη.(inv.(crange3), medium.β₁), getη.(inv.(crange3), medium.β₂), μ1, μ2, medium.Hp))
+	(min_abs_F_below_β₁ = f_below, min_abs_F_above_β₂ = f_above)
+end
+
+# ╔═╡ b0a6f5b8-9d1e-4c1a-8b8e-5e9b6e0a2c3d
+U1 = let expr = substitute(u1, [ı => im, B₁ => 1, A₁ => 1])
+    build_function(expr, x, z, t, p, ω, η₁, expression=Val{false})
+end
+
+# ╔═╡ 546bee6c-9faa-4f6b-a1e2-c46cae098185
+begin
+	record = mapreduce(+, freqgrid[2:end], phase_velocities[1]) do f, c
+	    broadcast(tgrid) do t
+	        real(U1(xrecpos, 0, t, inv(c), 2π * f, getη(inv(c), medium.β₁))) * (freqmin <= f <= freqmax)
+	    end
 	end
-	
-	grid = create_grid(medium)
+	arrival1 = xrecpos / medium.β₁
+	arrival2 = xrecpos / medium.β₂
 end
 
-# ╔═╡ e73358b5-87bc-4521-8156-d38d303fd849
-function plot_record(x, z, U1, tUI, medium_params, freqgrid, phase_velocities, tgrid, xrecposUI, freqsUI)
-    record = mapreduce(+, freqgrid[2:end], phase_velocities[1]) do f, c
-        return broadcast(tgrid) do t
-            real(U1(x, z, t, inv(c), 2 * pi * f, getη(inv(c), medium_params.β₁), getη(inv(c), medium_params.β₁))) * (f ∈ freqsUI)
-        end
-    end
-    fig = Plot(Layout(uirevision=1, title="Fundamental Mode Seismogram at $(xrecposUI) km", xaxis=attr(title="Time (s)"), yaxis=attr(title="Amplitude", range=(-500, 500))))
-    add_trace!(fig, scatter(x=tgrid, y=record, line_color="black"))
-    add_vline!(fig,
-        xrecposUI / medium_params.β₁, line_color="red")
-    add_vline!(fig,
-        xrecposUI / medium_params.β₂, line_color="red")
-    add_vline!(fig,
-        tUI, line_color="blue")
-    # fillcolor="LightSalmon", opacity=0.5,
-    # layer="below", line_width=0,
-
-    plot(fig)
+# ╔═╡ c2f7e6c9-8a2f-4d2b-9c9f-6f8c7f1b3d4e
+U2 = let
+	A2p_sym = substitute(A₂ex1, [ı => im, B₁ => 1, A₁ => 1, B₂ => 0])
+	expr = substitute(u2, [ı => im, B₁ => 1, A₁ => 1, B₂ => 0, A₂ => A2p_sym])
+	build_function(expr, x, z, t, p, ω, η₁, η₂, μ₁, μ₂, H, expression=Val{false})
 end
 
-# ╔═╡ 5328dbcf-b720-48bd-b979-ee853177ffce
-plot_record(xrecposUI, 0, U1, tUI, medium, freqgrid, phase_velocities, tgrid, xrecposUI, freqsUI)
+# ╔═╡ ac1af06b-a4cd-4112-958b-9b10e797bd5d
+begin
+	xgrid = range(0, stop=300, length=NX_LW)
+	zgrid1 = range(0, stop=medium.Hp, length=NZ_LW)
+	zgrid2 = range(medium.Hp, stop=ZMAX_LW, length=NZ_LW)
 
-# ╔═╡ 1b0fa006-6679-42ba-896e-990b7a3fa2ef
-function plot_Love_waves(t, medium_params, freq, grid, U1, U2, modes)
-    (; xgrid, zgrid1, zgrid2) = grid
+	active_cn = [cn[i] for i in selected_modes if 1 <= i <= length(cn)]
+	if isempty(active_cn) && !isempty(cn)
+		active_cn = [cn[1]]
+	end
 
-    U1p = mapreduce(+, modes.c) do c
-        return broadcast(Iterators.product(zgrid1, xgrid)) do (z, x)
-            real(U1(x, z, t, inv(c), 2 * pi * freq, getη(inv(c), medium_params.β₁), getη(inv(c), medium_params.β₂)))
-        end
-    end
+	period = inv(lw["freq"])
+	frame_times = range(0, step=period / NFRAMES_LW, length=NFRAMES_LW)
 
-    U2p = mapreduce(+, modes.c) do c
-        return broadcast(Iterators.product(zgrid2, xgrid)) do (z, x)
-            real(U2(x, z, t, inv(c), 2 * pi * freq, getη(inv(c), medium_params.β₁), getη(inv(c), medium_params.β₂)))
-        end
-    end
+	μ1_wf = medium.β₁^2 * medium.ρ₁
+	μ2_wf = medium.β₂^2 * medium.ρ₂
 
+	U1_frames = map(frame_times) do tframe
+	    isempty(active_cn) ? zeros(NZ_LW, NX_LW) : mapreduce(+, active_cn) do c
+	        broadcast(Iterators.product(zgrid1, xgrid)) do (z, x)
+	            real(U1(x, z, tframe, inv(c), 2π * lw["freq"], getη(inv(c), medium.β₁)))
+	        end
+	    end
+	end
 
-    # return U1p
+	U2_frames = map(frame_times) do tframe
+	    isempty(active_cn) ? zeros(NZ_LW, NX_LW) : mapreduce(+, active_cn) do c
+	        broadcast(Iterators.product(zgrid2, xgrid)) do (z, x)
+	            real(U2(x, z, tframe, inv(c), 2π * lw["freq"], getη(inv(c), medium.β₁), getη(inv(c), medium.β₂), μ1_wf, μ2_wf, medium.Hp))
+	        end
+	    end
+	end
 
-    trace1 = heatmap(y=zgrid1, x=xgrid, zauto=false, zmin=-5, zmax=5, colorscale="RdBu", z=U1p, showscale=false)
-    trace2 = heatmap(y=zgrid2, x=xgrid, zauto=false, zmin=-5, zmax=5, colorscale="RdBu", z=U2p, showscale=false,)
-
-
-    layout = Layout(
-        title="Love-wave Displacement",
-        xaxis_title="Distance (x)",
-        yaxis_title="Depth (z)",
-        width=600,
-        height=500,
-        yaxis_scaleanchor="x",
-        yaxis_scaleratio=1,
-        yaxis_autorange="reversed",
-        shapes=[Shape("a", type="line", x0=xgrid[1], y0=medium_params.Hp, x1=xgrid[end], y1=medium_params.Hp, line=attr(color="black", width=5)), Shape("b", type="line", x0=xgrid[1], y0=0, x1=xgrid[end], y1=0, line=attr(color="black", width=5, dash="dot"))
-        ],
-        annotations=[
-            # annotation for the first line
-            attr(
-                text="Boundary",
-                xref="paper", yref="y",
-                x=0.1, y=medium_params.Hp,
-                font=attr(size=12),
-                showarrow=false, borderpad=4, bgcolor="white",
-            ),
-            # annotation for the second line
-            attr(
-                text="Free Surface",
-                xref="paper", yref="y",
-                x=0.1, y=0,
-                font=attr(size=12),
-                showarrow=false, borderpad=4, bgcolor="white",
-            )
-        ],
-        legend=attr(x=0, y=-0.3, traceorder="reversed")
-    )
-
-    return plot([trace1, trace2], layout)
+	wmax = max(maximum(m -> maximum(abs, m), U1_frames), maximum(m -> maximum(abs, m), U2_frames), 1.0e-9)
 end
 
-# ╔═╡ fefb338f-0b89-4902-a85f-c8f87cf5c172
-plot_Love_waves(tt, medium, freq_rec.freq, grid, U1, U2, modes)
+# ╔═╡ ea8dc149-2606-431b-85ca-a060f24cf1b3
+LovePush(freqgrid[2:end], phase_velocities, group_velocities, cn, lw["freq"],
+    NX_LW, NZ_LW, NFRAMES_LW, medium.Hp, zgrid2[end], xgrid[end], wmax,
+    U1_frames, U2_frames, tgrid, record, arrival1, arrival2,
+    phase_arr, min_points, max_points)
 
-# ╔═╡ d43097f2-34c3-4326-8473-62317a7c7730
-function plot_dispersion_curves(phase_velocities, group_velocities, freqgrid)
-    fig = Plot(Layout(height=600, title="Dispersion Curves", Subplots(shared_xaxes=true, rows=2, cols=1, subplot_titles=["Phase Velocity" "Group Velocity"], x_title="Frequency (Hz)")))
-
-    add_trace!(fig, scatter(x=freqgrid[2:end], y=phase_velocities[1], name="Fundamental Mode"), row=1, col=1)
-    add_trace!(fig, scatter(x=freqgrid[2:end], y=phase_velocities[2], name="First Higher-order Mode"), row=1, col=1)
-    add_trace!(fig, scatter(x=freqgrid[2:end], y=phase_velocities[3], name="Second Higher-order Mode"), row=1, col=1)
-    add_trace!(fig, scatter(x=freqgrid[2:end], y=phase_velocities[4], name="Second Higher-order Mode"), row=1, col=1)
-
-
-
-    add_trace!(fig, scatter(x=freqgrid[2:end], y=group_velocities[1], name="Fundamental Mode"), row=2, col=1)
-    add_trace!(fig, scatter(x=freqgrid[2:end], y=group_velocities[2], name="First Higher-order Mode"), row=2, col=1)
-    add_trace!(fig, scatter(x=freqgrid[2:end], y=group_velocities[3], name="Second Higher-order Mode"), row=2, col=1)
-    add_trace!(fig, scatter(x=freqgrid[2:end], y=group_velocities[4], name="Second Higher-order Mode"), row=2, col=1)
-
-    plot(fig)
-end
-
-# ╔═╡ 481ddc41-0124-439e-ba04-b039a4bef764
-plot_dispersion_curves(phase_velocities, group_velocities, freqgrid)
-
-# ╔═╡ 5b924c0b-fee5-4ea1-a42d-8d6b82c531a3
-function plot_phase(t, xrecpos, medium_params, wavenumbers, freqgrid)
-    fig = Plot(Layout(title="Stationary Phase Analysis", yaxis=attr(title="Phase = (kx-ωt)"), xaxis=attr(title="Frequency (Hz)")))
-    t1 = xrecpos / medium_params.β₁ * 0.5
-    t2 = xrecpos / medium_params.β₂ * 2
-
-    phase = wavenumbers[1] * xrecpos .- 2pi .* freqgrid[2:end] * t
-    min_points, _ = findminima(phase)
-    max_points, _ = findmaxima(phase)
-    add_trace!(fig, scatter(x=freqgrid[2:end], y=phase, name=string(t)))
-    plot(fig)
-    map(min_points) do p
-        add_vline!(fig, freqgrid[2:end][p])
-    end
-    map(max_points) do p
-        add_vline!(fig, freqgrid[2:end][p])
-    end
-    plot(fig)
-end
-
-# ╔═╡ 29f1f30e-449e-47a7-86ce-45e1e8ead5c3
-plot_phase(tUI, xrecposUI, medium, wavenumbers, freqgrid)
-
-# ╔═╡ 16c826bf-fa48-423c-bfec-195f7fc502f8
+# ╔═╡ d3e8f7d0-7b3f-4e3c-8d8f-7a9d8e2c4f5a
 md"""
-## TODO
-- plot phase velocities as a function of period, too
+### Verifying the Generalized Functions Against the Symbolic Derivation
+`F`, `U1`, `U2` above were built with `μ₁`, `μ₂`, `H` symbolic. Here we confirm they agree,
+at an arbitrary test point, with directly substituting numbers into the original symbolic
+expressions (`ex1 - ex2`, `u1`, `u2`) -- i.e. that leaving those three parameters symbolic
+during `build_function` didn't change the math.
 """
+
+# ╔═╡ e4f9a8e1-6c4a-4f4d-9e9a-8b0e9f3d5a6b
+let
+	test_medium = (; Hp=40.0, β₁=3.2, β₂=4.8, ρ₁=2.4, ρ₂=3.6)
+	μ1t = test_medium.β₁^2 * test_medium.ρ₁
+	μ2t = test_medium.β₂^2 * test_medium.ρ₂
+	p0, ω0 = 0.28, 1.3
+	η1_0, η2_0 = getη(p0, test_medium.β₁), getη(p0, test_medium.β₂)
+	x0, z0, t0 = 120.0, 15.0, 3.0
+
+	# a fully-substituted expression (no free symbols left) doesn't auto-collapse to a
+	# native number under this Symbolics version -- forcing it through build_function()
+	# (a zero-arg compiled call) is what actually evaluates it, unlike Symbolics.value.
+	collapse(expr) = build_function(expr, expression=Val{false})()
+
+	F_truth = collapse(substitute(ex1 - ex2,
+		[p => p0, ω => ω0, η₁ => η1_0, η₂ => η2_0, H => test_medium.Hp, μ₁ => μ1t, μ₂ => μ2t]))
+	U1_truth = collapse(substitute(u1,
+		[ı => im, B₁ => 1, A₁ => 1, x => x0, z => z0, t => t0, p => p0, ω => ω0, η₁ => η1_0]))
+	A2p_truth = collapse(substitute(A₂ex1,
+		[ı => im, B₁ => 1, A₁ => 1, B₂ => 0, H => test_medium.Hp, μ₁ => μ1t, μ₂ => μ2t, ω => ω0, η₁ => η1_0, η₂ => η2_0]))
+	U2_truth = collapse(substitute(u2,
+		[ı => im, B₁ => 1, A₁ => 1, B₂ => 0, A₂ => A2p_truth, x => x0, z => z0, t => t0, p => p0, ω => ω0, η₂ => η2_0]))
+
+	(
+		F_err=abs(F(p0, ω0, η1_0, η2_0, μ1t, μ2t, test_medium.Hp) - F_truth),
+		U1_err=abs(U1(x0, z0, t0, p0, ω0, η1_0) - U1_truth),
+		U2_err=abs(U2(x0, z0, t0, p0, ω0, η1_0, η2_0, μ1t, μ2t, test_medium.Hp) - U2_truth),
+	)
+end
 
 # ╔═╡ 00000000-0000-0000-0000-000000000001
 PLUTO_PROJECT_TOML_CONTENTS = """
@@ -628,7 +1226,6 @@ PLUTO_PROJECT_TOML_CONTENTS = """
 FFTW = "7a1cc6ca-52ef-59f5-83cd-3a7055c09341"
 Latexify = "23fbe1c1-3f47-55db-b15f-69d7ec21a316"
 Peaks = "18e31ff7-3703-566c-8e60-38913d67486b"
-PlutoPlotly = "8e989ff0-3d88-8e9f-f020-2b208a939ff0"
 PlutoTeachingTools = "661c6b06-c737-4d37-b85c-46df65de6f69"
 PlutoUI = "7f904dfe-b85e-4ff6-b463-dae2292396a8"
 Roots = "f2b01f46-fcfa-551c-844a-d8ac1e96c665"
@@ -639,7 +1236,6 @@ Symbolics = "0c5d862f-8b57-4792-8d23-62f2024744c7"
 FFTW = "~1.10.0"
 Latexify = "~0.16.11"
 Peaks = "~0.6.2"
-PlutoPlotly = "~0.6.6"
 PlutoTeachingTools = "~0.4.7"
 PlutoUI = "~0.7.83"
 Roots = "~3.0.6"
@@ -653,7 +1249,7 @@ PLUTO_MANIFEST_TOML_CONTENTS = """
 
 julia_version = "1.12.4"
 manifest_format = "2.0"
-project_hash = "f3d41bbf9a8225f51ecd3bc5c7056c37971d12e5"
+project_hash = "548371942c49c878fb576946db865fcd68ee9f29"
 
 [[deps.ADTypes]]
 git-tree-sha1 = "0a81a018463de6c3f4f2c9360121c562e5add9e4"
@@ -790,12 +1386,6 @@ git-tree-sha1 = "a2d308fcd4c2fb90e943cf9cd2fbfa9c32b69733"
 uuid = "e2ed5e7c-b2de-5872-ae92-c73ca462fb04"
 version = "0.2.2"
 
-[[deps.ColorSchemes]]
-deps = ["ColorTypes", "ColorVectorSpace", "Colors", "FixedPointNumbers", "PrecompileTools", "Random"]
-git-tree-sha1 = "b0fd3f56fa442f81e0a47815c92245acfaaa4e34"
-uuid = "35d6a980-a343-548e-a6ea-1d62b119f2f4"
-version = "3.31.0"
-
 [[deps.ColorTypes]]
 deps = ["FixedPointNumbers", "Random"]
 git-tree-sha1 = "67e11ee83a43eb71ddc950302c53bf33f0690dfe"
@@ -805,22 +1395,6 @@ weakdeps = ["StyledStrings"]
 
     [deps.ColorTypes.extensions]
     StyledStringsExt = "StyledStrings"
-
-[[deps.ColorVectorSpace]]
-deps = ["ColorTypes", "FixedPointNumbers", "LinearAlgebra", "Requires", "Statistics", "TensorCore"]
-git-tree-sha1 = "8b3b6f87ce8f65a2b4f857528fd8d70086cd72b1"
-uuid = "c3611d14-8923-5661-9e6a-0046d554d3a4"
-version = "0.11.0"
-weakdeps = ["SpecialFunctions"]
-
-    [deps.ColorVectorSpace.extensions]
-    SpecialFunctionsExt = "SpecialFunctions"
-
-[[deps.Colors]]
-deps = ["ColorTypes", "FixedPointNumbers", "Reexport"]
-git-tree-sha1 = "37ea44092930b1811e666c3bc38065d7d87fcc74"
-uuid = "5ae59095-9a9b-59fe-a467-6f913c188581"
-version = "0.13.1"
 
 [[deps.Combinatorics]]
 git-tree-sha1 = "08c8b6831dc00bfea825826be0bc8336fc369860"
@@ -877,12 +1451,6 @@ version = "0.19.6"
 deps = ["Printf"]
 uuid = "ade2ca70-3891-5945-98fb-dc099432e06a"
 version = "1.11.0"
-
-[[deps.DelimitedFiles]]
-deps = ["Mmap"]
-git-tree-sha1 = "9e2f36d3c96a820c678f2f1f1782582fcf685bae"
-uuid = "8bb1440f-4735-579b-a4ab-409b98df4dab"
-version = "1.9.1"
 
 [[deps.DiffRules]]
 deps = ["IrrationalConstants", "LogExpFunctions", "NaNMath", "Random", "SpecialFunctions"]
@@ -992,11 +1560,6 @@ version = "1.14.0"
     Distributed = "8ba89e20-285c-5b6f-9357-94700520ee1b"
     SharedArrays = "1a1011a3-84de-559e-8e89-a11a2f7dc383"
 
-[[deps.HashArrayMappedTries]]
-git-tree-sha1 = "2eaa69a7cab70a52b9687c8bf950a5a93ec895ae"
-uuid = "076d061b-32b6-4027-95e0-9a2c6f6d7e74"
-version = "0.2.0"
-
 [[deps.Hyperscript]]
 deps = ["Test"]
 git-tree-sha1 = "179267cfa5e712760cd43dcae385d7ea90cc25a4"
@@ -1067,18 +1630,6 @@ deps = ["Artifacts", "Preferences"]
 git-tree-sha1 = "7204148362dafe5fe6a273f855b8ccbe4df8173e"
 uuid = "692b3bcd-3c85-4b1f-b108-f13ce0eb3210"
 version = "1.8.0"
-
-[[deps.JSON]]
-deps = ["Dates", "Logging", "Parsers", "PrecompileTools", "StructUtils", "UUIDs", "Unicode"]
-git-tree-sha1 = "c89d196f5ffb64bfbf80985b699ea913b0d2c211"
-uuid = "682c06a0-de6a-54ab-a142-c8b1cf79cde6"
-version = "1.6.1"
-
-    [deps.JSON.extensions]
-    JSONArrowExt = ["ArrowTypes"]
-
-    [deps.JSON.weakdeps]
-    ArrowTypes = "31f734f8-188a-4ce0-8406-c8a06bd891cd"
 
 [[deps.Jieko]]
 deps = ["ExproniconLite"]
@@ -1200,10 +1751,6 @@ deps = ["Base64", "JuliaSyntaxHighlighting", "StyledStrings"]
 uuid = "d6f4376e-aef5-505a-96c1-9c027394607a"
 version = "1.11.0"
 
-[[deps.Mmap]]
-uuid = "a63ad114-7e13-5084-954f-fe012c677804"
-version = "1.11.0"
-
 [[deps.Moshi]]
 deps = ["ExproniconLite", "Jieko"]
 git-tree-sha1 = "60beb0717782a3bbe0f7df56decad0ef89048c23"
@@ -1268,18 +1815,6 @@ git-tree-sha1 = "94ba93778373a53bfd5a0caaf7d809c445292ff4"
 uuid = "bac558e1-5e72-5ebc-8fee-abe8a469f55d"
 version = "1.8.2"
 
-[[deps.Parameters]]
-deps = ["OrderedCollections", "UnPack"]
-git-tree-sha1 = "34c0e9ad262e5f7fc75b10a9952ca7692cfc5fbe"
-uuid = "d96e819e-fc66-5662-9728-84c9c7592b0a"
-version = "0.12.3"
-
-[[deps.Parsers]]
-deps = ["Dates", "PrecompileTools", "UUIDs"]
-git-tree-sha1 = "32a4e09c5f29402573d673901778a0e03b0807b9"
-uuid = "69de0a69-1ddd-5017-9359-2bf0b02dc9f0"
-version = "2.8.6"
-
 [[deps.Peaks]]
 deps = ["SIMD"]
 git-tree-sha1 = "a9b6680fb7fb097fb6eb1210c35549218d73da84"
@@ -1298,42 +1833,12 @@ version = "0.6.2"
 deps = ["Artifacts", "Dates", "Downloads", "FileWatching", "LibGit2", "Libdl", "Logging", "Markdown", "Printf", "Random", "SHA", "TOML", "Tar", "UUIDs", "p7zip_jll"]
 uuid = "44cfe95a-1eb2-52ea-b672-e2afdf69b78f"
 version = "1.12.1"
-weakdeps = ["REPL"]
 
     [deps.Pkg.extensions]
     REPLExt = "REPL"
 
-[[deps.PlotlyBase]]
-deps = ["ColorSchemes", "Colors", "Dates", "DelimitedFiles", "DocStringExtensions", "JSON", "LaTeXStrings", "Logging", "Parameters", "Pkg", "REPL", "Requires", "Statistics", "UUIDs"]
-git-tree-sha1 = "6256ab3ee24ef079b3afa310593817e069925eeb"
-uuid = "a03496cd-edff-5a9b-9e67-9cda94a718b5"
-version = "0.8.23"
-
-    [deps.PlotlyBase.extensions]
-    DataFramesExt = "DataFrames"
-    DistributionsExt = "Distributions"
-    IJuliaExt = "IJulia"
-    JSON3Ext = "JSON3"
-
-    [deps.PlotlyBase.weakdeps]
-    DataFrames = "a93c6f00-e57d-5684-b7b6-d8193f3e46c0"
-    Distributions = "31c24e10-a181-5473-b8eb-7969acd0382f"
-    IJulia = "7073ff75-c697-5162-941a-fcdaad2a7d2a"
-    JSON3 = "0f8b85d8-7281-11e9-16c2-39a750bddbf1"
-
-[[deps.PlutoPlotly]]
-deps = ["AbstractPlutoDingetjes", "Artifacts", "ColorSchemes", "Colors", "Dates", "Downloads", "HypertextLiteral", "InteractiveUtils", "LaTeXStrings", "Markdown", "Pkg", "PlotlyBase", "PrecompileTools", "Reexport", "ScopedValues", "Scratch", "TOML"]
-git-tree-sha1 = "2b9e3d771adfe535a4fdda855f4741fdaacd3f7f"
-uuid = "8e989ff0-3d88-8e9f-f020-2b208a939ff0"
-version = "0.6.6"
-
-    [deps.PlutoPlotly.extensions]
-    PlotlyKaleidoExt = "PlotlyKaleido"
-    UnitfulExt = "Unitful"
-
-    [deps.PlutoPlotly.weakdeps]
-    PlotlyKaleido = "f2990250-8cf9-495f-b13a-cce12b45703c"
-    Unitful = "1986cc42-f94f-5a68-af5c-568840ba703d"
+    [deps.Pkg.weakdeps]
+    REPL = "3fa0cd96-eef1-5676-8a61-b3b8758bbffb"
 
 [[deps.PlutoTeachingTools]]
 deps = ["Downloads", "HypertextLiteral", "Latexify", "Markdown", "PlutoUI"]
@@ -1368,11 +1873,6 @@ version = "0.5.7"
 [[deps.Printf]]
 deps = ["Unicode"]
 uuid = "de0858da-6303-5e67-8744-51eddeeeb8d7"
-version = "1.11.0"
-
-[[deps.REPL]]
-deps = ["InteractiveUtils", "JuliaSyntaxHighlighting", "Markdown", "Sockets", "StyledStrings", "Unicode"]
-uuid = "3fa0cd96-eef1-5676-8a61-b3b8758bbffb"
 version = "1.11.0"
 
 [[deps.Random]]
@@ -1445,18 +1945,6 @@ git-tree-sha1 = "cf9aaf8b9ed5db993259ea8b24cf2b7ba9bd3b79"
 uuid = "431bcebd-1456-4ced-9d72-93c2757fff0b"
 version = "1.2.4"
 
-[[deps.ScopedValues]]
-deps = ["HashArrayMappedTries", "Logging"]
-git-tree-sha1 = "67a144433c4ce877ee6d1ada69a124d6b1ecf7be"
-uuid = "7e506255-f358-4e82-b7e4-beb19740aa63"
-version = "1.6.2"
-
-[[deps.Scratch]]
-deps = ["Dates"]
-git-tree-sha1 = "9b81b8393e50b7d4e6d0a9f14e192294d3b7c109"
-uuid = "6c6a2e73-6563-6170-7368-637461726353"
-version = "1.3.0"
-
 [[deps.Serialization]]
 uuid = "9e88b42a-f829-5b0c-bbe9-9e923198166b"
 version = "1.11.0"
@@ -1472,10 +1960,6 @@ deps = ["InteractiveUtils", "MacroTools"]
 git-tree-sha1 = "7ddb0b49c109481b046972c0e4ab02b2127d6a75"
 uuid = "699a6c99-e7fa-54fc-8d76-47d257e15c1d"
 version = "0.9.6"
-
-[[deps.Sockets]]
-uuid = "6462fe0b-24de-5631-8697-dd941f90decc"
-version = "1.11.0"
 
 [[deps.SparseArrays]]
 deps = ["Libdl", "LinearAlgebra", "Random", "Serialization", "SuiteSparse_jll"]
@@ -1528,22 +2012,6 @@ weakdeps = ["SparseArrays"]
 
     [deps.Statistics.extensions]
     SparseArraysExt = ["SparseArrays"]
-
-[[deps.StructUtils]]
-deps = ["Dates", "UUIDs"]
-git-tree-sha1 = "82bee338d650aa515f31866c460cb7e3bcef90b8"
-uuid = "ec057cc2-7a8d-4b58-b3b3-92acb9f63b42"
-version = "2.8.2"
-
-    [deps.StructUtils.extensions]
-    StructUtilsMeasurementsExt = ["Measurements"]
-    StructUtilsStaticArraysCoreExt = ["StaticArraysCore"]
-    StructUtilsTablesExt = ["Tables"]
-
-    [deps.StructUtils.weakdeps]
-    Measurements = "eff96d63-e80a-5855-80a2-b1b0885c5ab7"
-    StaticArraysCore = "1e83bf80-4336-4d27-bf5d-d5a4f845583c"
-    Tables = "bd369af6-aec1-5ad0-b16a-f7cc5008161c"
 
 [[deps.StyledStrings]]
 uuid = "f489334b-da3d-4c2e-b8f0-e476e12c162b"
@@ -1636,12 +2104,6 @@ git-tree-sha1 = "67e469338d9ce74fc578f7db1736a74d93a49eb8"
 uuid = "ed4db957-447d-4319-bfb6-7fa9ae7ecf34"
 version = "0.1.3"
 
-[[deps.TensorCore]]
-deps = ["LinearAlgebra"]
-git-tree-sha1 = "1feb45f88d133a655e001435632f019a9a1bcdb6"
-uuid = "62fd8b95-f654-4bbd-a8a5-9c27f68ccd50"
-version = "0.1.1"
-
 [[deps.TermInterface]]
 git-tree-sha1 = "d673e0aca9e46a2f63720201f55cc7b3e7169b16"
 uuid = "8ea1fca8-c5ef-4a55-8b96-4e9afe9c9a3c"
@@ -1666,11 +2128,6 @@ version = "1.6.2"
 deps = ["Random", "SHA"]
 uuid = "cf7118a7-6976-5b1a-9a39-7adc72f591a4"
 version = "1.11.0"
-
-[[deps.UnPack]]
-git-tree-sha1 = "387c1f73762231e86e0c9c5443ce3b4a0a9a0c2b"
-uuid = "3a884ed6-31ef-47d7-9d2a-63182c4928ed"
-version = "1.0.2"
 
 [[deps.Unicode]]
 uuid = "4ec0a83e-493e-50e2-b9ac-8f72acf5a8f5"
@@ -1712,15 +2169,8 @@ version = "17.7.0+0"
 # ╠═9b02e72d-be6b-485d-a186-ba2fe2dcd6fb
 # ╠═bdf3d004-653a-4b56-af7c-42ca1d6021e5
 # ╟─2a41b15e-1a0e-4c92-a3a5-53603faacea1
-# ╟─87b80ede-1da7-4c24-ada9-4327f0bb755e
-# ╟─fefb338f-0b89-4902-a85f-c8f87cf5c172
-# ╟─19a31e92-8226-4ce5-aa04-933552953a9d
-# ╟─2d89a043-dfd3-4662-8c29-8829987fa39c
-# ╟─226f1f5c-bfe6-4865-82b8-d39b964f47ca
-# ╟─e3f0470d-0317-4a9e-a93b-388b6efca5c4
-# ╟─5328dbcf-b720-48bd-b979-ee853177ffce
-# ╟─29f1f30e-449e-47a7-86ce-45e1e8ead5c3
-# ╟─481ddc41-0124-439e-ba04-b039a4bef764
+# ╟─4479381e-b424-4599-b692-877e4a15405e
+# ╟─bec713a8-708f-42e9-a7ef-35c16f597336
 # ╟─9f106bb0-b0c6-4c5b-bdf2-f17c15693b82
 # ╟─a19519d6-a96f-4a8a-8563-d5052f694aff
 # ╠═8d2fd2d9-da36-43f4-8dcb-dd931c8189f5
@@ -1756,21 +2206,15 @@ version = "17.7.0+0"
 # ╠═09a8041d-6443-4e83-8443-e0e2aa05317a
 # ╠═0fc4d1a1-25ac-49c9-b74b-a9f26928c652
 # ╟─794a1f79-708d-4305-8aa0-d2673f34e31f
-# ╠═7bd5a551-3379-4270-81d0-9506292e6d8c
 # ╠═b3e662bf-8d13-418b-886c-b29456d62454
 # ╠═3fa22358-6d61-4b9a-9aa8-39d2b1c6a917
 # ╠═bfb54c6f-a52c-4a10-87c7-9788f2f63629
 # ╠═cbbae944-5377-44a4-ae32-868a75625248
-# ╠═ca8f817d-8715-40d4-9f48-ded6a79b421e
-# ╠═90bc6374-1f5b-407a-8d05-1e84ec5a6690
-# ╠═ed15bab9-c0dd-467a-93cf-e6edb5f03216
-# ╠═ffb3cf31-0d33-48eb-9be0-cfa4e009b315
 # ╟─b5c5f1d0-0075-4727-a6a9-8b20d6f65bc4
 # ╠═ad269679-e1f9-4d9d-827f-468e36f27bfc
 # ╟─b2858a78-4498-4374-9ee0-c68f3dfca6e8
 # ╠═039a52c9-01b8-4028-9eae-1ff5b779fd78
 # ╠═cc173455-2ed0-42f3-a9c0-0dfdbbe982ee
-# ╠═ad78f0ef-460d-4b62-8bbc-0f7059214b38
 # ╟─8db66193-eb99-478e-bdad-44b0e4e18dad
 # ╠═a69a71b4-6dbc-4de7-a8d7-5cc3ad744d94
 # ╠═5d81104e-16a1-4c44-89a3-a492821021ed
@@ -1785,23 +2229,26 @@ version = "17.7.0+0"
 # ╠═4ee3be7e-7fa9-4f4a-b13a-3d20a8863f04
 # ╠═840a743a-e298-4f99-ae6e-11c85b6f5bc5
 # ╠═80bb6ae1-c48b-4be1-9786-c94c6e8680a1
-# ╠═355e039d-db6d-48b4-a7d7-5f73686e6d56
 # ╟─7bd19e44-b4f5-43f3-b6be-b557ca95c67f
-# ╠═cdaefb2c-818e-4d66-b1c3-f6ac8829ba45
-# ╠═236e2338-f057-4c33-80e2-7dd8ea9ce206
-# ╠═8912a771-1914-42a7-a35b-43cb63971a41
-# ╠═d49ae6c9-a4ee-45f0-99c3-ab9f23ab895d
-# ╟─db4a22f5-74eb-477e-9426-065dcfd1751c
-# ╠═ccbb61f1-c7a1-4cc1-a5c8-0555dd664e16
-# ╠═6f16123f-ad37-4054-9950-4deb73363f09
-# ╠═d76e9b6a-a33c-4342-985e-48f8ee91bf71
-# ╟─b79f409d-a91e-4e4b-8e16-dff4769924f6
-# ╠═730defe8-8e5e-4162-88d4-0766e7df5c7b
-# ╠═fdfc93ee-3cf4-456b-9ca9-7098c04dac26
-# ╠═e73358b5-87bc-4521-8156-d38d303fd849
-# ╠═1b0fa006-6679-42ba-896e-990b7a3fa2ef
-# ╠═d43097f2-34c3-4326-8473-62317a7c7730
-# ╠═5b924c0b-fee5-4ea1-a42d-8d6b82c531a3
 # ╟─16c826bf-fa48-423c-bfec-195f7fc502f8
+# ╠═60c6e69b-c00b-4ffd-87b7-237bb5d3dfcc
+# ╠═28fbc1e8-2323-4d0d-8f43-e6c1041c7f8d
+# ╠═f7fcbbf9-f938-46b4-83b7-d959a0208079
+# ╠═361a3181-857a-4454-9fe6-64c8ae3be9cf
+# ╠═749ed9e6-a16e-49ee-9f70-909aa0493b0d
+# ╠═831be90d-f2ae-4290-b195-34dbb2b2f294
+# ╠═546bee6c-9faa-4f6b-a1e2-c46cae098185
+# ╠═50b57477-3da3-4c67-8fc1-f19a608dbfe2
+# ╠═ac1af06b-a4cd-4112-958b-9b10e797bd5d
+# ╠═648572e8-2cf4-4a1f-932d-02aa2160b6d9
+# ╠═beb71023-cd94-4fd2-8108-c68ad8b58055
+# ╠═ea8dc149-2606-431b-85ca-a060f24cf1b3
+# ╠═42190b26-0b30-4b2d-bc1f-dbb3323d7bb4
+# ╠═e80a6231-6f27-4fe4-a862-32976ba3ab92
+# ╠═1e4a9c31-9b1a-4b64-9a49-6a7b7cb4f4e1
+# ╠═b0a6f5b8-9d1e-4c1a-8b8e-5e9b6e0a2c3d
+# ╠═c2f7e6c9-8a2f-4d2b-9c9f-6f8c7f1b3d4e
+# ╠═d3e8f7d0-7b3f-4e3c-8d8f-7a9d8e2c4f5a
+# ╠═e4f9a8e1-6c4a-4f4d-9e9a-8b0e9f3d5a6b
 # ╟─00000000-0000-0000-0000-000000000001
 # ╟─00000000-0000-0000-0000-000000000002

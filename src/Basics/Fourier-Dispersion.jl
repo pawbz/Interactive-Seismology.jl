@@ -1,5 +1,5 @@
 ### A Pluto.jl notebook ###
-# v0.20.21
+# v0.2.6
 
 #> [frontmatter]
 #> title = "Fourier Series And Dispersion"
@@ -35,10 +35,13 @@ TableOfContents()
 md"""
 # Fourier Series And Dispersion
 
-This basic interactive notebook will help you understand
+Every seismic waveform can be viewed in two complementary ways: as a sum of
+sinusoids, and as a packet whose different frequencies may travel at different
+speeds. This notebook lets you connect those two ideas directly.
 
-- **Fourier Series**: How complex waveforms are built from simple sinusoids and 
-- **Dispersion**: How different frequencies travel at different speeds.
+Start with the widget below. On the left, add Fourier terms to reconstruct a
+periodic waveform. On the right, make the group and phase velocities different
+and follow the envelope and a carrier crest at the same instant.
 
 ##### [Interactive Seismology Notebooks](https://pawbz.github.io/Interactive-Seismology.jl/)
 
@@ -46,197 +49,313 @@ Instructor: *Pawan Bharadwaj*,
 Indian Institute of Science, Bengaluru, India
 """
 
-# ╔═╡ 903847d0-a500-11f0-b347-cb097b21036e
-md"""
-**Number of harmonics:** $(@bind n_harmonics Slider(1:20, default=5, show_value=true))
-
-"""
-
 # ╔═╡ d8f3a2b0-a586-11f0-9c84-3b2f5e1a8d7c
 md"""
-## Group vs Phase Velocity Demonstration
+## How to read the experiment
 
-This section illustrates the fundamental difference between **phase velocity** and **group velocity** using a narrow frequency band - key concepts in wave dispersion.
+The orange curve is the finite Fourier reconstruction; the dashed curve is the
+target periodic function. Gibbs overshoot near a discontinuity is a feature of
+the approximation, not a plotting error.
 
-**Time:** $(@bind time_demo Slider(0:0.1:20, default=0, show_value=true)) seconds
-
-**Center Frequency:** $(@bind fc_demo Slider(0.1:0.1:2.0, default=0.5, show_value=true)) Hz
-
-**Frequency Bandwidth:** $(@bind df_demo Slider(0.01:0.01:0.3, default=0.1, show_value=true)) Hz
-
-**Phase Velocity 1:** $(@bind vp_demo Slider(2:0.1:8, default=4, show_value=true)) m/s
-
-**Group Velocity:** $(@bind vg_demo Slider(1:0.1:6, default=2.5, show_value=true)) m/s
+In the packet panel, the red line tracks the maximum of the envelope, moving at
+the group velocity `v_g`. The blue line tracks a selected carrier crest, moving
+at the phase velocity `v_p`. Set `v_g = v_p` for a non-dispersive packet, then
+separate them to make the distinction visible.
 """
-
-# ╔═╡ e9f4b3c0-a586-11f0-8a75-4c3d6f2e9b8f
-let
-    # Create spatial grid
-    x = range(-50, 50, length=1000)
-    
-    # Parameters from the mathematical formula
-    Δω = 2π * df_demo  # Angular frequency bandwidth
-    ω0 = 2π * fc_demo  # Center angular frequency
-    k_n_ω0 = ω0 / vp_demo  # Wave number at center frequency
-    
-    # Calculate the derivative dk_n/dω (inverse of group velocity)
-    # For demonstration, we'll use the relation: dk/dω = 1/vg
-    dk_dω = 1 / vg_demo
-    
-    # Calculate Y parameter from the formula
-    Y = (Δω / 2) * (time_demo .- dk_dω * x)
-    
-    # Implement the exact formula from equation (7.11, Aki and Richards):
-    # f₀(x,t) ≈ (Δω sin Y)/(π Y) * cos[ω₀t - k_n(ω₀)x]
-    
-    # Handle sinc function properly (sinc(0) = 1)
-    sinc_Y = zeros(length(Y))
-    for i in eachindex(Y)
-        if abs(Y[i]) < 1e-10
-            sinc_Y[i] = 1.0
-        else
-            sinc_Y[i] = sin(Y[i]) / Y[i]
-        end
-    end
-    
-    # Calculate the envelope (sinc function)
-    envelope = abs.(Δω * sinc_Y / π)
-    
-    # Calculate the carrier wave
-    carrier = cos.(ω0 * time_demo .- k_n_ω0 * x)
-    
-    # Total wave using exact formula
-    wave_total = envelope .* carrier
-    
-    # For comparison, also calculate the two-frequency superposition
-    f1 = fc_demo - df_demo/2
-    f2 = fc_demo + df_demo/2
-    k1 = 2π * f1 / vp_demo
-    k2 = 2π * f2 / vp_demo
-    wave1 = cos.(2π * f1 * time_demo .- k1 * x)
-    wave2 = cos.(2π * f2 * time_demo .- k2 * x)
-    wave_superposition = wave1 + wave2
-    
-    # Calculate theoretical positions
-    xg_pos = vg_demo * time_demo  # Group velocity position
-    xp_pos = vp_demo * time_demo  # Phase velocity position
-    
-    # Create plot
-    fig = plot(Layout(
-        title="Group vs Phase Velocity (Exact Sinc Formula)<br>Time = $(round(time_demo, digits=1)) s",
-        xaxis_title="Position (m)",
-        yaxis_title="Amplitude",
-        height=600,
-        showlegend=true
-    ))
-    
-    # Plot envelope (sinc function)
-    add_trace!(fig, scatter(
-        x=x, y=envelope,
-        mode="lines",
-        name="Envelope: (Δω/π)sinc(Y)",
-        line=attr(color="red", width=3, dash="dash"),
-        opacity=0.8
-    ))
-    
-    # Plot carrier wave (faded)
-    add_trace!(fig, scatter(
-        x=x, y=0.5 * carrier,
-        mode="lines",
-        name="Carrier: cos(ω₀t - k₀x)",
-        line=attr(color="blue", width=1, dash="dot"),
-        opacity=0.4
-    ))
-    
-    # Plot total wave (exact sinc formula)
-    add_trace!(fig, scatter(
-        x=x, y=wave_total,
-        mode="lines",
-        name="f₀(x,t) = Envelope × Carrier",
-        line=attr(color="black", width=2)
-    ))
-    
-    # # Plot two-frequency superposition for comparison
-    # add_trace!(fig, scatter(
-    #     x=x, y=wave_superposition,
-    #     mode="lines",
-    #     name="Two-frequency sum (comparison)",
-    #     line=attr(color="gray", width=1, dash="dashdot"),
-    #     opacity=0.6
-    # ))
-    
-    # Mark group velocity position (envelope maximum)
-    add_trace!(fig, scatter(
-        x=[xg_pos, xg_pos],
-        y=[-maximum(envelope), maximum(envelope)],
-        mode="lines",
-        name="Group Velocity Position",
-        line=attr(color="red", width=4),
-        opacity=0.7
-    ))
-    
-    # Mark phase velocity position (carrier wave crest)
-    phase_marker_y = 0.5 * cos(ω0 * time_demo - k_n_ω0 * xp_pos)
-    add_trace!(fig, scatter(
-        x=[xp_pos],
-        y=[phase_marker_y],
-        mode="markers",
-        name="Phase Velocity (Wave Crest)",
-        marker=attr(color="blue", size=12, symbol="circle")
-    ))
-    
-    # Add vertical line for phase velocity
-    add_trace!(fig, scatter(
-        x=[xp_pos, xp_pos],
-        y=[-maximum(envelope), maximum(envelope)],
-        mode="lines",
-        name="Phase Velocity Position", 
-        line=attr(color="blue", width=2, dash="dashdot"),
-        opacity=0.7
-    ))
-    
-    fig
-end
-
-# ╔═╡ f1a2c4d0-a586-11f0-9b86-5d4e7f3a9c9d
-md"""
-### Key Observations:
-
-**Phase Velocity (Blue)**: 
-- Tracks individual wave crests
-- Speed = $(vp_demo) m/s
-- Controls propagation of individual oscillations
-
-**Group Velocity (Red)**: 
-- Tracks the envelope 
-- Speed = $(vg_demo) m/s  
-- Controls propagation of wave energy/information
-
-**Experiment**: Try setting $v_g < v_p$ or $v_g > v_p$ to see different dispersion scenarios!
-"""
-
-# ╔═╡ 8411b089-85f5-4d27-850e-9747896eea36
-md"---"
 
 # ╔═╡ 903846f6-a500-11f0-9bec-955ede71b788
 md"""
-Any periodic function can be represented as a sum of sine and cosine waves:
+## The two equations behind the widget
 
-$$f(x) = a_0 + \sum_{n=1}^{\infty} [a_n \cos(nx) + b_n \sin(nx)]$$
+For a periodic signal, a Fourier series represents the waveform as discrete
+harmonics:
 
-Let's build complex waveforms by adding simple harmonics!
+```math
+f(x) = a_0 + \sum_{n=1}^{\infty} \left[a_n \cos(nx) + b_n \sin(nx)\right].
+```
+
+For the packet, the local slope of the dispersion relation defines the group
+velocity, while the ratio of frequency to wavenumber defines phase velocity:
+
+```math
+v_p = \frac{\omega_0}{k(\omega_0)}, \qquad
+v_g = \left(\frac{dk}{d\omega}\right)^{-1}.
+```
+
+The model uses a locally linear relation `k(ω)`, so its Gaussian envelope moves
+at the prescribed `v_g` while its central carrier moves at `v_p`.
 """
 
 # ╔═╡ 2d41bce0-2035-4afa-8846-74061ac94333
 md"## Appendix"
 
 # ╔═╡ c31dd2bc-562a-4b04-86fa-99e3d241fdde
-md"### UI"
+md"### Physical model"
 
 # ╔═╡ c8806df8-6aab-4018-9c5e-7230195e8580
-f0 = 0.6
+"""
+    fourier_series_data(waveform, nterms; points=801)
+
+Construct a partial Fourier series and its target waveform on one period. The
+three targets use their textbook sine-series coefficients, so the reconstruction
+can be compared with the analytic periodic signal point by point.
+"""
+function fourier_series_data(waveform::String, nterms::Int; points::Int = 801)
+    x = collect(range(-π, π, length = points))
+    target = if waveform == "square"
+        sign.(sin.(x))
+    elseif waveform == "sawtooth"
+        x ./ π
+    else
+        (2 / π) .* asin.(sin.(x))
+    end
+
+    approximation = zeros(Float64, length(x))
+    for n in 1:nterms
+        coefficient = if waveform == "square"
+            isodd(n) ? 4 / (π * n) : 0.0
+        elseif waveform == "sawtooth"
+            2 * (-1)^(n + 1) / (π * n)
+        else
+            isodd(n) ? 8 * (-1)^((n - 1) ÷ 2) / (π^2 * n^2) : 0.0
+        end
+        @. approximation += coefficient * sin(n * x)
+    end
+
+    ymax = max(1.15, 1.08 * maximum(abs, approximation))
+    return (x = x, target = target, approximation = approximation, ymax = ymax)
+end
+
+# ╔═╡ 5c99f48d-94f6-46e8-b3a3-6c7a2a5c8b7b
+"""
+    dispersive_packet_data(fc, bandwidth, vp, vg, time; points=801, frequencies=81)
+
+Synthesize a Gaussian-bandwidth wave packet using a locally linear dispersion
+relation. The central wavenumber gives `vp`; the slope `dk/dω = 1/vg` transports
+the packet envelope. Returned arrays are display-ready, while all wave physics
+is evaluated here in Julia.
+"""
+function dispersive_packet_data(
+    fc::Float64,
+    bandwidth::Float64,
+    vp::Float64,
+    vg::Float64,
+    time::Float64;
+    points::Int = 801,
+    frequencies::Int = 81,
+)
+    ω0 = 2π * fc
+    σ = max(2π * bandwidth / 2.355, 1e-6)
+    ω = collect(range(max(0.01, ω0 - 3σ), ω0 + 3σ, length = frequencies))
+    weights = @. exp(-0.5 * ((ω - ω0) / σ)^2)
+    x = collect(range(-45.0, 45.0, length = points))
+    packet = zeros(Float64, length(x))
+    k0 = ω0 / vp
+
+    for j in eachindex(ω)
+        k = k0 + (ω[j] - ω0) / vg
+        @. packet += weights[j] * cos(ω[j] * time - k * x)
+    end
+    packet ./= max(maximum(abs, packet), eps())
+
+    envelope = @. exp(-0.5 * (σ * (time - x / vg))^2)
+    envelope ./= maximum(envelope)
+    ymax = max(1.15, 1.08 * maximum(abs, packet))
+    return (
+        x = x,
+        packet = packet,
+        envelope = envelope,
+        group_position = vg * time,
+        phase_position = vp * time,
+        ymax = ymax,
+    )
+end
+
+# ╔═╡ 48f67b56-3ff0-4c5f-a694-36ef9d09793f
+"""
+    fourier_dispersion_payload(waveform, harmonics, time, fc, bandwidth, vp, vg)
+
+Return the complete numerical state consumed by the browser renderer. Arrays
+are deliberately flattened into primitive values at this boundary; JavaScript
+only draws these results and does not reproduce either physical calculation.
+"""
+function fourier_dispersion_payload(
+    waveform::String,
+    harmonics::Int,
+    time::Float64,
+    fc::Float64,
+    bandwidth::Float64,
+    vp::Float64,
+    vg::Float64,
+)
+    series = fourier_series_data(waveform, harmonics)
+    packet = dispersive_packet_data(fc, bandwidth, vp, vg, time)
+    return (fourier = series, packet = packet)
+end
+
+# ╔═╡ 93948b6b-d2ce-40c5-976d-0e565ddc0ca4
+let
+    series_check = fourier_series_data("square", 19)
+    packet_check = dispersive_packet_data(0.8, 0.25, 4.0, 2.5, 2.0)
+    rms_error = sqrt(sum((series_check.target .- series_check.approximation) .^ 2) / length(series_check.x))
+    @assert isapprox(maximum(abs, packet_check.envelope), 1.0; atol = 1e-12)
+    (square_wave_rms_error_with_19_terms = round(rms_error, digits = 4), packet_envelope_normalised = true)
+end
+
+# ╔═╡ 8411b089-85f5-4d27-850e-9747896eea36
+md"### The Interactive Widget"
 
 # ╔═╡ 384fa2f0-38fb-464e-b72e-2ec26276f1cf
+begin
+    struct FourierDispersionInput
+        waveform::String
+        harmonics::Int
+        time::Float64
+        center_frequency::Float64
+        bandwidth::Float64
+        phase_velocity::Float64
+        group_velocity::Float64
+    end
+
+    FourierDispersionInput(; waveform="square", harmonics=7, time=2.0,
+        center_frequency=0.8, bandwidth=0.25, phase_velocity=4.0,
+        group_velocity=2.5) = FourierDispersionInput(
+            String(waveform), Int(harmonics), Float64(time), Float64(center_frequency),
+            Float64(bandwidth), Float64(phase_velocity), Float64(group_velocity),
+        )
+
+    Base.get(w::FourierDispersionInput) = Dict{String,Any}(
+        "waveform" => w.waveform,
+        "harmonics" => w.harmonics,
+        "time" => w.time,
+        "center_frequency" => w.center_frequency,
+        "bandwidth" => w.bandwidth,
+        "phase_velocity" => w.phase_velocity,
+        "group_velocity" => w.group_velocity,
+    )
+
+    function Base.show(io::IO, ::MIME"text/html", w::FourierDispersionInput)
+        write(io, """
+        <div id="fd-widget">
+          <style>
+            #fd-widget{box-sizing:border-box;width:100%;max-width:1400px;margin:0 auto;color:#e5e7eb;font:14px system-ui,sans-serif}
+            #fd-widget *{box-sizing:border-box}
+            #fd-widget .fd-title{margin-bottom:10px;padding:10px 14px;text-align:center;background:#0a0f18;border:1px solid #3b5c85;border-radius:6px}
+            #fd-widget .fd-title-desc{font-size:17px;font-weight:700}
+            #fd-widget .fd-title-hint{margin-top:3px;color:#9ca3af;font-size:13px}
+            #fd-widget .fd-workspace{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+            #fd-widget .fd-panel{min-width:0;padding:10px;background:#050505;border:1px solid #2f3744;border-radius:6px}
+            #fd-widget .fd-panel-title{margin:0 0 5px;font-size:15px;font-weight:700;color:#f3f4f6}
+            #fd-widget .fd-caption{min-height:34px;color:#9ca3af;font-size:13px;line-height:1.3}
+            #fd-widget canvas{display:block;width:100%;height:285px;background:#000;border:1px solid #374151;border-radius:4px}
+            #fd-widget .fd-legend{display:flex;gap:13px;flex-wrap:wrap;margin-top:7px;color:#d1d5db;font-size:12px}
+            #fd-widget .fd-key{display:inline-flex;gap:5px;align-items:center}
+            #fd-widget .fd-swatch{width:18px;height:3px;border-radius:2px;background:currentColor}
+            #fd-widget .fd-dash{background:repeating-linear-gradient(90deg,currentColor 0 6px,transparent 6px 10px)}
+            #fd-widget .fd-controls{display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:8px;margin-top:10px}
+            #fd-widget .fd-control-group{min-width:0;padding:10px;background:#050505;border:1px solid #2f3744;border-radius:6px}
+            #fd-widget .fd-control-title{margin-bottom:7px;font-size:16px;font-weight:700;color:#f3f4f6}
+            #fd-widget .fd-control-row{display:grid;grid-template-columns:minmax(74px,126px) minmax(70px,1fr) minmax(42px,62px);gap:7px;align-items:center;margin:7px 0;color:#d1d5db}
+            #fd-widget input,#fd-widget select{min-width:0;width:100%;accent-color:#f59e0b}
+            #fd-widget select{padding:4px 6px;color:#f3f4f6;background:#111827;border:1px solid #4b5563;border-radius:4px}
+            #fd-widget .fd-value{color:#fbbf24;text-align:right;font-variant-numeric:tabular-nums}
+            #fd-widget .fd-actions{display:flex;align-items:end}
+            #fd-widget button{border:1px solid #9ca3af;border-radius:4px;padding:6px 12px;background:#606060;color:#f3f4f6;font-size:14px;cursor:pointer}
+            #fd-widget button:hover{background:#737373}
+            @media(max-width:760px){#fd-widget .fd-workspace{grid-template-columns:1fr}#fd-widget canvas{height:250px}}
+          </style>
+          <div class="fd-title">
+            <div class="fd-title-desc">Build a waveform from harmonics, then watch a packet split into group and phase motion.</div>
+            <div class="fd-title-hint">Choose a waveform and term count &middot; adjust time and the two velocities</div>
+          </div>
+          <div class="fd-workspace">
+            <section class="fd-panel">
+              <div class="fd-panel-title">Fourier reconstruction</div>
+              <div class="fd-caption">Dashed: target periodic function. Orange: finite sine-series approximation.</div>
+              <canvas id="fd-fourier"></canvas>
+              <div class="fd-legend"><span class="fd-key" style="color:#9ca3af"><i class="fd-swatch fd-dash"></i>target</span><span class="fd-key" style="color:#f59e0b"><i class="fd-swatch"></i>partial sum</span></div>
+            </section>
+            <section class="fd-panel">
+              <div class="fd-panel-title">Dispersive wave packet</div>
+              <div class="fd-caption">The red envelope marker travels at `v_g`; the blue carrier marker travels at `v_p`.</div>
+              <canvas id="fd-packet"></canvas>
+              <div class="fd-legend"><span class="fd-key" style="color:#60a5fa"><i class="fd-swatch"></i>packet</span><span class="fd-key" style="color:#ef4444"><i class="fd-swatch fd-dash"></i>envelope</span></div>
+            </section>
+          </div>
+          <div class="fd-controls">
+            <section class="fd-control-group">
+              <div class="fd-control-title">Fourier series</div>
+              <label class="fd-control-row"><span>Waveform</span><select id="fd-waveform"><option value="square" $(w.waveform == "square" ? "selected" : "")>Square</option><option value="sawtooth" $(w.waveform == "sawtooth" ? "selected" : "")>Sawtooth</option><option value="triangle" $(w.waveform == "triangle" ? "selected" : "")>Triangle</option></select><span></span></label>
+              <label class="fd-control-row"><span>Terms</span><input id="fd-harmonics" type="range" min="1" max="20" step="1" value="$(w.harmonics)"><span class="fd-value" id="fd-harmonics-v"></span></label>
+            </section>
+            <section class="fd-control-group">
+              <div class="fd-control-title">Packet spectrum</div>
+              <label class="fd-control-row"><span>Time</span><input id="fd-time" type="range" min="0" max="12" step="0.1" value="$(w.time)"><span class="fd-value" id="fd-time-v"></span></label>
+              <label class="fd-control-row"><span>Centre f</span><input id="fd-fc" type="range" min="0.2" max="2" step="0.05" value="$(w.center_frequency)"><span class="fd-value" id="fd-fc-v"></span></label>
+              <label class="fd-control-row"><span>Bandwidth</span><input id="fd-bw" type="range" min="0.05" max="0.8" step="0.05" value="$(w.bandwidth)"><span class="fd-value" id="fd-bw-v"></span></label>
+            </section>
+            <section class="fd-control-group">
+              <div class="fd-control-title">Velocity relation</div>
+              <label class="fd-control-row"><span>Phase vₚ</span><input id="fd-vp" type="range" min="1" max="8" step="0.1" value="$(w.phase_velocity)"><span class="fd-value" id="fd-vp-v"></span></label>
+              <label class="fd-control-row"><span>Group v_g</span><input id="fd-vg" type="range" min="1" max="8" step="0.1" value="$(w.group_velocity)"><span class="fd-value" id="fd-vg-v"></span></label>
+            </section>
+            <section class="fd-control-group fd-actions"><button id="fd-reset" type="button">Reset experiment</button></section>
+          </div>
+        </div>
+        <script>
+        const currentScript = document.currentScript;
+        const par = currentScript.previousElementSibling;
+        const byId = id => par.querySelector('#' + id);
+        const state = {waveform:"$(w.waveform)", harmonics:$(w.harmonics), time:$(w.time), center_frequency:$(w.center_frequency), bandwidth:$(w.bandwidth), phase_velocity:$(w.phase_velocity), group_velocity:$(w.group_velocity)};
+        let result = null;
+        function updateLabels(){
+          byId('fd-harmonics-v').textContent = state.harmonics;
+          byId('fd-time-v').textContent = state.time.toFixed(1) + ' s';
+          byId('fd-fc-v').textContent = state.center_frequency.toFixed(2) + ' Hz';
+          byId('fd-bw-v').textContent = state.bandwidth.toFixed(2) + ' Hz';
+          byId('fd-vp-v').textContent = state.phase_velocity.toFixed(1) + ' m/s';
+          byId('fd-vg-v').textContent = state.group_velocity.toFixed(1) + ' m/s';
+        }
+        function publish(){ par.value = {...state}; par.dispatchEvent(new CustomEvent('input')); }
+        function resize(canvas){
+          const rect = canvas.getBoundingClientRect(), ratio = window.devicePixelRatio || 1;
+          canvas.width = Math.max(1, Math.round(rect.width * ratio)); canvas.height = Math.max(1, Math.round(rect.height * ratio));
+          const ctx = canvas.getContext('2d'); ctx.setTransform(ratio, 0, 0, ratio, 0, 0); return [ctx, rect.width, rect.height];
+        }
+        function line(ctx, xs, ys, xmin, xmax, ymax, width, color, dash=[]){
+          const W = ctx.canvas.getBoundingClientRect().width, H = ctx.canvas.getBoundingClientRect().height, m = {l:40,r:12,t:28,b:28};
+          const px = x => m.l + (x-xmin)/(xmax-xmin)*(W-m.l-m.r), py = y => H-m.b - (y+ymax)/(2*ymax)*(H-m.t-m.b);
+          ctx.beginPath(); for(let i=0;i<xs.length;i++){const x=px(xs[i]), y=py(ys[i]); i ? ctx.lineTo(x,y) : ctx.moveTo(x,y);} ctx.strokeStyle=color; ctx.lineWidth=width; ctx.setLineDash(dash); ctx.stroke(); ctx.setLineDash([]);
+        }
+        function base(canvas, title, xmin, xmax, ymax){
+          const [ctx,W,H] = resize(canvas), m={l:40,r:12,t:28,b:28}; ctx.clearRect(0,0,W,H); ctx.fillStyle='#000';ctx.fillRect(0,0,W,H);
+          ctx.strokeStyle='#1f2937';ctx.lineWidth=1; for(let i=0;i<5;i++){const y=m.t+i*(H-m.t-m.b)/4;ctx.beginPath();ctx.moveTo(m.l,y);ctx.lineTo(W-m.r,y);ctx.stroke();}
+          const zero=H-m.b-(0+ymax)/(2*ymax)*(H-m.t-m.b);ctx.strokeStyle='#4b5563';ctx.beginPath();ctx.moveTo(m.l,zero);ctx.lineTo(W-m.r,zero);ctx.stroke();
+          ctx.fillStyle='#e5e7eb';ctx.font='600 13px sans-serif';ctx.fillText(title,m.l,18);ctx.fillStyle='#9ca3af';ctx.font='12px sans-serif';ctx.fillText(xmin.toFixed(0)+' m',m.l,H-8);ctx.textAlign='right';ctx.fillText(xmax.toFixed(0)+' m',W-m.r,H-8);ctx.textAlign='left'; return ctx;
+        }
+        function marker(ctx, x, xmin, xmax, ymax, color){ const W=ctx.canvas.getBoundingClientRect().width,H=ctx.canvas.getBoundingClientRect().height,m={l:40,r:12,t:28,b:28}; const px=m.l+(x-xmin)/(xmax-xmin)*(W-m.l-m.r);ctx.strokeStyle=color;ctx.lineWidth=2;ctx.setLineDash([5,4]);ctx.beginPath();ctx.moveTo(px,m.t);ctx.lineTo(px,H-m.b);ctx.stroke();ctx.setLineDash([]); }
+        function draw(){
+          if(!result) return;
+          const f=result.fourier, p=result.packet;
+          let ctx=base(byId('fd-fourier'),'x (radians)',f.x[0],f.x[f.x.length-1],f.ymax);line(ctx,f.x,f.target,f.x[0],f.x[f.x.length-1],f.ymax,1.5,'#9ca3af',[5,4]);line(ctx,f.x,f.approximation,f.x[0],f.x[f.x.length-1],f.ymax,2.4,'#f59e0b');
+          ctx=base(byId('fd-packet'),'position (m)',p.x[0],p.x[p.x.length-1],p.ymax);line(ctx,p.x,p.envelope,p.x[0],p.x[p.x.length-1],p.ymax,1.8,'#ef4444',[5,4]);line(ctx,p.x,p.packet,p.x[0],p.x[p.x.length-1],p.ymax,2.1,'#60a5fa');marker(ctx,p.group_position,p.x[0],p.x[p.x.length-1],p.ymax,'#ef4444');marker(ctx,p.phase_position,p.x[0],p.x[p.x.length-1],p.ymax,'#60a5fa');
+        }
+        function readControl(el){
+          const key={"fd-waveform":"waveform","fd-harmonics":"harmonics","fd-time":"time","fd-fc":"center_frequency","fd-bw":"bandwidth","fd-vp":"phase_velocity","fd-vg":"group_velocity"}[el.id];
+          if(!key) return false; state[key] = key === 'waveform' ? el.value : Number(el.value); return true;
+        }
+        function onControl(event){ if(event.target===par || !readControl(event.target)) return; event.stopImmediatePropagation(); updateLabels(); publish(); }
+        par.addEventListener('input',onControl,true); par.addEventListener('change',onControl,true);
+        byId('fd-reset').addEventListener('click',()=>{Object.assign(state,{waveform:'square',harmonics:7,time:2,center_frequency:0.8,bandwidth:0.25,phase_velocity:4,group_velocity:2.5});for(const [id,key] of Object.entries({"fd-waveform":"waveform","fd-harmonics":"harmonics","fd-time":"time","fd-fc":"center_frequency","fd-bw":"bandwidth","fd-vp":"phase_velocity","fd-vg":"group_velocity"}))byId(id).value=state[key];updateLabels();publish();});
+        window.addEventListener('fd-results',event=>{result=event.detail ? JSON.parse(event.detail) : null;draw();}); window.addEventListener('resize',draw); updateLabels(); draw();
+        </script>
+        """)
+    end
+
+    const _fd_ready = true
+end
+
+#= Legacy phase-control widget retained only in repository history.
 """
 Create a table-style input for harmonic phase shifts with sliders
 """
@@ -317,57 +436,32 @@ function harmonic_phase_input(n_harmonics::Int; default_shift=0.0, max_shift=2.0
     end
 end
 
-# ╔═╡ 93948b6b-d2ce-40c5-976d-0e565ddc0ca4
-@bind phase_shifts harmonic_phase_input(n_harmonics; default_shift=0.0, max_shift=2.0)
+=#
 
-# ╔═╡ 5c99f48d-94f6-46e8-b3a3-6c7a2a5c8b7b
-"""Generate Fourier series coefficients for different wave types"""
-function get_fourier_coefficients(wave_type, n_harmonics)
-    if wave_type == "square"
-        # Square wave: only odd harmonics, amplitude = 4/(π*n)
-        return [n % 2 == 1 ? 4/(π*n) : 0.0 for n in 1:n_harmonics]
-    elseif wave_type == "sawtooth" 
-        # Sawtooth wave: all harmonics, amplitude = 2/(π*n) * (-1)^(n+1)
-        return [2/(π*n) * (-1)^(n+1) for n in 1:n_harmonics]
-    elseif wave_type == "triangle"
-        # Triangle wave: odd harmonics only, amplitude = 8/(π²*n²) * (-1)^((n-1)/2)
-        return [n % 2 == 1 ? 8/(π^2*n^2) * (-1)^((n-1)÷2) : 0.0 for n in 1:n_harmonics]
-    elseif wave_type == "impulse"
-        # Impulse (Dirac comb): all harmonics with equal amplitude = 2/T = 2*f0
-        # For visualization, we scale it down to make it reasonable
-        return [2*f0 * 0.1 for n in 1:n_harmonics]  # Scale factor 0.1 for visibility
-    else # custom
-        # Custom: decreasing amplitude with some randomness
-        return [1/n * (1 + 0.3*sin(n)) for n in 1:n_harmonics]
-    end
+# ╔═╡ 903847d0-a500-11f0-b347-cb097b21036e
+begin
+    # `FourierDispersionInput` is defined in the Appendix. The bare reference
+    # creates the dependency Pluto needs on a cold notebook load.
+    _fd_ready
+    PlutoUI.WideCell(@bind _fd FourierDispersionInput(); max_width=1400)
 end
 
-# ╔═╡ 48f67b56-3ff0-4c5f-a694-36ef9d09793f
-"""Generate true/analytical signal for comparison"""
-function get_true_signal(wave_type, x, f0)
-    period = 2π / f0
-    x_mod = mod.(x, period)  # Map to one period
-    
-    if wave_type == "square"
-        # Square wave: +1 for first half period, -1 for second half
-        return [x_val < period/2 ? 1.0 : -1.0 for x_val in x_mod]
-    elseif wave_type == "sawtooth"
-        # Sawtooth wave: linear ramp from -1 to +1
-        return 2 * (x_mod ./ period) .- 1
-    elseif wave_type == "triangle"
-        # Triangle wave: ramp up then down
-        return [x_val < period/2 ? 4*x_val/period - 1 : 3 - 4*x_val/period for x_val in x_mod]
-    elseif wave_type == "impulse"
-        # Impulse train: narrow spikes at period intervals
-        spike_width = period * 0.05  # 5% of period
-        return [abs(x_val) < spike_width || abs(x_val - period) < spike_width ? 2.0 : 0.0 for x_val in x_mod]
-    else # custom
-        # Custom: a more complex but smooth function
-        return sin.(x) + 0.3*sin.(3*x) + 0.1*sin.(5*x)
-    end
+# ╔═╡ e9f4b3c0-a586-11f0-8a75-4c3d6f2e9b8f
+begin
+    # Convert the untyped bond value once, at the widget boundary. Every
+    # downstream calculation receives concrete scalar values.
+    fd_safe = _fd isa AbstractDict ? _fd : Dict{String,Any}()
+    fd_waveform = String(get(fd_safe, "waveform", "square"))
+    fd_harmonics = clamp(round(Int, Float64(get(fd_safe, "harmonics", 7))), 1, 20)
+    fd_time = clamp(Float64(get(fd_safe, "time", 2.0)), 0.0, 12.0)
+    fd_center_frequency = clamp(Float64(get(fd_safe, "center_frequency", 0.8)), 0.2, 2.0)
+    fd_bandwidth = clamp(Float64(get(fd_safe, "bandwidth", 0.25)), 0.05, 0.8)
+    fd_phase_velocity = clamp(Float64(get(fd_safe, "phase_velocity", 4.0)), 1.0, 8.0)
+    fd_group_velocity = clamp(Float64(get(fd_safe, "group_velocity", 2.5)), 1.0, 8.0)
 end
 
 # ╔═╡ 90384aca-a500-11f0-9af9-738a0287bdbb
+#= Legacy PlutoPlotly presentation superseded by the unified canvas widget.
 let
     # Create time and space grids
     t = 0.0  # Fixed time for now
@@ -457,6 +551,51 @@ let
     fig
 end
 
+=#
+
+let
+    result = fourier_dispersion_payload(
+        fd_waveform,
+        fd_harmonics,
+        fd_time,
+        fd_center_frequency,
+        fd_bandwidth,
+        fd_phase_velocity,
+        fd_group_velocity,
+    )
+    number(x) = isfinite(x) ? string(round(Float64(x), digits = 6)) : "0"
+    array(values) = "[" * join(number.(values), ",") * "]"
+    series, packet = result.fourier, result.packet
+    payload = string(
+        "{\"fourier\":{\"x\":", array(series.x),
+        ",\"target\":", array(series.target),
+        ",\"approximation\":", array(series.approximation),
+        ",\"ymax\":", number(series.ymax),
+        "},\"packet\":{\"x\":", array(packet.x),
+        ",\"packet\":", array(packet.packet),
+        ",\"envelope\":", array(packet.envelope),
+        ",\"group_position\":", number(packet.group_position),
+        ",\"phase_position\":", number(packet.phase_position),
+        ",\"ymax\":", number(packet.ymax),
+        "}}",
+    )
+    HTML("""<script>
+      window.dispatchEvent(new CustomEvent('fd-results', {detail: $(repr(payload))}));
+    </script>""")
+end
+
+# ╔═╡ f1a2c4d0-a586-11f0-9b86-5d4e7f3a9c9d
+let
+    relation = isapprox(fd_phase_velocity, fd_group_velocity; atol=1e-8) ?
+        "The envelope and carrier crest coincide: this is the non-dispersive limit." :
+        "The envelope and carrier crest separate because `v_g` and `v_p` differ."
+    Markdown.parse("""
+### Current experiment
+
+You are reconstructing a **$(fd_waveform)** waveform with **$(fd_harmonics)** Fourier terms. The packet has `vₚ = $(round(fd_phase_velocity, digits=2)) m/s` and `v_g = $(round(fd_group_velocity, digits=2)) m/s`. $relation
+""")
+end
+
 # ╔═╡ 00000000-0000-0000-0000-000000000001
 PLUTO_PROJECT_TOML_CONTENTS = """
 [deps]
@@ -477,7 +616,7 @@ PlutoUI = "~0.7.72"
 PLUTO_MANIFEST_TOML_CONTENTS = """
 # This file is machine-generated - editing it directly is not advised
 
-julia_version = "1.12.1"
+julia_version = "1.12.4"
 manifest_format = "2.0"
 project_hash = "12cd0b4046b366044235ef63a21b66829bc04db5"
 
@@ -571,7 +710,7 @@ version = "0.9.5"
 [[deps.Downloads]]
 deps = ["ArgTools", "FileWatching", "LibCURL", "NetworkOptions"]
 uuid = "f43a241f-c20a-4ad4-852c-f6b1247861c6"
-version = "1.6.0"
+version = "1.7.0"
 
 [[deps.FFTW]]
 deps = ["AbstractFFTs", "FFTW_jll", "Libdl", "LinearAlgebra", "MKL_jll", "Preferences", "Reexport"]
@@ -664,7 +803,7 @@ version = "0.6.4"
 [[deps.LibCURL_jll]]
 deps = ["Artifacts", "LibSSH2_jll", "Libdl", "OpenSSL_jll", "Zlib_jll", "nghttp2_jll"]
 uuid = "deac9b47-8bc7-5906-a0fe-35ac56dc84c0"
-version = "8.11.1+1"
+version = "8.15.0+0"
 
 [[deps.LibGit2]]
 deps = ["LibGit2_jll", "NetworkOptions", "Printf", "SHA"]
@@ -716,7 +855,7 @@ version = "1.11.0"
 
 [[deps.MozillaCACerts_jll]]
 uuid = "14a3606d-f60d-562e-9121-12d972cd8159"
-version = "2025.5.20"
+version = "2025.11.4"
 
 [[deps.NetworkOptions]]
 uuid = "ca575930-c2e3-43a9-ace4-1e988b2c1908"
@@ -730,7 +869,7 @@ version = "0.3.29+0"
 [[deps.OpenSSL_jll]]
 deps = ["Artifacts", "Libdl"]
 uuid = "458c3c95-2e84-50aa-8efc-19380b2a3a95"
-version = "3.5.1+0"
+version = "3.5.4+0"
 
 [[deps.OrderedCollections]]
 git-tree-sha1 = "05868e21324cede2207c6f0f466b4bfef6d5e7ee"
@@ -752,7 +891,7 @@ version = "2.8.3"
 [[deps.Pkg]]
 deps = ["Artifacts", "Dates", "Downloads", "FileWatching", "LibGit2", "Libdl", "Logging", "Markdown", "Printf", "Random", "SHA", "TOML", "Tar", "UUIDs", "p7zip_jll"]
 uuid = "44cfe95a-1eb2-52ea-b672-e2afdf69b78f"
-version = "1.12.0"
+version = "1.12.1"
 weakdeps = ["REPL"]
 
     [deps.Pkg.extensions]
@@ -941,29 +1080,29 @@ uuid = "1317d2d5-d96f-522e-a858-c73665f53c3e"
 version = "2022.0.0+1"
 
 [[deps.p7zip_jll]]
-deps = ["Artifacts", "Libdl"]
+deps = ["Artifacts", "CompilerSupportLibraries_jll", "Libdl"]
 uuid = "3f19e933-33d8-53b3-aaab-bd5110c3b7a0"
-version = "17.5.0+2"
+version = "17.7.0+0"
 """
 
 # ╔═╡ Cell order:
 # ╠═903844b8-a500-11f0-afa6-f187b28c7860
 # ╟─90384550-a500-11f0-9976-15113ffba311
-# ╟─90384aca-a500-11f0-9af9-738a0287bdbb
 # ╟─903847d0-a500-11f0-b347-cb097b21036e
-# ╟─93948b6b-d2ce-40c5-976d-0e565ddc0ca4
-# ╟─d8f3a2b0-a586-11f0-9c84-3b2f5e1a8d7c
 # ╟─e9f4b3c0-a586-11f0-8a75-4c3d6f2e9b8f
+# ╟─90384aca-a500-11f0-9af9-738a0287bdbb
+# ╟─d8f3a2b0-a586-11f0-9c84-3b2f5e1a8d7c
 # ╟─f1a2c4d0-a586-11f0-9b86-5d4e7f3a9c9d
-# ╟─8411b089-85f5-4d27-850e-9747896eea36
 # ╟─903846f6-a500-11f0-9bec-955ede71b788
 # ╟─2d41bce0-2035-4afa-8846-74061ac94333
 # ╟─c31dd2bc-562a-4b04-86fa-99e3d241fdde
-# ╠═384fa2f0-38fb-464e-b72e-2ec26276f1cf
-# ╠═7f5b0439-0ad7-4ab6-83ca-093fc2d48915
-# ╠═90384046-a500-11f0-8c2f-5ff4e899d2de
 # ╠═c8806df8-6aab-4018-9c5e-7230195e8580
 # ╠═5c99f48d-94f6-46e8-b3a3-6c7a2a5c8b7b
 # ╠═48f67b56-3ff0-4c5f-a694-36ef9d09793f
+# ╠═93948b6b-d2ce-40c5-976d-0e565ddc0ca4
+# ╟─8411b089-85f5-4d27-850e-9747896eea36
+# ╠═384fa2f0-38fb-464e-b72e-2ec26276f1cf
+# ╠═7f5b0439-0ad7-4ab6-83ca-093fc2d48915
+# ╠═90384046-a500-11f0-8c2f-5ff4e899d2de
 # ╟─00000000-0000-0000-0000-000000000001
 # ╟─00000000-0000-0000-0000-000000000002

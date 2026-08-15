@@ -608,7 +608,7 @@ end
 # ╔═╡ afdb5b7d-d670-4a98-a91d-3ff638fb0294
 begin
     # Only the medium parameters and the incident-wave type need a Julia recompute
-    # (they feed the Symbolics-derived coefficients below) -- angle, frequency, and
+    # (they feed the direct numerical coefficients below) -- angle, frequency, and
     # display toggles live entirely client-side inside the widget (see its
     # docstring for why: everything downstream of theta is pre-swept once and
     # pushed to the widget, so dragging theta never touches Julia at all).
@@ -723,17 +723,83 @@ used to build the wavefield, below.
 
 # ╔═╡ a089ab5b-4703-4d4d-a7ab-11197b4b907c
 begin
-    # `substitute`/`simplify` on a fully-numeric SymbolicUtils expression no longer
-    # auto-collapses to a native Julia number on this Symbolics version (unlike when
-    # this notebook was first written) -- `Symbolics.value` explicitly unwraps it, since
-    # every downstream use (comparisons, `Float64(...)`, `real`/`imag` for the JSON push)
-    # needs a real `ComplexF64`, not a symbolic wrapper that merely *prints* like one.
-    Avec = broadcast([sol[1], sol[2]]) do x
-        θ -> ComplexF64(Symbolics.value(simplify(substitute(x, [η₁ => ηz1(θ), η₂ => ηz2(θ), p => rp(θ), λ => ρin * (αin^2 - 2 * βin^2), μ => βin^2 * ρin]))))
+    """
+        psv_traction(p, η, λ, μ, mode; incident_s=false)
+
+    Return the `(σzz, σxz)` traction coefficients of one P or SV potential.
+    It is the direct numerical form of the symbolic displacement/stress
+    construction above. `incident_s=true` retains this notebook's established
+    incident-S potential convention exactly, so this performance refactor does
+    not alter the displayed physics.
+    """
+    function psv_traction(
+        p::Float64,
+        η::ComplexF64,
+        λ::Float64,
+        μ::Float64,
+        mode::Symbol;
+        incident_s::Bool = false,
+    )
+        ∂x = -im * p
+        ∂z = -im * η
+
+        if mode === :P
+            ux, uz = ∂x, ∂z
+        elseif incident_s
+            ux, uz = -∂z, ∂z
+        else
+            ux, uz = -∂z, ∂x
+        end
+
+        σzz = λ * (∂x * ux + ∂z * uz) + 2μ * ∂z * uz
+        σxz = μ * (∂x * uz + ∂z * ux)
+        return ComplexF64(σzz), ComplexF64(σxz)
     end
-    if ((incident_waves == "S"))
-        Avec = reverse(Avec)
+
+    """
+        psv_free_surface_coefficients(α, β, ρ, incident_type, θ)
+
+    Compute the two free-surface reflection amplitudes directly from the
+    traction-free 2×2 system. This preserves the coefficient order consumed by
+    the widget while avoiding per-angle symbolic substitution and simplification.
+    """
+    function psv_free_surface_coefficients(
+        α::Float64,
+        β::Float64,
+        ρ::Float64,
+        incident_type::String,
+        θ::Float64,
+    )
+        λ = ρ * (α^2 - 2β^2)
+        μ = ρ * β^2
+        p = sin(θ) / (incident_type == "P" ? α : β)
+        ηP = ComplexF64(sqrt((inv(α)^2 - p^2) + 0im))
+        ηS = ComplexF64(sqrt((inv(β)^2 - p^2) + 0im))
+
+        if incident_type == "P"
+            σzzᵢ, σxzᵢ = psv_traction(p, ηP, λ, μ, :P)
+            σzz₁, σxz₁ = psv_traction(p, -ηP, λ, μ, :P)
+            σzz₂, σxz₂ = psv_traction(p, -ηS, λ, μ, :S)
+        else
+            σzzᵢ, σxzᵢ = psv_traction(p, ηS, λ, μ, :S; incident_s = true)
+            σzz₁, σxz₁ = psv_traction(p, -ηS, λ, μ, :S)
+            σzz₂, σxz₂ = psv_traction(p, -ηP, λ, μ, :P)
+        end
+
+        determinant = σzz₁ * σxz₂ - σzz₂ * σxz₁
+        A₁ = (-σzzᵢ * σxz₂ + σzz₂ * σxzᵢ) / determinant
+        A₂ = (-σzz₁ * σxzᵢ + σzzᵢ * σxz₁) / determinant
+
+        # The existing symbolic implementation reports P then S for S incidence.
+        return incident_type == "P" ?
+               (A1 = ComplexF64(A₁), A2 = ComplexF64(A₂)) :
+               (A1 = ComplexF64(A₂), A2 = ComplexF64(A₁))
     end
+
+    Avec = (
+        θ -> psv_free_surface_coefficients(αin, βin, ρin, incident_waves, Float64(θ)).A1,
+        θ -> psv_free_surface_coefficients(αin, βin, ρin, incident_waves, Float64(θ)).A2,
+    )
 end
 
 # ╔═╡ ffff6666-6666-6666-6666-666666666666
@@ -758,8 +824,13 @@ let
     p_sweep = rp.(thetas_rad)
     eta1_sweep = ηz1.(thetas_rad)
     eta2_sweep = ηz2.(thetas_rad)
-    A1_sweep = Avec[1].(thetas_rad)
-    A2_sweep = Avec[2].(thetas_rad)
+    A1_sweep = Vector{ComplexF64}(undef, length(thetas_rad))
+    A2_sweep = Vector{ComplexF64}(undef, length(thetas_rad))
+    for i in eachindex(thetas_rad)
+        coefficients = psv_free_surface_coefficients(αin, βin, ρin, incident_waves, thetas_rad[i])
+        A1_sweep[i] = coefficients.A1
+        A2_sweep[i] = coefficients.A2
+    end
 
     num(x) = isfinite(x) ? string(round(Float64(x), digits=6)) : "0"
     jsonarr(v) = "[" * join(num.(v), ",") * "]"

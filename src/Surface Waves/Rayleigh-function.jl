@@ -1,5 +1,5 @@
 ### A Pluto.jl notebook ###
-# v0.20.19
+# v0.2.6
 
 #> [frontmatter]
 #> title = "Rayleigh Function"
@@ -22,6 +22,14 @@ macro bind(def, element)
     #! format: on
 end
 
+# ╔═╡ 5b807994-416d-11ed-22ff-77b37ff3cfac
+begin
+    using Symbolics
+    using SymbolicUtils
+    using PlutoUI
+    using PlutoTeachingTools
+end
+
 # ╔═╡ d921cf1c-ca8b-44d9-8d00-e1ed55267647
 ChooseDisplayMode()
 
@@ -31,7 +39,7 @@ PlutoUI.TableOfContents()
 # ╔═╡ 07ee82c2-d17b-4b85-9ef6-c107b76d0cfe
 md"""
 # Rayleigh Function
-This notebook aims to provide a comprehensive understanding of Rayleigh waves. Unlike previous discussions on reflection coefficients where the incident wave is homogeneous and at least one of the scattered waves is homogeneous, this notebook focuses on scenarios where all interacting plane waves are inhomogeneous. Specifically, we examine inhomogeneous P- and SV-waves interacting with the free surface of a medium. This approach allows us to delve deeper into the unique characteristics and behaviors of Rayleigh waves in seismology.
+Rayleigh waves are made from coupled, evanescent P and SV waves that satisfy a stress-free surface. Start with the experiment below: play the wavefield to watch the coupled P and SV displacement roll along the free surface, find the physical zero of the Rayleigh function, and follow one particle through its depth-dependent elliptical orbit. Then use the appendix to derive the same surface-wave condition symbolically.
 
 ##### [Interactive Seismology Notebooks](https://pawbz.github.io/Interactive-Seismology.jl/)
 
@@ -39,35 +47,15 @@ Instructor: *Pawan Bharadwaj*,
 Indian Institute of Science, Bengaluru, India
 """
 
-# ╔═╡ 544d41b1-b6ce-4844-8269-a0251b391962
-TwoColumnWideLeft(md"""
-Choose the medium parameters of the half-space using these sliders. Accordingly, we 
-shall plot the Rayleigh function, where its root gives the phase velocity of the Rayleigh wave $cᵣ$. It can be noticed that this velocity is a few percent less than the shear-wave speed.
-""",
-    md"""
-    α (km/sec) $(@bind αp PlutoUI.Slider(range(4.0, stop=10.0, step=0.1), default=6.0, show_value=true))
-
-    β (km/sec) $(@bind βp PlutoUI.Slider(range(3.0, stop=6.0, step=0.1), default=4.49, show_value=true))
-
-    ρ (gm/cm³) $(@bind ρp PlutoUI.Slider(range(2.0, stop=6.0, step=0.1), default=2.9, show_value=true))
-    """)
-
-# ╔═╡ 31a317e2-0864-4552-83ee-ba4138ab5c0b
-plot_Rayleigh_function(RUI, cᵣ, αp, βp)
-
 # ╔═╡ 318ac5d5-bd8b-417b-a919-b46ee555ca1a
-TwoColumnWideLeft(md"""
-Rayleigh waves, a type of surface seismic wave, exhibit unique characteristics due to their elliptical particle motion. For a homogeneous medium, the phase velocity $cᵣ$ of Rayleigh waves is independent of the frequency $ω$, indicating non-dispersive behavior. To visualize the particle motion, we can select a frequency and adjust the time to generate a snapshot. Key observations include:
-- Particles move in an elliptical trajectory, which is retrograde at the free surface.
-- The amplitude of particle motion decreases exponentially with depth, influenced by the frequency.
-- At greater depths, the particle motion transitions to a prograde elliptical trajectory, dominated by the SV wave component.
-""", md"""
-angular frequency: $(@bind ωp PlutoUI.Slider(range(0.05, stop=0.3, length=100), show_value=true)) $(@bind tp Clock(0.5))
-(experimental) plot individual components $(@bind uplot MultiCheckBox([uₚ=>"P", uₛ=>"SV"], default=[uₚ, uₛ]))
-""")
+md"""
+### What to look for
 
-# ╔═╡ bd7562f0-cb14-4ddb-b8c7-ffc2a37b079e
-plot_displacement_field(uxp, uzp, tp)
+- The non-zero root of the secular function is always below the shear speed `\beta`; the density cancels from this normalized homogeneous half-space equation.
+- At the free surface, the particle orbit is retrograde. Increase depth to see its size decay and its sense of rotation change.
+- Increasing angular frequency makes the same depth look deeper in wavelengths, so both the orbit and the wavefield attenuate more quickly with depth.
+- In the wavefield panel, toggle P and SV off one at a time: neither component alone satisfies the free-surface condition — only their sum does.
+"""
 
 # ╔═╡ c8253470-7d3c-436f-bced-141c06786ff9
 md"""
@@ -88,23 +76,23 @@ end
 
 # ╔═╡ 6eb3e9d6-2afa-450d-915c-81b0bfa92e9d
 md"""
-The medium is assumed to be homogeneous with uniform P- and S-wave velocities 
-$\alpha$ and $\beta$. We use $p$ to denote the horizontal slowness. As both the P- and SV-waves are inhomogeneous, a necessary condition is
+The medium is assumed to be homogeneous with uniform P- and S-wave velocities
+`\alpha` and `\beta`. We use `p` to denote the horizontal slowness. As both the P- and SV-waves are inhomogeneous, a necessary condition is
 ```math
 \frac{1}{\alpha} < \frac{1}{\beta} < p.
 ```
-The Lame parameters are denoted using $\lambda$ and $\mu$, and $\rho$ is mass density.
+The Lame parameters are denoted using `\lambda` and `\mu`, and `\rho` is mass density.
 """
 
 # ╔═╡ e19ff895-cee0-45ad-994d-26b91e7c4d3c
 @syms α::Real p::Real β::Real ρ::Real λ::Real μ::Real
 
 # ╔═╡ 3e9930db-b54c-45af-8bb7-fc86568ae504
-tip(md"The inhomegeneous P- and SV-waves are coupled due to the fact that they share the same horizonal slowness $p$. If they are not coupled, one can show that the stress-free conditions cannot be satisfied.")
+tip(md"The inhomegeneous P- and SV-waves are coupled due to the fact that they share the same horizonal slowness `p`. If they are not coupled, one can show that the stress-free conditions cannot be satisfied.")
 
 # ╔═╡ 9409762a-7803-4001-afbd-62c5d40dea2e
 md"""
-The vertical components of the slowness vectors (corresponding to $\alpha$ and $\beta$) are imaginary. Here, we use $\eta$ to denote the imaginary part of the vertical components of the slowness vector.
+The vertical components of the slowness vectors (corresponding to `\alpha` and `\beta`) are imaginary. Here, we use `\eta` to denote the imaginary part of the vertical components of the slowness vector.
 """
 
 # ╔═╡ 296dbce3-8e24-49b2-a8c9-5f59c6586160
@@ -125,7 +113,7 @@ md"The dispersion relation gives."
 # ╔═╡ ef389316-a822-4a31-865e-5751c8bc6fe0
 md"""
 ## Inhomogeneous Plane Waves
-We now derive the expression for an inhomogeneous plane wave with amplitude $A$ and frequency $ω$, propagating in the $x$ direction with slowness $p$. These waves exhibit exponential decay with increasing distance from the surface at $z=0$.
+We now derive the expression for an inhomogeneous plane wave with amplitude `A` and frequency `ω`, propagating in the `x` direction with slowness `p`. These waves exhibit exponential decay with increasing distance from the surface at `z=0`.
 """
 
 # ╔═╡ e88d9f22-d833-4d4c-b651-a7d2e318323e
@@ -133,7 +121,7 @@ inhomo_plane(p, η, A) = A * exp(-ω * η * z) * exp(ı * ω * (t - (p * x)))
 
 # ╔═╡ 59c61d01-e0e3-405b-b048-1ceebee0d29b
 md"""
-We now consider two harmonic plane waves that satisfy the scalar wave equations for P and SV potentials $\phi$ and $\psi$. $A_p$ and $A_s$ denote the amplitudes of these potentials.
+We now consider two harmonic plane waves that satisfy the scalar wave equations for P and SV potentials `\phi` and `\psi`. `A_p` and `A_s` denote the amplitudes of these potentials.
 """
 
 # ╔═╡ 0ffac267-6380-4288-8080-5f1ae30646d8
@@ -201,38 +189,18 @@ R1 = diff(arguments(Aratio1) .* reverse(arguments(Aratio2))) |> first |> simplif
 
 # ╔═╡ 288c375f-ff18-45a8-bc12-f5b3cc4fa377
 md"""
-We will reparameterize the Rayleigh function using $\alpha$, $\beta$, and $\rho$, and substitute $ı^2 = -1$. This reparameterized function must be satisfied for a given medium. The root of this function provides the horizontal slowness $p$ at which both the inhomogeneous P and SV plane waves propagate.
+We will reparameterize the Rayleigh function using `\alpha`, `\beta`, and `\rho`, and substitute `ı^2 = -1`. This reparameterized function must be satisfied for a given medium. The root of this function provides the horizontal slowness `p` at which both the inhomogeneous P and SV plane waves propagate.
 """
-
-# ╔═╡ 1a0819fb-b998-4fac-91d3-b3b375cdfc42
-R = subs_αβρ(R1)
 
 # ╔═╡ d8369538-ab73-4575-bf86-31b9111523cc
 md"""
-Towards plotting, we will now substitute the UI values of $\alpha$, $\beta$ and $\rho$.
+Towards plotting, we will now substitute the UI values of `\alpha`, `\beta` and `\rho`.
 """
-
-# ╔═╡ c830a6e9-61bf-49b2-95d1-8dea1b89c154
-RUI = build_function(subs_αβρ_plot(R, αp, βp, ρp), p, expression=Val{false})
 
 # ╔═╡ a7c6f76d-fbcd-4fa6-a12f-868428cedef8
 md"""
 We will now find the root of the Rayleigh function using the bisection method.
 """
-
-# ╔═╡ a53444b0-cb7f-4729-a262-38b33766bb74
-begin
-    function compute_rayleigh_velocity(αp_val, βp_val, RUI_func)
-        cmin = 1.0 # minimum possible speed
-        cmax = βp_val - eps(Float64) # maximum speed, otherwise the SV wave will no longer be evanascent
-        # root
-        cᵣ = find_zero(c -> RUI_func(inv(c)), (cmin, cmax), Bisection())
-        return cᵣ
-    end
-    
-    cᵣ = compute_rayleigh_velocity(αp, βp, RUI)
-    md"The root is cᵣ=$(cᵣ) (km/s)"
-end
 
 # ╔═╡ 8ad847c8-3d83-4c15-97f1-9b4490cbf2b0
 md"""
@@ -251,173 +219,362 @@ md"""
 ## Appendix
 """
 
-# ╔═╡ 5b807994-416d-11ed-22ff-77b37ff3cfac
-begin
-    using Symbolics
-    using SymbolicUtils
-    using LinearAlgebra
-    using Latexify
-    using LaTeXStrings
-    using PlutoUI
-    using PlutoTeachingTools
-    using PlutoPlotly
-    using Measures
-    using Roots
-    using Parameters
-end
+# ╔═╡ aa111199-0001-4001-8001-100000000001
+md"""
+### Symbolic Reparametrization
+"""
 
 # ╔═╡ 996bd1d1-09f9-4774-b73f-0f4e58f52455
-# Reparametrize an expression `x` using α, β and ρ, instead of λ, μ, η.
-# Also substitutes ı^2=>-1.
+"""
+	subs_αβρ(x)
+
+Reparametrize a symbolic expression `x` using the elastic speeds `α`, `β` and
+density `ρ`, instead of the Lame parameters `λ`, `μ` and the vertical
+slownesses `ηₚ`, `ηₛ`. Also substitutes `ı^2 => -1` so the result is a real
+symbolic expression in `α`, `β`, `ρ` and `p`.
+"""
 function subs_αβρ(x)
     simplify(substitute(x, [ı * ı => -1, λ => α * α * ρ - 2 * β * β * ρ, μ => β * β * ρ, ηₚ * ηₚ => p * p - 1 / α^2, ηₛ * ηₛ => p * p - 1 / β^2, ηₚ => sqrt(p * p - 1 / α^2), ηₛ => sqrt(p * p - 1 / β^2), μ => β * β * ρ]))
 end
 
+# ╔═╡ 1a0819fb-b998-4fac-91d3-b3b375cdfc42
+R = subs_αβρ(R1)
+
 # ╔═╡ 18fa43a1-4e0d-4910-9125-d41d6d174ef1
-# Substitutes UI values of α, β, and ρ.
+"""
+	subs_αβρ_plot(x, αp_val, βp_val, ρp_val)
+
+Substitute the widget's current `α`, `β` and `ρ` slider values into an
+expression already reparametrized by [`subs_αβρ`](@ref).
+"""
 function subs_αβρ_plot(x, αp_val, βp_val, ρp_val)
     simplify(substitute(subs_αβρ(x), [α => αp_val, β => βp_val, ρ => ρp_val]))
 end
 
 # ╔═╡ 3053571a-096c-448a-9b48-60f9a1b2fce6
+"""
+	subs_all_plot(x, αp_val, βp_val, ρp_val, cᵣ_val, ωp_val)
+
+Substitute the widget's current elastic speeds, density, Rayleigh phase
+speed `cᵣ_val` (as `p = 1/cᵣ_val`) and angular frequency into an expression
+already reparametrized by [`subs_αβρ_plot`](@ref), also fixing `Aₚ = 1`.
+"""
 function subs_all_plot(x, αp_val, βp_val, ρp_val, cᵣ_val, ωp_val)
     simplify(substitute(subs_αβρ_plot(x, αp_val, βp_val, ρp_val), [p => inv(cᵣ_val), ı => im, ω => ωp_val, Aₚ => 1,]))
 end
 
-# ╔═╡ 872a5a67-b217-424a-bb88-627b7b2db7a9
-uxp = build_function(substitute(subs_all_plot(first(sum(uplot)), αp, βp, ρp, cᵣ, ωp), [Aₚ => 1, Aₛ => subs_all_plot(Aratio1, αp, βp, ρp, cᵣ, ωp)]), x, z, t, expression=Val{false})
-
-# ╔═╡ b3faea59-7b99-4070-a9fa-29fc9dc9f48b
-uzp = build_function(substitute(subs_all_plot(last(sum(uplot)), αp, βp, ρp, cᵣ, ωp), [Aₚ => 1, Aₛ => subs_all_plot(Aratio1, αp, βp, ρp, cᵣ, ωp)]), x, z, t, expression=Val{false})
-
-# ╔═╡ 79d729c0-57cb-4100-812d-8907a4b3910d
+# ╔═╡ aa111199-0002-4002-8002-100000000002
 md"""
-### Plots
+### Numerical Rayleigh Function and Wavefield
+
+The symbolic derivation above yields the Rayleigh function as an expression
+in `α`, `β`, `ρ`, `p` and `ω`; density and the overall amplitude cancel out
+of the root-finding condition, so the functions below reimplement the
+dimensionless secular function directly and solve it numerically, then use
+the same closed-form potentials to build the particle orbit and the 2-D
+wavefield snapshots that drive the widget.
 """
 
-# ╔═╡ 13168a61-831a-4c15-b228-8a035df75cf1
-default_plotly_template(:plotly_dark)
+# ╔═╡ bb111111-1111-4111-8111-111111111111
+begin
+    """The dimensionless Rayleigh secular function for an isotropic half-space."""
+    function rayleigh_function(alpha::Real, beta::Real, c::Real)
+        q = Float64(c) / Float64(beta)
+        r = Float64(c) / Float64(alpha)
+        (2 - q^2)^2 - 4 * sqrt(max(0.0, 1 - q^2)) * sqrt(max(0.0, 1 - r^2))
+    end
 
-# ╔═╡ 4a4dc2cb-46ce-4fed-b67b-708943753f90
-function plot_displacement_field(uxp_func, uzp_func, tp_val)
-    xgrid = range(0, stop=500, length=10)
-    zgrid = range(0, stop=250, length=10)
-    # evaluate ux and uz on the grids
-    ux = [real(uxp_func(x, z, tp_val)) for x in xgrid, z in zgrid]
-    uz = [real(uzp_func(x, z, tp_val)) for x in xgrid, z in zgrid]
+    """Find the non-zero, sub-shear root by a bracketed bisection."""
+    function rayleigh_speed(alpha::Real, beta::Real)
+        a, b = Float64(alpha), Float64(beta)
+        @assert a > b > 0 "Rayleigh waves require alpha > beta > 0"
+        f(c) = rayleigh_function(a, b, c)
+        left, fleft = 0.02 * b, f(0.02 * b) # exclude the trivial c = 0 root
+        for right in range(0.03 * b, 0.999 * b; length = 400)
+            fright = f(right)
+            if fleft * fright <= 0
+                lo, hi = left, right
+                for _ in 1:64
+                    mid = (lo + hi) / 2
+                    f(lo) * f(mid) <= 0 ? (hi = mid) : (lo = mid)
+                end
+                return (lo + hi) / 2
+            end
+            left, fleft = right, fright
+        end
+        error("Could not bracket the non-zero Rayleigh root")
+    end
 
-
-    # normalize ux and uz
-    ux ./= abs(uxp_func(0, 0, 0))
-    uz ./= abs(uxp_func(0, 0, 0))
-    strength = vec(sqrt.(ux .^ 2 .+ uz .^ 2))
-
-    xq = [x1 for x1 in xgrid, z1 in zgrid]
-    yq = [z1 for x1 in xgrid, z1 in zgrid]
-
-
-    scale = 25
-
-    vels = [attr(
-        x=xq[i] + scale * ux[i], y=yq[i] + scale * uz[i],
-        showarrow=true,
-        axref="x",
-        ayref="y",
-        text="∘",
-        arrowcolor="blue",
-        arrowsize=strength[i],
-        arrowwidth=2,
-        arrowhead=3,
-        ax=xq[i],
-        ay=yq[i])
-            for i in 1:length(xq)]
-
-    layout = Layout(; uirevision=1, yaxis=attr(title="Depth", range=(400, -100)), xaxis=attr(title="Distance", range=(-100, 600)), title_text="Rayleigh Displacement Field",
-        autosize=false, width=700, height=500,
-        margin=attr(l=50, r=50, b=50, t=65),
-        showlegend=false,
-        annotations=vels
-    )
-
-    fig = Plot(layout)
-
-    add_trace!(fig, scatter(y=[0, 0], x=extrema(xgrid),
-        mode="lines+markers+text",
-        text=["", "Free Surface"],
-        textfont=attr(
-            family="sans serif",
-            size=15,
-            color="Red"
-        ),
-        textposition="top center",
-        line=attr(
-            color="Red",
-            width=2,
+    """Numerical P--SV particle orbit at one position and depth; physics stays in Julia."""
+    function rayleigh_orbit(alpha::Real, beta::Real, omega::Real, depth::Real; samples::Int = 181)
+        a, b, ω, z = Float64(alpha), Float64(beta), Float64(omega), Float64(depth)
+        c = rayleigh_speed(a, b)
+        p = inv(c)
+        ηp = sqrt(p^2 - inv(a)^2)
+        ηs = sqrt(p^2 - inv(b)^2)
+        # The shear-traction condition sets this complex SV/P potential ratio.
+        As_over_Ap = 2im * p * ηp / (ηs^2 + p^2)
+        phases = range(0.0, 2π; length = samples)
+        displacement(phase, zvalue) = begin
+            ϕ = exp(-ω * ηp * zvalue) * cis(phase)
+            ψ = As_over_Ap * exp(-ω * ηs * zvalue) * cis(phase)
+            ux = real(-im * ω * p * ϕ + ω * ηs * ψ)
+            uz = real(-ω * ηp * ϕ - im * ω * p * ψ)
+            (ux, uz)
+        end
+        orbit = displacement.(phases, z)
+        surface = displacement.(phases, 0.0)
+        orbit_x = first.(orbit)
+        orbit_z = last.(orbit)
+        scale = max(maximum(hypot.(orbit_x, orbit_z)), eps(Float64))
+        surface_scale = max(maximum(hypot.(first.(surface), last.(surface))), eps(Float64))
+        return (
+            c_r = c, phases = collect(phases), orbit_x = orbit_x ./ scale, orbit_z = orbit_z ./ scale,
+            attenuation = scale / surface_scale,
         )
-    ))
+    end
 
-    return plot(fig)
+    """
+    	rayleigh_wavefield_frames(alpha, beta, omega; nx=26, nz=14, nframes=16, xmax=500.0, zmax=250.0)
+
+    Evaluate the coupled inhomogeneous P- and SV-wave displacement field of a
+    Rayleigh wave on a `(x, z)` grid, at `nframes` equally-spaced phases over
+    one full temporal period. Returns the P-only and SV-only displacement
+    components separately (both normalized by the same overall scale) so a
+    viewer can toggle either contribution on or off without recomputation.
+    """
+    function rayleigh_wavefield_frames(alpha::Real, beta::Real, omega::Real;
+        nx::Int = 26, nz::Int = 14, nframes::Int = 16, xmax::Real = 500.0, zmax::Real = 250.0)
+        a, b, ω = Float64(alpha), Float64(beta), Float64(omega)
+        c = rayleigh_speed(a, b)
+        p = inv(c)
+        ηp = sqrt(p^2 - inv(a)^2)
+        ηs = sqrt(p^2 - inv(b)^2)
+        As_over_Ap = 2im * p * ηp / (ηs^2 + p^2)
+
+        xs = collect(range(0.0, xmax; length = nx))
+        zs = collect(range(0.0, zmax; length = nz))
+        ts = collect(range(0.0, 2π / ω; length = nframes + 1))[1:nframes]
+
+        uxP = Array{Float64}(undef, nframes, nx, nz)
+        uzP = similar(uxP)
+        uxS = similar(uxP)
+        uzS = similar(uxP)
+
+        for (it, t) in enumerate(ts), (ix, x) in enumerate(xs), (iz, z) in enumerate(zs)
+            ϕ = exp(-ω * ηp * z) * cis(ω * (t - p * x))
+            ψ = As_over_Ap * exp(-ω * ηs * z) * cis(ω * (t - p * x))
+            uxP[it, ix, iz] = real(-im * ω * p * ϕ)
+            uzP[it, ix, iz] = real(-ω * ηp * ϕ)
+            uxS[it, ix, iz] = real(ω * ηs * ψ)
+            uzS[it, ix, iz] = real(-im * ω * p * ψ)
+        end
+
+        norm = max(maximum(hypot.(uxP .+ uxS, uzP .+ uzS)), eps())
+        return (
+            xs = xs, zs = zs, nx = nx, nz = nz, nframes = nframes,
+            uxP = uxP ./ norm, uzP = uzP ./ norm, uxS = uxS ./ norm, uzS = uzS ./ norm,
+        )
+    end
+
+    """
+    	rayleigh_widget_payload(alpha, beta, omega, time_fraction, depth)
+
+    Bundle everything the "Rayleigh secular function" and "Particle orbit"
+    panels need for one widget update: the secular-function curve sampled
+    below `\\beta`, the normalized particle orbit at `depth`, and the single
+    snapshot point selected by `time_fraction` (a fraction of one cycle).
+    """
+    function rayleigh_widget_payload(alpha::Real, beta::Real, omega::Real, time_fraction::Real, depth::Real)
+        c_r = rayleigh_speed(alpha, beta)
+        curve_c = collect(range(0.0, 0.999 * Float64(beta); length = 240))
+        curve_r = rayleigh_function.(Float64(alpha), Float64(beta), curve_c)
+        orbit = rayleigh_orbit(alpha, beta, omega, depth)
+        i = clamp(round(Int, Float64(time_fraction) * (length(orbit.phases) - 1)) + 1, 1, length(orbit.phases))
+        return (
+            curve_c = curve_c, curve_r = curve_r, orbit_x = orbit.orbit_x, orbit_z = orbit.orbit_z,
+            snapshot_x = orbit.orbit_x[i], snapshot_z = orbit.orbit_z[i], c_r = c_r,
+            surface_ratio = orbit.attenuation,
+        )
+    end
 end
 
-# ╔═╡ 38f7ae72-edae-4ebf-9600-1104e4fd92cf
-function plot_Rayleigh_function(RUI_func, cᵣ_val, αp_val, βp_val)
-    fig = Plot(Layout(title="Rayleigh Function", xaxis_title="Phase Velocity (km/s)", width=700, height=350))
-    # declare a range of speeds for plotting
-    cmin = 1.0 # minimum possible speed
-    cmax = βp_val - eps(Float64) # maximum speed, otherwise the SV wave will no longer be evanascent
-    crange = range(cmin, stop=cmax, length=100)
-    add_trace!(fig, PlutoPlotly.scatter(x=crange, y=[RUI_func(inv(c)) for c in crange], line=attr(width=3, color="white"), name="Rayleigh Function"))
-    add_hline!(fig, 0.0, line=attr(dash="dot"))
-    add_trace!(fig, PlutoPlotly.scatter(x=[cᵣ_val, cᵣ_val], y=[-1, 1],
-        name="Rayleigh Phase Velocity (cᵣ)",
-        line=attr(
-            color="Orange",
-            width=4,
-        )
-    ))
-    add_trace!(fig, PlutoPlotly.scatter(x=[αp_val, αp_val], y=[-1, 1],
-        name="P-wave Velocity (α)",
-        line=attr(
-            color="Red",
-            width=4,
-        )
-    ))
-    add_trace!(fig, PlutoPlotly.scatter(x=[βp_val, βp_val], y=[-1, 1],
-        name="S-wave Velocity (β)",
-        line=attr(
-            color="Blue",
-            width=4,
-        )
-    ))
-    relayout!(fig)
-    PlutoPlotly.plot(fig)
+# ╔═╡ aa111199-0003-4003-8003-100000000003
+md"""
+### The Interactive Widget
+"""
+
+# ╔═╡ bb222222-2222-4222-8222-222222222222
+begin
+    struct RayleighFunctionInput
+        alpha::Float64
+        beta::Float64
+        density::Float64
+        omega::Float64
+        time::Float64
+        depth::Float64
+    end
+
+    RayleighFunctionInput(; alpha=6.0, beta=4.49, density=2.9, omega=0.15, time=0.25, depth=0.0) =
+        RayleighFunctionInput(Float64(alpha), Float64(beta), Float64(density), Float64(omega), Float64(time), Float64(depth))
+
+    Base.get(w::RayleighFunctionInput) = Dict{String,Any}(
+        "alpha" => w.alpha, "beta" => w.beta, "density" => w.density,
+        "omega" => w.omega, "time" => w.time, "depth" => w.depth,
+    )
+
+    function Base.show(io::IO, ::MIME"text/html", w::RayleighFunctionInput)
+        write(io, """
+        <div id="rf-widget"><style>
+        #rf-widget{width:100%;max-width:1400px;margin:auto;color:#e5e7eb;font:14px system-ui,sans-serif}#rf-widget *{box-sizing:border-box}
+        #rf-widget .rf-title{padding:10px 14px;margin-bottom:10px;text-align:center;background:#0a0f18;border:1px solid #3b5c85;border-radius:6px}#rf-widget .rf-title b{font-size:17px}#rf-widget .rf-hint{margin-top:3px;color:#9ca3af;font-size:13px}
+        #rf-widget .rf-workspace{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}#rf-widget .rf-panel,#rf-widget .rf-group{min-width:0;padding:10px;background:#050505;border:1px solid #2f3744;border-radius:6px}#rf-widget .rf-panel-title{font-size:15px;font-weight:700;color:#f3f4f6}.rf-caption{min-height:32px;margin:4px 0 7px;color:#9ca3af;font-size:13px;line-height:1.3}
+        #rf-widget .rf-wide{grid-column:1/-1}#rf-widget canvas{display:block;width:100%;height:290px;background:#000;border:1px solid #374151;border-radius:4px}#rf-wave{height:300px!important}
+        #rf-widget .rf-legend{display:flex;gap:12px;flex-wrap:wrap;align-items:center;margin-top:7px;font-size:12px}.rf-key{display:inline-flex;align-items:center;gap:5px;cursor:pointer;user-select:none}.rf-swatch{width:18px;height:3px;border-radius:2px;background:currentColor}.rf-dash{background:repeating-linear-gradient(90deg,currentColor 0 6px,transparent 6px 10px)}.rf-key input{accent-color:currentColor;margin:0}
+        #rf-widget .rf-controls{display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:8px;margin-top:10px}.rf-group-title{margin-bottom:7px;font-size:16px;font-weight:700;color:#f3f4f6}.rf-row{display:grid;grid-template-columns:minmax(76px,120px) minmax(70px,1fr) minmax(44px,72px);gap:7px;align-items:center;margin:7px 0;color:#d1d5db}#rf-widget input[type=range]{width:100%;min-width:0;accent-color:#f59e0b}.rf-value{color:#fbbf24;text-align:right;font-variant-numeric:tabular-nums}#rf-widget button.rf-btn{border:1px solid #9ca3af;border-radius:4px;padding:6px 12px;background:#606060;color:#f3f4f6;font-size:14px;cursor:pointer}#rf-widget button.rf-btn:hover{background:#737373}.rf-readout{margin-top:8px;color:#d1d5db;font-size:13px}.rf-readout b{color:#fbbf24}@media(max-width:760px){#rf-widget .rf-workspace{grid-template-columns:1fr}#rf-widget canvas{height:250px}}
+        </style><div class="rf-title"><b>Find the surface-wave speed, then watch the coupled P&ndash;SV field roll by.</b><div class="rf-hint">Change the elastic speeds &middot; play the wavefield &middot; compare the secular zero with particle motion</div></div>
+        <div class="rf-workspace">
+        <section class="rf-panel rf-wide"><div class="rf-panel-title">Rayleigh wavefield</div><div class="rf-caption" id="rf-wave-caption">Snapshot of the coupled evanescent P and SV displacement field near the free surface.</div><canvas id="rf-wave"></canvas>
+        <div class="rf-legend"><button id="rf-play" type="button" class="rf-btn">Play</button><label class="rf-key" style="color:#f59e0b"><input type="checkbox" id="rf-show-p" checked><i class="rf-swatch"></i>P</label><label class="rf-key" style="color:#60a5fa"><input type="checkbox" id="rf-show-s" checked><i class="rf-swatch"></i>SV</label><span class="rf-key" style="color:#ef4444"><i class="rf-swatch"></i>free surface</span></div>
+        </section>
+        <section class="rf-panel"><div class="rf-panel-title">Rayleigh secular function</div><div class="rf-caption">The physical, non-zero crossing determines the sub-shear Rayleigh phase speed.</div><canvas id="rf-secular"></canvas><div class="rf-legend"><span class="rf-key" style="color:#f59e0b"><i class="rf-swatch"></i>R(c)</span><span class="rf-key" style="color:#22d3ee"><i class="rf-swatch rf-dash"></i>cᵣ</span><span class="rf-key" style="color:#a78bfa"><i class="rf-swatch rf-dash"></i>β</span></div></section>
+        <section class="rf-panel"><div class="rf-panel-title">Particle orbit at selected depth</div><div class="rf-caption">One normalized cycle at x = 0. The marker is the selected phase; the readout reports the physical attenuation.</div><canvas id="rf-orbit"></canvas><div class="rf-legend"><span class="rf-key" style="color:#60a5fa"><i class="rf-swatch"></i>particle path</span><span class="rf-key" style="color:#fbbf24"><i class="rf-swatch"></i>snapshot</span></div></section>
+        </div>
+        <div class="rf-controls"><section class="rf-group"><div class="rf-group-title">Isotropic half-space</div><label class="rf-row"><span>P speed α</span><input id="rf-alpha" type="range" min="4" max="10" step="0.1" value="$(w.alpha)"><span id="rf-alpha-v" class="rf-value"></span></label><label class="rf-row"><span>S speed β</span><input id="rf-beta" type="range" min="2" max="6" step="0.01" value="$(w.beta)"><span id="rf-beta-v" class="rf-value"></span></label><label class="rf-row"><span>Density ρ</span><input id="rf-density" type="range" min="2" max="4" step="0.1" value="$(w.density)"><span id="rf-density-v" class="rf-value"></span></label></section><section class="rf-group"><div class="rf-group-title">Observe the orbit</div><label class="rf-row"><span>Angular ω</span><input id="rf-omega" type="range" min="0.05" max="0.35" step="0.01" value="$(w.omega)"><span id="rf-omega-v" class="rf-value"></span></label><label class="rf-row"><span>Phase</span><input id="rf-time" type="range" min="0" max="1" step="0.01" value="$(w.time)"><span id="rf-time-v" class="rf-value"></span></label><label class="rf-row"><span>Depth z</span><input id="rf-depth" type="range" min="0" max="25" step="0.5" value="$(w.depth)"><span id="rf-depth-v" class="rf-value"></span></label></section><section class="rf-group"><div class="rf-group-title">Readout</div><div id="rf-readout" class="rf-readout">Computing Rayleigh orbit…</div><button id="rf-reset" type="button" class="rf-btn">Reset experiment</button></section></div></div>
+        <script>
+        (function(){
+        if (window.__rfCleanup) { window.__rfCleanup() }
+        const rfInstance = {};
+        window.__rfCurrentInstance = rfInstance;
+        const rfController = new AbortController();
+        window.__rfCleanup = () => rfController.abort();
+        const rfSignal = { signal: rfController.signal };
+
+        const par=document.currentScript.previousElementSibling,by=id=>par.querySelector('#'+id);
+        const state={alpha:$(w.alpha),beta:$(w.beta),density:$(w.density),omega:$(w.omega),time:$(w.time),depth:$(w.depth)};
+        const ids={'rf-alpha':'alpha','rf-beta':'beta','rf-density':'density','rf-omega':'omega','rf-time':'time','rf-depth':'depth'};
+        let result=null;
+        let showP=true, showS=true, playing=false, frameIdx=0, lastFrameTime=0, rafId=null;
+        function labels(){by('rf-alpha-v').textContent=state.alpha.toFixed(1)+' km/s';by('rf-beta-v').textContent=state.beta.toFixed(2)+' km/s';by('rf-density-v').textContent=state.density.toFixed(1)+' g/cm³';by('rf-omega-v').textContent=state.omega.toFixed(2)+' rad/s';by('rf-time-v').textContent=(360*state.time).toFixed(0)+'°';by('rf-depth-v').textContent=state.depth.toFixed(1)+' km'}
+        function emit(){if(state.beta>=.98*state.alpha){state.beta=Math.max(2,.98*state.alpha);by('rf-beta').value=state.beta}par.value={...state};par.dispatchEvent(new CustomEvent('input'))}
+        function setup(canvas){const rect=canvas.getBoundingClientRect(),d=devicePixelRatio||1,W=Math.max(1,rect.width),H=Math.max(1,rect.height);canvas.width=Math.round(W*d);canvas.height=Math.round(H*d);const x=canvas.getContext('2d');x.setTransform(d,0,0,d,0,0);x.fillStyle='#000';x.fillRect(0,0,W,H);return[x,W,H]}
+        function axes(x,W,H,title,xleft,xright,ylow,yhigh){const m={l:42,r:14,t:28,b:30},px=v=>m.l+(v-xleft)/(xright-xleft)*(W-m.l-m.r),py=v=>H-m.b-(v-ylow)/(yhigh-ylow)*(H-m.t-m.b);x.strokeStyle='#1f2937';x.lineWidth=1;for(let i=0;i<5;i++){let y=m.t+i*(H-m.t-m.b)/4;x.beginPath();x.moveTo(m.l,y);x.lineTo(W-m.r,y);x.stroke()}if(ylow<0&&yhigh>0){x.strokeStyle='#4b5563';x.beginPath();x.moveTo(m.l,py(0));x.lineTo(W-m.r,py(0));x.stroke()}x.fillStyle='#e5e7eb';x.font='600 13px sans-serif';x.fillText(title,m.l,18);x.fillStyle='#9ca3af';x.font='12px sans-serif';x.fillText(xleft.toFixed(1),m.l,H-8);x.textAlign='right';x.fillText(xright.toFixed(1),W-m.r,H-8);x.textAlign='left';return{m,px,py}}
+        function curve(x,xs,ys,px,py,color,dash=[]){x.beginPath();for(let i=0;i<xs.length;i++){const X=px(xs[i]),Y=py(ys[i]);i?x.lineTo(X,Y):x.moveTo(X,Y)}x.strokeStyle=color;x.lineWidth=2.3;x.setLineDash(dash);x.stroke();x.setLineDash([])}
+        function secular(){if(!result)return;const [x,W,H]=setup(by('rf-secular')),ys=result.curve_r,limit=Math.max(...ys.map(Math.abs),.05)*1.12,a=axes(x,W,H,'phase velocity c (km/s)',0,state.beta,-limit,limit);curve(x,result.curve_c,ys,a.px,a.py,'#f59e0b');for(const item of [[result.c_r,'#22d3ee'],[state.beta,'#a78bfa']]){x.strokeStyle=item[1];x.lineWidth=1.7;x.setLineDash([5,4]);x.beginPath();x.moveTo(a.px(item[0]),a.m.t);x.lineTo(a.px(item[0]),H-a.m.b);x.stroke();x.setLineDash([])}}
+        function orbit(){if(!result)return;const [x,W,H]=setup(by('rf-orbit')),R=1.25,cx=W/2,cy=H/2,S=Math.min(W,H)*.32,px=v=>cx+v/R*S,py=v=>cy-v/R*S;x.strokeStyle='#374151';x.lineWidth=1;x.beginPath();x.moveTo(cx-S,cy);x.lineTo(cx+S,cy);x.moveTo(cx,cy-S);x.lineTo(cx,cy+S);x.stroke();curve(x,result.orbit_x,result.orbit_z,px,py,'#60a5fa');x.fillStyle='#fbbf24';x.beginPath();x.arc(px(result.snapshot_x),py(result.snapshot_z),5,0,2*Math.PI);x.fill();x.fillStyle='#9ca3af';x.font='12px sans-serif';x.fillText('horizontal',W-74,cy-7);x.fillText('vertical',cx+6,24);x.fillText('normalised displacement',12,H-10)}
+        function drawArrow(x,sx,sy,dx,dy,color){const len=Math.hypot(dx,dy);if(len<0.6)return;const ux=dx/len,uy=dy/len,ah=4,aw=2.4;x.strokeStyle=color;x.lineWidth=1.6;x.beginPath();x.moveTo(sx,sy);x.lineTo(sx+dx,sy+dy);x.stroke();const tx=sx+dx,ty=sy+dy,bx=tx-ux*ah,by2=ty-uy*ah;x.beginPath();x.moveTo(tx,ty);x.lineTo(bx-uy*aw,by2+ux*aw);x.lineTo(bx+uy*aw,by2-ux*aw);x.closePath();x.fillStyle=color;x.fill()}
+        function idxWF(fr,ix,iz,nx,nz){return (fr*nx+ix)*nz+iz}
+        function wavefield(){
+          if(!result) return;
+          const [x,W,H]=setup(by('rf-wave'));
+          const m={l:46,r:14,t:10,b:26};
+          const xmax=result.wf_xs[result.wf_xs.length-1], zmax=result.wf_zs[result.wf_zs.length-1];
+          const px=v=>m.l+v/xmax*(W-m.l-m.r), py=v=>m.t+v/zmax*(H-m.t-m.b);
+          const nx=result.wf_nx, nz=result.wf_nz, fr=frameIdx;
+          const arrowScale=26;
+          for(const ix of result.wf_xs.keys()){
+            for(const iz of result.wf_zs.keys()){
+              let ux=0, uz=0;
+              if(showP){ const b=idxWF(fr,ix,iz,nx,nz); ux+=result.wf_uxP[b]; uz+=result.wf_uzP[b]; }
+              if(showS){ const b=idxWF(fr,ix,iz,nx,nz); ux+=result.wf_uxS[b]; uz+=result.wf_uzS[b]; }
+              const sx=px(result.wf_xs[ix]), sy=py(result.wf_zs[iz]);
+              drawArrow(x, sx, sy, ux*arrowScale, uz*arrowScale, '#60a5fa');
+            }
+          }
+          x.strokeStyle='#ef4444'; x.lineWidth=2; x.beginPath(); x.moveTo(m.l,py(0)); x.lineTo(W-m.r,py(0)); x.stroke();
+          x.fillStyle='#9ca3af'; x.font='12px sans-serif'; x.fillText('distance (km)', m.l, H-8);
+          x.save(); x.translate(14,H/2); x.rotate(-Math.PI/2); x.textAlign='center'; x.fillText('depth (km)',0,0); x.restore();
+        }
+        function draw(){secular();orbit();wavefield();if(result)by('rf-readout').innerHTML='c<sub>R</sub> = <b>'+result.c_r.toFixed(3)+' km/s</b> = '+(100*result.c_r/state.beta).toFixed(1)+'% of β<br>Amplitude at '+state.depth.toFixed(1)+' km: <b>'+(100*result.surface_ratio).toFixed(1)+'%</b> of surface';}
+        function tick(now){
+          if (window.__rfCurrentInstance !== rfInstance) return;
+          if(playing && result && now-lastFrameTime>85){ frameIdx=(frameIdx+1)%result.wf_nframes; lastFrameTime=now; wavefield(); }
+          rafId=requestAnimationFrame(tick);
+        }
+        function onControl(event){const key=ids[event.target.id];if(!key)return;event.stopImmediatePropagation();state[key]=Number(event.target.value);labels();emit()}
+        par.addEventListener('input',onControl,true);
+        par.addEventListener('change',onControl,true);
+        by('rf-reset').onclick=()=>{Object.assign(state,{alpha:6,beta:4.49,density:2.9,omega:.15,time:.25,depth:0});for(const [id,key]of Object.entries(ids))by(id).value=state[key];labels();emit()};
+        by('rf-show-p').addEventListener('change',e=>{showP=e.target.checked;wavefield()});
+        by('rf-show-s').addEventListener('change',e=>{showS=e.target.checked;wavefield()});
+        by('rf-play').addEventListener('click',()=>{playing=!playing;by('rf-play').textContent=playing?'Pause':'Play';if(playing){lastFrameTime=0}});
+        window.addEventListener('rayleigh-function-results',event=>{result=event.detail?JSON.parse(event.detail):null;draw()},rfSignal);
+        new ResizeObserver(draw).observe(par);
+        rafId=requestAnimationFrame(tick);
+        labels(); draw();
+        })();
+        </script></div>
+        """)
+    end
+
+    const _rf_ready = true
+end
+
+# ╔═╡ 544d41b1-b6ce-4844-8269-a0251b391962
+begin
+    # The widget implementation lives in the Appendix. This explicit reference
+    # makes a cold Pluto load wait for its definition.
+    _rf_ready
+    PlutoUI.WideCell(@bind _rf RayleighFunctionInput(); max_width=1400)
+end
+
+# ╔═╡ 31a317e2-0864-4552-83ee-ba4138ab5c0b
+begin
+    # Convert the browser value at one boundary; the remainder of the notebook
+    # only sees concrete, physically admissible numerical values.
+    rf_safe = _rf isa AbstractDict ? _rf : Dict{String,Any}()
+    αp = clamp(Float64(get(rf_safe, "alpha", 6.0)), 4.0, 10.0)
+    βp = clamp(Float64(get(rf_safe, "beta", 4.49)), 2.0, min(6.0, 0.98 * αp))
+    ρp = clamp(Float64(get(rf_safe, "density", 2.9)), 2.0, 4.0)
+    ωp = clamp(Float64(get(rf_safe, "omega", 0.15)), 0.05, 0.35)
+    rf_time = clamp(Float64(get(rf_safe, "time", 0.25)), 0.0, 1.0)
+    rf_depth = clamp(Float64(get(rf_safe, "depth", 0.0)), 0.0, 25.0)
+end
+
+# ╔═╡ bd7562f0-cb14-4ddb-b8c7-ffc2a37b079e
+let
+    payload = rayleigh_widget_payload(αp, βp, ωp, rf_time, rf_depth)
+    wf = rayleigh_wavefield_frames(αp, βp, ωp)
+    number(x) = isfinite(x) ? string(round(Float64(x), digits = 7)) : "0"
+    array(values) = "[" * join(number.(values), ",") * "]"
+    # (frame,ix,iz) -> flatten with iz fastest, then ix, then frame slowest
+    flat(A) = vec(permutedims(A, (3, 2, 1)))
+    message = string(
+        "{\"curve_c\":", array(payload.curve_c), ",\"curve_r\":", array(payload.curve_r),
+        ",\"orbit_x\":", array(payload.orbit_x), ",\"orbit_z\":", array(payload.orbit_z),
+        ",\"snapshot_x\":", number(payload.snapshot_x), ",\"snapshot_z\":", number(payload.snapshot_z),
+        ",\"c_r\":", number(payload.c_r), ",\"surface_ratio\":", number(payload.surface_ratio),
+        ",\"wf_xs\":", array(wf.xs), ",\"wf_zs\":", array(wf.zs),
+        ",\"wf_nx\":", wf.nx, ",\"wf_nz\":", wf.nz, ",\"wf_nframes\":", wf.nframes,
+        ",\"wf_uxP\":", array(flat(wf.uxP)), ",\"wf_uzP\":", array(flat(wf.uzP)),
+        ",\"wf_uxS\":", array(flat(wf.uxS)), ",\"wf_uzS\":", array(flat(wf.uzS)), "}",
+    )
+    HTML("""<script>
+      window.dispatchEvent(new CustomEvent('rayleigh-function-results', {detail: $(repr(message))}));
+    </script>""")
+end
+
+# ╔═╡ c830a6e9-61bf-49b2-95d1-8dea1b89c154
+RUI = build_function(subs_αβρ_plot(R, αp, βp, ρp), p, expression=Val{false})
+
+# ╔═╡ a53444b0-cb7f-4729-a262-38b33766bb74
+begin
+    cᵣ = rayleigh_speed(αp, βp)
+    md"The root is cᵣ=$(cᵣ) (km/s)"
 end
 
 # ╔═╡ 00000000-0000-0000-0000-000000000001
 PLUTO_PROJECT_TOML_CONTENTS = """
 [deps]
-LaTeXStrings = "b964fa9f-0449-5b57-a5c2-d3ea65f4040f"
-Latexify = "23fbe1c1-3f47-55db-b15f-69d7ec21a316"
-LinearAlgebra = "37e2e46d-f89d-539d-b4ee-838fcccc9c8e"
-Measures = "442fdcdd-2543-5da2-b0f3-8c86c306513e"
-Parameters = "d96e819e-fc66-5662-9728-84c9c7592b0a"
-PlutoPlotly = "8e989ff0-3d88-8e9f-f020-2b208a939ff0"
 PlutoTeachingTools = "661c6b06-c737-4d37-b85c-46df65de6f69"
 PlutoUI = "7f904dfe-b85e-4ff6-b463-dae2292396a8"
-Roots = "f2b01f46-fcfa-551c-844a-d8ac1e96c665"
 SymbolicUtils = "d1185830-fcd6-423d-90d6-eec64667417b"
 Symbolics = "0c5d862f-8b57-4792-8d23-62f2024744c7"
 
 [compat]
-LaTeXStrings = "~1.4.0"
-Latexify = "~0.16.5"
-Measures = "~0.3.2"
-Parameters = "~0.12.3"
-PlutoPlotly = "~0.6.5"
-PlutoTeachingTools = "~0.3.0"
-PlutoUI = "~0.7.60"
-Roots = "~2.2.1"
-SymbolicUtils = "~3.7.1"
+PlutoTeachingTools = "~0.3.1"
+PlutoUI = "~0.7.72"
+SymbolicUtils = "~3.7.2"
 Symbolics = "~6.22.1"
 """
 
@@ -425,9 +582,9 @@ Symbolics = "~6.22.1"
 PLUTO_MANIFEST_TOML_CONTENTS = """
 # This file is machine-generated - editing it directly is not advised
 
-julia_version = "1.11.7"
+julia_version = "1.12.4"
 manifest_format = "2.0"
-project_hash = "24218b942644636c79f15f9a570e5820ce4cca61"
+project_hash = "a8f6a03aa7eac564a5fb447e969ae86e7d7eaa02"
 
 [[deps.ADTypes]]
 git-tree-sha1 = "27cecae79e5cc9935255f90c53bb831cc3c870d7"
@@ -563,12 +720,6 @@ git-tree-sha1 = "980f01d6d3283b3dbdfd7ed89405f96b7256ad57"
 uuid = "da1fd8a2-8d9e-5ec2-8556-3022fb5608a2"
 version = "2.0.1"
 
-[[deps.ColorSchemes]]
-deps = ["ColorTypes", "ColorVectorSpace", "Colors", "FixedPointNumbers", "PrecompileTools", "Random"]
-git-tree-sha1 = "b0fd3f56fa442f81e0a47815c92245acfaaa4e34"
-uuid = "35d6a980-a343-548e-a6ea-1d62b119f2f4"
-version = "3.31.0"
-
 [[deps.ColorTypes]]
 deps = ["FixedPointNumbers", "Random"]
 git-tree-sha1 = "67e11ee83a43eb71ddc950302c53bf33f0690dfe"
@@ -578,22 +729,6 @@ weakdeps = ["StyledStrings"]
 
     [deps.ColorTypes.extensions]
     StyledStringsExt = "StyledStrings"
-
-[[deps.ColorVectorSpace]]
-deps = ["ColorTypes", "FixedPointNumbers", "LinearAlgebra", "Requires", "Statistics", "TensorCore"]
-git-tree-sha1 = "8b3b6f87ce8f65a2b4f857528fd8d70086cd72b1"
-uuid = "c3611d14-8923-5661-9e6a-0046d554d3a4"
-version = "0.11.0"
-weakdeps = ["SpecialFunctions"]
-
-    [deps.ColorVectorSpace.extensions]
-    SpecialFunctionsExt = "SpecialFunctions"
-
-[[deps.Colors]]
-deps = ["ColorTypes", "FixedPointNumbers", "Reexport"]
-git-tree-sha1 = "37ea44092930b1811e666c3bc38065d7d87fcc74"
-uuid = "5ae59095-9a9b-59fe-a467-6f913c188581"
-version = "0.13.1"
 
 [[deps.Combinatorics]]
 git-tree-sha1 = "8010b6bb3388abe68d95743dcbea77650bb2eddf"
@@ -628,7 +763,7 @@ version = "0.1.1"
 [[deps.CompilerSupportLibraries_jll]]
 deps = ["Artifacts", "Libdl"]
 uuid = "e66e0078-7015-5450-92f7-15fbd957f2ae"
-version = "1.1.1+0"
+version = "1.3.0+1"
 
 [[deps.CompositeTypes]]
 git-tree-sha1 = "bce26c3dab336582805503bed209faab1c279768"
@@ -670,12 +805,6 @@ version = "0.18.22"
 deps = ["Printf"]
 uuid = "ade2ca70-3891-5945-98fb-dc099432e06a"
 version = "1.11.0"
-
-[[deps.DelimitedFiles]]
-deps = ["Mmap"]
-git-tree-sha1 = "9e2f36d3c96a820c678f2f1f1782582fcf685bae"
-uuid = "8bb1440f-4735-579b-a4ab-409b98df4dab"
-version = "1.9.1"
 
 [[deps.DiffRules]]
 deps = ["IrrationalConstants", "LogExpFunctions", "NaNMath", "Random", "SpecialFunctions"]
@@ -726,7 +855,7 @@ version = "0.7.16"
 [[deps.Downloads]]
 deps = ["ArgTools", "FileWatching", "LibCURL", "NetworkOptions"]
 uuid = "f43a241f-c20a-4ad4-852c-f6b1247861c6"
-version = "1.6.0"
+version = "1.7.0"
 
 [[deps.DynamicPolynomials]]
 deps = ["Future", "LinearAlgebra", "MultivariatePolynomials", "MutableArithmetics", "Reexport", "Test"]
@@ -803,11 +932,6 @@ deps = ["Artifacts", "JLLWrappers", "JpegTurbo_jll", "Libdl", "Zlib_jll"]
 git-tree-sha1 = "38044a04637976140074d0b0621c1edf0eb531fd"
 uuid = "61579ee1-b43e-5ca0-a5da-69d92c66a64b"
 version = "9.55.1+0"
-
-[[deps.HashArrayMappedTries]]
-git-tree-sha1 = "2eaa69a7cab70a52b9687c8bf950a5a93ec895ae"
-uuid = "076d061b-32b6-4027-95e0-9a2c6f6d7e74"
-version = "0.2.0"
 
 [[deps.HypergeometricFunctions]]
 deps = ["LinearAlgebra", "OpenLibm_jll", "SpecialFunctions"]
@@ -909,6 +1033,11 @@ git-tree-sha1 = "277779adfedf4a30d66b64edc75dc6bb6d52a16e"
 uuid = "aa1ae85d-cabe-5617-a682-6adf51b2e16a"
 version = "0.10.6"
 
+[[deps.JuliaSyntaxHighlighting]]
+deps = ["StyledStrings"]
+uuid = "ac6e5ff7-fb65-4e79-a425-ec3bc9c03011"
+version = "1.12.0"
+
 [[deps.LaTeXStrings]]
 git-tree-sha1 = "dda21b8cbd6a6c40d9d02a73230f9d70fed6918c"
 uuid = "b964fa9f-0449-5b57-a5c2-d3ea65f4040f"
@@ -938,24 +1067,24 @@ uuid = "b27032c2-a3e7-50c8-80cd-2d36dbcbfd21"
 version = "0.6.4"
 
 [[deps.LibCURL_jll]]
-deps = ["Artifacts", "LibSSH2_jll", "Libdl", "MbedTLS_jll", "Zlib_jll", "nghttp2_jll"]
+deps = ["Artifacts", "LibSSH2_jll", "Libdl", "OpenSSL_jll", "Zlib_jll", "nghttp2_jll"]
 uuid = "deac9b47-8bc7-5906-a0fe-35ac56dc84c0"
-version = "8.6.0+0"
+version = "8.15.0+0"
 
 [[deps.LibGit2]]
-deps = ["Base64", "LibGit2_jll", "NetworkOptions", "Printf", "SHA"]
+deps = ["LibGit2_jll", "NetworkOptions", "Printf", "SHA"]
 uuid = "76f85450-5226-5b5a-8eaa-529ad045b433"
 version = "1.11.0"
 
 [[deps.LibGit2_jll]]
-deps = ["Artifacts", "LibSSH2_jll", "Libdl", "MbedTLS_jll"]
+deps = ["Artifacts", "LibSSH2_jll", "Libdl", "OpenSSL_jll"]
 uuid = "e37daf67-58a4-590a-8e99-b0245dd2ffc5"
-version = "1.7.2+0"
+version = "1.9.0+0"
 
 [[deps.LibSSH2_jll]]
-deps = ["Artifacts", "Libdl", "MbedTLS_jll"]
+deps = ["Artifacts", "Libdl", "OpenSSL_jll"]
 uuid = "29816b5a-b9ab-546f-933c-edad1886dfa8"
-version = "1.11.0+1"
+version = "1.11.3+1"
 
 [[deps.Libdl]]
 uuid = "8f399da3-3557-5675-b5ff-fb832c97cbdb"
@@ -964,7 +1093,7 @@ version = "1.11.0"
 [[deps.LinearAlgebra]]
 deps = ["Libdl", "OpenBLAS_jll", "libblastrampoline_jll"]
 uuid = "37e2e46d-f89d-539d-b4ee-838fcccc9c8e"
-version = "1.11.0"
+version = "1.12.0"
 
 [[deps.LogExpFunctions]]
 deps = ["DocStringExtensions", "IrrationalConstants", "LinearAlgebra"]
@@ -1003,19 +1132,9 @@ uuid = "1914dd2f-81c6-5fcd-8719-6d5c9610ff09"
 version = "0.5.16"
 
 [[deps.Markdown]]
-deps = ["Base64"]
+deps = ["Base64", "JuliaSyntaxHighlighting", "StyledStrings"]
 uuid = "d6f4376e-aef5-505a-96c1-9c027394607a"
 version = "1.11.0"
-
-[[deps.MbedTLS_jll]]
-deps = ["Artifacts", "Libdl"]
-uuid = "c8ffd9c3-330d-5841-b78e-0817d7145fa1"
-version = "2.28.6+0"
-
-[[deps.Measures]]
-git-tree-sha1 = "c13304c81eec1ed3af7fc20e75fb6b26092a1102"
-uuid = "442fdcdd-2543-5da2-b0f3-8c86c306513e"
-version = "0.3.2"
 
 [[deps.Missings]]
 deps = ["DataAPI"]
@@ -1035,7 +1154,7 @@ version = "0.3.7"
 
 [[deps.MozillaCACerts_jll]]
 uuid = "14a3606d-f60d-562e-9121-12d972cd8159"
-version = "2023.12.12"
+version = "2025.11.4"
 
 [[deps.MultivariatePolynomials]]
 deps = ["ChainRulesCore", "DataStructures", "LinearAlgebra", "MutableArithmetics"]
@@ -1057,17 +1176,22 @@ version = "1.1.3"
 
 [[deps.NetworkOptions]]
 uuid = "ca575930-c2e3-43a9-ace4-1e988b2c1908"
-version = "1.2.0"
+version = "1.3.0"
 
 [[deps.OpenBLAS_jll]]
 deps = ["Artifacts", "CompilerSupportLibraries_jll", "Libdl"]
 uuid = "4536629a-c528-5b80-bd46-f80d51c5b363"
-version = "0.3.27+1"
+version = "0.3.29+0"
 
 [[deps.OpenLibm_jll]]
 deps = ["Artifacts", "Libdl"]
 uuid = "05823500-19ac-5b8b-9628-191a04bc5112"
-version = "0.8.5+0"
+version = "0.8.7+0"
+
+[[deps.OpenSSL_jll]]
+deps = ["Artifacts", "Libdl"]
+uuid = "458c3c95-2e84-50aa-8efc-19380b2a3a95"
+version = "3.5.4+0"
 
 [[deps.OpenSpecFun_jll]]
 deps = ["Artifacts", "CompilerSupportLibraries_jll", "JLLWrappers", "Libdl"]
@@ -1086,12 +1210,6 @@ git-tree-sha1 = "f07c06228a1c670ae4c87d1276b92c7c597fdda0"
 uuid = "90014a1f-27ba-587c-ab20-58faa44d9150"
 version = "0.11.35"
 
-[[deps.Parameters]]
-deps = ["OrderedCollections", "UnPack"]
-git-tree-sha1 = "34c0e9ad262e5f7fc75b10a9952ca7692cfc5fbe"
-uuid = "d96e819e-fc66-5662-9728-84c9c7592b0a"
-version = "0.12.3"
-
 [[deps.Parsers]]
 deps = ["Dates", "PrecompileTools", "UUIDs"]
 git-tree-sha1 = "7d2f8f21da5db6a806faf7b9b292296da42b2810"
@@ -1101,29 +1219,11 @@ version = "2.8.3"
 [[deps.Pkg]]
 deps = ["Artifacts", "Dates", "Downloads", "FileWatching", "LibGit2", "Libdl", "Logging", "Markdown", "Printf", "Random", "SHA", "TOML", "Tar", "UUIDs", "p7zip_jll"]
 uuid = "44cfe95a-1eb2-52ea-b672-e2afdf69b78f"
-version = "1.11.0"
+version = "1.12.1"
 weakdeps = ["REPL"]
 
     [deps.Pkg.extensions]
     REPLExt = "REPL"
-
-[[deps.PlotlyBase]]
-deps = ["ColorSchemes", "Colors", "Dates", "DelimitedFiles", "DocStringExtensions", "JSON", "LaTeXStrings", "Logging", "Parameters", "Pkg", "REPL", "Requires", "Statistics", "UUIDs"]
-git-tree-sha1 = "28278bb0053da0fd73537be94afd1682cc5a0a83"
-uuid = "a03496cd-edff-5a9b-9e67-9cda94a718b5"
-version = "0.8.21"
-
-    [deps.PlotlyBase.extensions]
-    DataFramesExt = "DataFrames"
-    DistributionsExt = "Distributions"
-    IJuliaExt = "IJulia"
-    JSON3Ext = "JSON3"
-
-    [deps.PlotlyBase.weakdeps]
-    DataFrames = "a93c6f00-e57d-5684-b7b6-d8193f3e46c0"
-    Distributions = "31c24e10-a181-5473-b8eb-7969acd0382f"
-    IJulia = "7073ff75-c697-5162-941a-fcdaad2a7d2a"
-    JSON3 = "0f8b85d8-7281-11e9-16c2-39a750bddbf1"
 
 [[deps.PlutoHooks]]
 deps = ["InteractiveUtils", "Markdown", "UUIDs"]
@@ -1136,20 +1236,6 @@ deps = ["FileWatching", "InteractiveUtils", "Markdown", "PlutoHooks", "Revise", 
 git-tree-sha1 = "8f5fa7056e6dcfb23ac5211de38e6c03f6367794"
 uuid = "0ff47ea0-7a50-410d-8455-4348d5de0420"
 version = "0.1.6"
-
-[[deps.PlutoPlotly]]
-deps = ["AbstractPlutoDingetjes", "Artifacts", "ColorSchemes", "Colors", "Dates", "Downloads", "HypertextLiteral", "InteractiveUtils", "LaTeXStrings", "Markdown", "Pkg", "PlotlyBase", "PrecompileTools", "Reexport", "ScopedValues", "Scratch", "TOML"]
-git-tree-sha1 = "8acd04abc9a636ef57004f4c2e6f3f6ed4611099"
-uuid = "8e989ff0-3d88-8e9f-f020-2b208a939ff0"
-version = "0.6.5"
-
-    [deps.PlutoPlotly.extensions]
-    PlotlyKaleidoExt = "PlotlyKaleido"
-    UnitfulExt = "Unitful"
-
-    [deps.PlutoPlotly.weakdeps]
-    PlotlyKaleido = "f2990250-8cf9-495f-b13a-cce12b45703c"
-    Unitful = "1986cc42-f94f-5a68-af5c-568840ba703d"
 
 [[deps.PlutoTeachingTools]]
 deps = ["Downloads", "HypertextLiteral", "Latexify", "Markdown", "PlutoLinks", "PlutoUI"]
@@ -1220,7 +1306,7 @@ version = "2.11.2"
     Enzyme = "7da242da-08ed-463a-9acd-ee780be4f1d9"
 
 [[deps.REPL]]
-deps = ["InteractiveUtils", "Markdown", "Sockets", "StyledStrings", "Unicode"]
+deps = ["InteractiveUtils", "JuliaSyntaxHighlighting", "Markdown", "Sockets", "StyledStrings", "Unicode"]
 uuid = "3fa0cd96-eef1-5676-8a61-b3b8758bbffb"
 version = "1.11.0"
 
@@ -1300,28 +1386,6 @@ git-tree-sha1 = "58cdd8fb2201a6267e1db87ff148dd6c1dbd8ad8"
 uuid = "f50d1b31-88e8-58de-be2c-1cc44531875f"
 version = "0.5.1+0"
 
-[[deps.Roots]]
-deps = ["Accessors", "CommonSolve", "Printf"]
-git-tree-sha1 = "8a433b1ede5e9be9a7ba5b1cc6698daa8d718f1d"
-uuid = "f2b01f46-fcfa-551c-844a-d8ac1e96c665"
-version = "2.2.10"
-
-    [deps.Roots.extensions]
-    RootsChainRulesCoreExt = "ChainRulesCore"
-    RootsForwardDiffExt = "ForwardDiff"
-    RootsIntervalRootFindingExt = "IntervalRootFinding"
-    RootsSymPyExt = "SymPy"
-    RootsSymPyPythonCallExt = "SymPyPythonCall"
-    RootsUnitfulExt = "Unitful"
-
-    [deps.Roots.weakdeps]
-    ChainRulesCore = "d360d2e6-b24c-11e9-a2a3-2a2ae2dbcce4"
-    ForwardDiff = "f6369f11-7733-5829-9624-2563aa707210"
-    IntervalRootFinding = "d2bf35a9-74e0-55ec-b149-d360ff49b807"
-    SymPy = "24249f21-da20-56a4-8eb1-6a02cf4ae2e6"
-    SymPyPythonCall = "bc8888f7-b21e-4b7c-a06a-5d9c9496438c"
-    Unitful = "1986cc42-f94f-5a68-af5c-568840ba703d"
-
 [[deps.RuntimeGeneratedFunctions]]
 deps = ["ExprTools", "SHA", "Serialization"]
 git-tree-sha1 = "86a8a8b783481e1ea6b9c91dd949cb32191f8ab4"
@@ -1397,18 +1461,6 @@ git-tree-sha1 = "566c4ed301ccb2a44cbd5a27da5f885e0ed1d5df"
 uuid = "53ae85a6-f571-4167-b2af-e1d143709226"
 version = "1.7.0"
 
-[[deps.ScopedValues]]
-deps = ["HashArrayMappedTries", "Logging"]
-git-tree-sha1 = "c3b2323466378a2ba15bea4b2f73b081e022f473"
-uuid = "7e506255-f358-4e82-b7e4-beb19740aa63"
-version = "1.5.0"
-
-[[deps.Scratch]]
-deps = ["Dates"]
-git-tree-sha1 = "9b81b8393e50b7d4e6d0a9f14e192294d3b7c109"
-uuid = "6c6a2e73-6563-6170-7368-637461726353"
-version = "1.3.0"
-
 [[deps.Serialization]]
 uuid = "9e88b42a-f829-5b0c-bbe9-9e923198166b"
 version = "1.11.0"
@@ -1432,7 +1484,7 @@ version = "1.2.2"
 [[deps.SparseArrays]]
 deps = ["Libdl", "LinearAlgebra", "Random", "Serialization", "SuiteSparse_jll"]
 uuid = "2f01184e-e22b-5df5-ae63-d93ebab69eaf"
-version = "1.11.0"
+version = "1.12.0"
 
 [[deps.SpecialFunctions]]
 deps = ["IrrationalConstants", "LogExpFunctions", "OpenLibm_jll", "OpenSpecFun_jll"]
@@ -1504,7 +1556,7 @@ uuid = "4607b0f0-06f3-5cda-b6b1-a6196a1729e9"
 [[deps.SuiteSparse_jll]]
 deps = ["Artifacts", "Libdl", "libblastrampoline_jll"]
 uuid = "bea87d4a-7f5b-5778-9afe-8cc45184846c"
-version = "7.7.0+0"
+version = "7.8.3+2"
 
 [[deps.SymbolicIndexingInterface]]
 deps = ["Accessors", "ArrayInterface", "RuntimeGeneratedFunctions", "StaticArraysCore"]
@@ -1570,12 +1622,6 @@ deps = ["ArgTools", "SHA"]
 uuid = "a4e569a6-e804-4fa4-b0f3-eef7a1d5b13e"
 version = "1.10.0"
 
-[[deps.TensorCore]]
-deps = ["LinearAlgebra"]
-git-tree-sha1 = "1feb45f88d133a655e001435632f019a9a1bcdb6"
-uuid = "62fd8b95-f654-4bbd-a8a5-9c27f68ccd50"
-version = "0.1.1"
-
 [[deps.TermInterface]]
 git-tree-sha1 = "d673e0aca9e46a2f63720201f55cc7b3e7169b16"
 uuid = "8ea1fca8-c5ef-4a55-8b96-4e9afe9c9a3c"
@@ -1613,11 +1659,6 @@ deps = ["Random", "SHA"]
 uuid = "cf7118a7-6976-5b1a-9a39-7adc72f591a4"
 version = "1.11.0"
 
-[[deps.UnPack]]
-git-tree-sha1 = "387c1f73762231e86e0c9c5443ce3b4a0a9a0c2b"
-uuid = "3a884ed6-31ef-47d7-9d2a-63182c4928ed"
-version = "1.0.2"
-
 [[deps.Unicode]]
 uuid = "4ec0a83e-493e-50e2-b9ac-8f72acf5a8f5"
 version = "1.11.0"
@@ -1631,22 +1672,22 @@ version = "0.1.6"
 [[deps.Zlib_jll]]
 deps = ["Libdl"]
 uuid = "83775a58-1f1d-513f-b197-d71354ab007a"
-version = "1.2.13+1"
+version = "1.3.1+2"
 
 [[deps.libblastrampoline_jll]]
 deps = ["Artifacts", "Libdl"]
 uuid = "8e850b90-86db-534c-a0d3-1478176c7d93"
-version = "5.11.0+0"
+version = "5.15.0+0"
 
 [[deps.nghttp2_jll]]
 deps = ["Artifacts", "Libdl"]
 uuid = "8e850ede-7688-5339-a07c-302acd2aaf8d"
-version = "1.59.0+0"
+version = "1.64.0+1"
 
 [[deps.p7zip_jll]]
-deps = ["Artifacts", "Libdl"]
+deps = ["Artifacts", "CompilerSupportLibraries_jll", "Libdl"]
 uuid = "3f19e933-33d8-53b3-aaab-bd5110c3b7a0"
-version = "17.4.0+2"
+version = "17.7.0+0"
 """
 
 # ╔═╡ Cell order:
@@ -1702,14 +1743,13 @@ version = "17.4.0+2"
 # ╠═6bdcc2ac-3319-432d-a286-f706bf68234e
 # ╟─379feb55-32e5-4867-b108-b10c2c0782c3
 # ╠═5b807994-416d-11ed-22ff-77b37ff3cfac
+# ╟─aa111199-0001-4001-8001-100000000001
 # ╠═996bd1d1-09f9-4774-b73f-0f4e58f52455
 # ╠═18fa43a1-4e0d-4910-9125-d41d6d174ef1
 # ╠═3053571a-096c-448a-9b48-60f9a1b2fce6
-# ╠═872a5a67-b217-424a-bb88-627b7b2db7a9
-# ╠═b3faea59-7b99-4070-a9fa-29fc9dc9f48b
-# ╟─79d729c0-57cb-4100-812d-8907a4b3910d
-# ╠═13168a61-831a-4c15-b228-8a035df75cf1
-# ╠═4a4dc2cb-46ce-4fed-b67b-708943753f90
-# ╠═38f7ae72-edae-4ebf-9600-1104e4fd92cf
+# ╟─aa111199-0002-4002-8002-100000000002
+# ╠═bb111111-1111-4111-8111-111111111111
+# ╟─aa111199-0003-4003-8003-100000000003
+# ╠═bb222222-2222-4222-8222-222222222222
 # ╟─00000000-0000-0000-0000-000000000001
 # ╟─00000000-0000-0000-0000-000000000002

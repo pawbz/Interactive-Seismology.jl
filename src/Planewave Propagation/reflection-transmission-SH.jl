@@ -203,6 +203,38 @@ md"Similarly, the vertical component of the slowness vector in the second layer 
 # ╔═╡ 8c81ddb5-bf4d-4610-bfea-3d1a27ffd61f
 md"We can finally, update the expression of `SHAᵣ` and `SHAₜ` using the MOHO parameters and plot them"
 
+# ╔═╡ a089ab5b-4703-4d4d-a7ab-11197b4b907c
+"""
+    sh_interface_coefficients(β₁, β₂, ρ₁, ρ₂, θ)
+
+Return the transmitted and reflected SH displacement-amplitude coefficients at
+incident angle `θ` (radians). This is the direct numerical form of the
+Symbolics derivation above; keeping it separate prevents a symbolic
+`substitute`/`simplify` pass for every point in the interactive sweep.
+"""
+function sh_interface_coefficients(
+    β₁::Float64,
+    β₂::Float64,
+    ρ₁::Float64,
+    ρ₂::Float64,
+    θ::Float64,
+)
+    p = sin(θ) / β₁
+    η₁ = sqrt((inv(β₁)^2 - p^2) + 0im)
+    η₂ = sqrt((inv(β₂)^2 - p^2) + 0im)
+    q₁ = ρ₁ * β₁^2 * η₁
+    q₂ = ρ₂ * β₂^2 * η₂
+    denominator = q₁ + q₂
+
+    return (
+        transmitted = ComplexF64(2q₁ / denominator),
+        reflected = ComplexF64((q₁ - q₂) / denominator),
+    )
+end
+
+SHAₜ_ex(θ) = sh_interface_coefficients(β₁MOHO, β₂MOHO, ρ₁MOHO, ρ₂MOHO, Float64(θ)).transmitted
+SHAᵣ_ex(θ) = sh_interface_coefficients(β₁MOHO, β₂MOHO, ρ₁MOHO, ρ₂MOHO, Float64(θ)).reflected
+
 # ╔═╡ eeee5555-5555-5555-5555-555555555555
 md"""
 ### Verifying the coefficients
@@ -676,7 +708,7 @@ end
 # ╔═╡ afdb5b7d-d670-4a98-a91d-3ff638fb0294
 begin
     # Only the layer parameters need a Julia recompute (they feed the
-    # Symbolics-derived coefficients below) -- angle, frequency, and display
+    # direct numerical coefficients below) -- angle, frequency, and display
     # toggles live entirely client-side inside the widget: everything downstream
     # of theta is pre-swept once and pushed to the widget, so dragging theta never
     # touches Julia at all.
@@ -714,14 +746,17 @@ it's used to build the wavefield, below.
 """
 ηₜMOHO(θ) = sqrt((inv(β₂MOHO)^2 - (pMOHO(θ))^2) + 0im)
 
-# ╔═╡ a089ab5b-4703-4d4d-a7ab-11197b4b907c
-# `substitute`/`simplify` on a fully-numeric SymbolicUtils expression no longer
-# auto-collapses to a native Julia number on this Symbolics version (unlike when
-# this notebook was first written) -- `Symbolics.value` explicitly unwraps it, since
-# every downstream use (comparisons, `Float64(...)`, `real`/`imag` for the JSON push)
-# needs a real `ComplexF64`, not a symbolic wrapper that merely *prints* like one.
-SHAₜ_ex, SHAᵣ_ex = broadcast([SHAₜ, SHAᵣ]) do x
-    θ -> ComplexF64(Symbolics.value(simplify(substitute(x, [η => ηMOHO(θ), ηₜ => ηₜMOHO(θ), μ₁ => β₁MOHO^2 * ρ₁MOHO, μ₂ => β₂MOHO^2 * ρ₂MOHO]))))
+# ╔═╡ ffff6666-6666-6666-6666-666666666666
+let
+    Z1 = ρ₁MOHO * β₁MOHO
+    Z2 = ρ₂MOHO * β₂MOHO
+    Ar_expected = (Z1 - Z2) / (Z1 + Z2)
+    At_expected = 2Z1 / (Z1 + Z2)
+    Ar_computed = real(SHAᵣ_ex(0.0))
+    At_computed = real(SHAₜ_ex(0.0))
+    @assert isapprox(Ar_computed, Ar_expected; atol=1e-8) "reflection coefficient at normal incidence should be $(Ar_expected), got $(Ar_computed)"
+    @assert isapprox(At_computed, At_expected; atol=1e-8) "transmission coefficient at normal incidence should be $(At_expected), got $(At_computed)"
+    (reflection_at_normal_incidence=Ar_computed, transmission_at_normal_incidence=At_computed)
 end
 
 # ╔═╡ cccc3333-3333-3333-3333-333333333333
@@ -737,8 +772,13 @@ let
     p_sweep = pMOHO.(thetas_rad)
     eta_sweep = ηMOHO.(thetas_rad)
     etat_sweep = ηₜMOHO.(thetas_rad)
-    Ar_sweep = SHAᵣ_ex.(thetas_rad)
-    At_sweep = SHAₜ_ex.(thetas_rad)
+    Ar_sweep = Vector{ComplexF64}(undef, length(thetas_rad))
+    At_sweep = Vector{ComplexF64}(undef, length(thetas_rad))
+    for i in eachindex(thetas_rad)
+        coefficients = sh_interface_coefficients(β₁MOHO, β₂MOHO, ρ₁MOHO, ρ₂MOHO, thetas_rad[i])
+        Ar_sweep[i] = coefficients.reflected
+        At_sweep[i] = coefficients.transmitted
+    end
 
     num(x) = isfinite(x) ? string(round(Float64(x), digits=6)) : "0"
     jsonarr(v) = "[" * join(num.(v), ",") * "]"
@@ -755,19 +795,6 @@ let
     HTML("""<script>
       window.dispatchEvent(new CustomEvent('sh-results', {detail: $(repr(payload))}));
     </script>""")
-end
-
-# ╔═╡ ffff6666-6666-6666-6666-666666666666
-let
-    Z1 = ρ₁MOHO * β₁MOHO
-    Z2 = ρ₂MOHO * β₂MOHO
-    Ar_expected = (Z1 - Z2) / (Z1 + Z2)
-    At_expected = 2Z1 / (Z1 + Z2)
-    Ar_computed = real(SHAᵣ_ex(0.0))
-    At_computed = real(SHAₜ_ex(0.0))
-    @assert isapprox(Ar_computed, Ar_expected; atol=1e-8) "reflection coefficient at normal incidence should be $(Ar_expected), got $(Ar_computed)"
-    @assert isapprox(At_computed, At_expected; atol=1e-8) "transmission coefficient at normal incidence should be $(At_expected), got $(At_computed)"
-    (reflection_at_normal_incidence=Ar_computed, transmission_at_normal_incidence=At_computed)
 end
 
 # ╔═╡ 00000000-0000-0000-0000-000000000001

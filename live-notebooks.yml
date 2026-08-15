@@ -58,11 +58,11 @@ sections:
       - Normal Modes/spherical_harmonics-homo-full-sphere.jl
 
   - name: Gravity
-    static:
+    live:
       - Gravity/geoid-kernel.jl
 
   - name: Real Seismograms
-    static:
+    live:
       - Real Seismograms/my-first-seismogram.jl
 
   - name: Imaging
@@ -76,7 +76,7 @@ sections:
       - Interferometry/seismic-interferometry.jl
 
   - name: Scattering
-    static:
+    live:
       - Scattering/Born-approximation.jl
 
   - name: Seismic Sources and Faulting

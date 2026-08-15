@@ -1,4 +1,5 @@
 .DS_Store
+*.pluto-cache.toml
 
 reduced_phil.png
 notebooks/week9/testCSVwrite.csv
