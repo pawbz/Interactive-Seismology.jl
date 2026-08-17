@@ -183,6 +183,15 @@ approximately in the shaded region): writing the normal in the principal-axis fr
 \sigma_n = \sum_i \sigma_i n_i^2, \qquad
 \tau = \sqrt{\sum_i (\sigma_i n_i)^2 - \sigma_n^2}.
 ```
+
+The middle panel of the widget makes this same statement visually rather than
+statistically: instead of one dragged point, it pixelates the whole sphere of possible
+normals and colors *every* orientation by its own ``\sigma_n`` or ``\tau`` — the exact
+field the Mohr diagram is summarizing into a shaded region. Two boundary facts fall out of
+the color scale directly: ``\sigma_n`` never leaves ``[\sigma_3,\sigma_1]`` (the two
+extreme principal stresses), and the single largest ``\tau`` over *any* orientation is
+exactly ``\tau_{\max} = \tfrac12(\sigma_1-\sigma_3)`` — the big circle's own radius,
+attained on planes bisecting the ``\sigma_1`` and ``\sigma_3`` axes.
 """
 
 # ╔═╡ b1a10001-0000-4000-8000-00000000000b
@@ -233,13 +242,17 @@ begin
 	                        nx=0.0, ny=0.0, nz=1.0, mu=0.6, c0=0.1, pp=0.0)
 
 	A fully self-contained stress-tensor explorer. Drag the six `sᵢⱼ` sliders to set the
-	stress tensor, then drag the white handle directly on the sphere to pick which plane
-	(unit normal `n`) you're asking about. The sphere shows the traction `t = σ·n`
+	stress tensor, then drag the white handle directly on the left sphere to pick which plane
+	(unit normal `n`) you're asking about. That sphere shows the traction `t = σ·n`
 	decomposed into its normal component (along `n`, red for tension/blue for compression)
 	and shear component (tangential, orange — the part that drives a fault to slip), plus the
-	three principal-stress axes as a fixed background triad. The right-hand panel is the
-	classic 3-circle Mohr diagram for stress (compression plotted positive), with a live
-	marker at the current plane's `(σₙ, τ)`, a draggable-by-slider Mohr-Coulomb failure line
+	three principal-stress axes as a fixed background triad. The middle panel pixelates the
+	*same* sphere and colors every cell by `σₙ(n)` or `τ(n)` for the current `σ` (toggle
+	between the two) — the whole angular field at a glance instead of one plane at a time;
+	clicking a pixel snaps `n` to it directly, and dragging rotates the view (shared with the
+	left sphere, so both stay in the same orientation). The right-hand panel is the classic
+	3-circle Mohr diagram for stress (compression plotted positive), with a live marker at
+	the current plane's `(σₙ, τ)`, a draggable-by-slider Mohr-Coulomb failure line
 	`τ = μσₙ + c₀`, and a pore-pressure slider `Pₚ` that shifts the marker via the
 	effective-stress principle `σₙ,eff = σₙ - Pₚ`. Presets jump to canonical stress states.
 	"""
@@ -274,19 +287,23 @@ begin
 		write(io, """
 <div id="stswidget" style="display:flex;flex-direction:column;align-items:center;width:100%;color:#9ca3af">
   <style>
-    pluto-cell:has(#stswidget){width:min(80vw,1500px)!important;margin-left:calc((100% - min(80vw,1500px))/2)!important}
+    pluto-cell:has(#stswidget){width:min(85vw,1650px)!important;margin-left:calc((100% - min(85vw,1650px))/2)!important}
     #stswidget .sts-title{width:100%;box-sizing:border-box;text-align:center;margin-bottom:10px;background:#0a0f18;border:1px solid #3b5c85;border-radius:6px;padding:10px 14px}
     #stswidget .sts-title-desc{font-size:17px;font-weight:700;color:#e5e7eb}
     #stswidget .sts-title-hint{font-size:13px;color:#9ca3af;margin-top:3px}
     #stswidget .sts-panels{display:flex;gap:14px;align-items:flex-start;justify-content:center;width:100%}
     #stswidget .sts-col{flex:1 1 0;min-width:0;display:flex;flex-direction:column;align-items:center}
     #stswidget .sts-panel-label{font-size:12px;color:#6b7280;margin-bottom:4px;text-transform:uppercase;letter-spacing:.04em}
+    #stswidget .sts-nolabel{text-transform:none}
     #stswidget canvas{cursor:grab;background:#000;border:1px solid #374151;border-radius:6px;display:block;max-width:100%}
     #stswidget canvas.dragging{cursor:grabbing}
     #stswidget .sts-controls{display:flex;gap:10px;flex-wrap:wrap;width:100%;margin-top:12px}
     #stswidget .sts-control-group{box-sizing:border-box;background:#050505;border:1px solid #2f3744;border-radius:6px;padding:10px 12px;flex:1 1 240px;min-width:240px}
     #stswidget .sts-control-title{font-weight:700;color:#e5e7eb;margin-bottom:8px;font-size:18px}
-    #stswidget select{width:100%;background:#111827;color:#e5e7eb;border:1px solid #374151;border-radius:4px;padding:5px 6px;font-size:14px;margin-bottom:8px}
+    #stswidget select{width:100%;background:#111827;color:#e5e7eb;border:1px solid #374151;border-radius:4px;padding:5px 6px;font-size:14px}
+    #stswidget .sts-presetrow{display:flex;gap:6px;align-items:center;margin-bottom:8px}
+    #stswidget .sts-presetrow select{flex:1 1 auto}
+    #stswidget .sts-presetrow .sts-pixbtn{flex:0 0 auto;padding:5px 10px;white-space:nowrap}
     #stswidget .sts-control-row{display:grid;grid-template-columns:minmax(34px,44px) minmax(70px,1fr) minmax(44px,56px);gap:6px;align-items:center;margin:5px 0}
     #stswidget .sts-control-row input[type=range]{width:100%;min-width:0;vertical-align:middle}
     #stswidget .sts-value{color:#d1d5db;text-align:left;font-variant-numeric:tabular-nums;font-size:13px}
@@ -295,13 +312,19 @@ begin
     #stswidget .sts-mat3::before, #stswidget .sts-mat3::after{content:'';position:absolute;top:3px;bottom:3px;width:7px;border:2px solid #9ca3af}
     #stswidget .sts-mat3::before{left:0;border-right:none}
     #stswidget .sts-mat3::after{right:0;border-left:none}
-    #stswidget .sts-mat3 input{width:46px;background:#111827;color:#e5e7eb;border:1px solid #374151;border-radius:4px;padding:4px 3px;font-size:13px;text-align:center;font-variant-numeric:tabular-nums}
+    #stswidget .sts-mat3 input{width:46px;background:#111827;color:#e5e7eb;border:1px solid #374151;border-radius:4px;padding:4px 3px;font-size:13px;text-align:center;font-variant-numeric:tabular-nums;cursor:ew-resize;-moz-appearance:textfield}
+    #stswidget .sts-mat3 input::-webkit-inner-spin-button, #stswidget .sts-mat3 input::-webkit-outer-spin-button{-webkit-appearance:none;margin:0}
     #stswidget .sts-mat3 input:focus{outline:2px solid #38bdf8;border-color:#38bdf8}
     #stswidget .sts-matro{display:inline-grid;grid-template-columns:repeat(3,auto);gap:2px 6px;padding:3px 9px;position:relative;vertical-align:middle;margin:2px 0}
     #stswidget .sts-matro::before, #stswidget .sts-matro::after{content:'';position:absolute;top:1px;bottom:1px;width:5px;border:1.5px solid currentColor}
     #stswidget .sts-matro::before{left:0;border-right:none}
     #stswidget .sts-matro::after{right:0;border-left:none}
     #stswidget .sts-matro span{min-width:34px;text-align:center;font-size:12px;font-variant-numeric:tabular-nums}
+    #stswidget .sts-pixtoggle{display:flex;gap:6px;margin-top:6px}
+    #stswidget .sts-pixbtn{border-radius:4px;border:1px solid #9ca3af;background:#606060;color:#f3f4f6;padding:3px 10px;font-size:13px;cursor:pointer}
+    #stswidget .sts-pixbtn.active{background:#3b5c85;border-color:#38bdf8;color:#e5e7eb}
+    #stswidget .sts-pixlegend{display:flex;align-items:center;gap:6px;width:100%;margin-top:6px}
+    #stswidget .sts-pixgrad{flex:1 1 auto;height:10px;border-radius:3px;border:1px solid #374151}
     @media (max-width: 900px){
       #stswidget .sts-panels{flex-direction:column;align-items:center}
       #stswidget .sts-col{width:100%;max-width:520px}
@@ -309,12 +332,25 @@ begin
   </style>
   <div class="sts-title">
     <div class="sts-title-desc">Traction on a plane splits exactly into the normal stress clamping a fault shut and the shear stress driving it to slip.</div>
-    <div class="sts-title-hint">drag the white handle to set the plane normal n &middot; edit &sigma; directly or drag its sliders &middot; drag empty space to rotate &middot; tune &mu;, c&#8320;, P&#8346; below</div>
+    <div class="sts-title-hint">drag the white handle to set the plane normal n &middot; click-drag a &sigma; value to scrub it (or click and type) &middot; drag empty space to rotate &middot; click a pixel on the middle sphere to jump n there &middot; tune &mu;, c&#8320;, P&#8346; below</div>
   </div>
   <div class="sts-panels">
     <div class="sts-col">
-      <div class="sts-panel-label">Traction on the plane (drag n)</div>
+      <div class="sts-panel-label">Traction on the plane (drag <span class="sts-nolabel">n</span>)</div>
       <canvas id="stsSphere" width="480" height="480"></canvas>
+    </div>
+    <div class="sts-col">
+      <div class="sts-panel-label">Traction field over all planes (click a pixel to set <span class="sts-nolabel">n</span>)</div>
+      <canvas id="stsPixSphere" width="480" height="480"></canvas>
+      <div class="sts-pixtoggle">
+        <button type="button" id="stsPixSn" class="sts-pixbtn active">&sigma;<sub>n</sub></button>
+        <button type="button" id="stsPixTau" class="sts-pixbtn">&tau;</button>
+      </div>
+      <div class="sts-pixlegend">
+        <span id="stsPixLo" class="sts-value">0</span>
+        <div id="stsPixGrad" class="sts-pixgrad"></div>
+        <span id="stsPixHi" class="sts-value">0</span>
+      </div>
     </div>
     <div class="sts-col">
       <div class="sts-panel-label">Mohr circle for stress + Mohr-Coulomb failure</div>
@@ -324,14 +360,17 @@ begin
   <div class="sts-controls">
     <div class="sts-control-group">
       <div class="sts-control-title">Stress Tensor</div>
-      <select id="stsPreset">
-        <option value="custom">Custom</option>
-        <option value="uniC">Uniaxial compression</option>
-        <option value="uniT">Uniaxial tension</option>
-        <option value="shear">Pure shear</option>
-        <option value="hydro">Hydrostatic (confining)</option>
-        <option value="crit">Critically stressed</option>
-      </select>
+      <div class="sts-presetrow">
+        <select id="stsPreset">
+          <option value="custom">Custom</option>
+          <option value="uniC">Uniaxial compression</option>
+          <option value="uniT">Uniaxial tension</option>
+          <option value="shear">Pure shear</option>
+          <option value="hydro">Hydrostatic (confining)</option>
+          <option value="crit">Critically stressed</option>
+        </select>
+        <button type="button" id="stsRandom" class="sts-pixbtn">Randomize</button>
+      </div>
       <div class="sts-mat3">
         <input type="number" step="0.02" id="sts-mat-11" value="$(w.s11)">
         <input type="number" step="0.02" id="sts-mat-12" value="$(w.s12)">
@@ -343,12 +382,8 @@ begin
         <input type="number" step="0.02" id="sts-mat-32" value="$(w.s23)">
         <input type="number" step="0.02" id="sts-mat-33" value="$(w.s33)">
       </div>
-      <label class="sts-control-row"><span>s&#8321;&#8321;</span><input type="range" id="sts-s11" min="-1" max="1" step="0.02" value="$(w.s11)"><span id="sts-s11-v" class="sts-value">$(w.s11)</span></label>
-      <label class="sts-control-row"><span>s&#8322;&#8322;</span><input type="range" id="sts-s22" min="-1" max="1" step="0.02" value="$(w.s22)"><span id="sts-s22-v" class="sts-value">$(w.s22)</span></label>
-      <label class="sts-control-row"><span>s&#8323;&#8323;</span><input type="range" id="sts-s33" min="-1" max="1" step="0.02" value="$(w.s33)"><span id="sts-s33-v" class="sts-value">$(w.s33)</span></label>
-      <label class="sts-control-row"><span>s&#8321;&#8322;</span><input type="range" id="sts-s12" min="-1" max="1" step="0.02" value="$(w.s12)"><span id="sts-s12-v" class="sts-value">$(w.s12)</span></label>
-      <label class="sts-control-row"><span>s&#8322;&#8323;</span><input type="range" id="sts-s23" min="-1" max="1" step="0.02" value="$(w.s23)"><span id="sts-s23-v" class="sts-value">$(w.s23)</span></label>
-      <label class="sts-control-row"><span>s&#8321;&#8323;</span><input type="range" id="sts-s13" min="-1" max="1" step="0.02" value="$(w.s13)"><span id="sts-s13-v" class="sts-value">$(w.s13)</span></label>
+      <div style="font-size:12px;color:#6b7280;margin-top:2px">click-drag a value left/right to scrub it, or click and type</div>
+      <label class="sts-control-row" style="margin-top:8px"><span>scale</span><input type="range" id="sts-scale" min="0" max="2" step="0.02" value="1"><span id="sts-scale-v" class="sts-value">1.00</span></label>
     </div>
     <div class="sts-control-group">
       <div class="sts-control-title">Failure Criterion</div>
@@ -369,16 +404,19 @@ begin
 </div>
 <script>
   const par = currentScript.previousElementSibling
-  const availW = Math.min(window.innerWidth*0.8, par.clientWidth || window.innerWidth*0.8)
+  const NCOLS = 3, GAP = 14
+  const availW = Math.min(window.innerWidth*0.85, par.clientWidth || window.innerWidth*0.85)
   const heightBudget = Math.max(320, window.innerHeight - 560)
-  const SEC = Math.round(Math.min((availW-14)/2, heightBudget, 480))
+  const SEC = Math.round(Math.min((availW-GAP*(NCOLS-1))/NCOLS, heightBudget, 480))
   const DPR = Math.min(window.devicePixelRatio || 1, 2)
 
   function hidpi(cv, cx, w, h){ cv.width=Math.round(w*DPR); cv.height=Math.round(h*DPR); cv.style.width=w+'px'; cv.style.height=h+'px'; cx.setTransform(DPR,0,0,DPR,0,0) }
 
   const sphCvs = par.querySelector('#stsSphere'), sctx = sphCvs.getContext('2d')
+  const pixCvs = par.querySelector('#stsPixSphere'), pctx = pixCvs.getContext('2d')
   const mohrCvs = par.querySelector('#stsMohr'), mctx = mohrCvs.getContext('2d')
   hidpi(sphCvs, sctx, SEC, SEC)
+  hidpi(pixCvs, pctx, SEC, SEC)
   hidpi(mohrCvs, mctx, SEC, SEC)
 
   let s11=$(w.s11), s22=$(w.s22), s33=$(w.s33), s12=$(w.s12), s23=$(w.s23), s13=$(w.s13)
@@ -469,15 +507,47 @@ begin
             S[1][0]*nvec[0]+S[1][1]*nvec[1]+S[1][2]*nvec[2],
             S[2][0]*nvec[0]+S[2][1]*nvec[1]+S[2][2]*nvec[2]]
   }
-  function tractionDecomp(S=sigmaMat()){
-    const nv = [nx,ny,nz]
+  function tractionDecompFor(nv, S=sigmaMat()){
     const t = traction(nv, S)
     const sn = dot3(nv, t)
     const nvecPart = scale3(nv, sn)
     const shear = sub3(t, nvecPart)
     return { n: nv, t, sn, nvecPart, shear, tau: norm3(shear) }
   }
+  function tractionDecomp(S=sigmaMat()){ return tractionDecompFor([nx,ny,nz], S) }
   function principal(){ return jacobiEigen(sigmaMat()) }
+
+  // Near-equal-area sphere pixelation: latitude bands of equal Δθ, with longitude-cell
+  // count in each band scaled by sin(θ_mid) so polar pixels aren't tiny slivers -- the
+  // same fix the widget-style skill documents for lat/lon render meshes, applied here to
+  // real clickable/colorable cells instead of a rendering mesh.
+  function buildPixelGrid(nTheta){
+    const cells = [], dTheta = Math.PI/nTheta
+    for(let i=0;i<nTheta;i++){
+      const th0=i*dTheta, th1=(i+1)*dTheta, thMid=(th0+th1)/2
+      const nPhi = Math.max(3, Math.round(2*nTheta*Math.sin(thMid)))
+      const dPhi = 2*Math.PI/nPhi
+      for(let j=0;j<nPhi;j++){
+        const ph0=j*dPhi, ph1=(j+1)*dPhi, phMid=ph0+dPhi/2
+        const center=[Math.sin(thMid)*Math.cos(phMid), Math.sin(thMid)*Math.sin(phMid), Math.cos(thMid)]
+        cells.push({th0,th1,ph0,ph1,center})
+      }
+    }
+    return cells
+  }
+  const PIXELS = buildPixelGrid(12)
+  let pixMode = 'sn' // 'sn' (normal stress) or 'tau' (shear magnitude)
+
+  function colorForSigmaN(val, maxAbs){
+    const t = Math.max(-1, Math.min(1, val/Math.max(maxAbs,1e-9)))
+    return t>=0 ? 'rgb(255,'+Math.round(255*(1-t))+','+Math.round(255*(1-t))+')'
+                : 'rgb('+Math.round(255*(1+t))+','+Math.round(255*(1+t))+',255)'
+  }
+  function colorForTau(val, tauMax){
+    const t = Math.max(0, Math.min(1, val/Math.max(tauMax,1e-9)))
+    const r=Math.round(11+t*(251-11)), g=Math.round(11+t*(146-11)), b=Math.round(11+t*(60-11))
+    return 'rgb('+r+','+g+','+b+')'
+  }
 
   function mohrCircles(pr){
     // pr.values: [σ1,σ2,σ3] descending, tension-positive -- flip to compression-positive
@@ -586,6 +656,45 @@ begin
     sctx.fillText('drag the white handle to set the plane normal n', 10, 20)
   }
 
+  // Colors every pixel by σₙ(n) or τ(n) for the *current* σ -- the same traction() math as
+  // the handle sphere, just evaluated at every cell center instead of one n. Scale bounds are
+  // the current principal stresses (σₙ is bounded by [σ₃,σ₁]) and the exact max-shear result
+  // τ_max=(σ₁-σ₃)/2, so the legend ties directly back to the Mohr circle already on screen.
+  function drawPixelSphere(state){
+    const {pr, S} = state
+    const s1 = pr.values[0], s3 = pr.values[2]
+    const maxAbs = Math.max(Math.abs(s1), Math.abs(s3), 1e-6)
+    const tauMax = Math.max((s1-s3)/2, 1e-6)
+    pctx.clearRect(0,0,SEC,SEC)
+    for(const px of PIXELS){
+      if(rot(px.center)[1] < -0.03) continue
+      const corners = [[px.th0,px.ph0],[px.th0,px.ph1],[px.th1,px.ph1],[px.th1,px.ph0]]
+        .map(([th,ph]) => toScreen([Math.sin(th)*Math.cos(ph), Math.sin(th)*Math.sin(ph), Math.cos(th)]))
+      const d = tractionDecompFor(px.center, S)
+      const color = pixMode==='sn' ? colorForSigmaN(d.sn, maxAbs) : colorForTau(d.tau, tauMax)
+      pctx.beginPath(); pctx.moveTo(corners[0][0], corners[0][1])
+      for(let k=1;k<4;k++) pctx.lineTo(corners[k][0], corners[k][1])
+      pctx.closePath(); pctx.fillStyle = color; pctx.fill()
+    }
+    pctx.beginPath(); pctx.arc(CX,CY,RPIX,0,2*Math.PI); pctx.strokeStyle='#4b5563'; pctx.lineWidth=1.2; pctx.stroke()
+    for(let k=0;k<3;k++){
+      const v = pr.vectors[k]
+      drawLine3(pctx, [-v[0]*1.25,-v[1]*1.25,-v[2]*1.25], [v[0]*1.25,v[1]*1.25,v[2]*1.25], 'rgba(20,20,20,0.65)', 1.3)
+    }
+    const hs = toScreen([nx,ny,nz])
+    pctx.beginPath(); pctx.arc(hs[0],hs[1],7,0,2*Math.PI); pctx.fillStyle='#f5f3ef'; pctx.fill()
+    pctx.strokeStyle='#0a0f18'; pctx.lineWidth=1.5; pctx.stroke()
+
+    const lo = par.querySelector('#stsPixLo'), hi = par.querySelector('#stsPixHi'), grad = par.querySelector('#stsPixGrad')
+    if(pixMode==='sn'){
+      lo.textContent = fmt(-maxAbs); hi.textContent = fmt(maxAbs)
+      grad.style.background = 'linear-gradient(to right, rgb(0,0,255), rgb(255,255,255), rgb(255,0,0))'
+    } else {
+      lo.textContent = '0.00'; hi.textContent = tauMax.toFixed(2)
+      grad.style.background = 'linear-gradient(to right, rgb(11,11,11), rgb(251,146,60))'
+    }
+  }
+
   function drawMohr(state){
     const {pr, mc, d, pt, vd} = state
 
@@ -681,11 +790,11 @@ begin
       '<span style="color:#c084fc">purple</span> shift = pore pressure'
   }
 
-  // The nine σ matrix boxes mirror s11..s13 both ways: dragging a slider (or picking a preset)
-  // updates the boxes here, and typing in a box updates the underlying variable + its slider
-  // (registered below, next to bindSlider) -- symmetric off-diagonal pairs (12/21, 13/31,
-  // 23/32) share one variable, so editing either box updates both. Skip overwriting whichever
-  // box currently has focus so a live edit isn't clobbered mid-keystroke.
+  // The nine σ matrix boxes mirror s11..s13 both ways: picking a preset updates the boxes
+  // here (via syncMatBoxes, called from drawAll), and typing or scrubbing a box updates the
+  // underlying variable directly (wireMatBoxes below) -- symmetric off-diagonal pairs
+  // (12/21, 13/31, 23/32) share one variable, so editing either box updates both. Skip
+  // overwriting whichever box currently has focus so a live edit isn't clobbered mid-keystroke.
   const matBoxIds = {s11:['sts-mat-11'], s22:['sts-mat-22'], s33:['sts-mat-33'],
                       s12:['sts-mat-12','sts-mat-21'], s13:['sts-mat-13','sts-mat-31'], s23:['sts-mat-23','sts-mat-32']}
   function syncMatBoxes(){
@@ -702,50 +811,55 @@ begin
     const d = tractionDecomp(S)
     const pt = mohrPointFor(d)
     const state = {S, pr, d, pt, mc:mohrCircles(pr), vd:verdict(pt.xEff, pt.y)}
-    drawSphere(state); drawMohr(state); updateReadouts(state); syncMatBoxes()
+    drawSphere(state); drawPixelSphere(state); drawMohr(state); updateReadouts(state); syncMatBoxes()
   }
   function setCustom(){ if(currentPreset !== 'custom'){ currentPreset='custom'; par.querySelector('#stsPreset').value='custom' } }
 
-  function wireMatBoxes(ids, sliderId, setter){
+  // Each box supports both a plain click-to-focus-and-type edit (the existing 'input'
+  // listener) and a click-drag "scrub": press, then move the mouse horizontally past a
+  // small threshold before it counts as a drag (so a plain click still reaches the browser's
+  // own focus/caret-placement instead of being swallowed) -- 1 px of horizontal motion moves
+  // the value by 0.01, clamped to the same [-1,1] range and 0.02 step the sliders used to
+  // enforce.
+  function wireMatBoxes(ids, setter){
     const els = ids.map(id => par.querySelector('#'+id))
-    function handle(v){
-      setter(v)
-      const sl = par.querySelector('#'+sliderId)
-      sl.value = v
-      par.querySelector('#'+sliderId+'-v').textContent = v.toFixed(2)
-      setCustom()
-      drawAll()
-    }
-    els.forEach(el => el.addEventListener('input', e=>{
-      const v = parseFloat(e.target.value)
-      if(Number.isFinite(v)) handle(v)
-    }))
-  }
-  wireMatBoxes(['sts-mat-11'], 'sts-s11', v=>s11=v)
-  wireMatBoxes(['sts-mat-22'], 'sts-s22', v=>s22=v)
-  wireMatBoxes(['sts-mat-33'], 'sts-s33', v=>s33=v)
-  wireMatBoxes(['sts-mat-12','sts-mat-21'], 'sts-s12', v=>s12=v)
-  wireMatBoxes(['sts-mat-13','sts-mat-31'], 'sts-s13', v=>s13=v)
-  wireMatBoxes(['sts-mat-23','sts-mat-32'], 'sts-s23', v=>s23=v)
-
-  drawAll()
-
-  function bindSlider(id, setter, decimals){
-    const el = par.querySelector('#'+id)
-    el.addEventListener('input', e=>{
-      const v = parseFloat(e.target.value)
-      setter(v)
-      par.querySelector('#'+id+'-v').textContent = v.toFixed(decimals)
-      setCustom()
-      drawAll()
+    function handle(v){ setter(v); setCustom(); drawAll() }
+    els.forEach(el => {
+      el.addEventListener('input', e=>{
+        const v = parseFloat(e.target.value)
+        if(Number.isFinite(v)) handle(v)
+      })
+      let dragging=false, moved=false, startX=0, startVal=0
+      el.addEventListener('mousedown', e=>{
+        startX = e.clientX; startVal = parseFloat(el.value)||0
+        dragging = true; moved = false
+        e.preventDefault()
+      })
+      window.addEventListener('mousemove', e=>{
+        if(!dragging) return
+        const dx = e.clientX - startX
+        if(!moved && Math.abs(dx) > 3){ moved = true; el.blur() }
+        if(!moved) return
+        let v = startVal + dx*0.01
+        v = Math.max(-1, Math.min(1, Math.round(v/0.02)*0.02))
+        v = Math.round(v*1000)/1000
+        el.value = v
+        handle(v)
+      })
+      window.addEventListener('mouseup', ()=>{
+        if(dragging && !moved){ el.focus(); el.select() }
+        dragging = false
+      })
     })
   }
-  bindSlider('sts-s11', v=>s11=v, 2)
-  bindSlider('sts-s22', v=>s22=v, 2)
-  bindSlider('sts-s33', v=>s33=v, 2)
-  bindSlider('sts-s12', v=>s12=v, 2)
-  bindSlider('sts-s23', v=>s23=v, 2)
-  bindSlider('sts-s13', v=>s13=v, 2)
+  wireMatBoxes(['sts-mat-11'], v=>s11=v)
+  wireMatBoxes(['sts-mat-22'], v=>s22=v)
+  wireMatBoxes(['sts-mat-33'], v=>s33=v)
+  wireMatBoxes(['sts-mat-12','sts-mat-21'], v=>s12=v)
+  wireMatBoxes(['sts-mat-13','sts-mat-31'], v=>s13=v)
+  wireMatBoxes(['sts-mat-23','sts-mat-32'], v=>s23=v)
+
+  drawAll()
 
   function bindPlainSlider(id, setter, decimals){
     const el = par.querySelector('#'+id)
@@ -766,14 +880,43 @@ begin
     if(key !== 'custom'){
       const [a,b,c,d2,f,g] = PRESETS[key].s
       s11=a; s22=b; s33=c; s12=d2; s23=f; s13=g
-      const vals = {s11:a, s22:b, s33:c, s12:d2, s23:f, s13:g}
-      for(const k in vals){
-        par.querySelector('#sts-'+k).value = vals[k]
-        par.querySelector('#sts-'+k+'-v').textContent = vals[k].toFixed(2)
-      }
     }
+    drawAll() // syncMatBoxes() (called from drawAll) reflects the new values into the boxes
+  })
+
+  // σ is symmetric by construction (only the 6 independent sᵢⱼ are stored), so any random
+  // draw of those six in the boxes' own [-1,1] range is automatically a valid symmetric
+  // tensor -- no separate symmetrization step needed.
+  par.querySelector('#stsRandom').addEventListener('click', ()=>{
+    const r = () => Math.round((Math.random()*2-1)/0.02)*0.02
+    s11=r(); s22=r(); s33=r(); s12=r(); s23=r(); s13=r()
+    setCustom()
     drawAll()
   })
+
+  // A *relative* gain control rather than an absolute one: dragging away from 1 multiplies
+  // whatever σ currently is (snapshotted once per drag, on the first 'input' event) by the
+  // slider's value, so the boxes always show the true, current σ -- no separate "unscaled
+  // base" state to keep in sync with them. On release ('change') the slider snaps back to 1
+  // so the next drag starts fresh from the tensor it just produced.
+  {
+    let scaleAnchor = null
+    const scaleEl = par.querySelector('#sts-scale')
+    scaleEl.addEventListener('input', e=>{
+      if(!scaleAnchor) scaleAnchor = {s11,s22,s33,s12,s23,s13}
+      const f = parseFloat(e.target.value)
+      s11=scaleAnchor.s11*f; s22=scaleAnchor.s22*f; s33=scaleAnchor.s33*f
+      s12=scaleAnchor.s12*f; s23=scaleAnchor.s23*f; s13=scaleAnchor.s13*f
+      par.querySelector('#sts-scale-v').textContent = f.toFixed(2)
+      setCustom()
+      drawAll()
+    })
+    scaleEl.addEventListener('change', ()=>{
+      scaleEl.value = 1
+      par.querySelector('#sts-scale-v').textContent = '1.00'
+      scaleAnchor = null
+    })
+  }
 
   sphCvs.addEventListener('mousedown', e=>{
     const mx=e.offsetX, my=e.offsetY
@@ -796,6 +939,55 @@ begin
     }
   })
   window.addEventListener('mouseup', ()=>{ dragMode=null })
+
+  // The pixel sphere covers the *whole* visible hemisphere with clickable cells, so unlike
+  // the handle sphere there's no empty space to grab for rotation -- instead a plain click
+  // (press+release with negligible movement) selects the pixel under the cursor, while any
+  // drag past a small threshold rotates (sharing yaw/pitch with the handle sphere, so both
+  // panels stay in the same orientation).
+  let pixStart=null, pixIsDrag=false, pixLastX=0, pixLastY=0
+  function selectPixelAt(mx, my){
+    const p = screenToXYZ(mx, my)
+    let best=null, bestDot=-Infinity
+    for(const px of PIXELS){
+      const dot = p[0]*px.center[0]+p[1]*px.center[1]+p[2]*px.center[2]
+      if(dot>bestDot){ bestDot=dot; best=px }
+    }
+    if(best){ nx=best.center[0]; ny=best.center[1]; nz=best.center[2] }
+  }
+  pixCvs.addEventListener('mousedown', e=>{
+    pixStart = {x:e.offsetX, y:e.offsetY}; pixIsDrag = false
+    pixLastX = e.offsetX; pixLastY = e.offsetY
+  })
+  pixCvs.addEventListener('mousemove', e=>{
+    if(!pixStart) return
+    const dx=e.offsetX-pixStart.x, dy=e.offsetY-pixStart.y
+    if(!pixIsDrag && Math.hypot(dx,dy) > 4) pixIsDrag = true
+    if(pixIsDrag){
+      const ddx=e.offsetX-pixLastX, ddy=e.offsetY-pixLastY
+      pixLastX=e.offsetX; pixLastY=e.offsetY
+      yaw += ddx*0.01
+      pitch = Math.max(-1.3, Math.min(1.3, pitch+ddy*0.01))
+      drawAll()
+    }
+  })
+  window.addEventListener('mouseup', ()=>{
+    if(pixStart && !pixIsDrag){ selectPixelAt(pixStart.x, pixStart.y); drawAll() }
+    pixStart = null; pixIsDrag = false
+  })
+
+  par.querySelector('#stsPixSn').addEventListener('click', ()=>{
+    pixMode='sn'
+    par.querySelector('#stsPixSn').classList.add('active')
+    par.querySelector('#stsPixTau').classList.remove('active')
+    drawAll()
+  })
+  par.querySelector('#stsPixTau').addEventListener('click', ()=>{
+    pixMode='tau'
+    par.querySelector('#stsPixTau').classList.add('active')
+    par.querySelector('#stsPixSn').classList.remove('active')
+    drawAll()
+  })
 </script>
 """)
 	end

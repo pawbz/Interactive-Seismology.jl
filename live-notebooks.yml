@@ -15,6 +15,9 @@ sections:
     live:
       - Basics/simple-harmonic-motion.jl
       - Basics/coupled_oscillations.jl
+      - Basics/Fourier-Dispersion.jl
+      - Basics/Hass-effect-seismology-audio.jl
+      - Basics/waves-on-string.jl
 
   - name: Elasticity and Deformation
     live:
@@ -26,17 +29,15 @@ sections:
     live:
       - Planewave Propagation/reflection-transmission-SH.jl
       - Planewave Propagation/reflection-P-SV-free-surface.jl
+      - Planewave Propagation/anisotropy.jl
     static:
       - Planewave Propagation/boundary-conditions.jl
-      - Planewave Propagation/anisotropy.jl
       - Planewave Propagation/intrinsic-attenuation.jl
 
   - name: Surface Waves
     live:
       - Surface Waves/Love-wave-analytic1.jl
       - Surface Waves/Love-wave-dispersion-curves.jl
-    static:
-      - Surface Waves/Love-Waves.jl
       - Surface Waves/Rayleigh-function.jl
       - Surface Waves/Rayleigh-dispersion-curves.jl
 
@@ -66,13 +67,15 @@ sections:
       - Real Seismograms/my-first-seismogram.jl
 
   - name: Imaging
+    live:
+      - Imaging/array-beamforming.jl
     static:
       - Imaging/adjoint-state-method.jl
       - Imaging/adjoint-state-method_acoustic.jl
       - Imaging/full-waveform-inversion.jl
 
   - name: Interferometry
-    static:
+    live:
       - Interferometry/seismic-interferometry.jl
 
   - name: Scattering
