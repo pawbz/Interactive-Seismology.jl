@@ -16,7 +16,7 @@ sections:
       - Basics/simple-harmonic-motion.jl
       - Basics/coupled_oscillations.jl
       - Basics/Fourier-Dispersion.jl
-      - Basics/Hass-effect-seismology-audio.jl
+      - Basics/Haas-effect-seismology-audio.jl
       - Basics/waves-on-string.jl
 
   - name: Elasticity and Deformation

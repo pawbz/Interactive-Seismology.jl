@@ -23,13 +23,7 @@ macro bind(def, element)
 end
 
 # ╔═╡ a08acdbe-9e7f-4404-8a29-aab612984839
-begin
-	using PlutoUI
-	using PlutoTeachingTools
-	using Symbolics
-	using SymbolicUtils
-	using LinearAlgebra
-end
+using PlutoUI
 
 # ╔═╡ 5a5bbfc8-6ff7-11ef-39cb-b12385eb48ed
 TableOfContents()
@@ -37,11 +31,33 @@ TableOfContents()
 # ╔═╡ 486cb239-e68d-491c-a158-5320344caf25
 md"""
 # Boundary Conditions
-These conditions determine the relationship between the displacements and tractions across an interface between two media. Here, we consider different interfaces, whose unit normal vector is denoted using `n`. For a given location on the interface, we use `σ¹` to denote the stress tensor just above the interface and `σ²` to denote the stress tensor just below the interface. Similarly, we use `u¹` and `u²` to denote displacements above and below the interface, respectively.
-In seismology, we often encounter three types of interfaces.
-- Solid--Solid (Welded Interface)
-- Solid--Liquid
-- Solid--Vaccum (Free Interface)
+
+A seismic wave doesn't just keep propagating obliviously when it hits an interface between
+two different rock types, or the ocean floor, or the free surface of the Earth itself —
+part of it reflects, part transmits, and the amplitudes of each are entirely dictated by
+what has to stay continuous (and what's allowed to jump) right at that interface. Those
+rules are the **boundary conditions**, and they're not an afterthought bolted onto the wave
+equation: they're the reason reflection/transmission coefficients, head waves, and even
+surface waves exist at all. Get them wrong and every downstream calculation — an AVO
+analysis, a receiver function, a dispersion curve — is built on the wrong physics.
+
+Every interface in this notebook is described by two things at a single point on it: its
+unit normal vector `` \mathbf{n} ``, and the stress tensors `` \sigma^{(1)} `` (just above
+the interface) and `` \sigma^{(2)} `` (just below), producing displacement fields
+`` \mathbf{u}^{(1)} `` and `` \mathbf{u}^{(2)} ``. Two families of condition apply at that
+point:
+
+- **Kinematic conditions** — what the *displacement* field is allowed to do across the
+  interface (stay glued together, or slip).
+- **Dynamic conditions** — what the *traction* `` \sigma\mathbf{n} `` (the force per unit
+  area transmitted across the interface) is allowed to do — this is just Newton's third
+  law applied to an infinitesimal slab straddling the boundary.
+
+Three physically distinct interfaces recur throughout seismology, and each imposes a
+different pair of conditions:
+- **Solid–Solid** (welded) — e.g. two rock layers bonded together.
+- **Solid–Fluid** — e.g. the seafloor, or a magma chamber boundary.
+- **Solid–Vacuum** (free surface) — e.g. the Earth's actual surface.
 
 ##### [Interactive Seismology Notebooks](https://pawbz.github.io/Interactive-Seismology.jl/)
 
@@ -50,105 +66,809 @@ Instructor: *Pawan Bharadwaj*,
 Indian Institute of Science, Bengaluru, India
 """
 
-# ╔═╡ 107c5a97-c57d-4d9c-9388-204793f84044
-@variables u¹[1:3] u²[1:3] # displacement vectors
-
-# ╔═╡ 1b66414f-126c-49cb-8322-1fb69fedb28b
-@variables σ¹[1:3,1:3] σ²[1:3,1:3] # stress tensors
-
-# ╔═╡ 63cb4fed-d7ff-471d-bd01-a420f44cf611
-md"Select `n` for the rest of the notebook: $(@bind n Select([[1,0, 0], [0, 1, 0], [1/sqrt(2), 1/sqrt(2), 0], [0, 0, 1]], default=[0,0,1]))"
-
-# ╔═╡ c11767eb-55cd-43ec-9f60-18f87afd044c
+# ╔═╡ 0b2dc3ed-0491-485d-9571-29d5759f81d7
 md"""
-## Solid--Solid		
-Consider a welded interface between two media, where none of the springs connecting particles of one medium to another medium are "broken". 
- 
+## Explore It
+
+The widget below puts a single point on an interface under your control. Drag the two
+dots to set the displacement `` \mathbf{u}^{(1)}, \mathbf{u}^{(2)} `` on each side; scrub
+any stress-tensor entry left/right to change it; switch the interface type above the
+canvas and watch which quantities are even allowed to differ. The two colored arrows are
+the traction vectors `` \mathbf{t}^{(1)}=\sigma^{(1)}\mathbf{n} `` (cyan, medium 1) and
+`` \mathbf{t}^{(2)}=\sigma^{(2)}\mathbf{n} `` (amber, medium 2) — when they land on top of
+each other, traction is continuous. The zig-zag "spring" between the two displacement dots
+turns red the instant the current interface type's kinematic condition is violated, and
+green when it's satisfied — a direct, literal picture of the springs-not-broken language
+used to describe a welded interface below.
+
+The interface's own local frame is fixed for clarity: `` \mathbf{n} `` points straight up
+out of medium 2 into medium 1, and the tangential direction is the one other direction in
+this 2D cross-section. The **Detailed Look** section below restates every condition the
+widget enforces in the fully general 3D form, for an arbitrary `` \mathbf{n} ``.
 """
 
-
-# ╔═╡ 7d8d5c1e-5530-4c42-bd5d-4359c95d2e74
+# ╔═╡ adbec4f1-f939-40da-a0c1-054ada342c21
 md"""
-### Kinematic conditions
-A welded interface means that all components of the displacement field are 
-continuous across the boundary.
+## Detailed Look at Each Interface Type
 
+The widget above works in a fixed local (tangential, normal) frame. The equations below
+restate the same three conditions in the fully general 3D form, for an arbitrary unit
+normal `` \mathbf{n} `` — exactly what a real, tilted interface needs.
 """
 
-# ╔═╡ db884164-dd7e-4ddc-9bb3-f7b37ed3b616
-collect(u¹) ~ collect(u²)
-
-# ╔═╡ 69104940-394e-4a9d-a7c6-034719ae81f5
+# ╔═╡ 9cbee290-2093-4741-a217-fa715d57ea7b
 md"""
-### Dynamic conditions
-These are derived 
-considering a Gaussian pillbox intersecting the interface with negligible volume.
-It can be shown that this pillbox can have zero acceleration only when the 
-traction on the interface is continuous across the interface.
+### Solid–Solid (Welded Interface)
+
+Consider a welded interface between two solids, where none of the springs connecting
+particles of one medium to the other are "broken" — nothing can separate, open a gap, or
+slide.
+
+**Kinematic condition.** A welded interface means *all* components of the displacement
+field are continuous across the boundary:
+
+```math
+\mathbf{u}^{(1)} = \mathbf{u}^{(2)}
+```
+
+**Dynamic condition.** This follows from considering a Gaussian pillbox of negligible
+volume straddling the interface: it can have zero net force (and hence zero acceleration)
+only if the traction on the interface is continuous across it:
+
+```math
+\sigma^{(1)}\mathbf{n} = \sigma^{(2)}\mathbf{n}
+```
+
+In the widget, switch to **Welded** and drag either dot away from the other — the spring
+immediately goes red, and the readout panel flags whichever component (normal or
+tangential) you broke. Click **Snap medium 2 to satisfy** to see both conditions restored
+at once.
 """
 
-# ╔═╡ 1e97a069-6779-47cc-b7af-be1abcc80976
-collect(σ¹ * n) ~ collect(σ² * n)
-
-# ╔═╡ b7116675-705d-417b-a0e7-82f507405bf0
+# ╔═╡ cac42b11-d044-4e9e-be26-806654c1172c
 md"""
-## Solid--Fluid
-Unlike the welded interface, 
-some of the springs are "broken". This means that particles can 
-slide tangentially to the interface, and fluid particles cannot apply shear forces on the solid particles. Assume medium with index `1` to be fluid.
+### Solid–Fluid
+
+Unlike the welded interface, some of the springs are broken: particles can slide
+tangentially to the interface, because a fluid cannot apply a shear force to the solid
+particles next to it. Take medium 1 to be the fluid.
+
+A fluid's stress state is necessarily **isotropic**, `` \sigma^{(1)} = -p\,I `` for some
+pressure `` p `` — there is no preferred direction, which is exactly *why* it cannot
+support shear. (This is the same rule the widget enforces: switching to **Solid–Fluid**
+locks `` \sigma^{(1)} `` to a single pressure slider instead of a free tensor.)
+
+**Kinematic condition.** The normal component of displacement is continuous — the fluid
+and solid can't separate or interpenetrate — but the tangential components are free to
+differ (sliding):
+
+```math
+\mathbf{u}^{(1)}\cdot\mathbf{n} = \mathbf{u}^{(2)}\cdot\mathbf{n}
+```
+
+**Dynamic condition.** The normal component of traction (the pressure balance) is
+continuous, and the tangential (shear) component of traction vanishes on *both* sides —
+automatically on the fluid side because `` \sigma^{(1)} `` has no shear at all, and as a
+consequence on the solid side too, since traction must match:
+
+```math
+\mathbf{n}\cdot\bigl(\sigma^{(1)}\mathbf{n}\bigr) = \mathbf{n}\cdot\bigl(\sigma^{(2)}\mathbf{n}\bigr)
+```
+```math
+\sigma^{(2)}\mathbf{n} - \Bigl[\mathbf{n}\cdot\bigl(\sigma^{(2)}\mathbf{n}\bigr)\Bigr]\mathbf{n} = \mathbf{0}
+```
+
+In the widget, drag the two dots sideways past each other in **Solid–Fluid** mode — the
+spring stays green and is labeled "slip free," since that tangential offset is exactly
+what this condition permits. Now try to give medium 2 (the solid) a shear traction by
+dragging its own stress entries — the tangential-traction readout turns red, even though
+nothing about the displacement changed.
 """
 
-# ╔═╡ 8eff4450-dc71-4515-bfb3-e44f78c06289
+# ╔═╡ 9b776562-f534-4a27-8433-cbeb8f7e4133
 md"""
-### Kinematic conditions
-The normal components of the displacement field are continuous, while the rest of the components can be discontinuous due to sliding.
+### Solid–Vacuum (Free Surface)
+
+A vacuum has no particles at all to exert a force on the solid next to it, so the solid's
+displacement is completely unconstrained — there is no kinematic condition to write down.
+Taking medium 2 to be the solid, the only requirement is that the *entire* traction vector
+on the interface vanishes:
+
+```math
+\sigma^{(2)}\mathbf{n} = \mathbf{0}
+```
+
+This single vector equation is why a free surface reflects seismic energy so efficiently
+(nothing is there to carry any of it onward) and why surface waves — which need exactly
+this zero-traction condition at `` z=0 `` — exist at all.
+
+In the widget, switch to **Free surface**: medium 1 disappears entirely (there's nothing
+there), and the only thing being checked is whether medium 2's own traction arrow shrinks
+to a point at the interface.
 """
 
-# ╔═╡ 1c49fa0e-0156-4466-b9a9-b0f5d818d774
-dot(u¹, n) ~ dot(u², n)
-
-# ╔═╡ 851296e3-8c5c-4fae-a9d4-5ba5a85a3ab4
+# ╔═╡ bb6dddb4-19b8-420e-805c-4a143fa8ebed
 md"""
-### Dynamic conditions
-The components of the traction tangential to the interface are zero, whereas the normal components of the traction are continuous.
+## Appendix
 """
 
-# ╔═╡ 1f2b2f73-35b0-40fb-9cbf-051baaa94c75
-dot(collect(σ¹ * n), n) ~ dot(collect(σ² * n), n)
-
-# ╔═╡ 2125b0cb-63ec-4921-9907-19ee78704f78
-collect(σ² * n) - dot(collect(σ² * n), n) * n ~ 0 # vector rejection
-
-# ╔═╡ 54219662-f0b7-438e-8186-ca724119b360
-dot(n, collect(σ² * n) - dot(collect(σ² * n), n) * n)
-
-# ╔═╡ 8b654e79-0b22-41ba-a06d-55a66611580f
-md"""## Solid--Vacuum
-The vacuum has no particles to apply forces on the solid particles. The solid-particle displacement is unconstrained. Taking medium with index `2` to be solid, dynamic conditions require the traction vector corresponding to interface to be zero.
-"""
-
-# ╔═╡ a70b85eb-76d5-4c32-a0db-32c5c8b5ffea
+# ╔═╡ c514fac3-7874-4a6c-8848-56c66ca80260
 md"""
-### Dynamic conditions
+### Traction and Continuity Physics
+
+Everything the widget draws or flags red/green is computed here, in Julia, from the raw
+values the widget reports — the widget itself only handles dragging, scrubbing, and
+drawing (see the `pluto-widget-style` skill's "physics lives in Julia" rule).
 """
 
-# ╔═╡ f7503915-84e9-422d-865b-ca329c1a83ca
-collect(σ² * n) ~ 0
+# ╔═╡ 491b8789-e1b3-441c-8cac-f9ec24d2e653
+"""
+	traction_2d(σtt, σtn, σnn, n̂)
+
+Cauchy traction ``t = \\sigma \\hat n`` for a 2D symmetric stress state given in the local
+(tangential, normal) basis, evaluated on a surface with unit normal `n̂` (also expressed in
+that basis). Returns `(t_t, t_n)`, the traction resolved back onto the same (tangential,
+normal) axes.
+
+!!! note "Why this stays general"
+	The widget always calls this with `n̂ = (0,1)` (its fixed local frame), which makes
+	`t_t = σtn` and `t_n = σnn` — but the function itself performs the real dot product for
+	an arbitrary `n̂`, so it's the same formula the Detailed Look section's 3D
+	`` \\sigma\\mathbf{n} `` equations describe, not a shortcut specific to one frame.
+"""
+function traction_2d(σtt::Float64, σtn::Float64, σnn::Float64, n̂::NTuple{2,Float64})
+	nt, nn = n̂
+	tt = σtt * nt + σtn * nn
+	tn = σtn * nt + σnn * nn
+	return (tt, tn)
+end
+
+# ╔═╡ c20ee476-b26c-470f-819d-6d413bf8ab0c
+"""
+	fluid_stress(p)
+
+Isotropic stress state ``\\sigma=-p\\,I`` for a fluid at pressure `p` (tension-positive
+convention throughout this notebook, so a positive `p` gives a compressive normal stress).
+Returns `(σtt, σtn, σnn)` in the local (tangential, normal) basis — the same in *any*
+basis, since an isotropic tensor has no preferred direction, which is exactly why a fluid
+cannot support shear traction.
+"""
+fluid_stress(p::Float64) = (-p, 0.0, -p)
+
+# ╔═╡ ce088892-7d2f-482e-88db-578548954f1d
+"""
+	interface_check(itype, t1t, t1n, t2t, t2n, u1t, u1n, u2t, u2n; tol=1e-3)
+
+Evaluate the kinematic (displacement) and dynamic (traction) boundary conditions at a
+welded (`:welded`), solid–fluid (`:fluid`), or free-surface (`:vacuum`) interface, given
+the already-resolved tractions `` \\mathbf{t}^{(1)}=(t1t,t1n) ``,
+`` \\mathbf{t}^{(2)}=(t2t,t2n) `` and displacements `` \\mathbf{u}^{(1)}=(u1t,u1n) ``,
+`` \\mathbf{u}^{(2)}=(u2t,u2n) ``.
+
+Returns a named tuple of `Bool`s: `kin_normal_ok`, `kin_tangential_ok`,
+`kin_tangential_free` (tangential slip is unconstrained by this interface type, e.g. a
+fluid or free surface), `dyn_normal_ok`, `dyn_tangential_ok`, plus the raw residuals
+`dun`, `dut`, `dtn`, `dtt` those checks are built from.
+
+!!! note "Solid–fluid asymmetry"
+	For `:fluid`, the tangential *dynamic* check tests `t2t` (the solid side) against
+	zero directly, rather than comparing `t1t` to `t2t` — a fluid's own shear traction is
+	already zero by construction (see [`fluid_stress`](@ref)), so the real physical
+	content of "shear traction vanishes at a fluid interface" is a constraint on the
+	*solid* side alone.
+"""
+function interface_check(itype::Symbol, t1t::Float64, t1n::Float64, t2t::Float64, t2n::Float64,
+	u1t::Float64, u1n::Float64, u2t::Float64, u2n::Float64; tol::Float64=1e-3)
+	dun = u1n - u2n
+	dut = u1t - u2t
+	dtn = t1n - t2n
+	dtt = t1t - t2t
+	if itype == :welded
+		return (kin_normal_ok=abs(dun) < tol, kin_tangential_ok=abs(dut) < tol, kin_tangential_free=false,
+			dyn_normal_ok=abs(dtn) < tol, dyn_tangential_ok=abs(dtt) < tol, dun=dun, dut=dut, dtn=dtn, dtt=dtt)
+	elseif itype == :fluid
+		return (kin_normal_ok=abs(dun) < tol, kin_tangential_ok=true, kin_tangential_free=true,
+			dyn_normal_ok=abs(dtn) < tol, dyn_tangential_ok=abs(t2t) < tol, dun=dun, dut=dut, dtn=dtn, dtt=dtt)
+	else # :vacuum -- medium 1 is vacuum, only medium 2's own traction is constrained
+		return (kin_normal_ok=true, kin_tangential_ok=true, kin_tangential_free=true,
+			dyn_normal_ok=abs(t2n) < tol, dyn_tangential_ok=abs(t2t) < tol, dun=dun, dut=dut, dtn=dtn, dtt=dtt)
+	end
+end
+
+# ╔═╡ b2c3cc61-69d7-4f3d-a394-4010437960b8
+md"""
+#### Verifying the Continuity Checks
+"""
+
+# ╔═╡ dd0e1670-4704-41ac-854f-5e00479aa09d
+let
+	n̂ = (0.0, 1.0)
+
+	# traction_2d reduces to (σtn, σnn) for the widget's own n̂=(0,1)...
+	@assert traction_2d(3.0, 1.5, -2.0, n̂) == (1.5, -2.0)
+	# ...but is a genuine dot product for a general n̂, not a hardcoded component pick
+	n45 = (sqrt(2) / 2, sqrt(2) / 2)
+	tt45, tn45 = traction_2d(1.0, 0.0, -1.0, n45)
+	@assert isapprox(tt45, sqrt(2) / 2; atol=1e-12) && isapprox(tn45, -sqrt(2) / 2; atol=1e-12)
+
+	@assert fluid_stress(4.0) == (-4.0, 0.0, -4.0)
+
+	# welded: matching state passes both conditions; a tangential-slip violation is caught
+	t1 = traction_2d(2.0, 0.5, -1.0, n̂)
+	t2 = traction_2d(99.0, 0.5, -1.0, n̂)  # σtt irrelevant to traction, deliberately different
+	r_ok = interface_check(:welded, t1..., t2..., 0.3, -0.1, 0.3, -0.1)
+	r_bad = interface_check(:welded, t1..., t2..., 0.3, -0.1, 0.9, -0.1)
+	@assert r_ok.kin_normal_ok && r_ok.kin_tangential_ok && r_ok.dyn_normal_ok && r_ok.dyn_tangential_ok
+	@assert r_bad.dyn_normal_ok && r_bad.dyn_tangential_ok && !r_bad.kin_tangential_ok
+
+	# solid-fluid: tangential slip never flags; nonzero solid shear traction does
+	p = 4.0
+	t1f = traction_2d(fluid_stress(p)..., n̂)
+	t2f = traction_2d(1.0, 0.0, -p, n̂)
+	t2f_bad = traction_2d(1.0, 0.6, -p, n̂)
+	r_fluid = interface_check(:fluid, t1f..., t2f..., 0.0, 0.2, 0.7, 0.2)
+	r_fluid_bad = interface_check(:fluid, t1f..., t2f_bad..., 0.0, 0.2, 0.2, 0.2)
+	@assert r_fluid.kin_normal_ok && r_fluid.kin_tangential_free && r_fluid.dyn_normal_ok && r_fluid.dyn_tangential_ok
+	@assert !r_fluid_bad.dyn_tangential_ok && r_fluid_bad.dyn_normal_ok
+
+	# free surface: only the solid side's own traction is checked, against zero
+	t2v_ok = traction_2d(1.0, 0.0, 0.0, n̂)
+	t2v_bad = traction_2d(1.0, 0.4, -2.0, n̂)
+	r_vac_ok = interface_check(:vacuum, 0.0, 0.0, t2v_ok..., 0.0, 0.0, 5.0, -3.0)
+	r_vac_bad = interface_check(:vacuum, 0.0, 0.0, t2v_bad..., 0.0, 0.0, 5.0, -3.0)
+	@assert r_vac_ok.dyn_normal_ok && r_vac_ok.dyn_tangential_ok
+	@assert !r_vac_bad.dyn_normal_ok && !r_vac_bad.dyn_tangential_ok
+
+	md"All nine continuity-check assertions above (welded / solid–fluid / free-surface, satisfied and violated) pass. ✅"
+end
+
+# ╔═╡ 18152216-ae92-41f5-b5eb-37c3421b7840
+md"""
+### From the Widget's Raw State to the Physics
+
+`bc` is the widget's raw bound dict (interface type, stress-tensor entries, displacement
+vectors). This section turns that into the traction vectors and pass/fail verdicts pushed
+back to the widget as a `CustomEvent`.
+"""
+
+# ╔═╡ b06f333a-ac4b-4bc9-8deb-271578cd4d6d
+# the widget's own fixed local frame -- n points out of medium 2, into medium 1
+_bc_n̂ = (0.0, 1.0)
+
+# ╔═╡ 605c8c08-ce05-4c5c-adbc-9fb19398026e
+md"""
+`BcPush` carries no physics of its own — just the already-computed tractions and pass/fail
+verdicts, handed to the *already-rendered* `BoundaryConditionInput` widget via a
+`CustomEvent`, exactly like `MtPush`/`PfrPush` elsewhere in this repo.
+"""
+
+# ╔═╡ c56c134d-8a38-41e2-bace-f6016f3d6038
+begin
+	struct BcPush
+		t1t::Float64
+		t1n::Float64
+		t2t::Float64
+		t2n::Float64
+		u1t::Float64
+		u1n::Float64
+		u2t::Float64
+		u2n::Float64
+		kinNormalOk::Bool
+		kinTangentialOk::Bool
+		kinTangentialFree::Bool
+		dynNormalOk::Bool
+		dynTangentialOk::Bool
+	end
+	function Base.show(io::IO, ::MIME"text/html", p::BcPush)
+		write(io, """
+		<script>
+		{
+		const w = document.getElementById('bcwidget');
+		if(w){
+		  w.dispatchEvent(new CustomEvent('bc-update', { detail: {
+		    t1t: $(p.t1t), t1n: $(p.t1n), t2t: $(p.t2t), t2n: $(p.t2n),
+		    u1t: $(p.u1t), u1n: $(p.u1n), u2t: $(p.u2t), u2n: $(p.u2n),
+		    kinNormalOk: $(p.kinNormalOk), kinTangentialOk: $(p.kinTangentialOk), kinTangentialFree: $(p.kinTangentialFree),
+		    dynNormalOk: $(p.dynNormalOk), dynTangentialOk: $(p.dynTangentialOk)
+		  }}));
+		}
+		}
+		</script>
+		""")
+	end
+end
+
+# ╔═╡ 3e1bb6d0-9c2b-4af2-9e18-c187ae808ccf
+md"""
+### The Interactive Widget
+
+`BoundaryConditionInput` only ever handles UI/display: dragging the two displacement dots,
+scrubbing stress-tensor entries, toggling the interface type, and drawing whatever the
+physics cells above last pushed to it via the `bc-update` event. It never recomputes a
+traction or a pass/fail verdict itself.
+"""
+
+# ╔═╡ 236b5432-5064-4207-a68f-e2c651fee95c
+begin
+	struct BoundaryConditionInput
+		itype::String
+		s1tt::Float64
+		s1tn::Float64
+		s1nn::Float64
+		p1::Float64
+		s2tt::Float64
+		s2tn::Float64
+		s2nn::Float64
+		u1t::Float64
+		u1n::Float64
+		u2t::Float64
+		u2n::Float64
+	end
+
+	BoundaryConditionInput(; itype="welded", s1tt=0.3, s1tn=0.4, s1nn=1.0, p1=1.0,
+		s2tt=-0.3, s2tn=0.4, s2nn=1.0, u1t=0.3, u1n=-0.2, u2t=0.3, u2n=-0.2) =
+		BoundaryConditionInput(itype, Float64(s1tt), Float64(s1tn), Float64(s1nn), Float64(p1),
+			Float64(s2tt), Float64(s2tn), Float64(s2nn),
+			Float64(u1t), Float64(u1n), Float64(u2t), Float64(u2n))
+
+	Base.get(w::BoundaryConditionInput) = Dict{String,Any}(
+		"itype" => w.itype, "s1tt" => w.s1tt, "s1tn" => w.s1tn, "s1nn" => w.s1nn, "p1" => w.p1,
+		"s2tt" => w.s2tt, "s2tn" => w.s2tn, "s2nn" => w.s2nn,
+		"u1t" => w.u1t, "u1n" => w.u1n, "u2t" => w.u2t, "u2n" => w.u2n,
+	)
+
+	function Base.show(io::IO, ::MIME"text/html", w::BoundaryConditionInput)
+		write(io, """
+<div id="bcwidget" style="display:flex;flex-direction:column;align-items:center;width:100%;color:#9ca3af">
+  <style>
+    pluto-cell:has(#bcwidget){width:min(78vw,1250px)!important;margin-left:calc((100% - min(78vw,1250px))/2)!important}
+    #bcwidget .bc-title{width:100%;box-sizing:border-box;text-align:center;margin-bottom:10px;background:#0a0f18;border:1px solid #3b5c85;border-radius:6px;padding:10px 14px}
+    #bcwidget .bc-title-desc{font-size:17px;font-weight:700;color:#e5e7eb}
+    #bcwidget .bc-title-hint{font-size:13px;color:#9ca3af;margin-top:3px}
+    #bcwidget .bc-itype{display:flex;gap:8px;margin-bottom:12px}
+    #bcwidget .bc-itype button{border-radius:4px;border:1px solid #9ca3af;background:#606060;color:#f3f4f6;padding:7px 14px;font-size:14px;cursor:pointer}
+    #bcwidget .bc-itype button.active{background:#3b5c85;border-color:#38bdf8}
+    #bcwidget .bc-workspace{display:flex;gap:16px;align-items:flex-start;width:100%;justify-content:center}
+    #bcwidget .bc-canvas-col{display:flex;flex-direction:column;align-items:center;flex:0 0 auto}
+    #bcwidget canvas{background:#000;border:1px solid #374151;border-radius:6px;display:block}
+    #bcwidget .bc-readout{width:100%;box-sizing:border-box;margin-top:10px;background:#050505;border:1px solid #2f3744;border-radius:6px;padding:8px 12px;font-size:13px}
+    #bcwidget .bc-readout-row{display:grid;grid-template-columns:1fr auto;gap:8px;align-items:center;padding:4px 0;border-bottom:1px solid #1f2937}
+    #bcwidget .bc-readout-row:last-child{border-bottom:none}
+    #bcwidget .bc-readout-label{color:#d1d5db}
+    #bcwidget .bc-readout-val{font-variant-numeric:tabular-nums;color:#9ca3af;font-size:12px}
+    #bcwidget .bc-badge{border-radius:10px;padding:2px 9px;font-size:12px;font-weight:700;white-space:nowrap}
+    #bcwidget .bc-badge-ok{background:#0f2e1a;color:#4ade80;border:1px solid #16a34a}
+    #bcwidget .bc-badge-bad{background:#3a0f12;color:#f87171;border:1px solid #dc2626}
+    #bcwidget .bc-badge-free{background:#0f1e2e;color:#7dd3fc;border:1px solid #0369a1}
+    #bcwidget .bc-controls{display:flex;flex-direction:column;gap:10px;flex:0 0 300px;width:300px}
+    #bcwidget .bc-control-group{box-sizing:border-box;background:#050505;border:1px solid #2f3744;border-radius:6px;padding:10px 12px}
+    #bcwidget .bc-control-title{font-weight:700;color:#e5e7eb;margin-bottom:8px;font-size:15px}
+    #bcwidget .bc-control-hint{font-size:12px;color:#9ca3af;margin-top:6px;line-height:1.5}
+    #bcwidget .bc-mat2{display:inline-grid;grid-template-columns:repeat(2,auto);gap:5px 6px;padding:6px 10px;position:relative}
+    #bcwidget .bc-mat2::before, #bcwidget .bc-mat2::after{content:'';position:absolute;top:3px;bottom:3px;width:6px;border:2px solid #9ca3af}
+    #bcwidget .bc-mat2::before{left:0;border-right:none}
+    #bcwidget .bc-mat2::after{right:0;border-left:none}
+    #bcwidget .bc-mat2 input{width:52px;background:#111827;color:#e5e7eb;border:1px solid #374151;border-radius:4px;padding:4px 3px;font-size:13px;text-align:center;font-variant-numeric:tabular-nums;cursor:ew-resize;-moz-appearance:textfield}
+    #bcwidget .bc-mat2 input::-webkit-inner-spin-button, #bcwidget .bc-mat2 input::-webkit-outer-spin-button{-webkit-appearance:none;margin:0}
+    #bcwidget .bc-mat2 input:focus{outline:2px solid #38bdf8;border-color:#38bdf8}
+    #bcwidget .bc-mat2 input:disabled{opacity:0.55;cursor:default}
+    #bcwidget .bc-pgroup{display:flex;align-items:center;gap:8px;margin-bottom:6px}
+    #bcwidget .bc-pgroup input[type=range]{flex:1 1 auto;min-width:0}
+    #bcwidget .bc-value{color:#d1d5db;font-variant-numeric:tabular-nums;font-size:13px;min-width:40px;text-align:right}
+    #bcwidget .bc-snap{width:100%;border-radius:4px;border:1px solid #9ca3af;background:#3b5c85;color:#f3f4f6;padding:8px 12px;font-size:14px;cursor:pointer;font-weight:700}
+    #bcwidget .bc-snap:hover{background:#4b7099}
+    #bcwidget .bc-dim{opacity:0.45}
+  </style>
+
+  <div class="bc-title">
+    <div class="bc-title-desc">Kinematic and dynamic conditions at an interface between two media</div>
+    <div class="bc-title-hint">drag the two dots to set u&sup1;, u&sup2; &middot; drag a stress value to scrub it &middot; switch interface type above</div>
+  </div>
+
+  <div class="bc-itype">
+    <button type="button" id="bc-it-welded" class="active">Welded (solid&ndash;solid)</button>
+    <button type="button" id="bc-it-fluid">Solid&ndash;fluid</button>
+    <button type="button" id="bc-it-vacuum">Free surface (solid&ndash;vacuum)</button>
+  </div>
+
+  <div class="bc-workspace">
+    <div class="bc-canvas-col">
+      <canvas id="bc-canvas" width="520" height="380"></canvas>
+      <div class="bc-readout" id="bc-readout"></div>
+    </div>
+    <div class="bc-controls">
+      <div class="bc-control-group" id="bc-group-1">
+        <div class="bc-control-title" id="bc-g1-title">Medium 1</div>
+        <div class="bc-mat2" id="bc-s1-mat">
+          <input type="text" id="bc-s1-tt" value="0.30">
+          <input type="text" id="bc-s1-tn-a" value="0.40">
+          <input type="text" id="bc-s1-tn-b" value="0.40">
+          <input type="text" id="bc-s1-nn" value="1.00">
+        </div>
+        <div class="bc-pgroup" id="bc-p1-row" style="display:none">
+          <span>p</span><input type="range" id="bc-p1" min="0" max="3" step="0.05" value="1.0"><span class="bc-value" id="bc-p1-v">1.00</span>
+        </div>
+        <div class="bc-control-hint" id="bc-g1-hint">σ¹ is a free symmetric tensor in this welded case.</div>
+      </div>
+      <div class="bc-control-group">
+        <div class="bc-control-title">Medium 2 (solid)</div>
+        <div class="bc-mat2" id="bc-s2-mat">
+          <input type="text" id="bc-s2-tt" value="-0.30">
+          <input type="text" id="bc-s2-tn-a" value="0.40">
+          <input type="text" id="bc-s2-tn-b" value="0.40">
+          <input type="text" id="bc-s2-nn" value="1.00">
+        </div>
+      </div>
+      <div class="bc-control-group">
+        <div class="bc-control-title">Actions</div>
+        <button type="button" class="bc-snap" id="bc-snap">Snap medium 2 to satisfy</button>
+        <div class="bc-control-hint">Copies whatever medium&nbsp;2 quantities the current interface type requires to match medium&nbsp;1 (or zero, for a free surface).</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+  {
+    const par = currentScript.previousElementSibling;
+
+    let itype = '$(w.itype)';
+    let s1tt = $(w.s1tt), s1tn = $(w.s1tn), s1nn = $(w.s1nn), p1 = $(w.p1);
+    let s2tt = $(w.s2tt), s2tn = $(w.s2tn), s2nn = $(w.s2nn);
+    let u1t = $(w.u1t), u1n = $(w.u1n), u2t = $(w.u2t), u2n = $(w.u2n);
+
+    // physics results, filled in once the first 'bc-update' arrives from Julia
+    let phys = null;
+
+    const cv = par.querySelector('#bc-canvas');
+    const ctx = cv.getContext('2d');
+    const SEC_W = 520, SEC_H = 380;
+    const PX = 260, PY = 190;           // the interface point, in canvas pixels
+    const IF_X0 = 30, IF_X1 = 490;      // interface line extent
+    const STRESS_SCALE = 46, DISP_SCALE = 90;
+    const MAXLEN = 150;
+    const COL1 = '#38bdf8', COL2 = '#f59e0b';
+
+    function clampLen(dx, dy){
+      const len = Math.hypot(dx, dy);
+      if(len <= MAXLEN || len === 0) return [dx, dy];
+      const s = MAXLEN / len;
+      return [dx*s, dy*s];
+    }
+
+    function drawArrow(x0, y0, dxRaw, dyRaw, color, label){
+      const [dx, dy] = clampLen(dxRaw, dyRaw);
+      const x1 = x0 + dx, y1 = y0 - dy;   // +n is up on screen
+      ctx.strokeStyle = color; ctx.fillStyle = color; ctx.lineWidth = 2.4;
+      ctx.beginPath(); ctx.moveTo(x0, y0); ctx.lineTo(x1, y1); ctx.stroke();
+      const ang = Math.atan2(y1-y0, x1-x0), hs = 8;
+      ctx.beginPath();
+      ctx.moveTo(x1, y1);
+      ctx.lineTo(x1 - hs*Math.cos(ang - 0.4), y1 - hs*Math.sin(ang - 0.4));
+      ctx.lineTo(x1 - hs*Math.cos(ang + 0.4), y1 - hs*Math.sin(ang + 0.4));
+      ctx.closePath(); ctx.fill();
+      if(label){
+        ctx.font = '13px sans-serif'; ctx.textAlign = 'left';
+        ctx.fillText(label, x1 + 6, y1);
+      }
+      return [x1, y1];
+    }
+
+    function particlePos(ut, un){
+      const [dx, dy] = clampLen(ut*DISP_SCALE, un*DISP_SCALE);
+      return [PX + dx, PY - dy];
+    }
+
+    function drawSpring(x0, y0, x1, y1, color, dashed){
+      const n = 7, dx = (x1-x0)/n, dy = (y1-y0)/n;
+      const nx = -(y1-y0), ny = (x1-x0);
+      const nlen = Math.hypot(nx, ny) || 1;
+      const amp = dashed ? 0 : 4.5;
+      ctx.strokeStyle = color; ctx.lineWidth = 2; ctx.setLineDash(dashed ? [4,3] : []);
+      ctx.beginPath(); ctx.moveTo(x0, y0);
+      for(let i=1; i<n; i++){
+        const px = x0 + dx*i, py = y0 + dy*i;
+        const side = (i % 2 === 0) ? 1 : -1;
+        ctx.lineTo(px + (nx/nlen)*amp*side, py + (ny/nlen)*amp*side);
+      }
+      ctx.lineTo(x1, y1); ctx.stroke();
+      ctx.setLineDash([]);
+    }
+
+    function draw(){
+      ctx.clearRect(0, 0, SEC_W, SEC_H);
+
+      // media regions
+      ctx.fillStyle = 'rgba(56,189,248,0.06)'; ctx.fillRect(0, 0, SEC_W, PY);
+      ctx.fillStyle = 'rgba(245,158,11,0.06)'; ctx.fillRect(0, PY, SEC_W, SEC_H-PY);
+      ctx.strokeStyle = '#9ca3af'; ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.moveTo(IF_X0, PY); ctx.lineTo(IF_X1, PY); ctx.stroke();
+
+      ctx.font = '13px sans-serif'; ctx.fillStyle = '#7dd3fc'; ctx.textAlign = 'left';
+      const label1 = itype === 'fluid' ? 'Medium 1 (fluid)' : (itype === 'vacuum' ? 'Medium 1 (vacuum)' : 'Medium 1');
+      ctx.fillText(label1, 12, 20);
+      ctx.fillStyle = '#fbbf24';
+      ctx.fillText('Medium 2 (solid)', 12, SEC_H - 12);
+
+      // axis compass
+      const ax = 50, ay = 60;
+      ctx.strokeStyle = '#6b7280'; ctx.fillStyle = '#6b7280'; ctx.lineWidth = 1.4;
+      drawArrow(ax, ay, 0, 26, '#9ca3af', 'n');
+      drawArrow(ax, ay, 26, 0, '#9ca3af', 't');
+
+      const vacuum = (itype === 'vacuum');
+
+      // particles at rest + guide lines
+      const [p1x, p1y] = particlePos(u1t, u1n);
+      const [p2x, p2y] = particlePos(u2t, u2n);
+      ctx.strokeStyle = 'rgba(156,163,175,0.35)'; ctx.setLineDash([3,3]); ctx.lineWidth = 1;
+      if(!vacuum){ ctx.beginPath(); ctx.moveTo(PX, PY); ctx.lineTo(p1x, p1y); ctx.stroke(); }
+      ctx.beginPath(); ctx.moveTo(PX, PY); ctx.lineTo(p2x, p2y); ctx.stroke();
+      ctx.setLineDash([]);
+
+      // spring / roller between the two particles
+      if(!vacuum && phys){
+        const kinOK = itype === 'welded' ? (phys.kinNormalOk && phys.kinTangentialOk) : phys.kinNormalOk;
+        drawSpring(p1x, p1y, p2x, p2y, kinOK ? '#4ade80' : '#f87171', false);
+        if(phys.kinTangentialFree){
+          const mx = (p1x+p2x)/2, my = (p1y+p2y)/2;
+          ctx.fillStyle = '#7dd3fc'; ctx.font = '11px sans-serif'; ctx.textAlign = 'center';
+          ctx.fillText('slip free', mx, my - 8);
+        }
+      }
+
+      // particle markers
+      if(!vacuum){
+        ctx.beginPath(); ctx.arc(p1x, p1y, 6, 0, 2*Math.PI); ctx.fillStyle = COL1; ctx.fill();
+        ctx.strokeStyle = '#0a0f18'; ctx.lineWidth = 1.4; ctx.stroke();
+      }
+      ctx.beginPath(); ctx.arc(p2x, p2y, 6, 0, 2*Math.PI); ctx.fillStyle = COL2; ctx.fill();
+      ctx.strokeStyle = '#0a0f18'; ctx.lineWidth = 1.4; ctx.stroke();
+
+      // traction arrows, anchored at the interface point P -- t=σn is physics, so these are only
+      // ever drawn from Julia-pushed values (phys), never recomputed from the raw σ boxes here
+      if(phys){
+        if(!vacuum) drawArrow(PX, PY, phys.t1t*STRESS_SCALE, phys.t1n*STRESS_SCALE, COL1, 't¹');
+        drawArrow(PX, PY, phys.t2t*STRESS_SCALE, phys.t2n*STRESS_SCALE, COL2, 't²');
+      }
+
+      ctx.beginPath(); ctx.arc(PX, PY, 3, 0, 2*Math.PI); ctx.fillStyle = '#e5e7eb'; ctx.fill();
+
+      syncMatBoxes();
+      updateReadout();
+    }
+
+    function badge(ok, free){
+      if(free) return '<span class="bc-badge bc-badge-free">free</span>';
+      return ok ? '<span class="bc-badge bc-badge-ok">match</span>' : '<span class="bc-badge bc-badge-bad">mismatch</span>';
+    }
+
+    function updateReadout(){
+      const rd = par.querySelector('#bc-readout');
+      const vacuum = (itype === 'vacuum');
+      if(!phys){ rd.innerHTML = '<div class="bc-readout-row"><span class="bc-readout-label">computing…</span></div>'; return; }
+      let rows = '';
+      if(vacuum){
+        rows += '<div class="bc-readout-row"><span class="bc-readout-label">t&sup2;<sub>n</sub> = ' + phys.t2n.toFixed(2) + ' (must be 0)</span>' + badge(phys.dynNormalOk) + '</div>';
+        rows += '<div class="bc-readout-row"><span class="bc-readout-label">t&sup2;<sub>t</sub> = ' + phys.t2t.toFixed(2) + ' (must be 0)</span>' + badge(phys.dynTangentialOk) + '</div>';
+        rows += '<div class="bc-readout-row"><span class="bc-readout-label">kinematic: u&sup2; unconstrained</span><span class="bc-readout-val">&mdash;</span></div>';
+      } else {
+        rows += '<div class="bc-readout-row"><span class="bc-readout-label">u&sup1;&middot;n = ' + phys.u1n.toFixed(2) + ',  u&sup2;&middot;n = ' + phys.u2n.toFixed(2) + '</span>' + badge(phys.kinNormalOk) + '</div>';
+        rows += '<div class="bc-readout-row"><span class="bc-readout-label">u&sup1;&middot;t = ' + phys.u1t.toFixed(2) + ',  u&sup2;&middot;t = ' + phys.u2t.toFixed(2) + '</span>' + badge(phys.kinTangentialOk, phys.kinTangentialFree) + '</div>';
+        rows += '<div class="bc-readout-row"><span class="bc-readout-label">t&sup1;<sub>n</sub> = ' + phys.t1n.toFixed(2) + ',  t&sup2;<sub>n</sub> = ' + phys.t2n.toFixed(2) + '</span>' + badge(phys.dynNormalOk) + '</div>';
+        const tanLabel = itype === 'fluid' ? ('t&sup2;<sub>t</sub> = ' + phys.t2t.toFixed(2) + ' (must be 0)') : ('t&sup1;<sub>t</sub> = ' + phys.t1t.toFixed(2) + ',  t&sup2;<sub>t</sub> = ' + phys.t2t.toFixed(2));
+        rows += '<div class="bc-readout-row"><span class="bc-readout-label">' + tanLabel + '</span>' + badge(phys.dynTangentialOk) + '</div>';
+      }
+      rd.innerHTML = rows;
+    }
+
+    function syncMatBoxes(){
+      par.querySelector('#bc-s1-tt').value = s1tt.toFixed(2);
+      par.querySelector('#bc-s1-tn-a').value = s1tn.toFixed(2);
+      par.querySelector('#bc-s1-tn-b').value = s1tn.toFixed(2);
+      par.querySelector('#bc-s1-nn').value = s1nn.toFixed(2);
+      par.querySelector('#bc-s2-tt').value = s2tt.toFixed(2);
+      par.querySelector('#bc-s2-tn-a').value = s2tn.toFixed(2);
+      par.querySelector('#bc-s2-tn-b').value = s2tn.toFixed(2);
+      par.querySelector('#bc-s2-nn').value = s2nn.toFixed(2);
+      par.querySelector('#bc-p1').value = p1;
+      par.querySelector('#bc-p1-v').textContent = p1.toFixed(2);
+    }
+
+    function syncModeUI(){
+      par.querySelector('#bc-it-welded').classList.toggle('active', itype === 'welded');
+      par.querySelector('#bc-it-fluid').classList.toggle('active', itype === 'fluid');
+      par.querySelector('#bc-it-vacuum').classList.toggle('active', itype === 'vacuum');
+      const g1 = par.querySelector('#bc-group-1');
+      const s1mat = par.querySelector('#bc-s1-mat');
+      const p1row = par.querySelector('#bc-p1-row');
+      const g1title = par.querySelector('#bc-g1-title');
+      const g1hint = par.querySelector('#bc-g1-hint');
+      g1.classList.toggle('bc-dim', itype === 'vacuum');
+      [...s1mat.querySelectorAll('input')].forEach(el => el.disabled = (itype !== 'welded'));
+      if(itype === 'welded'){
+        g1title.textContent = 'Medium 1';
+        s1mat.style.display = ''; p1row.style.display = 'none';
+        g1hint.textContent = 'σ¹ is a free symmetric tensor in this welded case.';
+      } else if(itype === 'fluid'){
+        g1title.textContent = 'Medium 1 (fluid)';
+        s1mat.style.display = ''; p1row.style.display = '';
+        g1hint.textContent = 'A fluid is isotropic: σ¹ = −pI, no shear. Drag the pressure slider instead of the tensor.';
+      } else {
+        g1title.textContent = 'Medium 1 (vacuum)';
+        s1mat.style.display = 'none'; p1row.style.display = 'none';
+        g1hint.textContent = 'Vacuum has no stress state at all.';
+      }
+    }
+
+    let commitInFlight = false;
+    function commit(){
+      commitInFlight = true;
+      par.value = { itype, s1tt, s1tn, s1nn, p1, s2tt, s2tn, s2nn, u1t, u1n, u2t, u2n };
+      par.dispatchEvent(new CustomEvent('input'));
+    }
+    function throttledCommit(){ if(!commitInFlight) commit(); }
+
+    par.addEventListener('bc-update', e => {
+      phys = e.detail;
+      commitInFlight = false;
+      draw();
+    });
+
+    // ---- interface-type toggle ----
+    function setItype(v){
+      if(itype === v) return;
+      itype = v; syncModeUI(); draw(); commit();
+    }
+    par.querySelector('#bc-it-welded').addEventListener('click', () => setItype('welded'));
+    par.querySelector('#bc-it-fluid').addEventListener('click', () => setItype('fluid'));
+    par.querySelector('#bc-it-vacuum').addEventListener('click', () => setItype('vacuum'));
+
+    // ---- pressure slider ----
+    par.querySelector('#bc-p1').addEventListener('input', e => {
+      p1 = parseFloat(e.target.value);
+      par.querySelector('#bc-p1-v').textContent = p1.toFixed(2);
+      draw(); throttledCommit();
+    });
+
+    // ---- scrub stress-tensor entries (drag left/right; click to type) ----
+    function wireMatBoxes(ids, setter){
+      const els = ids.map(id => par.querySelector('#'+id));
+      function handle(v){ setter(v); draw(); throttledCommit(); }
+      els.forEach(el => {
+        el.addEventListener('input', e => {
+          const v = parseFloat(e.target.value);
+          if(Number.isFinite(v)) handle(v);
+        });
+        let dragging = false, moved = false, startX = 0, startVal = 0;
+        el.addEventListener('mousedown', e => {
+          if(el.disabled) return;
+          startX = e.clientX; startVal = parseFloat(el.value) || 0;
+          dragging = true; moved = false;
+          e.preventDefault();
+        });
+        window.addEventListener('mousemove', e => {
+          if(!dragging) return;
+          const dx = e.clientX - startX;
+          if(!moved && Math.abs(dx) > 3){ moved = true; el.blur(); }
+          if(!moved) return;
+          let v = startVal + dx*0.02;
+          v = Math.max(-3, Math.min(3, Math.round(v/0.05)*0.05));
+          v = Math.round(v*1000)/1000;
+          el.value = v.toFixed(2);
+          handle(v);
+        });
+        window.addEventListener('mouseup', () => {
+          if(dragging && !moved){ el.focus(); el.select(); }
+          dragging = false;
+        });
+      });
+    }
+    wireMatBoxes(['bc-s1-tt'], v => s1tt = v);
+    wireMatBoxes(['bc-s1-tn-a', 'bc-s1-tn-b'], v => s1tn = v);
+    wireMatBoxes(['bc-s1-nn'], v => s1nn = v);
+    wireMatBoxes(['bc-s2-tt'], v => s2tt = v);
+    wireMatBoxes(['bc-s2-tn-a', 'bc-s2-tn-b'], v => s2tn = v);
+    wireMatBoxes(['bc-s2-nn'], v => s2nn = v);
+
+    // ---- drag the particle markers to set u1 / u2 ----
+    let dragU = null;
+    cv.addEventListener('mousedown', e => {
+      const rect = cv.getBoundingClientRect();
+      const mx = e.clientX - rect.left, my = e.clientY - rect.top;
+      const vacuum = (itype === 'vacuum');
+      const [p1x, p1y] = particlePos(u1t, u1n);
+      const [p2x, p2y] = particlePos(u2t, u2n);
+      const d1 = vacuum ? Infinity : Math.hypot(mx-p1x, my-p1y);
+      const d2 = Math.hypot(mx-p2x, my-p2y);
+      const best = Math.min(d1, d2);
+      if(best > 16) return;
+      // medium 2's dot is drawn last (on top), so an exact tie should grab it, not u1
+      dragU = (d1 < d2) ? 'u1' : 'u2';
+    });
+    window.addEventListener('mousemove', e => {
+      if(!dragU) return;
+      const rect = cv.getBoundingClientRect();
+      const mx = e.clientX - rect.left, my = e.clientY - rect.top;
+      const ut = (mx - PX) / DISP_SCALE, un = (PY - my) / DISP_SCALE;
+      if(dragU === 'u1'){ u1t = ut; u1n = un; } else { u2t = ut; u2n = un; }
+      draw(); throttledCommit();
+    });
+    window.addEventListener('mouseup', () => {
+      if(dragU) commit();
+      dragU = null;
+    });
+
+    // ---- snap medium 2 to satisfy the current interface type ----
+    par.querySelector('#bc-snap').addEventListener('click', () => {
+      if(!phys) return;
+      if(itype === 'vacuum'){
+        s2nn = 0; s2tn = 0;
+      } else if(itype === 'fluid'){
+        s2nn = phys.t1n; s2tn = 0; u2n = u1n;
+      } else {
+        s2nn = phys.t1n; s2tn = phys.t1t; u2n = u1n; u2t = u1t;
+      }
+      draw(); commit();
+    });
+
+    syncModeUI(); draw();
+  }
+  </script>
+""")
+	end
+
+	const _bc_ready = true
+end
+
+# ╔═╡ 159c6430-0478-4b9d-83a4-6ee8ba3edd11
+begin
+	_bc_ready
+	WideCell(@bind bc BoundaryConditionInput(); max_width=1250)
+end
+
+# ╔═╡ 7eea3fc3-dbc8-42c2-a850-f3d392844306
+bc_safe = bc isa AbstractDict ? bc : Dict{String,Any}(
+	"itype" => "welded", "s1tt" => 0.3, "s1tn" => 0.4, "s1nn" => 1.0, "p1" => 1.0,
+	"s2tt" => -0.3, "s2tn" => 0.4, "s2nn" => 1.0,
+	"u1t" => 0.3, "u1n" => -0.2, "u2t" => 0.3, "u2n" => -0.2)
+
+# ╔═╡ 0dbd33d9-886a-4e77-8b28-01bd10ee3efe
+_bc_itype = Symbol(bc_safe["itype"])
+
+# ╔═╡ ba569904-7fdb-4e92-860c-f66d78e963a4
+# medium 1 is forced isotropic (a real fluid) whenever the interface type says it's a fluid
+_bc_σ1 = _bc_itype == :fluid ? fluid_stress(Float64(bc_safe["p1"])) :
+	(Float64(bc_safe["s1tt"]), Float64(bc_safe["s1tn"]), Float64(bc_safe["s1nn"]))
+
+# ╔═╡ 42d92b46-016a-4e3c-823e-4e1639d82131
+_bc_t1 = traction_2d(_bc_σ1..., _bc_n̂)
+
+# ╔═╡ f084c2ce-3aa2-49f4-9fe0-806f2e9f6909
+_bc_σ2 = (Float64(bc_safe["s2tt"]), Float64(bc_safe["s2tn"]), Float64(bc_safe["s2nn"]))
+
+# ╔═╡ 176d3c95-15ee-40f8-8c36-f096df519daa
+_bc_t2 = traction_2d(_bc_σ2..., _bc_n̂)
+
+# ╔═╡ 6f22682b-8967-4c35-968f-9522ea24c6a3
+_bc_u1t, _bc_u1n, _bc_u2t, _bc_u2n = Float64(bc_safe["u1t"]), Float64(bc_safe["u1n"]),
+Float64(bc_safe["u2t"]), Float64(bc_safe["u2n"])
+
+# ╔═╡ 5c8d43be-e06d-4523-9055-5b1cae7d8c10
+_bc_result = interface_check(_bc_itype, _bc_t1..., _bc_t2..., _bc_u1t, _bc_u1n, _bc_u2t, _bc_u2n)
+
+# ╔═╡ d4792547-8d8b-4268-a6ab-90a041a5a032
+BcPush(_bc_t1[1], _bc_t1[2], _bc_t2[1], _bc_t2[2], _bc_u1t, _bc_u1n, _bc_u2t, _bc_u2n,
+	_bc_result.kin_normal_ok, _bc_result.kin_tangential_ok, _bc_result.kin_tangential_free,
+	_bc_result.dyn_normal_ok, _bc_result.dyn_tangential_ok)
 
 # ╔═╡ 00000000-0000-0000-0000-000000000001
 PLUTO_PROJECT_TOML_CONTENTS = """
 [deps]
-LinearAlgebra = "37e2e46d-f89d-539d-b4ee-838fcccc9c8e"
-PlutoTeachingTools = "661c6b06-c737-4d37-b85c-46df65de6f69"
 PlutoUI = "7f904dfe-b85e-4ff6-b463-dae2292396a8"
-SymbolicUtils = "d1185830-fcd6-423d-90d6-eec64667417b"
-Symbolics = "0c5d862f-8b57-4792-8d23-62f2024744c7"
 
 [compat]
-PlutoTeachingTools = "~0.4.6"
-PlutoUI = "~0.7.72"
-SymbolicUtils = "~3.32.0"
-Symbolics = "~6.56.0"
+PlutoUI = "~0.7.83"
 """
 
 # ╔═╡ 00000000-0000-0000-0000-000000000002
@@ -157,112 +877,16 @@ PLUTO_MANIFEST_TOML_CONTENTS = """
 
 julia_version = "1.12.4"
 manifest_format = "2.0"
-project_hash = "a018daf6b56c73c6f6c6df354a0d9d22d2cab1c6"
-
-[[deps.ADTypes]]
-git-tree-sha1 = "27cecae79e5cc9935255f90c53bb831cc3c870d7"
-uuid = "47edcb42-4c32-4615-8424-f2b9edc5f35b"
-version = "1.18.0"
-
-    [deps.ADTypes.extensions]
-    ADTypesChainRulesCoreExt = "ChainRulesCore"
-    ADTypesConstructionBaseExt = "ConstructionBase"
-    ADTypesEnzymeCoreExt = "EnzymeCore"
-
-    [deps.ADTypes.weakdeps]
-    ChainRulesCore = "d360d2e6-b24c-11e9-a2a3-2a2ae2dbcce4"
-    ConstructionBase = "187b0558-2788-49d3-abe0-74a17ed4e7c9"
-    EnzymeCore = "f151be2c-9106-41f4-ab19-57ee4f262869"
+project_hash = "40c9f1cac973d64f8ca3ef3a09f769ff947e80f3"
 
 [[deps.AbstractPlutoDingetjes]]
-deps = ["Pkg"]
-git-tree-sha1 = "6e1d2a35f2f90a4bc7c2ed98079b2ba09c35b83a"
+git-tree-sha1 = "6c3913f4e9bdf6ba3c08041a446fb1332716cbc2"
 uuid = "6e696c72-6542-2067-7265-42206c756150"
-version = "1.3.2"
-
-[[deps.AbstractTrees]]
-git-tree-sha1 = "2d9c9a55f9c93e8887ad391fbae72f8ef55e1177"
-uuid = "1520ce14-60c1-5f80-bbc7-55ef81b5835c"
-version = "0.4.5"
-
-[[deps.Accessors]]
-deps = ["CompositionsBase", "ConstructionBase", "Dates", "InverseFunctions", "MacroTools"]
-git-tree-sha1 = "3b86719127f50670efe356bc11073d84b4ed7a5d"
-uuid = "7d9f7c33-5ae7-4f3b-8dc6-eff91059b697"
-version = "0.1.42"
-
-    [deps.Accessors.extensions]
-    AxisKeysExt = "AxisKeys"
-    IntervalSetsExt = "IntervalSets"
-    LinearAlgebraExt = "LinearAlgebra"
-    StaticArraysExt = "StaticArrays"
-    StructArraysExt = "StructArrays"
-    TestExt = "Test"
-    UnitfulExt = "Unitful"
-
-    [deps.Accessors.weakdeps]
-    AxisKeys = "94b1ba4f-4ee9-5380-92f1-94cde586c3c5"
-    IntervalSets = "8197267c-284f-5f27-9208-e0e47529a953"
-    LinearAlgebra = "37e2e46d-f89d-539d-b4ee-838fcccc9c8e"
-    StaticArrays = "90137ffa-7385-5640-81b9-e52037218182"
-    StructArrays = "09ab397b-f2b6-538f-b94a-2f83cf4a842a"
-    Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
-    Unitful = "1986cc42-f94f-5a68-af5c-568840ba703d"
-
-[[deps.Adapt]]
-deps = ["LinearAlgebra", "Requires"]
-git-tree-sha1 = "7e35fca2bdfba44d797c53dfe63a51fabf39bfc0"
-uuid = "79e6a3ab-5dfb-504d-930d-738a2a938a0e"
-version = "4.4.0"
-weakdeps = ["SparseArrays", "StaticArrays"]
-
-    [deps.Adapt.extensions]
-    AdaptSparseArraysExt = "SparseArrays"
-    AdaptStaticArraysExt = "StaticArrays"
-
-[[deps.AliasTables]]
-deps = ["PtrArrays", "Random"]
-git-tree-sha1 = "9876e1e164b144ca45e9e3198d0b689cadfed9ff"
-uuid = "66dad0bd-aa9a-41b7-9441-69ab47430ed8"
-version = "1.1.3"
+version = "1.4.0"
 
 [[deps.ArgTools]]
 uuid = "0dad84c5-d112-42e6-8d28-ef12dabb789f"
 version = "1.1.2"
-
-[[deps.ArrayInterface]]
-deps = ["Adapt", "LinearAlgebra"]
-git-tree-sha1 = "d81ae5489e13bc03567d4fbbb06c546a5e53c857"
-uuid = "4fba245c-0d91-5ea0-9b3e-6abc04ee57a9"
-version = "7.22.0"
-
-    [deps.ArrayInterface.extensions]
-    ArrayInterfaceBandedMatricesExt = "BandedMatrices"
-    ArrayInterfaceBlockBandedMatricesExt = "BlockBandedMatrices"
-    ArrayInterfaceCUDAExt = "CUDA"
-    ArrayInterfaceCUDSSExt = ["CUDSS", "CUDA"]
-    ArrayInterfaceChainRulesCoreExt = "ChainRulesCore"
-    ArrayInterfaceChainRulesExt = "ChainRules"
-    ArrayInterfaceGPUArraysCoreExt = "GPUArraysCore"
-    ArrayInterfaceMetalExt = "Metal"
-    ArrayInterfaceReverseDiffExt = "ReverseDiff"
-    ArrayInterfaceSparseArraysExt = "SparseArrays"
-    ArrayInterfaceStaticArraysCoreExt = "StaticArraysCore"
-    ArrayInterfaceTrackerExt = "Tracker"
-
-    [deps.ArrayInterface.weakdeps]
-    BandedMatrices = "aae01518-5342-5314-be14-df237901396f"
-    BlockBandedMatrices = "ffab5731-97b5-5995-9138-79e8c1846df0"
-    CUDA = "052768ef-5323-5732-b1bb-66c8b64840ba"
-    CUDSS = "45b445bb-4962-46a0-9369-b4df9d0f772e"
-    ChainRules = "082447d4-558c-5d27-93f4-14fc19e9eca2"
-    ChainRulesCore = "d360d2e6-b24c-11e9-a2a3-2a2ae2dbcce4"
-    GPUArraysCore = "46192b85-c4d5-4398-a991-12ede77f4527"
-    Metal = "dde4c033-4e86-420c-a63e-0dd931031962"
-    ReverseDiff = "37e2e3b7-166d-5795-8a7a-e32c996b4267"
-    SparseArrays = "2f01184e-e22b-5df5-ae63-d93ebab69eaf"
-    StaticArraysCore = "1e83bf80-4336-4d27-bf5d-d5a4f845583c"
-    Tracker = "9f7883ad-71c0-57eb-9f7f-b5c9e6d3789c"
 
 [[deps.Artifacts]]
 uuid = "56f22d72-fd6d-98f1-02f0-08ddc0907c33"
@@ -271,21 +895,6 @@ version = "1.11.0"
 [[deps.Base64]]
 uuid = "2a0f44e3-6c83-55bd-87e4-b1978d98bd5f"
 version = "1.11.0"
-
-[[deps.Bijections]]
-git-tree-sha1 = "a2d308fcd4c2fb90e943cf9cd2fbfa9c32b69733"
-uuid = "e2ed5e7c-b2de-5872-ae92-c73ca462fb04"
-version = "0.2.2"
-
-[[deps.ChainRulesCore]]
-deps = ["Compat", "LinearAlgebra"]
-git-tree-sha1 = "e4c6a16e77171a5f5e25e9646617ab1c276c5607"
-uuid = "d360d2e6-b24c-11e9-a2a3-2a2ae2dbcce4"
-version = "1.26.0"
-weakdeps = ["SparseArrays"]
-
-    [deps.ChainRulesCore.extensions]
-    ChainRulesCoreSparseArraysExt = "SparseArrays"
 
 [[deps.ColorTypes]]
 deps = ["FixedPointNumbers", "Random"]
@@ -297,209 +906,30 @@ weakdeps = ["StyledStrings"]
     [deps.ColorTypes.extensions]
     StyledStringsExt = "StyledStrings"
 
-[[deps.Combinatorics]]
-git-tree-sha1 = "08c8b6831dc00bfea825826be0bc8336fc369860"
-uuid = "861a8166-3701-5b0c-9a16-15d98fcdc6aa"
-version = "1.0.2"
-
-[[deps.CommonSolve]]
-git-tree-sha1 = "0eee5eb66b1cf62cd6ad1b460238e60e4b09400c"
-uuid = "38540f10-b2f7-11e9-35d8-d573e4eb0ff2"
-version = "0.2.4"
-
-[[deps.CommonWorldInvalidations]]
-git-tree-sha1 = "ae52d1c52048455e85a387fbee9be553ec2b68d0"
-uuid = "f70d9fcc-98c5-4d4a-abd7-e4cdeebd8ca8"
-version = "1.0.0"
-
-[[deps.Compat]]
-deps = ["TOML", "UUIDs"]
-git-tree-sha1 = "9d8a54ce4b17aa5bdce0ea5c34bc5e7c340d16ad"
-uuid = "34da2185-b29b-5c13-b0c7-acf172513d20"
-version = "4.18.1"
-weakdeps = ["Dates", "LinearAlgebra"]
-
-    [deps.Compat.extensions]
-    CompatLinearAlgebraExt = "LinearAlgebra"
-
 [[deps.CompilerSupportLibraries_jll]]
 deps = ["Artifacts", "Libdl"]
 uuid = "e66e0078-7015-5450-92f7-15fbd957f2ae"
 version = "1.3.0+1"
-
-[[deps.CompositeTypes]]
-git-tree-sha1 = "bce26c3dab336582805503bed209faab1c279768"
-uuid = "b152e2b5-7a66-4b01-a709-34e65c35f657"
-version = "0.1.4"
-
-[[deps.CompositionsBase]]
-git-tree-sha1 = "802bb88cd69dfd1509f6670416bd4434015693ad"
-uuid = "a33af91c-f02d-484b-be07-31d278c5ca2b"
-version = "0.1.2"
-weakdeps = ["InverseFunctions"]
-
-    [deps.CompositionsBase.extensions]
-    CompositionsBaseInverseFunctionsExt = "InverseFunctions"
-
-[[deps.ConstructionBase]]
-git-tree-sha1 = "b4b092499347b18a015186eae3042f72267106cb"
-uuid = "187b0558-2788-49d3-abe0-74a17ed4e7c9"
-version = "1.6.0"
-weakdeps = ["IntervalSets", "LinearAlgebra", "StaticArrays"]
-
-    [deps.ConstructionBase.extensions]
-    ConstructionBaseIntervalSetsExt = "IntervalSets"
-    ConstructionBaseLinearAlgebraExt = "LinearAlgebra"
-    ConstructionBaseStaticArraysExt = "StaticArrays"
-
-[[deps.DataAPI]]
-git-tree-sha1 = "abe83f3a2f1b857aac70ef8b269080af17764bbe"
-uuid = "9a962f9c-6df0-11e9-0e5d-c546b8b5ee8a"
-version = "1.16.0"
-
-[[deps.DataStructures]]
-deps = ["OrderedCollections"]
-git-tree-sha1 = "6c72198e6a101cccdd4c9731d3985e904ba26037"
-uuid = "864edb3b-99cc-5e75-8d2d-829cb0a9cfe8"
-version = "0.19.1"
 
 [[deps.Dates]]
 deps = ["Printf"]
 uuid = "ade2ca70-3891-5945-98fb-dc099432e06a"
 version = "1.11.0"
 
-[[deps.DiffRules]]
-deps = ["IrrationalConstants", "LogExpFunctions", "NaNMath", "Random", "SpecialFunctions"]
-git-tree-sha1 = "23163d55f885173722d1e4cf0f6110cdbaf7e272"
-uuid = "b552c78f-8df3-52c6-915a-8e097449b14b"
-version = "1.15.1"
-
-[[deps.Distributed]]
-deps = ["Random", "Serialization", "Sockets"]
-uuid = "8ba89e20-285c-5b6f-9357-94700520ee1b"
-version = "1.11.0"
-
-[[deps.Distributions]]
-deps = ["AliasTables", "FillArrays", "LinearAlgebra", "PDMats", "Printf", "QuadGK", "Random", "SpecialFunctions", "Statistics", "StatsAPI", "StatsBase", "StatsFuns"]
-git-tree-sha1 = "3bc002af51045ca3b47d2e1787d6ce02e68b943a"
-uuid = "31c24e10-a181-5473-b8eb-7969acd0382f"
-version = "0.25.122"
-
-    [deps.Distributions.extensions]
-    DistributionsChainRulesCoreExt = "ChainRulesCore"
-    DistributionsDensityInterfaceExt = "DensityInterface"
-    DistributionsTestExt = "Test"
-
-    [deps.Distributions.weakdeps]
-    ChainRulesCore = "d360d2e6-b24c-11e9-a2a3-2a2ae2dbcce4"
-    DensityInterface = "b429d917-457f-4dbc-8f4c-0cc954292b1d"
-    Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
-
-[[deps.DocStringExtensions]]
-git-tree-sha1 = "7442a5dfe1ebb773c29cc2962a8980f47221d76c"
-uuid = "ffbed154-4ef7-542d-bbb7-c09d3a79fcae"
-version = "0.9.5"
-
-[[deps.DomainSets]]
-deps = ["CompositeTypes", "IntervalSets", "LinearAlgebra", "StaticArrays"]
-git-tree-sha1 = "c249d86e97a7e8398ce2068dce4c078a1c3464de"
-uuid = "5b8099bc-c8ec-5219-889f-1d9e522a28bf"
-version = "0.7.16"
-
-    [deps.DomainSets.extensions]
-    DomainSetsMakieExt = "Makie"
-    DomainSetsRandomExt = "Random"
-
-    [deps.DomainSets.weakdeps]
-    Makie = "ee78f7c6-11fb-53f2-987a-cfe4a2b5a57a"
-    Random = "9a3f8284-a2c9-5f02-9a11-845980a1fd5c"
-
 [[deps.Downloads]]
 deps = ["ArgTools", "FileWatching", "LibCURL", "NetworkOptions"]
 uuid = "f43a241f-c20a-4ad4-852c-f6b1247861c6"
 version = "1.7.0"
 
-[[deps.DynamicPolynomials]]
-deps = ["Future", "LinearAlgebra", "MultivariatePolynomials", "MutableArithmetics", "Reexport", "Test"]
-git-tree-sha1 = "3f50fa86c968fc1a9e006c07b6bc40ccbb1b704d"
-uuid = "7c1d4256-1411-5781-91ec-d7bc3513ac07"
-version = "0.6.4"
-
-[[deps.EnumX]]
-git-tree-sha1 = "bddad79635af6aec424f53ed8aad5d7555dc6f00"
-uuid = "4e289a0a-7415-4d19-859d-a7e5c4648b56"
-version = "1.0.5"
-
-[[deps.ExprTools]]
-git-tree-sha1 = "27415f162e6028e81c72b82ef756bf321213b6ec"
-uuid = "e2ba6199-217a-4e67-a87a-7c52f15ade04"
-version = "0.1.10"
-
-[[deps.ExproniconLite]]
-git-tree-sha1 = "c13f0b150373771b0fdc1713c97860f8df12e6c2"
-uuid = "55351af7-c7e9-48d6-89ff-24e801d99491"
-version = "0.10.14"
-
 [[deps.FileWatching]]
 uuid = "7b1f6079-737a-58dc-b8bc-7a2ca5c1b5ee"
 version = "1.11.0"
 
-[[deps.FillArrays]]
-deps = ["LinearAlgebra"]
-git-tree-sha1 = "173e4d8f14230a7523ae11b9a3fa9edb3e0efd78"
-uuid = "1a297f60-69ca-5386-bcde-b61e274b549b"
-version = "1.14.0"
-weakdeps = ["PDMats", "SparseArrays", "Statistics"]
-
-    [deps.FillArrays.extensions]
-    FillArraysPDMatsExt = "PDMats"
-    FillArraysSparseArraysExt = "SparseArrays"
-    FillArraysStatisticsExt = "Statistics"
-
 [[deps.FixedPointNumbers]]
-deps = ["Statistics"]
-git-tree-sha1 = "05882d6995ae5c12bb5f36dd2ed3f61c98cbb172"
+deps = ["Random", "Statistics"]
+git-tree-sha1 = "59af96b98217c6ef4ae0dfe065ac7c20831d1a84"
 uuid = "53c48c17-4a7d-5ca2-90c5-79b7896eea93"
-version = "0.8.5"
-
-[[deps.Format]]
-git-tree-sha1 = "9c68794ef81b08086aeb32eeaf33531668d5f5fc"
-uuid = "1fa38f19-a742-5d3f-a2b9-30dd87b9d5f8"
-version = "1.3.7"
-
-[[deps.FunctionWrappers]]
-git-tree-sha1 = "d62485945ce5ae9c0c48f124a84998d755bae00e"
-uuid = "069b7b12-0de2-55c6-9aab-29f3d0a68a2e"
-version = "1.1.3"
-
-[[deps.FunctionWrappersWrappers]]
-deps = ["FunctionWrappers"]
-git-tree-sha1 = "b104d487b34566608f8b4e1c39fb0b10aa279ff8"
-uuid = "77dc65aa-8811-40c2-897b-53d922fa7daf"
-version = "0.1.3"
-
-[[deps.Future]]
-deps = ["Random"]
-uuid = "9fa8497b-333b-5362-9e8d-4d0656e87820"
-version = "1.11.0"
-
-[[deps.GPUArraysCore]]
-deps = ["Adapt"]
-git-tree-sha1 = "83cf05ab16a73219e5f6bd1bdfa9848fa24ac627"
-uuid = "46192b85-c4d5-4398-a991-12ede77f4527"
-version = "0.2.0"
-
-[[deps.Ghostscript_jll]]
-deps = ["Artifacts", "JLLWrappers", "JpegTurbo_jll", "Libdl", "Zlib_jll"]
-git-tree-sha1 = "38044a04637976140074d0b0621c1edf0eb531fd"
-uuid = "61579ee1-b43e-5ca0-a5da-69d92c66a64b"
-version = "9.55.1+0"
-
-[[deps.HypergeometricFunctions]]
-deps = ["LinearAlgebra", "OpenLibm_jll", "SpecialFunctions"]
-git-tree-sha1 = "68c173f4f449de5b438ee67ed0c9c748dc31a2ec"
-uuid = "34004b35-14d8-5ef3-9330-4cdb6864b03a"
-version = "0.3.28"
+version = "0.8.6"
 
 [[deps.Hyperscript]]
 deps = ["Test"]
@@ -509,108 +939,25 @@ version = "0.0.5"
 
 [[deps.HypertextLiteral]]
 deps = ["Tricks"]
-git-tree-sha1 = "7134810b1afce04bbc1045ca1985fbe81ce17653"
+git-tree-sha1 = "d1a86724f81bcd184a38fd284ce183ec067d71a0"
 uuid = "ac1192a8-f4b3-4bfe-ba22-af5b92cd3ab2"
-version = "0.9.5"
+version = "1.0.0"
 
 [[deps.IOCapture]]
 deps = ["Logging", "Random"]
-git-tree-sha1 = "b6d6bfdd7ce25b0f9b2f6b3dd56b2673a66c8770"
+git-tree-sha1 = "0ee181ec08df7d7c911901ea38baf16f755114dc"
 uuid = "b5f81e59-6552-4d32-b1f0-c071b021bf89"
-version = "0.2.5"
-
-[[deps.IntegerMathUtils]]
-git-tree-sha1 = "4c1acff2dc6b6967e7e750633c50bc3b8d83e617"
-uuid = "18e54dd8-cb9d-406c-a71d-865a43cbb235"
-version = "0.1.3"
+version = "1.0.0"
 
 [[deps.InteractiveUtils]]
 deps = ["Markdown"]
 uuid = "b77e0a4c-d291-57a0-90e8-8db25a27a240"
 version = "1.11.0"
 
-[[deps.IntervalSets]]
-git-tree-sha1 = "5fbb102dcb8b1a858111ae81d56682376130517d"
-uuid = "8197267c-284f-5f27-9208-e0e47529a953"
-version = "0.7.11"
-weakdeps = ["Random", "RecipesBase", "Statistics"]
-
-    [deps.IntervalSets.extensions]
-    IntervalSetsRandomExt = "Random"
-    IntervalSetsRecipesBaseExt = "RecipesBase"
-    IntervalSetsStatisticsExt = "Statistics"
-
-[[deps.InverseFunctions]]
-git-tree-sha1 = "a779299d77cd080bf77b97535acecd73e1c5e5cb"
-uuid = "3587e190-3f89-42d0-90ee-14403ec27112"
-version = "0.1.17"
-weakdeps = ["Dates", "Test"]
-
-    [deps.InverseFunctions.extensions]
-    InverseFunctionsDatesExt = "Dates"
-    InverseFunctionsTestExt = "Test"
-
-[[deps.IrrationalConstants]]
-git-tree-sha1 = "b2d91fe939cae05960e760110b328288867b5758"
-uuid = "92d709cd-6900-40b7-9082-c6be49f344b6"
-version = "0.2.6"
-
-[[deps.IteratorInterfaceExtensions]]
-git-tree-sha1 = "a3f24677c21f5bbe9d2a714f95dcd58337fb2856"
-uuid = "82899510-4779-5014-852e-03e436cf321d"
-version = "1.0.0"
-
-[[deps.JLLWrappers]]
-deps = ["Artifacts", "Preferences"]
-git-tree-sha1 = "0533e564aae234aff59ab625543145446d8b6ec2"
-uuid = "692b3bcd-3c85-4b1f-b108-f13ce0eb3210"
-version = "1.7.1"
-
-[[deps.JSON]]
-deps = ["Dates", "Mmap", "Parsers", "Unicode"]
-git-tree-sha1 = "31e996f0a15c7b280ba9f76636b3ff9e2ae58c9a"
-uuid = "682c06a0-de6a-54ab-a142-c8b1cf79cde6"
-version = "0.21.4"
-
-[[deps.Jieko]]
-deps = ["ExproniconLite"]
-git-tree-sha1 = "2f05ed29618da60c06a87e9c033982d4f71d0b6c"
-uuid = "ae98c720-c025-4a4a-838c-29b094483192"
-version = "0.2.1"
-
-[[deps.JpegTurbo_jll]]
-deps = ["Artifacts", "JLLWrappers", "Libdl"]
-git-tree-sha1 = "4255f0032eafd6451d707a51d5f0248b8a165e4d"
-uuid = "aacddb02-875f-59d6-b918-886e6ef4fbf8"
-version = "3.1.3+0"
-
 [[deps.JuliaSyntaxHighlighting]]
 deps = ["StyledStrings"]
 uuid = "ac6e5ff7-fb65-4e79-a425-ec3bc9c03011"
 version = "1.12.0"
-
-[[deps.LaTeXStrings]]
-git-tree-sha1 = "dda21b8cbd6a6c40d9d02a73230f9d70fed6918c"
-uuid = "b964fa9f-0449-5b57-a5c2-d3ea65f4040f"
-version = "1.4.0"
-
-[[deps.Latexify]]
-deps = ["Format", "Ghostscript_jll", "InteractiveUtils", "LaTeXStrings", "MacroTools", "Markdown", "OrderedCollections", "Requires"]
-git-tree-sha1 = "44f93c47f9cd6c7e431f2f2091fcba8f01cd7e8f"
-uuid = "23fbe1c1-3f47-55db-b15f-69d7ec21a316"
-version = "0.16.10"
-
-    [deps.Latexify.extensions]
-    DataFramesExt = "DataFrames"
-    SparseArraysExt = "SparseArrays"
-    SymEngineExt = "SymEngine"
-    TectonicExt = "tectonic_jll"
-
-    [deps.Latexify.weakdeps]
-    DataFrames = "a93c6f00-e57d-5684-b7b6-d8193f3e46c0"
-    SparseArrays = "2f01184e-e22b-5df5-ae63-d93ebab69eaf"
-    SymEngine = "123dc426-2d89-5057-bbad-38513e3affd8"
-    tectonic_jll = "d7dd28d6-a5e6-559c-9131-7eb760cdacc5"
 
 [[deps.LibCURL]]
 deps = ["LibCURL_jll", "MozillaCACerts_jll"]
@@ -621,16 +968,6 @@ version = "0.6.4"
 deps = ["Artifacts", "LibSSH2_jll", "Libdl", "OpenSSL_jll", "Zlib_jll", "nghttp2_jll"]
 uuid = "deac9b47-8bc7-5906-a0fe-35ac56dc84c0"
 version = "8.15.0+0"
-
-[[deps.LibGit2]]
-deps = ["LibGit2_jll", "NetworkOptions", "Printf", "SHA"]
-uuid = "76f85450-5226-5b5a-8eaa-529ad045b433"
-version = "1.11.0"
-
-[[deps.LibGit2_jll]]
-deps = ["Artifacts", "LibSSH2_jll", "Libdl", "OpenSSL_jll"]
-uuid = "e37daf67-58a4-590a-8e99-b0245dd2ffc5"
-version = "1.9.0+0"
 
 [[deps.LibSSH2_jll]]
 deps = ["Artifacts", "Libdl", "OpenSSL_jll"]
@@ -646,22 +983,6 @@ deps = ["Libdl", "OpenBLAS_jll", "libblastrampoline_jll"]
 uuid = "37e2e46d-f89d-539d-b4ee-838fcccc9c8e"
 version = "1.12.0"
 
-[[deps.LogExpFunctions]]
-deps = ["DocStringExtensions", "IrrationalConstants", "LinearAlgebra"]
-git-tree-sha1 = "13ca9e2586b89836fd20cccf56e57e2b9ae7f38f"
-uuid = "2ab3a3ac-af41-5b50-aa03-7779005ae688"
-version = "0.3.29"
-
-    [deps.LogExpFunctions.extensions]
-    LogExpFunctionsChainRulesCoreExt = "ChainRulesCore"
-    LogExpFunctionsChangesOfVariablesExt = "ChangesOfVariables"
-    LogExpFunctionsInverseFunctionsExt = "InverseFunctions"
-
-    [deps.LogExpFunctions.weakdeps]
-    ChainRulesCore = "d360d2e6-b24c-11e9-a2a3-2a2ae2dbcce4"
-    ChangesOfVariables = "9e997f8a-9a97-42d5-a9f1-ce6bfc15e2c0"
-    InverseFunctions = "3587e190-3f89-42d0-90ee-14403ec27112"
-
 [[deps.Logging]]
 uuid = "56ddb016-857b-54e1-b83d-db4d58db5568"
 version = "1.11.0"
@@ -671,530 +992,88 @@ git-tree-sha1 = "c64d943587f7187e751162b3b84445bbbd79f691"
 uuid = "6c6e2e6c-3030-632d-7369-2d6c69616d65"
 version = "1.1.0"
 
-[[deps.MacroTools]]
-git-tree-sha1 = "1e0228a030642014fe5cfe68c2c0a818f9e3f522"
-uuid = "1914dd2f-81c6-5fcd-8719-6d5c9610ff09"
-version = "0.5.16"
-
 [[deps.Markdown]]
 deps = ["Base64", "JuliaSyntaxHighlighting", "StyledStrings"]
 uuid = "d6f4376e-aef5-505a-96c1-9c027394607a"
 version = "1.11.0"
 
-[[deps.Missings]]
-deps = ["DataAPI"]
-git-tree-sha1 = "ec4f7fbeab05d7747bdf98eb74d130a2a2ed298d"
-uuid = "e1d29d7a-bbdc-5cf2-9ac0-f12de2c33e28"
-version = "1.2.0"
-
-[[deps.Mmap]]
-uuid = "a63ad114-7e13-5084-954f-fe012c677804"
-version = "1.11.0"
-
-[[deps.Moshi]]
-deps = ["ExproniconLite", "Jieko"]
-git-tree-sha1 = "53f817d3e84537d84545e0ad749e483412dd6b2a"
-uuid = "2e0e35c7-a2e4-4343-998d-7ef72827ed2d"
-version = "0.3.7"
-
 [[deps.MozillaCACerts_jll]]
 uuid = "14a3606d-f60d-562e-9121-12d972cd8159"
 version = "2025.11.4"
 
-[[deps.MultivariatePolynomials]]
-deps = ["DataStructures", "LinearAlgebra", "MutableArithmetics"]
-git-tree-sha1 = "d38b8653b1cdfac5a7da3b819c0a8d6024f9a18c"
-uuid = "102ac46a-7ee4-5c85-9060-abc95bfdeaa3"
-version = "0.5.13"
-weakdeps = ["ChainRulesCore"]
-
-    [deps.MultivariatePolynomials.extensions]
-    MultivariatePolynomialsChainRulesCoreExt = "ChainRulesCore"
-
-[[deps.MutableArithmetics]]
-deps = ["LinearAlgebra", "SparseArrays", "Test"]
-git-tree-sha1 = "22df8573f8e7c593ac205455ca088989d0a2c7a0"
-uuid = "d8a4904e-b15c-11e9-3269-09a3773c0cb0"
-version = "1.6.7"
-
-[[deps.NaNMath]]
-deps = ["OpenLibm_jll"]
-git-tree-sha1 = "9b8215b1ee9e78a293f99797cd31375471b2bcae"
-uuid = "77ba4419-2d1f-58cd-9bb1-8ffee604a2e3"
-version = "1.1.3"
-
 [[deps.NetworkOptions]]
 uuid = "ca575930-c2e3-43a9-ace4-1e988b2c1908"
 version = "1.3.0"
-
-[[deps.OffsetArrays]]
-git-tree-sha1 = "117432e406b5c023f665fa73dc26e79ec3630151"
-uuid = "6fe1bfb0-de20-5000-8ca7-80f57d26f881"
-version = "1.17.0"
-weakdeps = ["Adapt"]
-
-    [deps.OffsetArrays.extensions]
-    OffsetArraysAdaptExt = "Adapt"
 
 [[deps.OpenBLAS_jll]]
 deps = ["Artifacts", "CompilerSupportLibraries_jll", "Libdl"]
 uuid = "4536629a-c528-5b80-bd46-f80d51c5b363"
 version = "0.3.29+0"
 
-[[deps.OpenLibm_jll]]
-deps = ["Artifacts", "Libdl"]
-uuid = "05823500-19ac-5b8b-9628-191a04bc5112"
-version = "0.8.7+0"
-
 [[deps.OpenSSL_jll]]
 deps = ["Artifacts", "Libdl"]
 uuid = "458c3c95-2e84-50aa-8efc-19380b2a3a95"
 version = "3.5.4+0"
 
-[[deps.OpenSpecFun_jll]]
-deps = ["Artifacts", "CompilerSupportLibraries_jll", "JLLWrappers", "Libdl"]
-git-tree-sha1 = "1346c9208249809840c91b26703912dff463d335"
-uuid = "efe28fd5-8261-553b-a9e1-b2916fc3738e"
-version = "0.5.6+0"
-
-[[deps.OrderedCollections]]
-git-tree-sha1 = "05868e21324cede2207c6f0f466b4bfef6d5e7ee"
-uuid = "bac558e1-5e72-5ebc-8fee-abe8a469f55d"
-version = "1.8.1"
-
-[[deps.PDMats]]
-deps = ["LinearAlgebra", "SparseArrays", "SuiteSparse"]
-git-tree-sha1 = "f07c06228a1c670ae4c87d1276b92c7c597fdda0"
-uuid = "90014a1f-27ba-587c-ab20-58faa44d9150"
-version = "0.11.35"
-
-[[deps.Parsers]]
-deps = ["Dates", "PrecompileTools", "UUIDs"]
-git-tree-sha1 = "7d2f8f21da5db6a806faf7b9b292296da42b2810"
-uuid = "69de0a69-1ddd-5017-9359-2bf0b02dc9f0"
-version = "2.8.3"
-
-[[deps.Pkg]]
-deps = ["Artifacts", "Dates", "Downloads", "FileWatching", "LibGit2", "Libdl", "Logging", "Markdown", "Printf", "Random", "SHA", "TOML", "Tar", "UUIDs", "p7zip_jll"]
-uuid = "44cfe95a-1eb2-52ea-b672-e2afdf69b78f"
-version = "1.12.1"
-
-    [deps.Pkg.extensions]
-    REPLExt = "REPL"
-
-    [deps.Pkg.weakdeps]
-    REPL = "3fa0cd96-eef1-5676-8a61-b3b8758bbffb"
-
-[[deps.PlutoTeachingTools]]
-deps = ["Downloads", "HypertextLiteral", "Latexify", "Markdown", "PlutoUI"]
-git-tree-sha1 = "dacc8be63916b078b592806acd13bb5e5137d7e9"
-uuid = "661c6b06-c737-4d37-b85c-46df65de6f69"
-version = "0.4.6"
-
 [[deps.PlutoUI]]
-deps = ["AbstractPlutoDingetjes", "Base64", "ColorTypes", "Dates", "Downloads", "FixedPointNumbers", "Hyperscript", "HypertextLiteral", "IOCapture", "InteractiveUtils", "JSON", "Logging", "MIMEs", "Markdown", "Random", "Reexport", "URIs", "UUIDs"]
-git-tree-sha1 = "f53232a27a8c1c836d3998ae1e17d898d4df2a46"
+deps = ["AbstractPlutoDingetjes", "Base64", "ColorTypes", "Dates", "Downloads", "FixedPointNumbers", "Hyperscript", "HypertextLiteral", "IOCapture", "InteractiveUtils", "Logging", "MIMEs", "Markdown", "Random", "Reexport", "URIs", "UUIDs"]
+git-tree-sha1 = "e189d0623e7ce9c37389bac17e80aac3b0302e75"
 uuid = "7f904dfe-b85e-4ff6-b463-dae2292396a8"
-version = "0.7.72"
-
-[[deps.PreallocationTools]]
-deps = ["Adapt", "ArrayInterface", "PrecompileTools"]
-git-tree-sha1 = "c05b4c6325262152483a1ecb6c69846d2e01727b"
-uuid = "d236fae5-4411-538c-8e31-a6e3d9e00b46"
-version = "0.4.34"
-
-    [deps.PreallocationTools.extensions]
-    PreallocationToolsForwardDiffExt = "ForwardDiff"
-    PreallocationToolsReverseDiffExt = "ReverseDiff"
-    PreallocationToolsSparseConnectivityTracerExt = "SparseConnectivityTracer"
-
-    [deps.PreallocationTools.weakdeps]
-    ForwardDiff = "f6369f11-7733-5829-9624-2563aa707210"
-    ReverseDiff = "37e2e3b7-166d-5795-8a7a-e32c996b4267"
-    SparseConnectivityTracer = "9f842d2f-2579-4b1d-911e-f412cf18a3f5"
-
-[[deps.PrecompileTools]]
-deps = ["Preferences"]
-git-tree-sha1 = "5aa36f7049a63a1528fe8f7c3f2113413ffd4e1f"
-uuid = "aea7be01-6a6a-4083-8856-8a6e6704d82a"
-version = "1.2.1"
-
-[[deps.Preferences]]
-deps = ["TOML"]
-git-tree-sha1 = "0f27480397253da18fe2c12a4ba4eb9eb208bf3d"
-uuid = "21216c6a-2e73-6563-6e65-726566657250"
-version = "1.5.0"
-
-[[deps.Primes]]
-deps = ["IntegerMathUtils"]
-git-tree-sha1 = "25cdd1d20cd005b52fc12cb6be3f75faaf59bb9b"
-uuid = "27ebfcd6-29c5-5fa9-bf4b-fb8fc14df3ae"
-version = "0.5.7"
+version = "0.7.83"
 
 [[deps.Printf]]
 deps = ["Unicode"]
 uuid = "de0858da-6303-5e67-8744-51eddeeeb8d7"
 version = "1.11.0"
 
-[[deps.PtrArrays]]
-git-tree-sha1 = "1d36ef11a9aaf1e8b74dacc6a731dd1de8fd493d"
-uuid = "43287f4e-b6f4-7ad1-bb20-aadabca52c3d"
-version = "1.3.0"
-
-[[deps.QuadGK]]
-deps = ["DataStructures", "LinearAlgebra"]
-git-tree-sha1 = "9da16da70037ba9d701192e27befedefb91ec284"
-uuid = "1fd47b50-473d-5c70-9696-f719f8f3bcdc"
-version = "2.11.2"
-
-    [deps.QuadGK.extensions]
-    QuadGKEnzymeExt = "Enzyme"
-
-    [deps.QuadGK.weakdeps]
-    Enzyme = "7da242da-08ed-463a-9acd-ee780be4f1d9"
-
 [[deps.Random]]
 deps = ["SHA"]
 uuid = "9a3f8284-a2c9-5f02-9a11-845980a1fd5c"
 version = "1.11.0"
-
-[[deps.RecipesBase]]
-deps = ["PrecompileTools"]
-git-tree-sha1 = "5c3d09cc4f31f5fc6af001c250bf1278733100ff"
-uuid = "3cdcf5f2-1ef4-517c-9805-6587b60abb01"
-version = "1.3.4"
-
-[[deps.RecursiveArrayTools]]
-deps = ["Adapt", "ArrayInterface", "DocStringExtensions", "GPUArraysCore", "LinearAlgebra", "RecipesBase", "StaticArraysCore", "Statistics", "SymbolicIndexingInterface"]
-git-tree-sha1 = "51bdb23afaaa551f923a0e990f7c44a4451a26f1"
-uuid = "731186ca-8d62-57ce-b412-fbd966d074cd"
-version = "3.39.0"
-
-    [deps.RecursiveArrayTools.extensions]
-    RecursiveArrayToolsFastBroadcastExt = "FastBroadcast"
-    RecursiveArrayToolsForwardDiffExt = "ForwardDiff"
-    RecursiveArrayToolsKernelAbstractionsExt = "KernelAbstractions"
-    RecursiveArrayToolsMeasurementsExt = "Measurements"
-    RecursiveArrayToolsMonteCarloMeasurementsExt = "MonteCarloMeasurements"
-    RecursiveArrayToolsReverseDiffExt = ["ReverseDiff", "Zygote"]
-    RecursiveArrayToolsSparseArraysExt = ["SparseArrays"]
-    RecursiveArrayToolsStructArraysExt = "StructArrays"
-    RecursiveArrayToolsTablesExt = ["Tables"]
-    RecursiveArrayToolsTrackerExt = "Tracker"
-    RecursiveArrayToolsZygoteExt = "Zygote"
-
-    [deps.RecursiveArrayTools.weakdeps]
-    FastBroadcast = "7034ab61-46d4-4ed7-9d0f-46aef9175898"
-    ForwardDiff = "f6369f11-7733-5829-9624-2563aa707210"
-    KernelAbstractions = "63c18a36-062a-441e-b654-da1e3ab1ce7c"
-    Measurements = "eff96d63-e80a-5855-80a2-b1b0885c5ab7"
-    MonteCarloMeasurements = "0987c9cc-fe09-11e8-30f0-b96dd679fdca"
-    ReverseDiff = "37e2e3b7-166d-5795-8a7a-e32c996b4267"
-    SparseArrays = "2f01184e-e22b-5df5-ae63-d93ebab69eaf"
-    StructArrays = "09ab397b-f2b6-538f-b94a-2f83cf4a842a"
-    Tables = "bd369af6-aec1-5ad0-b16a-f7cc5008161c"
-    Tracker = "9f7883ad-71c0-57eb-9f7f-b5c9e6d3789c"
-    Zygote = "e88e6eb3-aa80-5325-afca-941959d7151f"
 
 [[deps.Reexport]]
 git-tree-sha1 = "45e428421666073eab6f2da5c9d310d99bb12f9b"
 uuid = "189a3867-3050-52da-a836-e630ba90ab69"
 version = "1.2.2"
 
-[[deps.Requires]]
-deps = ["UUIDs"]
-git-tree-sha1 = "62389eeff14780bfe55195b7204c0d8738436d64"
-uuid = "ae029012-a4dd-5104-9daa-d747884805df"
-version = "1.3.1"
-
-[[deps.Rmath]]
-deps = ["Random", "Rmath_jll"]
-git-tree-sha1 = "5b3d50eb374cea306873b371d3f8d3915a018f0b"
-uuid = "79098fc4-a85e-5d69-aa6a-4863f24498fa"
-version = "0.9.0"
-
-[[deps.Rmath_jll]]
-deps = ["Artifacts", "JLLWrappers", "Libdl"]
-git-tree-sha1 = "58cdd8fb2201a6267e1db87ff148dd6c1dbd8ad8"
-uuid = "f50d1b31-88e8-58de-be2c-1cc44531875f"
-version = "0.5.1+0"
-
-[[deps.RuntimeGeneratedFunctions]]
-deps = ["ExprTools", "SHA", "Serialization"]
-git-tree-sha1 = "86a8a8b783481e1ea6b9c91dd949cb32191f8ab4"
-uuid = "7e49a35a-f44a-4d26-94aa-eba1b4ca6b47"
-version = "0.5.15"
-
 [[deps.SHA]]
 uuid = "ea8e919c-243c-51af-8825-aaa63cd721ce"
 version = "0.7.0"
 
-[[deps.SciMLBase]]
-deps = ["ADTypes", "Accessors", "Adapt", "ArrayInterface", "CommonSolve", "ConstructionBase", "Distributed", "DocStringExtensions", "EnumX", "FunctionWrappersWrappers", "IteratorInterfaceExtensions", "LinearAlgebra", "Logging", "Markdown", "Moshi", "PreallocationTools", "PrecompileTools", "Preferences", "Printf", "RecipesBase", "RecursiveArrayTools", "Reexport", "RuntimeGeneratedFunctions", "SciMLOperators", "SciMLPublic", "SciMLStructures", "StaticArraysCore", "Statistics", "SymbolicIndexingInterface"]
-git-tree-sha1 = "7680fbbc8a4fdf9837b4cae5e3fbebe53ec8e4ff"
-uuid = "0bca4576-84f4-4d90-8ffe-ffa030f20462"
-version = "2.122.0"
-
-    [deps.SciMLBase.extensions]
-    SciMLBaseChainRulesCoreExt = "ChainRulesCore"
-    SciMLBaseDistributionsExt = "Distributions"
-    SciMLBaseEnzymeExt = "Enzyme"
-    SciMLBaseForwardDiffExt = "ForwardDiff"
-    SciMLBaseMLStyleExt = "MLStyle"
-    SciMLBaseMakieExt = "Makie"
-    SciMLBaseMeasurementsExt = "Measurements"
-    SciMLBaseMonteCarloMeasurementsExt = "MonteCarloMeasurements"
-    SciMLBaseMooncakeExt = "Mooncake"
-    SciMLBasePartialFunctionsExt = "PartialFunctions"
-    SciMLBasePyCallExt = "PyCall"
-    SciMLBasePythonCallExt = "PythonCall"
-    SciMLBaseRCallExt = "RCall"
-    SciMLBaseReverseDiffExt = "ReverseDiff"
-    SciMLBaseTrackerExt = "Tracker"
-    SciMLBaseZygoteExt = ["Zygote", "ChainRulesCore"]
-
-    [deps.SciMLBase.weakdeps]
-    ChainRules = "082447d4-558c-5d27-93f4-14fc19e9eca2"
-    ChainRulesCore = "d360d2e6-b24c-11e9-a2a3-2a2ae2dbcce4"
-    Distributions = "31c24e10-a181-5473-b8eb-7969acd0382f"
-    Enzyme = "7da242da-08ed-463a-9acd-ee780be4f1d9"
-    ForwardDiff = "f6369f11-7733-5829-9624-2563aa707210"
-    MLStyle = "d8e11817-5142-5d16-987a-aa16d5891078"
-    Makie = "ee78f7c6-11fb-53f2-987a-cfe4a2b5a57a"
-    Measurements = "eff96d63-e80a-5855-80a2-b1b0885c5ab7"
-    MonteCarloMeasurements = "0987c9cc-fe09-11e8-30f0-b96dd679fdca"
-    Mooncake = "da2b9cff-9c12-43a0-ae48-6db2b0edb7d6"
-    PartialFunctions = "570af359-4316-4cb7-8c74-252c00c2016b"
-    PyCall = "438e738f-606a-5dbb-bf0a-cddfbfd45ab0"
-    PythonCall = "6099a3de-0909-46bc-b1f4-468b9a2dfc0d"
-    RCall = "6f49c342-dc21-5d91-9882-a32aef131414"
-    ReverseDiff = "37e2e3b7-166d-5795-8a7a-e32c996b4267"
-    Tracker = "9f7883ad-71c0-57eb-9f7f-b5c9e6d3789c"
-    Zygote = "e88e6eb3-aa80-5325-afca-941959d7151f"
-
-[[deps.SciMLOperators]]
-deps = ["Accessors", "ArrayInterface", "DocStringExtensions", "LinearAlgebra", "MacroTools"]
-git-tree-sha1 = "c1053ba68ede9e4005fc925dd4e8723fcd96eef8"
-uuid = "c0aeaf25-5076-4817-a8d5-81caf7dfa961"
-version = "1.9.0"
-weakdeps = ["SparseArrays", "StaticArraysCore"]
-
-    [deps.SciMLOperators.extensions]
-    SciMLOperatorsSparseArraysExt = "SparseArrays"
-    SciMLOperatorsStaticArraysCoreExt = "StaticArraysCore"
-
-[[deps.SciMLPublic]]
-git-tree-sha1 = "ed647f161e8b3f2973f24979ec074e8d084f1bee"
-uuid = "431bcebd-1456-4ced-9d72-93c2757fff0b"
-version = "1.0.0"
-
-[[deps.SciMLStructures]]
-deps = ["ArrayInterface"]
-git-tree-sha1 = "566c4ed301ccb2a44cbd5a27da5f885e0ed1d5df"
-uuid = "53ae85a6-f571-4167-b2af-e1d143709226"
-version = "1.7.0"
-
 [[deps.Serialization]]
 uuid = "9e88b42a-f829-5b0c-bbe9-9e923198166b"
 version = "1.11.0"
-
-[[deps.Setfield]]
-deps = ["ConstructionBase", "Future", "MacroTools", "StaticArraysCore"]
-git-tree-sha1 = "c5391c6ace3bc430ca630251d02ea9687169ca68"
-uuid = "efcf1570-3423-57d1-acb7-fd33fddbac46"
-version = "1.1.2"
-
-[[deps.Sockets]]
-uuid = "6462fe0b-24de-5631-8697-dd941f90decc"
-version = "1.11.0"
-
-[[deps.SortingAlgorithms]]
-deps = ["DataStructures"]
-git-tree-sha1 = "64d974c2e6fdf07f8155b5b2ca2ffa9069b608d9"
-uuid = "a2af1166-a08f-5f64-846c-94a0d3cef48c"
-version = "1.2.2"
-
-[[deps.SparseArrays]]
-deps = ["Libdl", "LinearAlgebra", "Random", "Serialization", "SuiteSparse_jll"]
-uuid = "2f01184e-e22b-5df5-ae63-d93ebab69eaf"
-version = "1.12.0"
-
-[[deps.SpecialFunctions]]
-deps = ["IrrationalConstants", "LogExpFunctions", "OpenLibm_jll", "OpenSpecFun_jll"]
-git-tree-sha1 = "f2685b435df2613e25fc10ad8c26dddb8640f547"
-uuid = "276daf66-3868-5448-9aa4-cd146d93841b"
-version = "2.6.1"
-weakdeps = ["ChainRulesCore"]
-
-    [deps.SpecialFunctions.extensions]
-    SpecialFunctionsChainRulesCoreExt = "ChainRulesCore"
-
-[[deps.StaticArrays]]
-deps = ["LinearAlgebra", "PrecompileTools", "Random", "StaticArraysCore"]
-git-tree-sha1 = "b8693004b385c842357406e3af647701fe783f98"
-uuid = "90137ffa-7385-5640-81b9-e52037218182"
-version = "1.9.15"
-weakdeps = ["ChainRulesCore", "Statistics"]
-
-    [deps.StaticArrays.extensions]
-    StaticArraysChainRulesCoreExt = "ChainRulesCore"
-    StaticArraysStatisticsExt = "Statistics"
-
-[[deps.StaticArraysCore]]
-git-tree-sha1 = "6ab403037779dae8c514bad259f32a447262455a"
-uuid = "1e83bf80-4336-4d27-bf5d-d5a4f845583c"
-version = "1.4.4"
 
 [[deps.Statistics]]
 deps = ["LinearAlgebra"]
 git-tree-sha1 = "ae3bb1eb3bba077cd276bc5cfc337cc65c3075c0"
 uuid = "10745b16-79ce-11e8-11f9-7d13ad32a3b2"
 version = "1.11.1"
-weakdeps = ["SparseArrays"]
 
     [deps.Statistics.extensions]
     SparseArraysExt = ["SparseArrays"]
 
-[[deps.StatsAPI]]
-deps = ["LinearAlgebra"]
-git-tree-sha1 = "9d72a13a3f4dd3795a195ac5a44d7d6ff5f552ff"
-uuid = "82ae8749-77ed-4fe6-ae5f-f523153014b0"
-version = "1.7.1"
-
-[[deps.StatsBase]]
-deps = ["AliasTables", "DataAPI", "DataStructures", "LinearAlgebra", "LogExpFunctions", "Missings", "Printf", "Random", "SortingAlgorithms", "SparseArrays", "Statistics", "StatsAPI"]
-git-tree-sha1 = "a136f98cefaf3e2924a66bd75173d1c891ab7453"
-uuid = "2913bbd2-ae8a-5f71-8c99-4fb6c76f3a91"
-version = "0.34.7"
-
-[[deps.StatsFuns]]
-deps = ["HypergeometricFunctions", "IrrationalConstants", "LogExpFunctions", "Reexport", "Rmath", "SpecialFunctions"]
-git-tree-sha1 = "91f091a8716a6bb38417a6e6f274602a19aaa685"
-uuid = "4c63d2b9-4356-54db-8cca-17b64c39e42c"
-version = "1.5.2"
-weakdeps = ["ChainRulesCore", "InverseFunctions"]
-
-    [deps.StatsFuns.extensions]
-    StatsFunsChainRulesCoreExt = "ChainRulesCore"
-    StatsFunsInverseFunctionsExt = "InverseFunctions"
+    [deps.Statistics.weakdeps]
+    SparseArrays = "2f01184e-e22b-5df5-ae63-d93ebab69eaf"
 
 [[deps.StyledStrings]]
 uuid = "f489334b-da3d-4c2e-b8f0-e476e12c162b"
 version = "1.11.0"
-
-[[deps.SuiteSparse]]
-deps = ["Libdl", "LinearAlgebra", "Serialization", "SparseArrays"]
-uuid = "4607b0f0-06f3-5cda-b6b1-a6196a1729e9"
-
-[[deps.SuiteSparse_jll]]
-deps = ["Artifacts", "Libdl", "libblastrampoline_jll"]
-uuid = "bea87d4a-7f5b-5778-9afe-8cc45184846c"
-version = "7.8.3+2"
-
-[[deps.SymbolicIndexingInterface]]
-deps = ["Accessors", "ArrayInterface", "RuntimeGeneratedFunctions", "StaticArraysCore"]
-git-tree-sha1 = "94c58884e013efff548002e8dc2fdd1cb74dfce5"
-uuid = "2efcf032-c050-4f8e-a9bb-153293bab1f5"
-version = "0.3.46"
-
-    [deps.SymbolicIndexingInterface.extensions]
-    SymbolicIndexingInterfacePrettyTablesExt = "PrettyTables"
-
-    [deps.SymbolicIndexingInterface.weakdeps]
-    PrettyTables = "08abe8d2-0d0c-5749-adfa-8a2ac140af0d"
-
-[[deps.SymbolicLimits]]
-deps = ["SymbolicUtils"]
-git-tree-sha1 = "f75c7deb7e11eea72d2c1ea31b24070b713ba061"
-uuid = "19f23fe9-fdab-4a78-91af-e7b7767979c3"
-version = "0.2.3"
-
-[[deps.SymbolicUtils]]
-deps = ["AbstractTrees", "ArrayInterface", "Bijections", "ChainRulesCore", "Combinatorics", "ConstructionBase", "DataStructures", "DocStringExtensions", "DynamicPolynomials", "ExproniconLite", "LinearAlgebra", "MultivariatePolynomials", "NaNMath", "Setfield", "SparseArrays", "SpecialFunctions", "StaticArrays", "SymbolicIndexingInterface", "TaskLocalValues", "TermInterface", "TimerOutputs", "Unityper"]
-git-tree-sha1 = "a85b4262a55dbd1af39bb6facf621d79ca6a322d"
-uuid = "d1185830-fcd6-423d-90d6-eec64667417b"
-version = "3.32.0"
-
-    [deps.SymbolicUtils.extensions]
-    SymbolicUtilsLabelledArraysExt = "LabelledArrays"
-    SymbolicUtilsReverseDiffExt = "ReverseDiff"
-
-    [deps.SymbolicUtils.weakdeps]
-    LabelledArrays = "2ee39098-c373-598a-b85f-a56591580800"
-    ReverseDiff = "37e2e3b7-166d-5795-8a7a-e32c996b4267"
-
-[[deps.Symbolics]]
-deps = ["ADTypes", "ArrayInterface", "Bijections", "CommonWorldInvalidations", "ConstructionBase", "DataStructures", "DiffRules", "Distributions", "DocStringExtensions", "DomainSets", "DynamicPolynomials", "LaTeXStrings", "Latexify", "Libdl", "LinearAlgebra", "LogExpFunctions", "MacroTools", "Markdown", "NaNMath", "OffsetArrays", "PrecompileTools", "Primes", "RecipesBase", "Reexport", "RuntimeGeneratedFunctions", "SciMLBase", "SciMLPublic", "Setfield", "SparseArrays", "SpecialFunctions", "StaticArraysCore", "SymbolicIndexingInterface", "SymbolicLimits", "SymbolicUtils", "TermInterface"]
-git-tree-sha1 = "1b09f5faec5284f505c40e68ba565115e7d48718"
-uuid = "0c5d862f-8b57-4792-8d23-62f2024744c7"
-version = "6.56.0"
-
-    [deps.Symbolics.extensions]
-    SymbolicsD3TreesExt = "D3Trees"
-    SymbolicsForwardDiffExt = "ForwardDiff"
-    SymbolicsGroebnerExt = "Groebner"
-    SymbolicsLuxExt = "Lux"
-    SymbolicsNemoExt = "Nemo"
-    SymbolicsPreallocationToolsExt = ["PreallocationTools", "ForwardDiff"]
-    SymbolicsSymPyExt = "SymPy"
-    SymbolicsSymPyPythonCallExt = "SymPyPythonCall"
-
-    [deps.Symbolics.weakdeps]
-    D3Trees = "e3df1716-f71e-5df9-9e2d-98e193103c45"
-    ForwardDiff = "f6369f11-7733-5829-9624-2563aa707210"
-    Groebner = "0b43b601-686d-58a3-8a1c-6623616c7cd4"
-    Lux = "b2108857-7c20-44ae-9111-449ecde12c47"
-    Nemo = "2edaba10-b0f1-5616-af89-8c11ac63239a"
-    PreallocationTools = "d236fae5-4411-538c-8e31-a6e3d9e00b46"
-    SymPy = "24249f21-da20-56a4-8eb1-6a02cf4ae2e6"
-    SymPyPythonCall = "bc8888f7-b21e-4b7c-a06a-5d9c9496438c"
-
-[[deps.TOML]]
-deps = ["Dates"]
-uuid = "fa267f1f-6049-4f14-aa54-33bafae1ed76"
-version = "1.0.3"
-
-[[deps.Tar]]
-deps = ["ArgTools", "SHA"]
-uuid = "a4e569a6-e804-4fa4-b0f3-eef7a1d5b13e"
-version = "1.10.0"
-
-[[deps.TaskLocalValues]]
-git-tree-sha1 = "67e469338d9ce74fc578f7db1736a74d93a49eb8"
-uuid = "ed4db957-447d-4319-bfb6-7fa9ae7ecf34"
-version = "0.1.3"
-
-[[deps.TermInterface]]
-git-tree-sha1 = "d673e0aca9e46a2f63720201f55cc7b3e7169b16"
-uuid = "8ea1fca8-c5ef-4a55-8b96-4e9afe9c9a3c"
-version = "2.0.0"
 
 [[deps.Test]]
 deps = ["InteractiveUtils", "Logging", "Random", "Serialization"]
 uuid = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
 version = "1.11.0"
 
-[[deps.TimerOutputs]]
-deps = ["ExprTools", "Printf"]
-git-tree-sha1 = "3748bd928e68c7c346b52125cf41fff0de6937d0"
-uuid = "a759f4b9-e2f1-59dc-863e-4aeb61b1ea8f"
-version = "0.5.29"
-
-    [deps.TimerOutputs.extensions]
-    FlameGraphsExt = "FlameGraphs"
-
-    [deps.TimerOutputs.weakdeps]
-    FlameGraphs = "08572546-2f56-4bcf-ba4e-bab62c3a3f89"
-
 [[deps.Tricks]]
-git-tree-sha1 = "372b90fe551c019541fafc6ff034199dc19c8436"
+git-tree-sha1 = "311349fd1c93a31f783f977a71e8b062a57d4101"
 uuid = "410a4b4d-49e4-4fbc-ab6d-cb71b17b3775"
-version = "0.1.12"
+version = "0.1.13"
 
 [[deps.URIs]]
-git-tree-sha1 = "bef26fb046d031353ef97a82e3fdb6afe7f21b1a"
+git-tree-sha1 = "908fec9df6c5de98548ead82a468c95ccf6cd263"
 uuid = "5c2747f8-b7ea-4ff2-ba2e-563bfd36b1d4"
-version = "1.6.1"
+version = "1.7.0"
 
 [[deps.UUIDs]]
 deps = ["Random", "SHA"]
@@ -1204,12 +1083,6 @@ version = "1.11.0"
 [[deps.Unicode]]
 uuid = "4ec0a83e-493e-50e2-b9ac-8f72acf5a8f5"
 version = "1.11.0"
-
-[[deps.Unityper]]
-deps = ["ConstructionBase"]
-git-tree-sha1 = "25008b734a03736c41e2a7dc314ecb95bd6bbdb0"
-uuid = "a7c27f48-0311-42f6-a7f8-2c11e75eb415"
-version = "0.1.6"
 
 [[deps.Zlib_jll]]
 deps = ["Libdl"]
@@ -1225,34 +1098,39 @@ version = "5.15.0+0"
 deps = ["Artifacts", "Libdl"]
 uuid = "8e850ede-7688-5339-a07c-302acd2aaf8d"
 version = "1.64.0+1"
-
-[[deps.p7zip_jll]]
-deps = ["Artifacts", "CompilerSupportLibraries_jll", "Libdl"]
-uuid = "3f19e933-33d8-53b3-aaab-bd5110c3b7a0"
-version = "17.7.0+0"
 """
 
 # ╔═╡ Cell order:
-# ╠═5a5bbfc8-6ff7-11ef-39cb-b12385eb48ed
-# ╟─486cb239-e68d-491c-a158-5320344caf25
-# ╠═107c5a97-c57d-4d9c-9388-204793f84044
-# ╠═1b66414f-126c-49cb-8322-1fb69fedb28b
-# ╟─63cb4fed-d7ff-471d-bd01-a420f44cf611
-# ╟─c11767eb-55cd-43ec-9f60-18f87afd044c
-# ╟─7d8d5c1e-5530-4c42-bd5d-4359c95d2e74
-# ╠═db884164-dd7e-4ddc-9bb3-f7b37ed3b616
-# ╟─69104940-394e-4a9d-a7c6-034719ae81f5
-# ╠═1e97a069-6779-47cc-b7af-be1abcc80976
-# ╟─b7116675-705d-417b-a0e7-82f507405bf0
-# ╟─8eff4450-dc71-4515-bfb3-e44f78c06289
-# ╠═1c49fa0e-0156-4466-b9a9-b0f5d818d774
-# ╟─851296e3-8c5c-4fae-a9d4-5ba5a85a3ab4
-# ╠═1f2b2f73-35b0-40fb-9cbf-051baaa94c75
-# ╠═2125b0cb-63ec-4921-9907-19ee78704f78
-# ╠═54219662-f0b7-438e-8186-ca724119b360
-# ╟─8b654e79-0b22-41ba-a06d-55a66611580f
-# ╟─a70b85eb-76d5-4c32-a0db-32c5c8b5ffea
-# ╠═f7503915-84e9-422d-865b-ca329c1a83ca
 # ╠═a08acdbe-9e7f-4404-8a29-aab612984839
+# ╟─5a5bbfc8-6ff7-11ef-39cb-b12385eb48ed
+# ╟─486cb239-e68d-491c-a158-5320344caf25
+# ╟─0b2dc3ed-0491-485d-9571-29d5759f81d7
+# ╟─159c6430-0478-4b9d-83a4-6ee8ba3edd11
+# ╟─adbec4f1-f939-40da-a0c1-054ada342c21
+# ╟─9cbee290-2093-4741-a217-fa715d57ea7b
+# ╟─cac42b11-d044-4e9e-be26-806654c1172c
+# ╟─9b776562-f534-4a27-8433-cbeb8f7e4133
+# ╟─bb6dddb4-19b8-420e-805c-4a143fa8ebed
+# ╟─c514fac3-7874-4a6c-8848-56c66ca80260
+# ╠═491b8789-e1b3-441c-8cac-f9ec24d2e653
+# ╠═c20ee476-b26c-470f-819d-6d413bf8ab0c
+# ╠═ce088892-7d2f-482e-88db-578548954f1d
+# ╟─b2c3cc61-69d7-4f3d-a394-4010437960b8
+# ╠═dd0e1670-4704-41ac-854f-5e00479aa09d
+# ╟─18152216-ae92-41f5-b5eb-37c3421b7840
+# ╠═7eea3fc3-dbc8-42c2-a850-f3d392844306
+# ╠═0dbd33d9-886a-4e77-8b28-01bd10ee3efe
+# ╠═b06f333a-ac4b-4bc9-8deb-271578cd4d6d
+# ╠═ba569904-7fdb-4e92-860c-f66d78e963a4
+# ╠═f084c2ce-3aa2-49f4-9fe0-806f2e9f6909
+# ╠═42d92b46-016a-4e3c-823e-4e1639d82131
+# ╠═176d3c95-15ee-40f8-8c36-f096df519daa
+# ╠═6f22682b-8967-4c35-968f-9522ea24c6a3
+# ╠═5c8d43be-e06d-4523-9055-5b1cae7d8c10
+# ╟─605c8c08-ce05-4c5c-adbc-9fb19398026e
+# ╠═c56c134d-8a38-41e2-bace-f6016f3d6038
+# ╠═d4792547-8d8b-4268-a6ab-90a041a5a032
+# ╟─3e1bb6d0-9c2b-4af2-9e18-c187ae808ccf
+# ╠═236b5432-5064-4207-a68f-e2c651fee95c
 # ╟─00000000-0000-0000-0000-000000000001
 # ╟─00000000-0000-0000-0000-000000000002
