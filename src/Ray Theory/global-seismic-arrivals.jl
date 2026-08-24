@@ -83,15 +83,23 @@ begin
     #rgwidget .rg-title-hint { font-size: 13px; color: #9ca3af; margin-top: 3px; }
     #rgwidget .rg-actions { margin-top: 10px; display: flex; justify-content: center;
       align-items: center; gap: 12px; flex-wrap: wrap; }
+    #rgwidget .rg-view-controls { display: inline-flex; align-items: center; gap: 6px; }
+    #rgwidget .rg-zoom-level { min-width: 3.6rem; color: #d1d5db; font-size: 13px; text-align: center; }
     #rgwidget button { border-radius: 4px; border: 1px solid #9ca3af; background: #606060; color: #f3f4f6;
       padding: 6px 12px; font-size: 14px; cursor: pointer; }
   </style>
   <div class="rg-title">
     <div class="rg-title-desc">Where the earthquake and receiver sit determines which seismic phases connect them, and how fast each one travels.</div>
-    <div class="rg-title-hint">drag the red source or the blue receiver &middot; release to compute the rays &middot; hover a ray to identify it</div>
+    <div class="rg-title-hint">drag the red source or the blue receiver &middot; zoom and drag empty space to pan &middot; double-click a ray to isolate it</div>
   </div>
   <canvas id="rgcvs" style="background:#000;border:1px solid #374151;border-radius:6px;display:block"></canvas>
   <div class="rg-actions">
+    <div class="rg-view-controls" aria-label="Plot zoom controls">
+      <button id="rgzoomout" type="button" aria-label="Zoom out">−</button>
+      <span id="rgzoomlevel" class="rg-zoom-level" aria-live="polite">100%</span>
+      <button id="rgzoomin" type="button" aria-label="Zoom in">+</button>
+      <button id="rgzoomreset" type="button">Reset view</button>
+    </div>
     <button id="rgreset" type="button">Reset defaults</button>
     <span style="font-size:13px;color:#9ca3af">dashed rings are real PREM discontinuity depths</span>
   </div>
@@ -106,8 +114,11 @@ begin
   // Real PREM discontinuity depths (km), from src/assets/data/specnm_models/prem_ani.
   const DISCS = [[24.4,'Moho'],[400,'400'],[670,'670'],[2891,'CMB'],[5149.5,'ICB']]
   let distanceDeg = $(w.distance_deg), depthKm = $(w.depth_km)
+  let zoom = 1
+  let panX = 0, panY = 0
   let rayPaths = []      // filled in by the 'raypath-results' push from Julia, below
   let hoverIdx = -1, hoverPos = null   // which rayPaths[] entry the cursor is over
+  let selectedIdx = -1   // double-clicked phase; -1 means show the full arrival family
 
   const cvs = par.querySelector('#rgcvs'), ctx = cvs.getContext('2d')
   function hidpi(cv, cx, w, h){
@@ -317,6 +328,7 @@ begin
   function nearestPathIndex(mx,my){
     let best = -1, bestD = 8
     rayPaths.forEach((p, idx) => {
+      if(selectedIdx >= 0 && idx !== selectedIdx) return
       for(const seg of p.segments){
         const pts = projectSegment(seg)
         for(let i=0;i<pts.length-1;i++){
@@ -330,6 +342,10 @@ begin
 
   function redraw(){
     ctx.clearRect(0,0,SEC,SEC)
+    ctx.save()
+    ctx.translate(CX + panX, CY + panY)
+    ctx.scale(zoom, zoom)
+    ctx.translate(-CX, -CY)
     ctx.beginPath(); ctx.arc(CX,CY,R,0,2*Math.PI)
     ctx.fillStyle = '#0b1220'; ctx.fill()
     ctx.strokeStyle = '#374151'; ctx.lineWidth = 1.4; ctx.stroke()
@@ -348,16 +364,19 @@ begin
     }
     ctx.textAlign = 'left'
 
-    // Every ray drawn faded at once (so the whole family of arrivals is visible),
-    // then the hovered one redrawn last, full-strength, on top of the others.
-    // Fade the rest out further while something is hovered, for more contrast.
-    const fadeAlpha = hoverIdx >= 0 ? 0.12 : 0.28
-    rayPaths.forEach((p, idx) => {
-      if(idx === hoverIdx) return
-      for(const seg of p.segments) drawSegment(seg, fadeAlpha, false)
-    })
-    if(hoverIdx >= 0 && rayPaths[hoverIdx]){
-      for(const seg of rayPaths[hoverIdx].segments) drawSegment(seg, 1.0, true)
+    // A double-click isolates one arrival. Otherwise, every ray is drawn faded
+    // and the one under the cursor is redrawn last at full strength.
+    if(selectedIdx >= 0 && rayPaths[selectedIdx]){
+      for(const seg of rayPaths[selectedIdx].segments) drawSegment(seg, 1.0, true)
+    } else {
+      const fadeAlpha = hoverIdx >= 0 ? 0.12 : 0.28
+      rayPaths.forEach((p, idx) => {
+        if(idx === hoverIdx) return
+        for(const seg of p.segments) drawSegment(seg, fadeAlpha, false)
+      })
+      if(hoverIdx >= 0 && rayPaths[hoverIdx]){
+        for(const seg of rayPaths[hoverIdx].segments) drawSegment(seg, 1.0, true)
+      }
     }
 
     drawEpicentralArc()
@@ -372,7 +391,11 @@ begin
     // hovered phase's name/time can be read without following the cursor.
     ctx.font = '12px sans-serif'
     ctx.textAlign = 'right'
-    if(hoverIdx >= 0 && rayPaths[hoverIdx]){
+    if(selectedIdx >= 0 && rayPaths[selectedIdx]){
+      ctx.fillStyle = '#e5e7eb'
+      const p = rayPaths[selectedIdx]
+      ctx.fillText(p.name + '   ' + p.time.toFixed(1) + ' s — isolated', SEC-10, 16)
+    } else if(hoverIdx >= 0 && rayPaths[hoverIdx]){
       ctx.fillStyle = '#e5e7eb'
       ctx.fillText(rayPaths[hoverIdx].name + '   ' + rayPaths[hoverIdx].time.toFixed(1) + ' s', SEC-10, 16)
     } else if(rayPaths.length){
@@ -391,6 +414,7 @@ begin
       ctx.strokeStyle = '#374151'; ctx.lineWidth = 1; ctx.strokeRect(tx-6, ty-14, tw+12, 20)
       ctx.fillStyle = '#e5e7eb'; ctx.fillText(label, tx, ty)
     }
+    ctx.restore()
   }
 
   function emit(){
@@ -407,23 +431,65 @@ begin
     return null
   }
 
-  let dragging = null
-  cvs.addEventListener('mousedown', e=>{ dragging = hitTest(e.offsetX, e.offsetY) })
+  // Pointer coordinates stay in the unscaled canvas coordinate system; convert
+  // them before hit testing or dragging so those interactions remain accurate
+  // at every zoom level.
+  function viewPoint(x, y){
+    return [CX + (x-CX-panX)/zoom, CY + (y-CY-panY)/zoom]
+  }
+
+  const zoomLevel = par.querySelector('#rgzoomlevel')
+  function constrainPan(){
+    const limit = Math.max(0, (zoom-1)*SEC*0.42)
+    panX = Math.max(-limit, Math.min(limit, panX))
+    panY = Math.max(-limit, Math.min(limit, panY))
+  }
+  function setZoom(nextZoom){
+    zoom = Math.max(0.7, Math.min(2.2, nextZoom))
+    constrainPan()
+    zoomLevel.textContent = Math.round(zoom*100) + '%'
+    redraw()
+  }
+  function resetView(){
+    panX = 0; panY = 0
+    setZoom(1)
+  }
+
+  let dragging = null, panStart = null, panMoved = false
+  cvs.addEventListener('mousedown', e=>{
+    panMoved = false
+    const [mx, my] = viewPoint(e.offsetX, e.offsetY)
+    dragging = hitTest(mx, my)
+    if(!dragging && zoom > 1){
+      dragging = 'pan'
+      panStart = {x: e.offsetX, y: e.offsetY, panX, panY}
+      cvs.style.cursor = 'grabbing'
+    }
+  })
   cvs.addEventListener('mousemove', e=>{
+    if(dragging === 'pan' && panStart){
+      panX = panStart.panX + e.offsetX - panStart.x
+      panY = panStart.panY + e.offsetY - panStart.y
+      panMoved ||= e.offsetX !== panStart.x || e.offsetY !== panStart.y
+      constrainPan()
+      redraw()
+      return
+    }
+    const [mx, my] = viewPoint(e.offsetX, e.offsetY)
     if(dragging === 'source'){
-      let rf = CY - e.offsetY
+      let rf = CY - my
       rf = Math.max(((REARTH-700)/REARTH)*R, Math.min(R, rf))
       depthKm = REARTH - (rf/R)*REARTH
       redraw()
     } else if(dragging === 'receiver'){
-      let ang = Math.atan2(e.offsetX-CX, -(e.offsetY-CY)) * 180/Math.PI
+      let ang = Math.atan2(mx-CX, -(my-CY)) * 180/Math.PI
       distanceDeg = Math.max(0, Math.min(180, ang))
       redraw()
     } else {
-      const h = hitTest(e.offsetX, e.offsetY)
-      cvs.style.cursor = h ? 'grab' : 'default'
-      hoverPos = [e.offsetX, e.offsetY]
-      hoverIdx = h ? -1 : nearestPathIndex(e.offsetX, e.offsetY)
+      const h = hitTest(mx, my)
+      cvs.style.cursor = h || zoom > 1 ? 'grab' : 'default'
+      hoverPos = [mx, my]
+      hoverIdx = h ? -1 : nearestPathIndex(mx, my)
       redraw()
     }
   })
@@ -433,19 +499,44 @@ begin
   // Only publish the bound value on release -- dragging is purely local/visual, so
   // TauP (a Python round-trip) recomputes once per gesture, not once per pixel.
   window.addEventListener('mouseup', ()=>{
-    if(dragging) emit()
-    dragging = null
+    if(dragging === 'source' || dragging === 'receiver') emit()
+    dragging = null; panStart = null
+    cvs.style.cursor = zoom > 1 ? 'grab' : 'default'
+  })
+
+  cvs.addEventListener('dblclick', e=>{
+    const [mx, my] = viewPoint(e.offsetX, e.offsetY)
+    const idx = hitTest(mx, my) ? -1 : nearestPathIndex(mx, my)
+    if(idx >= 0){
+      selectedIdx = idx
+      hoverIdx = idx
+      redraw()
+      e.preventDefault()
+    }
+  })
+  cvs.addEventListener('click', e=>{
+    if(panMoved || selectedIdx < 0) return
+    const [mx, my] = viewPoint(e.offsetX, e.offsetY)
+    if(!hitTest(mx, my) && nearestPathIndex(mx, my) < 0){
+      selectedIdx = -1
+      hoverIdx = -1
+      redraw()
+    }
   })
 
   par.querySelector('#rgreset').addEventListener('click', ()=>{
     distanceDeg = 120; depthKm = 20; redraw(); emit()
   })
+  par.querySelector('#rgzoomin').addEventListener('click', ()=>setZoom(zoom * 1.25))
+  par.querySelector('#rgzoomout').addEventListener('click', ()=>setZoom(zoom / 1.25))
+  par.querySelector('#rgzoomreset').addEventListener('click', resetView)
 
   window.addEventListener('raypath-results', e=>{
     const d = e.detail ? JSON.parse(e.detail) : null
     if(!d) return
     rayPaths = d.paths || []
     hoverIdx = -1
+    selectedIdx = -1
     redraw()
   })
 

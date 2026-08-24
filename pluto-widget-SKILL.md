@@ -405,6 +405,17 @@ first contact, not a replacement for it. `#0a0f18`/`#3b5c85` (a cool blue-tinted
 deliberately different pair from the control-groups' neutral `#050505`/`#2f3744` — same box language,
 different accent, so the header doesn't camouflage itself among the panels underneath it.
 
+**A common drift: `title-desc` quietly turns into a UI instruction instead of a physics statement.** Both
+sentences want the same prominent slot, and "how to drive it" is usually easier to write first, so it's an
+easy trap even when you know the rule. Caught in `viscoelastic-rheology.jl`: `title-desc` read "Drag the
+handle by hand, or click a preset to fast-forward through a realistic scenario." — true, but it tells a
+viewer nothing about *why* they'd want to; hide the widget and that sentence teaches you nothing about
+elastic/viscoelastic/viscous regimes, the actual subject. Fixed to "One block, three regimes -- elastic,
+viscoelastic, or viscous flow, depending on the clock you compare it to." with the interaction instructions
+moved down into `title-hint`, where they belong. **Test it**: cover the widget and read only `title-desc` —
+if it doesn't state the scientific question or relationship the demo answers, it's an instruction wearing a
+title's slot, not a title, no matter how true or useful that instruction is.
+
 This title bar adds real height — **fold it into the `heightBudget` reserve** (next section) or you'll
 reintroduce the exact overflow you fixed there. Don't estimate that height from "two lines of text plus a
 bit of margin": **measure it live**, `getBoundingClientRect().height` on `.{p}-title`, after your actual

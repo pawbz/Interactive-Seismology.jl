@@ -350,13 +350,14 @@ If a rendered equation shows up as a literal backslash-letter (`\ell` printed as
 throws an `UndefVarError`/interpolation error on a cell that's pure prose, this escaping mismatch is the
 first thing to check.
 
-## Building prose from a dynamically-constructed string: two more traps
+## Building prose from a dynamically-constructed string: three more traps
 
 The pattern "compute a readout string in Julia, then hand it to Markdown" (e.g. a live summary line
 that includes `bs_safe["vp0"]`, a source count, a view index — anything with several `$(...)`
-interpolations packed together) has two failure modes beyond the escaping rule above, both silent
-(no error, no exception — the cell just renders wrong) and both hit for real building
-`Born-approximation.jl`'s summary line:
+interpolations packed together) has three failure modes beyond the escaping rule above, all silent
+or near-silent (no exception where you'd expect one, or a parse error that only surfaces when Pluto
+actually evaluates that cell) — hit for real building `Born-approximation.jl`'s summary line (traps 1
+and 3) and `viscoelastic-rheology.jl`'s self-check prose (trap 2):
 
 1. **Several tightly-packed `$(...)` interpolations directly inside `md"""..."""` can confuse
    Markdown.jl's own parser** — it can print one of the raw, unevaluated `$(...)` expressions
@@ -366,7 +367,35 @@ interpolations packed together) has two failure modes beyond the escaping rule a
    ordinary string interpolation doesn't have this problem), then hand `md"""..."""` a single bare
    `$readout` interpolation with nothing else on that line.
 
-2. **Once you've done that, don't indent the `$readout` line 4+ spaces inside `md"""..."""`.**
+2. **A literal `(` sitting immediately before a `$(...)` interpolation — the two-character
+   sequence `($` — can make `@md_str` throw a genuine parse error, not just garble output.** This is
+   a distinct failure mode from #1 above (a hard `syntax: invalid syntax` error, not silent
+   misrendering) and only manifests once a **third** `$(...)` interpolation appears later in the
+   *same* `md"""..."""` block — a block with only two interpolations and the same `($(` pattern
+   parses fine, so testing with two is a false negative. Reproduces standalone, no Pluto needed:
+   ```julia
+   using Markdown
+   err_r = 0.0001; strain_s = [1.67e-4, 2.5e-3]
+   md"""
+   within $(round(err_r*100, sigdigits=2))% and jump
+   ($(round(strain_s[1], sigdigits=3)), matching exactly) from the
+   creep that follows (reaching $(round(strain_s[end], sigdigits=3)) after one time)
+   """
+   ```
+   ```
+   # throws: syntax: invalid syntax (incomplete ... "(round(strain" ... Expected ) or ,
+   ```
+   Confirmed on `viscoelastic-rheology.jl`'s self-check cell (UUID
+   `6a1af493-35f5-4813-8940-1992c72cb1e5`), reported by `pluto-collab restart`, not by
+   `Meta.parseall` on the whole file (same as other `@md_str`-specific parse errors — the file
+   parses fine overall; only this specific cell's macro expansion fails). **Fix**: insert a single
+   space between the literal `(` and the `$(` that follows it — `( $(round(...))` — with no other
+   change; removing the literal `(` entirely also works if the paren isn't needed. A static
+   `grep -n '($('` alone isn't enough to audit for this — also confirm 3+ total `$(...)`
+   interpolations exist somewhere in that same `md"""..."""` block, or you'll flag safe
+   two-interpolation cases and miss the block-level context that actually matters.
+
+3. **Once you've done that, don't indent the `$readout` line 4+ spaces inside `md"""..."""`.**
    Markdown treats 4-space (or one-tab) leading indentation as its own "indented code block" syntax
    — completely unrelated to Julia's own code indentation, but easy to introduce by accident since
    it's natural to indent `$readout` to match the surrounding `let`/`begin` block. A code block

@@ -16,6 +16,7 @@ sections:
       - Basics/simple-harmonic-motion.jl
       - Basics/coupled_oscillations.jl
       - Basics/Fourier-Dispersion.jl
+      - Basics/Jacobi-Anger-expansion.jl
       - Basics/Haas-effect-seismology-audio.jl
       - Basics/waves-on-string.jl
 
@@ -24,6 +25,7 @@ sections:
       - Elasticity and Deformation/strain-tensor.jl
       - Elasticity and Deformation/stress-tensor.jl
       - Elasticity and Deformation/lame-theorem.jl
+      - Elasticity and Deformation/viscoelastic-rheology.jl
 
   - name: Planewave Propagation
     live:
