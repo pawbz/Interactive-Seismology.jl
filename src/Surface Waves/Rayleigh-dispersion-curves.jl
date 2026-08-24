@@ -1,6 +1,12 @@
 ### A Pluto.jl notebook ###
 # v0.2.6
 
+#> [frontmatter]
+#> title = "Rayleigh Wave Dispersion Curves"
+#> tags = ["surfacewaves", "dispersion"]
+#> layout = "layout.jlhtml"
+#> description = "Interactively build a layered Earth model and explore Rayleigh-wave phase and group-velocity dispersion."
+
 using Markdown
 using InteractiveUtils
 
