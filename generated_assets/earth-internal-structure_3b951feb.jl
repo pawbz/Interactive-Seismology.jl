@@ -1,6 +1,12 @@
 ### A Pluto.jl notebook ###
 # v0.2.6
 
+#> [frontmatter]
+#> title = "What's Inside the Earth?"
+#> tags = ["earthstructure"]
+#> layout = "layout.jlhtml"
+#> description = "Explore Earth's density, pressure, temperature, and seismic structure from the surface to the core."
+
 using Markdown
 using InteractiveUtils
 

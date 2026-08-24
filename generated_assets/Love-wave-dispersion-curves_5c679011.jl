@@ -1,6 +1,12 @@
 ### A Pluto.jl notebook ###
 # v0.2.6
 
+#> [frontmatter]
+#> title = "Love Wave Dispersion Curves"
+#> tags = ["surfacewaves", "dispersion"]
+#> layout = "layout.jlhtml"
+#> description = "Interactively build a layered Earth model and explore Love-wave phase and group-velocity dispersion."
+
 using Markdown
 using InteractiveUtils
 
