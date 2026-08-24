@@ -83,10 +83,11 @@ sections:
   - name: Scattering
     live:
       - Scattering/Born-approximation.jl
+      - Scattering/multipole-scattering.jl
 
   - name: Seismic Sources and Faulting
     live:
       - Seismic Sources and Faulting/fault-dislocation.jl
-      - Seismic Sources and Faulting/seismic-sources.jl
     static:
       - Seismic Sources and Faulting/Lamb_problem.jl
+      - Seismic Sources and Faulting/seismic-sources.jl
