@@ -50,22 +50,66 @@ Instructor: *Pawan Bharadwaj*,
 Indian Institute of Science, Bengaluru, India
 """
 
+# ╔═╡ 7818c947-9bef-4399-9827-7e4a81a50962
+md"""
+## Two receivers, one earthquake: when does the interstation arrival stack?
+
+Switch the widget above to **Interstation pair** mode to explore a different question:
+when does cross-correlating what two receivers record from the same earthquake
+eventually produce a clean, repeatable signal once you average over many earthquakes?
+
+The answer is *not* "whenever the two rays leave the source in roughly the same
+direction" -- that's a useful mental picture, but the actual condition is the
+stationary-phase criterion: the earthquake's position must make the **differential
+travel time** `` \Delta t = t_B - t_A `` locally flat with respect to *both* of the
+source's own free parameters -- azimuth `` \theta `` and depth --
+`` \partial(\Delta t)/\partial\theta \approx 0 `` and
+`` \partial(\Delta t)/\partial(\text{depth}) \approx 0 `` simultaneously. Drag the
+source anywhere on the circle (any azimuth, any depth) and watch the readout below it.
+
+Crucially, `` t_A `` and `` t_B `` don't have to be the *same* seismic phase. Every
+drag automatically searches **every combination** of "which phase arrives at A" and
+"which phase arrives at B" -- `` t_A `` could be `P` while `` t_B `` is `PKiKP`, for
+instance -- and ranks all of them by how close each comes to jointly stationary. A
+dropdown lists that ranking, closest-first; step through it to see how the two legs
+change, and the source marker glows while the dropdown's top (best-ranked) entry is
+selected. There is no phase picker for choosing what to search -- only which
+already-ranked result to look at.
+"""
+
 # ╔═╡ 8967b290-ec9f-4f8d-bca7-91d2c8c8ff18
 begin
     """A draggable Earth cross-section: the source (depth) and receiver (angular
     distance) are set by dragging directly on the circle, not by sliders. The bound
-    value only updates on release -- dragging alone never triggers a TauP recompute."""
+    value only updates on release -- dragging alone never triggers a TauP recompute.
+
+    In `"pair"` mode, a second receiver (A, fixed at the top) joins the original one
+    (B, still draggable) so the student can explore -- by dragging the source anywhere
+    on the circle, at any depth -- which earthquake positions make the differential
+    travel time to the two receivers stationary. There is no phase picker: every
+    commit searches all (phase-to-A, phase-to-B) combinations automatically (see
+    `find_stationary_phase_combos`) -- the two legs need not be the same phase. A
+    dropdown lists them ranked by gradient magnitude, closest-to-stationary first, so
+    the student steps through candidates rather than only ever seeing one "winner"."""
     struct RayGeometryInput
         distance_deg::Float64
         depth_km::Float64
+        mode::String
+        distanceB_deg::Float64
+        source_theta_deg::Float64
     end
 
-    RayGeometryInput(; receiver_distance=120.0, source_depth=20.0) =
-        RayGeometryInput(Float64(receiver_distance), Float64(source_depth))
+    RayGeometryInput(; receiver_distance=120.0, source_depth=20.0, mode="single",
+        receiverB_distance=20.0, source_theta=50.0) =
+        RayGeometryInput(Float64(receiver_distance), Float64(source_depth), mode,
+            Float64(receiverB_distance), Float64(source_theta))
 
     Base.get(w::RayGeometryInput) = Dict{String,Any}(
         "receiver_distance" => w.distance_deg,
         "source_depth" => w.depth_km,
+        "mode" => w.mode,
+        "receiverB_distance" => w.distanceB_deg,
+        "source_theta" => w.source_theta_deg,
     )
 
     function Base.show(io::IO, ::MIME"text/html", w::RayGeometryInput)
@@ -87,10 +131,23 @@ begin
     #rgwidget .rg-zoom-level { min-width: 3.6rem; color: #d1d5db; font-size: 13px; text-align: center; }
     #rgwidget button { border-radius: 4px; border: 1px solid #9ca3af; background: #606060; color: #f3f4f6;
       padding: 6px 12px; font-size: 14px; cursor: pointer; }
+    #rgwidget button.active { background: #2563eb; border-color: #60a5fa; }
   </style>
   <div class="rg-title">
-    <div class="rg-title-desc">Where the earthquake and receiver sit determines which seismic phases connect them, and how fast each one travels.</div>
-    <div class="rg-title-hint">drag the red source or the blue receiver &middot; zoom and drag empty space to pan &middot; double-click a ray to isolate it</div>
+    <div class="rg-title-desc" id="rgtitledesc">Where the earthquake and receiver sit determines which seismic phases connect them, and how fast each one travels.</div>
+    <div class="rg-title-hint" id="rgtitlehint">drag the red source or the blue receiver &middot; zoom and drag empty space to pan &middot; double-click a ray to isolate it</div>
+  </div>
+  <div class="rg-actions" style="margin-bottom:8px">
+    <div class="rg-view-controls" aria-label="Mode">
+      <button id="rgmodesingle" type="button">Single receiver</button>
+      <button id="rgmodepair" type="button">Interstation pair</button>
+    </div>
+  </div>
+  <div class="rg-actions" id="rgcomborow" style="display:none;margin-bottom:8px">
+    <div class="rg-view-controls" aria-label="Phase combination">
+      <span style="font-size:13px;color:#9ca3af">phase combination (sorted by gradient magnitude):</span>
+      <select id="rgcombo" style="background:#606060;color:#f3f4f6;border:1px solid #9ca3af;border-radius:4px;padding:4px 8px;font-size:13px;max-width:420px"></select>
+    </div>
   </div>
   <canvas id="rgcvs" style="background:#000;border:1px solid #374151;border-radius:6px;display:block"></canvas>
   <div class="rg-actions">
@@ -103,6 +160,7 @@ begin
     <button id="rgreset" type="button">Reset defaults</button>
     <span style="font-size:13px;color:#9ca3af">dashed rings are real PREM discontinuity depths</span>
   </div>
+  <div id="rgreadout" style="display:none;margin-top:8px;background:#0a0f18;border:1px solid #3b5c85;border-radius:6px;padding:8px 14px;font:13px/1.5 monospace;color:#e5e7eb;width:100%;box-sizing:border-box;text-align:center"></div>
 </div>
 <script>
   const par = currentScript.previousElementSibling
@@ -114,11 +172,16 @@ begin
   // Real PREM discontinuity depths (km), from src/assets/data/specnm_models/prem_ani.
   const DISCS = [[24.4,'Moho'],[400,'400'],[670,'670'],[2891,'CMB'],[5149.5,'ICB']]
   let distanceDeg = $(w.distance_deg), depthKm = $(w.depth_km)
+  let mode = $(repr(w.mode)), distanceBDeg = $(w.distanceB_deg), sourceThetaDeg = $(w.source_theta_deg)
   let zoom = 1
   let panX = 0, panY = 0
   let rayPaths = []      // filled in by the 'raypath-results' push from Julia, below
   let hoverIdx = -1, hoverPos = null   // which rayPaths[] entry the cursor is over
   let selectedIdx = -1   // double-clicked phase; -1 means show the full arrival family
+  let pairData = null    // filled in by the 'pair-results' push from Julia (pair mode only)
+  let selectedComboIdx = 0   // which entry of pairData.combos (sorted best-first) the dropdown has picked
+  let pairHoverLeg = null, pairHoverPos = null   // 'A'/'B'/null -- which leg of the shown combo the cursor is over
+  const PAIR_LEG_COLOR = '#a78bfa'    // the "leg to receiver A" gets its own color, distinct from colorFor()'s P/S palette
 
   const cvs = par.querySelector('#rgcvs'), ctx = cvs.getContext('2d')
   function hidpi(cv, cx, w, h){
@@ -140,8 +203,9 @@ begin
   function toXY(thetaDeg, rKm){
     return polarXY(thetaDeg, (rKm/REARTH)*R)
   }
-  function sourcePt(){ return toXY(0, REARTH-depthKm) }
-  function receiverPt(){ return toXY(distanceDeg, REARTH) }
+  function sourcePt(){ return toXY(mode==='pair' ? sourceThetaDeg : 0, REARTH-depthKm) }
+  function receiverPt(){ return toXY(mode==='pair' ? distanceBDeg : distanceDeg, REARTH) }
+  function receiverAPt(){ return toXY(0, REARTH) }
 
   // Source/receiver markers matching plot_rays' own convention: a yellow star at the
   // source, a rust-colored marker at the receiver pointing inward along the local
@@ -340,30 +404,33 @@ begin
     return best
   }
 
-  function redraw(){
-    ctx.clearRect(0,0,SEC,SEC)
-    ctx.save()
-    ctx.translate(CX + panX, CY + panY)
-    ctx.scale(zoom, zoom)
-    ctx.translate(-CX, -CY)
-    ctx.beginPath(); ctx.arc(CX,CY,R,0,2*Math.PI)
-    ctx.fillStyle = '#0b1220'; ctx.fill()
-    ctx.strokeStyle = '#374151'; ctx.lineWidth = 1.4; ctx.stroke()
-
-    // Angled off to the left of straight-up so labels don't sit inside the dense
-    // near-vertical bundle of rays leaving the source.
-    ctx.font = '12px sans-serif'
-    ctx.textAlign = 'right'
-    for(const [d,label] of DISCS){
-      const rf = ((REARTH-d)/REARTH)*R
-      ctx.beginPath(); ctx.setLineDash([3,4])
-      ctx.arc(CX,CY,rf,0,2*Math.PI); ctx.strokeStyle = '#2f3744'; ctx.lineWidth = 1; ctx.stroke()
-      ctx.setLineDash([])
-      const lp = toXY(-24, REARTH-d)
-      ctx.fillStyle = '#6b7280'; ctx.fillText(label, lp[0]-4, lp[1]+3)
+  // Only the currently-shown combo's two legs are ever drawn in pair mode, so hover
+  // hit-testing is just "closer to the A-leg's segments, or the B-leg's?" -- no index
+  // list needed, unlike nearestPathIndex's whole-family search.
+  function nearestPairLeg(mx, my){
+    const sel = selectedCombo()
+    if(!pairData || !sel) return null
+    let best = null, bestD = 8
+    for(const seg of (pairData.segmentsA||[])){
+      if(seg.phase !== sel.phaseA) continue
+      const pts = projectSegment(seg)
+      for(let i=0;i<pts.length-1;i++){
+        const d = distToSegment(mx,my, pts[i][0],pts[i][1], pts[i+1][0],pts[i+1][1])
+        if(d < bestD){ bestD = d; best = 'A' }
+      }
     }
-    ctx.textAlign = 'left'
+    for(const seg of (pairData.segmentsB||[])){
+      if(seg.phase !== sel.phaseB) continue
+      const pts = projectSegment(seg)
+      for(let i=0;i<pts.length-1;i++){
+        const d = distToSegment(mx,my, pts[i][0],pts[i][1], pts[i+1][0],pts[i+1][1])
+        if(d < bestD){ bestD = d; best = 'B' }
+      }
+    }
+    return best
+  }
 
+  function drawSingleMode(){
     // A double-click isolates one arrival. Otherwise, every ray is drawn faded
     // and the one under the cursor is redrawn last at full strength.
     if(selectedIdx >= 0 && rayPaths[selectedIdx]){
@@ -414,11 +481,141 @@ begin
       ctx.strokeStyle = '#374151'; ctx.lineWidth = 1; ctx.strokeRect(tx-6, ty-14, tw+12, 20)
       ctx.fillStyle = '#e5e7eb'; ctx.fillText(label, tx, ty)
     }
+  }
+
+  function drawSegmentFixedColor(seg, color, alpha, isHover){
+    ctx.globalAlpha = alpha
+    ctx.strokeStyle = color
+    if(seg.wave === 's'){
+      ctx.lineWidth = isHover ? 2.4 : 1.5
+      drawWiggly(densify(projectSegment(seg), 60), 3, 14)
+    } else {
+      ctx.lineWidth = isHover ? 3 : 2
+      const pts = projectSegment(seg)
+      ctx.beginPath()
+      pts.forEach((xy,i)=> i===0?ctx.moveTo(xy[0],xy[1]):ctx.lineTo(xy[0],xy[1]))
+      ctx.stroke()
+    }
+    ctx.globalAlpha = 1
+  }
+
+  // A separate, much smaller legend than drawLegend(): two receivers plus the two
+  // leg colors, instead of the full P/S-wave-family legend the single-receiver mode
+  // needs.
+  // The single combo the dropdown currently has selected -- pairData.combos is sorted
+  // best-(smallest-gradient)-first by the push cell, selectedComboIdx just indexes it.
+  function selectedCombo(){
+    return (pairData && pairData.combos && pairData.combos.length) ? pairData.combos[selectedComboIdx] || pairData.combos[0] : null
+  }
+
+  function drawLegendPair(){
+    const sel = selectedCombo()
+    const phaseA = sel ? sel.phaseA : '…', phaseB = sel ? sel.phaseB : '…'
+    const rows = [
+      {icon:'source', text: 'Source (drag me) · depth ' + Math.round(depthKm) + ' km'},
+      {icon:'receiverA', text: 'Receiver A (fixed)'},
+      {icon:'receiverB', text: 'Receiver B (drag to set distance)'},
+      {icon:'legA', text: 'Leg to A · phase ' + phaseA},
+      {icon:'legB', text: 'Leg to B · phase ' + phaseB},
+    ]
+    ctx.font = '12px sans-serif'
+    const pad = 10, rowH = 20, iconW = 24
+    let textW = 0
+    for(const r of rows) textW = Math.max(textW, ctx.measureText(r.text).width)
+    const boxW = pad*2 + iconW + textW, boxH = pad*2 + rows.length*rowH - (rowH-14)
+    const bx = 10, by = SEC - boxH - 10
+    ctx.fillStyle = 'rgba(11,18,32,0.9)'; ctx.fillRect(bx, by, boxW, boxH)
+    ctx.strokeStyle = '#374151'; ctx.lineWidth = 1; ctx.strokeRect(bx, by, boxW, boxH)
+
+    rows.forEach((r, i) => {
+      const cy = by + pad + i*rowH + 7
+      const cx = bx + pad + iconW/2
+      if(r.icon === 'source'){
+        drawStar(cx, cy, 6)
+      } else if(r.icon === 'receiverA' || r.icon === 'receiverB'){
+        ctx.beginPath()
+        ctx.moveTo(cx, cy+6); ctx.lineTo(cx-6, cy-5); ctx.lineTo(cx+6, cy-5); ctx.closePath()
+        ctx.fillStyle = '#C95241'; ctx.fill(); ctx.strokeStyle = '#4b5563'; ctx.lineWidth = 1; ctx.stroke()
+      } else if(r.icon === 'legA'){
+        ctx.beginPath(); ctx.moveTo(cx-8, cy+3); ctx.lineTo(cx+8, cy+3)
+        ctx.strokeStyle = PAIR_LEG_COLOR; ctx.lineWidth = 2; ctx.stroke()
+      } else if(r.icon === 'legB'){
+        ctx.beginPath(); ctx.moveTo(cx-8, cy+3); ctx.lineTo(cx+8, cy+3)
+        ctx.strokeStyle = colorFor('p'); ctx.lineWidth = 2; ctx.stroke()
+      }
+      ctx.fillStyle = '#e5e7eb'
+      ctx.fillText(r.text, bx + pad + iconW, cy+4)
+    })
+  }
+
+  function drawPairMode(){
+    const sel = selectedCombo()
+    if(pairData && sel){
+      for(const seg of (pairData.segmentsA||[])) if(seg.phase === sel.phaseA) drawSegmentFixedColor(seg, PAIR_LEG_COLOR, 1.0, pairHoverLeg==='A')
+      for(const seg of (pairData.segmentsB||[])) if(seg.phase === sel.phaseB) drawSegment(seg, 1.0, pairHoverLeg==='B')
+    }
+    const rAp = receiverAPt(), rBp = receiverPt(), sp = sourcePt()
+    drawReceiverMarker(rAp[0], rAp[1], 0, 8)
+    drawReceiverMarker(rBp[0], rBp[1], distanceBDeg, 8)
+
+    if(sel && selectedComboIdx === 0){
+      ctx.save()
+      ctx.shadowColor = '#facc15'; ctx.shadowBlur = 18
+      drawStar(sp[0], sp[1], 11)
+      ctx.restore()
+    } else {
+      drawStar(sp[0], sp[1], 9)
+    }
+
+    drawLegendPair()
+
+    // Hover tooltip: which leg, its phase, its travel time -- the hover info the
+    // single-receiver mode already gives per-ray, mirrored here for the shown combo.
+    if(pairHoverLeg && sel && pairHoverPos){
+      const label = pairHoverLeg === 'A'
+        ? 'Leg to A · ' + sel.phaseA + '   ' + (Number.isFinite(sel.tA) ? sel.tA.toFixed(1) : 'n/a') + ' s'
+        : 'Leg to B · ' + sel.phaseB + '   ' + (Number.isFinite(sel.tB) ? sel.tB.toFixed(1) : 'n/a') + ' s'
+      ctx.font = '13px sans-serif'
+      const tw = ctx.measureText(label).width
+      const tx = Math.min(pairHoverPos[0]+12, SEC-tw-16), ty = Math.max(pairHoverPos[1]-12, 16)
+      ctx.fillStyle = 'rgba(11,18,32,0.9)'; ctx.fillRect(tx-6, ty-14, tw+12, 20)
+      ctx.strokeStyle = '#374151'; ctx.lineWidth = 1; ctx.strokeRect(tx-6, ty-14, tw+12, 20)
+      ctx.fillStyle = '#e5e7eb'; ctx.fillText(label, tx, ty)
+    }
+  }
+
+  function redraw(){
+    ctx.clearRect(0,0,SEC,SEC)
+    ctx.save()
+    ctx.translate(CX + panX, CY + panY)
+    ctx.scale(zoom, zoom)
+    ctx.translate(-CX, -CY)
+    ctx.beginPath(); ctx.arc(CX,CY,R,0,2*Math.PI)
+    ctx.fillStyle = '#0b1220'; ctx.fill()
+    ctx.strokeStyle = '#374151'; ctx.lineWidth = 1.4; ctx.stroke()
+
+    // Angled off to the left of straight-up so labels don't sit inside the dense
+    // near-vertical bundle of rays leaving the source.
+    ctx.font = '12px sans-serif'
+    ctx.textAlign = 'right'
+    for(const [d,label] of DISCS){
+      const rf = ((REARTH-d)/REARTH)*R
+      ctx.beginPath(); ctx.setLineDash([3,4])
+      ctx.arc(CX,CY,rf,0,2*Math.PI); ctx.strokeStyle = '#2f3744'; ctx.lineWidth = 1; ctx.stroke()
+      ctx.setLineDash([])
+      const lp = toXY(-24, REARTH-d)
+      ctx.fillStyle = '#6b7280'; ctx.fillText(label, lp[0]-4, lp[1]+3)
+    }
+    ctx.textAlign = 'left'
+
+    if(mode === 'pair'){ drawPairMode() } else { drawSingleMode() }
+
     ctx.restore()
   }
 
   function emit(){
-    par.value = {receiver_distance: distanceDeg, source_depth: depthKm}
+    par.value = {receiver_distance: distanceDeg, source_depth: depthKm, mode: mode,
+      receiverB_distance: distanceBDeg, source_theta: sourceThetaDeg}
     par.dispatchEvent(new CustomEvent('input'))
   }
 
@@ -477,24 +674,35 @@ begin
     }
     const [mx, my] = viewPoint(e.offsetX, e.offsetY)
     if(dragging === 'source'){
-      let rf = CY - my
-      rf = Math.max(((REARTH-700)/REARTH)*R, Math.min(R, rf))
-      depthKm = REARTH - (rf/R)*REARTH
+      if(mode === 'pair'){
+        const rad = Math.hypot(mx-CX, my-CY)
+        const rf = Math.max(((REARTH-700)/REARTH)*R, Math.min(R, rad))
+        depthKm = REARTH - (rf/R)*REARTH
+        const ang = Math.atan2(mx-CX, -(my-CY)) * 180/Math.PI
+        sourceThetaDeg = ((ang % 360) + 360) % 360
+      } else {
+        let rf = CY - my
+        rf = Math.max(((REARTH-700)/REARTH)*R, Math.min(R, rf))
+        depthKm = REARTH - (rf/R)*REARTH
+      }
       redraw()
     } else if(dragging === 'receiver'){
       let ang = Math.atan2(mx-CX, -(my-CY)) * 180/Math.PI
-      distanceDeg = Math.max(0, Math.min(180, ang))
+      ang = Math.max(0, Math.min(180, ang))
+      if(mode === 'pair'){ distanceBDeg = ang } else { distanceDeg = ang }
       redraw()
     } else {
       const h = hitTest(mx, my)
       cvs.style.cursor = h || zoom > 1 ? 'grab' : 'default'
       hoverPos = [mx, my]
-      hoverIdx = h ? -1 : nearestPathIndex(mx, my)
+      hoverIdx = (mode === 'single' && !h) ? nearestPathIndex(mx, my) : -1
+      if(mode === 'pair'){ pairHoverPos = [mx, my]; pairHoverLeg = h ? null : nearestPairLeg(mx, my) }
       redraw()
     }
   })
   cvs.addEventListener('mouseleave', ()=>{
     if(hoverIdx !== -1){ hoverIdx = -1; redraw() }
+    if(pairHoverLeg !== null){ pairHoverLeg = null; redraw() }
   })
   // Only publish the bound value on release -- dragging is purely local/visual, so
   // TauP (a Python round-trip) recomputes once per gesture, not once per pixel.
@@ -505,6 +713,7 @@ begin
   })
 
   cvs.addEventListener('dblclick', e=>{
+    if(mode !== 'single') return
     const [mx, my] = viewPoint(e.offsetX, e.offsetY)
     const idx = hitTest(mx, my) ? -1 : nearestPathIndex(mx, my)
     if(idx >= 0){
@@ -515,6 +724,7 @@ begin
     }
   })
   cvs.addEventListener('click', e=>{
+    if(mode !== 'single') return
     if(panMoved || selectedIdx < 0) return
     const [mx, my] = viewPoint(e.offsetX, e.offsetY)
     if(!hitTest(mx, my) && nearestPathIndex(mx, my) < 0){
@@ -525,7 +735,9 @@ begin
   })
 
   par.querySelector('#rgreset').addEventListener('click', ()=>{
-    distanceDeg = 120; depthKm = 20; redraw(); emit()
+    depthKm = 20
+    if(mode === 'pair'){ distanceBDeg = 20; sourceThetaDeg = 50 } else { distanceDeg = 120 }
+    redraw(); emit()
   })
   par.querySelector('#rgzoomin').addEventListener('click', ()=>setZoom(zoom * 1.25))
   par.querySelector('#rgzoomout').addEventListener('click', ()=>setZoom(zoom / 1.25))
@@ -540,6 +752,93 @@ begin
     redraw()
   })
 
+  const rgReadout = par.querySelector('#rgreadout')
+  const rgTitleDesc = par.querySelector('#rgtitledesc')
+  const rgTitleHint = par.querySelector('#rgtitlehint')
+  const modeSingleBtn = par.querySelector('#rgmodesingle')
+  const modePairBtn = par.querySelector('#rgmodepair')
+  const rgComboRow = par.querySelector('#rgcomborow')
+  const rgComboSelect = par.querySelector('#rgcombo')
+
+  function syncModeUI(){
+    modeSingleBtn.classList.toggle('active', mode==='single')
+    modePairBtn.classList.toggle('active', mode==='pair')
+    rgReadout.style.display = mode==='pair' ? 'block' : 'none'
+    rgComboRow.style.display = mode==='pair' ? 'flex' : 'none'
+    if(mode==='pair'){
+      rgTitleDesc.textContent = 'Cross-correlating a body-wave arrival at two receivers is only coherent for certain earthquake positions — drag the source to find where.'
+      rgTitleHint.textContent = 'drag the source anywhere on the circle (any azimuth, any depth), drag receiver B to set interstation distance · every phase-to-A/phase-to-B combination is searched automatically, ranked by gradient magnitude · step through them with the dropdown below · hover a leg for its phase and travel time'
+    } else {
+      rgTitleDesc.textContent = 'Where the earthquake and receiver sit determines which seismic phases connect them, and how fast each one travels.'
+      rgTitleHint.textContent = 'drag the red source or the blue receiver · zoom and drag empty space to pan · double-click a ray to isolate it'
+    }
+  }
+
+  // Rebuilds the dropdown from pairData.combos (already sorted best-(smallest-gradient)-
+  // first by the push cell) -- called once per push, since the list itself only changes
+  // on a new commit.
+  function rebuildComboDropdown(){
+    rgComboSelect.innerHTML = ''
+    const combos = (pairData && pairData.combos) || []
+    combos.forEach((c, i) => {
+      const opt = document.createElement('option')
+      opt.value = i
+      opt.textContent = (i+1) + '. ' + c.phaseA + ' / ' + c.phaseB + '  (|∇|=' + c.score.toFixed(3) + ')'
+      rgComboSelect.appendChild(opt)
+    })
+    selectedComboIdx = 0
+    rgComboSelect.value = 0
+  }
+
+  function updatePairReadout(){
+    const sel = selectedCombo()
+    if(!pairData || !sel){ rgReadout.textContent = 'Waiting for travel times…'; return }
+    const fmt = v => Number.isFinite(v) ? v.toFixed(3) : 'n/a'
+    rgReadout.innerHTML = 'shown: <b>' + sel.phaseA + '</b> (to A) / <b>' + sel.phaseB + '</b> (to B)' +
+      ' &middot; t_A = ' + fmt(sel.tA) + ' s &middot; t_B = ' + fmt(sel.tB) +
+      ' s &middot; Δt = ' + fmt(sel.dt) + ' s &middot; d(Δt)/dθ = ' + fmt(sel.ddt_dtheta) + ' s/deg' +
+      ' &middot; d(Δt)/d(depth) = ' + fmt(sel.ddt_ddepth) + ' s/km &middot; |∇| = ' + sel.score.toFixed(3) +
+      ' &middot; ' + pairData.n_total + ' combination(s) ranked' +
+      (selectedComboIdx === 0 ? ' <span style="color:#facc15;font-weight:700">— best available</span>' : '')
+  }
+
+  modeSingleBtn.addEventListener('click', ()=>{
+    if(mode !== 'single'){ mode = 'single'; syncModeUI(); redraw(); emit() }
+  })
+  modePairBtn.addEventListener('click', ()=>{
+    if(mode !== 'pair'){ mode = 'pair'; syncModeUI(); redraw(); emit() }
+  })
+  // rgcombo is a local-only control -- its own native 'input' event must never reach
+  // Julia. Pluto's own @bind listener (see SpaceStation's frontend/common/Bond.js,
+  // add_bonds_listener/input_generator) attaches a plain, non-capture 'input' listener
+  // directly on `par` itself and republishes whatever `par.value` currently holds
+  // (the stale last-dispatched emit() payload) whenever ANY 'input' event reaches that
+  // node -- including one that simply bubbled up from a descendant control we never
+  // intended to be part of the bond. A native <select> fires 'input' (not just
+  // 'change') on selection, and that bubbles straight up to `par` unless stopped
+  // first. Fix: stop it at the control itself, before it can bubble any further --
+  // no capture phase or `par`-level registration-order tricks needed, since Pluto's
+  // listener lives on a different (ancestor) node than the control that fires the
+  // event. See the pluto_bond_input_bubbling project memory for the earlier, wrong
+  // theory (capture-phase-on-`par`) this replaced after checking the actual source.
+  rgComboSelect.addEventListener('input', e => e.stopPropagation())
+  rgComboSelect.addEventListener('change', e => {
+    e.stopPropagation()
+    selectedComboIdx = parseInt(rgComboSelect.value, 10) || 0
+    updatePairReadout()
+    redraw()
+  })
+
+  window.addEventListener('pair-results', e=>{
+    const d = e.detail ? JSON.parse(e.detail) : null
+    if(!d) return
+    pairData = d
+    rebuildComboDropdown()
+    updatePairReadout()
+    redraw()
+  })
+
+  syncModeUI()
   redraw(); emit()
 </script>
 """)
@@ -562,6 +861,18 @@ begin
     )
 end
 
+# ╔═╡ 93523ef3-a432-4149-9625-5df24d594a3b
+# Kept separate from `geometry` on purpose: neither NamedTuple depends on the other's
+# fields, so switching modes (or dragging within one mode) never triggers the other
+# mode's TauP calls -- Pluto's own reactivity does the work, no manual mode branching
+# needed at the cell level.
+pairgeom = (
+    mode=String(arrival_controls["mode"]),
+    receiverB_distance=Float64(arrival_controls["receiverB_distance"]),
+    source_theta=Float64(arrival_controls["source_theta"]),
+    source_depth=Float64(arrival_controls["source_depth"]),
+)
+
 # ╔═╡ 9b0b4e7e-fd8f-4573-af80-ed76ff2848f5
 md"## Appendix"
 
@@ -579,6 +890,182 @@ model = taup.TauPyModel(model="iasp91")
 # ╔═╡ 7568eb42-fe1b-44bc-86a1-dda9200bb49b
 arrivals = model.get_ray_paths(geometry.source_depth, geometry.receiver_distance)
 
+# ╔═╡ fa53c223-57b8-4c9d-a547-3de261fd817f
+"""
+    fold_distance(raw_deg)
+
+Fold a raw angular separation (possibly negative or beyond 360°) into the
+conventional epicentral-distance range `[0°,180°]` this notebook uses everywhere a
+distance is handed to TauP.
+"""
+fold_distance(raw_deg) = (d = mod(raw_deg, 360.0); d > 180.0 ? 360.0 - d : d)
+
+# ╔═╡ ab12c001-0a11-4b7d-9b1e-1a2b3c4d5e6f
+"""
+    direction_sign(from_deg, to_deg)
+
+Sign of the shortest angular step from `from_deg` to `to_deg` around the circle:
+`+1` if the receiver is reached by increasing angle, `-1` if by decreasing angle.
+Used to re-express a ray's source-local signed angle (which
+[`mirrored_arrival_segments`](@ref) always computes as if "the receiver sits at
+`+distance` from the source") in the shared circle's absolute frame, since in the
+interstation-pair mode the source is no longer pinned to θ=0.
+"""
+function direction_sign(from_deg, to_deg)
+    δ = mod(to_deg - from_deg + 180.0, 360.0) - 180.0
+    return δ >= 0 ? 1.0 : -1.0
+end
+
+# ╔═╡ e9753314-220b-4f6e-a996-951a93a02af5
+"""
+    single_travel_time(model, depth_km, distance_deg, phase)
+
+Travel time (s) of `phase` at `distance_deg` for a source at `depth_km`, or
+`missing` if that phase has no arrival there (shadow zone). Uses
+`get_travel_times`, not `get_ray_paths` -- no path geometry is computed, just the
+scalar time. Only used by the validation self-check below, as the simplest possible
+demonstration of the finite-difference idea for one fixed phase; the interstation-pair
+mode itself searches every phase via [`phase_time_dict`](@ref) instead, since the two
+receivers need not share a phase name.
+"""
+function single_travel_time(model, depth_km, distance_deg, phase)
+    arr = model.get_travel_times(depth_km, distance_deg, [phase])
+    n = pyconvert(Int, arr.__len__())
+    return n == 0 ? missing : pyconvert(Float64, arr[0].time)
+end
+
+# ╔═╡ 6f8a2b3d-1c4e-4f7a-9b6d-8e2a5c7d9f10
+"""
+    phase_time_dict(model, depth_km, distance_deg)
+
+Every phase's travel time at `distance_deg` for a source at `depth_km`, as a
+`Dict{String,Float64}` mapping phase name to time. Requests `"ttall"` (TauP's
+"every phase this model can produce" convenience name -- the same default
+`get_ray_paths`/`get_travel_times` already use elsewhere in this notebook), so this
+is genuinely every candidate, not a hand-picked shortlist. A phase that triplicates
+(multiple arrivals with the same name at this distance, e.g. `P` near 20°) keeps only
+its fastest arrival -- a reasonable, well-defined choice for "does this phase exist
+here" without complicating the caller with which branch.
+"""
+function phase_time_dict(model, depth_km, distance_deg)
+    arr = model.get_travel_times(depth_km, distance_deg, ["ttall"])
+    n = pyconvert(Int, arr.__len__())
+    d = Dict{String,Float64}()
+    for i in 0:(n-1)
+        name = pyconvert(String, arr[i].name)
+        t = pyconvert(Float64, arr[i].time)
+        if !haskey(d, name) || t < d[name]
+            d[name] = t
+        end
+    end
+    return d
+end
+
+# ╔═╡ 9c3e7f21-4a8b-4d6c-a1f5-2b9d8e6c4a30
+"""
+    find_stationary_phase_combos(model, depth_km, θS, θB; δθ=1.0, δd=5.0)
+
+Search every `(phase_to_A, phase_to_B)` combination -- the two legs need not share a
+phase name -- and rank them by how close each comes to making the differential travel
+time `Δt = t_B(phase_to_B) - t_A(phase_to_A)` stationary with respect to *both* the
+source's azimuth θ and its depth, using a 3-point finite difference along each axis
+independently (a "plus"-shaped stencil: the center position plus one neighbor step
+each side along θ and along depth -- 5 geometry evaluations total, not a full 2-D
+grid, since only the two partial derivatives are needed, not curvature).
+
+Each geometry evaluation is a single [`phase_time_dict`](@ref) call (one TauP round
+trip returns every phase's time at once), so the combination search itself -- however
+many phases exist -- costs nothing beyond arithmetic and dictionary lookups on top of
+5 calls per receiver (10 total), regardless of how many combinations are ranked.
+
+Ranking uses the normalized combined score `hypot(ddt_dtheta/θ_ref, ddt_ddepth/d_ref)`
+against two fixed internal reference scales (0.3 s/deg, 0.05 s/km, rough orders of
+magnitude for "small" body-wave derivatives) -- not exposed as a tunable threshold:
+with a ranked dropdown for the student to step through, a hard qualify/reject cutoff
+isn't needed, only a single comparable number that lets two different-unit quantities
+(s/deg, s/km) sort against each other consistently.
+
+Returns `nothing` if no combination has a valid (non-missing) reading at all 5
+positions for both receivers. Otherwise a `NamedTuple` with `all::Vector` (every
+combination, sorted best-(smallest-score)-first, each with `phaseA`, `phaseB`, `tA`,
+`tB`, `dt`, `ddt_dtheta`, `ddt_ddepth`, `score`) and `best` (== `first(all)`).
+"""
+function find_stationary_phase_combos(model, depth_km, θS, θB; δθ=1.0, δd=5.0)
+    theta_ref, depth_ref = 0.3, 0.05
+    dA_c = fold_distance(θS)
+    dB_c = fold_distance(θS - θB)
+    dA_tm, dA_tp = fold_distance(θS - δθ), fold_distance(θS + δθ)
+    dB_tm, dB_tp = fold_distance(θS - δθ - θB), fold_distance(θS + δθ - θB)
+    depth_lo, depth_hi = max(depth_km - δd, 0.0), depth_km + δd
+
+    tA_c = phase_time_dict(model, depth_km, dA_c)
+    tA_tm = phase_time_dict(model, depth_km, dA_tm)
+    tA_tp = phase_time_dict(model, depth_km, dA_tp)
+    tA_dlo = phase_time_dict(model, depth_lo, dA_c)
+    tA_dhi = phase_time_dict(model, depth_hi, dA_c)
+
+    tB_c = phase_time_dict(model, depth_km, dB_c)
+    tB_tm = phase_time_dict(model, depth_km, dB_tm)
+    tB_tp = phase_time_dict(model, depth_km, dB_tp)
+    tB_dlo = phase_time_dict(model, depth_lo, dB_c)
+    tB_dhi = phase_time_dict(model, depth_hi, dB_c)
+
+    candidates = NamedTuple[]
+    for (pA, tAc) in tA_c
+        (haskey(tA_tm, pA) && haskey(tA_tp, pA) && haskey(tA_dlo, pA) && haskey(tA_dhi, pA)) || continue
+        for (pB, tBc) in tB_c
+            (haskey(tB_tm, pB) && haskey(tB_tp, pB) && haskey(tB_dlo, pB) && haskey(tB_dhi, pB)) || continue
+            ddt_dtheta = ((tB_tp[pB] - tA_tp[pA]) - (tB_tm[pB] - tA_tm[pA])) / (2δθ)
+            ddt_ddepth = ((tB_dhi[pB] - tA_dhi[pA]) - (tB_dlo[pB] - tA_dlo[pA])) / (depth_hi - depth_lo)
+            score = hypot(ddt_dtheta / theta_ref, ddt_ddepth / depth_ref)
+            push!(candidates, (phaseA=pA, phaseB=pB, tA=tAc, tB=tBc, dt=tBc - tAc,
+                ddt_dtheta=ddt_dtheta, ddt_ddepth=ddt_ddepth, score=score))
+        end
+    end
+    isempty(candidates) && return nothing
+
+    sort!(candidates; by=c -> c.score)
+    return (all=candidates, best=first(candidates))
+end
+
+# ╔═╡ 38240666-b7c0-4d81-9d61-04b5d3246dbc
+"""
+    mirrored_arrival_segments(arrival, taup_model, taup_utils; theta_source=0.0, direction=1.0)
+
+Split `arrival`'s path into P/S-tagged segments (via `taup_utils.split_ray_path`),
+applying the same "other side of the source" mirror correction obspy's own
+`plot_rays` uses (comparing `purist_distance % 360` against the requested
+`distance`), then re-express each segment's angle in the shared circle's *absolute*
+frame: `theta_source + direction * local_theta`. With the defaults
+(`theta_source=0`, `direction=1`) this reduces exactly to the single-receiver mode's
+placement convention (source fixed at the top, receiver at `+distance`), which is
+also why the single-receiver push cell below now calls this function instead of
+duplicating the mirror check.
+
+Returns a `Vector` of `(wave::String, dist::Vector{Float64}, depth::Vector{Float64})`
+named tuples; `dist` is in radians, already in the absolute frame.
+"""
+function mirrored_arrival_segments(arrival, taup_model, taup_utils; theta_source=0.0, direction=1.0)
+    purist_dist = pyconvert(Float64, arrival.purist_distance) % 360.0
+    req_distance = pyconvert(Float64, arrival.distance)
+    req_distance < 0 && (req_distance = req_distance % 360.0)
+    mirror = abs(purist_dist - req_distance) > 1e-5 * purist_dist
+    paths_py, waves_py = taup_utils.split_ray_path(arrival.path, taup_model)
+    n_seg = pyconvert(Int, paths_py.__len__())
+    θ0 = deg2rad(theta_source)
+    segs = NamedTuple{(:wave, :dist, :depth),Tuple{String,Vector{Float64},Vector{Float64}}}[]
+    for si in 0:(n_seg-1)
+        seg = paths_py[si]
+        wave = pyconvert(String, waves_py[si])
+        dist = pyconvert(Vector{Float64}, seg["dist"])
+        mirror && (dist = .-dist)
+        dist = θ0 .+ direction .* dist
+        depth = pyconvert(Vector{Float64}, seg["depth"])
+        push!(segs, (wave=wave, dist=dist, depth=depth))
+    end
+    return segs
+end
+
 # ╔═╡ 460863de-314c-4196-b72b-eb6382cce6f7
 # Push every computed ray path (not just a filtered subset) straight into the
 # RayGeometryInput widget above -- it stays mounted across reruns of this cell, same
@@ -593,18 +1080,11 @@ let
     for arrival in arrivals
         name = pyconvert(String, arrival.name)
         t = pyconvert(Float64, arrival.time)
-        paths_py, waves_py = taup_utils.split_ray_path(arrival.path, model.model)
-        n_seg = pyconvert(Int, paths_py.__len__())
-        seg_entries = String[]
-        for si in 0:(n_seg-1)
-            seg = paths_py[si]
-            wave = pyconvert(String, waves_py[si])
-            dist = pyconvert(Vector{Float64}, seg["dist"])
-            depth = pyconvert(Vector{Float64}, seg["depth"])
-            push!(seg_entries, string(
-                "{\"wave\":\"", wave, "\",\"dist\":", jsonarr(dist), ",\"depth\":", jsonarr(depth), "}",
-            ))
-        end
+        segs = mirrored_arrival_segments(arrival, model.model, taup_utils)
+        seg_entries = String[
+            string("{\"wave\":\"", s.wave, "\",\"dist\":", jsonarr(s.dist), ",\"depth\":", jsonarr(s.depth), "}")
+            for s in segs
+        ]
         push!(entries, string(
             "{\"name\":\"", name, "\",\"time\":", num(t), ",\"segments\":[", join(seg_entries, ","), "]}",
         ))
@@ -613,6 +1093,134 @@ let
     HTML("""<script>
       window.dispatchEvent(new CustomEvent('raypath-results', {detail: $(repr(payload))}));
     </script>""")
+end
+
+# ╔═╡ 2fe5a62f-9701-4909-a65b-3f68c2736604
+# Interstation-pair mode's push cell: [`find_stationary_phase_combos`](@ref) searches
+# every (phase-to-A, phase-to-B) combination (10 `get_travel_times` calls total,
+# however many phases exist), sorted by gradient magnitude so the widget's dropdown
+# can list them best-first. This cell then fetches the real ray paths for every phase
+# referenced anywhere in that list -- deduplicated first, so it's exactly 2 more
+# `get_ray_paths` calls (one per receiver, each given the full list of needed phases
+# at once) no matter how many combinations are listed; the dropdown then switches
+# between already-pushed segments client-side, no further TauP round trip per
+# selection. Independent of the single-receiver mode's `geometry`/`arrivals`/push
+# cell, so switching modes never triggers the other mode's TauP calls.
+let
+    θS, θB, depth = pairgeom.source_theta, pairgeom.receiverB_distance, pairgeom.source_depth
+    result = find_stationary_phase_combos(model, depth, θS, θB)
+
+    num(x) = x === missing || !isfinite(x) ? "null" : string(round(x, sigdigits=6))
+    jsonarr(v) = "[" * join(string.(round.(v, sigdigits=6)), ",") * "]"
+    segjson(segs) = "[" * join([string("{\"phase\":\"", s.phase, "\",\"wave\":\"", s.wave, "\",\"dist\":", jsonarr(s.dist), ",\"depth\":", jsonarr(s.depth), "}") for s in segs], ",") * "]"
+    combojson(c) = string("{\"phaseA\":\"", c.phaseA, "\",\"phaseB\":\"", c.phaseB, "\",\"tA\":", num(c.tA),
+        ",\"tB\":", num(c.tB), ",\"dt\":", num(c.dt), ",\"ddt_dtheta\":", num(c.ddt_dtheta),
+        ",\"ddt_ddepth\":", num(c.ddt_ddepth), ",\"score\":", num(c.score), "}")
+
+    if result === nothing
+        payload = "{\"combos\":[],\"n_total\":0,\"segmentsA\":[],\"segmentsB\":[]}"
+    else
+        # `all` is already sorted best-(smallest-gradient)-first. List only the top
+        # MAX_LISTED (there is no more qualify/reject threshold to naturally bound the
+        # list -- every combination is ranked, so without a cap this could be
+        # hundreds/thousands of dropdown entries for a distance where many phases exist).
+        MAX_LISTED = 40
+        listed = result.all[1:min(MAX_LISTED, length(result.all))]
+
+        phasesA = unique(c.phaseA for c in listed)
+        phasesB = unique(c.phaseB for c in listed)
+        dA, dB = fold_distance(θS), fold_distance(θS - θB)
+        arrivalsA = model.get_ray_paths(depth, dA, phasesA)
+        arrivalsB = model.get_ray_paths(depth, dB, phasesB)
+        segsA = NamedTuple[]
+        for a in arrivalsA, s in mirrored_arrival_segments(a, model.model, taup_utils; theta_source=θS, direction=direction_sign(θS, 0.0))
+            push!(segsA, (; phase=pyconvert(String, a.name), s...))
+        end
+        segsB = NamedTuple[]
+        for a in arrivalsB, s in mirrored_arrival_segments(a, model.model, taup_utils; theta_source=θS, direction=direction_sign(θS, θB))
+            push!(segsB, (; phase=pyconvert(String, a.name), s...))
+        end
+        payload = string(
+            "{\"combos\":[", join(combojson.(listed), ","), "]",
+            ",\"n_total\":", length(result.all),
+            ",\"segmentsA\":", segjson(segsA), ",\"segmentsB\":", segjson(segsB), "}",
+        )
+    end
+    HTML("""<script>
+      window.dispatchEvent(new CustomEvent('pair-results', {detail: $(repr(payload))}));
+    </script>""")
+end
+
+# ╔═╡ e756b9d4-49a6-42b0-b9f9-f53043c29fce
+md"""
+### Validating the interstation-pair mode
+
+Two independent checks on the pieces above, using a fixed test geometry (not the
+live widget state) so this always runs the same way regardless of how the widget is
+currently set:
+"""
+
+# ╔═╡ 5489738b-27be-4bcc-bc44-a33bc581cd8a
+let
+    # Check 1: the reported dΔt/dθ shouldn't be an artifact of too coarse a
+    # finite-difference step -- halving δ should barely change the estimate.
+    # θS=50°, θB=20° keep both dA=fold_distance(θS)≈50° and dB=fold_distance(θS-θB)≈30°
+    # (and their ±δ neighbors) well inside "P"'s ~100° direct-arrival range -- a test
+    # geometry that lands in the shadow zone would return `missing` here instead of a
+    # real number, which is a test-setup mistake, not evidence of a widget bug.
+    test_depth, test_θS, test_θB, test_phase = 100.0, 50.0, 20.0, "P"
+    function ddt(δ)
+        f(θ) = single_travel_time(model, test_depth, fold_distance(θ - test_θB), test_phase) -
+               single_travel_time(model, test_depth, fold_distance(θ), test_phase)
+        return (f(test_θS + δ) - f(test_θS - δ)) / (2δ)
+    end
+    coarse, fine = ddt(1.0), ddt(0.1)
+    # The travel-time curve isn't perfectly linear, so a 1° vs 0.1° step won't agree to
+    # machine precision -- a few percent (curvature-driven) is expected and fine; only
+    # a much larger disagreement would mean the derivative estimate itself is unsound.
+    @assert isapprox(coarse, fine; rtol=2e-2) "finite-difference derivative is step-size sensitive: $coarse vs $fine"
+
+    # Check 2: every drawn segment for a receiver must actually terminate at that
+    # receiver's own absolute angle -- the geometry note in the notebook text above
+    # (θ_absolute = θ_source + direction_sign × local_theta) is otherwise easy to get
+    # backwards.
+    dA_test = fold_distance(test_θS)
+    dB_test = fold_distance(test_θS - test_θB)
+    arrsA = model.get_ray_paths(test_depth, dA_test, [test_phase])
+    arrsB = model.get_ray_paths(test_depth, dB_test, [test_phase])
+    for a in arrsA
+        segs = mirrored_arrival_segments(a, model.model, taup_utils; theta_source=test_θS, direction=direction_sign(test_θS, 0.0))
+        endpoint_deg = mod(rad2deg(last(last(segs).dist)), 360.0)
+        @assert isapprox(endpoint_deg, mod(0.0, 360.0); atol=1e-2) || isapprox(endpoint_deg, 360.0; atol=1e-2) "leg to A ends at $endpoint_deg°, not receiver A's 0°"
+    end
+    for a in arrsB
+        segs = mirrored_arrival_segments(a, model.model, taup_utils; theta_source=test_θS, direction=direction_sign(test_θS, test_θB))
+        endpoint_deg = mod(rad2deg(last(last(segs).dist)), 360.0)
+        @assert isapprox(endpoint_deg, mod(test_θB, 360.0); atol=1e-2) "leg to B ends at $endpoint_deg°, not receiver B's $(test_θB)°"
+    end
+
+    # Check 3: same idea as Check 1, but for the depth derivative -- halving the depth
+    # step shouldn't change d(Δt)/d(depth) much either.
+    function ddepth(δd)
+        f(d) = single_travel_time(model, d, dB_test, test_phase) - single_travel_time(model, d, dA_test, test_phase)
+        return (f(test_depth + δd) - f(test_depth - δd)) / (2δd)
+    end
+    coarse_d, fine_d = ddepth(5.0), ddepth(1.0)
+    @assert isapprox(coarse_d, fine_d; atol=5e-3) "depth finite-difference is step-size sensitive: $coarse_d vs $fine_d"
+
+    # Check 4: find_stationary_phase_combos' own per-combination arithmetic for the P/P
+    # entry, cross-checked against Checks 1/3's independently-written reference (same
+    # test geometry, same phase) -- catches an arithmetic slip in the combinatorial
+    # search itself that Checks 1-3 (which never call it) couldn't.
+    combo_check = find_stationary_phase_combos(model, test_depth, test_θS, test_θB)
+    @assert combo_check !== nothing "find_stationary_phase_combos found no valid combination for the test geometry"
+    pp_idx = findfirst(c -> c.phaseA == test_phase && c.phaseB == test_phase, combo_check.all)
+    @assert pp_idx !== nothing "the P/P combination itself is missing from find_stationary_phase_combos' output"
+    pp = combo_check.all[pp_idx]
+    @assert isapprox(pp.ddt_dtheta, coarse; rtol=1e-6) "P/P combo θ-derivative mismatch: $(pp.ddt_dtheta) vs reference $coarse"
+    @assert isapprox(pp.ddt_ddepth, coarse_d; rtol=1e-6) "P/P combo depth-derivative mismatch: $(pp.ddt_ddepth) vs reference $coarse_d"
+
+    Markdown.parse("All checks passed: `dΔt/dθ` at `δ=1°` ($(round(coarse,digits=5)) s/deg) and `δ=0.1°` ($(round(fine,digits=5)) s/deg) agree; `dΔt/d(depth)` at `δ=5 km` ($(round(coarse_d,digits=5)) s/km) and `δ=1 km` ($(round(fine_d,digits=5)) s/km) agree; every drawn leg's endpoint lands on its receiver's own absolute angle; and `find_stationary_phase_combos`' own P/P arithmetic matches this independently-written reference exactly. The widget's actual best-ranked combo for this test geometry is **$(combo_check.best.phaseA) / $(combo_check.best.phaseB)**, out of $(length(combo_check.all)) combinations ranked.")
 end
 
 # ╔═╡ 5d94e67e-5334-4e1c-9838-749b2318c66d
@@ -1057,6 +1665,8 @@ version = "0.63.2+0"
 # ╟─6b3bba88-b693-4e39-8866-8166dfc55c30
 # ╟─0426c6fd-4bb8-413f-b552-0112434d907c
 # ╠═e0c1ab0d-32c5-47b4-9d89-e2e51c2fe0dd
+# ╠═93523ef3-a432-4149-9625-5df24d594a3b
+# ╟─7818c947-9bef-4399-9827-7e4a81a50962
 # ╠═8967b290-ec9f-4f8d-bca7-91d2c8c8ff18
 # ╟─9b0b4e7e-fd8f-4573-af80-ed76ff2848f5
 # ╠═47b2c09a-2ae8-49f0-ba73-ddb6868417b1
@@ -1064,7 +1674,16 @@ version = "0.63.2+0"
 # ╠═1e7a3c9a-6c2f-4b3a-9c5f-2a6f7e8b9d10
 # ╠═23f2f44c-144a-4fd1-a429-656bf0af4cca
 # ╠═7568eb42-fe1b-44bc-86a1-dda9200bb49b
+# ╠═fa53c223-57b8-4c9d-a547-3de261fd817f
+# ╠═ab12c001-0a11-4b7d-9b1e-1a2b3c4d5e6f
+# ╠═e9753314-220b-4f6e-a996-951a93a02af5
+# ╠═6f8a2b3d-1c4e-4f7a-9b6d-8e2a5c7d9f10
+# ╠═9c3e7f21-4a8b-4d6c-a1f5-2b9d8e6c4a30
+# ╠═38240666-b7c0-4d81-9d61-04b5d3246dbc
 # ╠═460863de-314c-4196-b72b-eb6382cce6f7
+# ╠═2fe5a62f-9701-4909-a65b-3f68c2736604
+# ╟─e756b9d4-49a6-42b0-b9f9-f53043c29fce
+# ╠═5489738b-27be-4bcc-bc44-a33bc581cd8a
 # ╟─5d94e67e-5334-4e1c-9838-749b2318c66d
 # ╟─00000000-0000-0000-0000-000000000001
 # ╟─00000000-0000-0000-0000-000000000002
