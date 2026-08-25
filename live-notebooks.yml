@@ -47,7 +47,6 @@ sections:
     live:
       - Ray Theory/global-seismic-arrivals.jl
       - Ray Theory/ray-theory-eikonal-equation.jl
-    static:
       - Ray Theory/ray-tomography.jl
 
   - name: Earth Structure and Internal Layers
