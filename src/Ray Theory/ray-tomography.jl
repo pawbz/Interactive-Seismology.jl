@@ -68,19 +68,19 @@ Indian Institute of Science, Bengaluru, India
 # ╔═╡ f9089736-3744-4382-8bc0-68fc04b3cddb
 md"""
 ## Forward Problem
-In order to create an accurate image of the Earth's subsurface using seismic tomography, we need to first generate observed data. To do this, we will construct the forward operator $G$, which takes into account the model grid and the source-receiver setup. The forward problem is represented by the equation $G\times\,s$, where $s$ is the model (slowness) vector.
+In order to create an accurate image of the Earth's subsurface using seismic tomography, we need to first generate observed data. To do this, we will construct the forward operator ``G``, which takes into account the model grid and the source-receiver setup. The forward problem is represented by the equation ``G \times s``, where ``s`` is the model (slowness) vector.
 In this process, we will generate true seismic velocity and slowness arrays based on user input. These arrays will then be used to generate synthetic observations. 
 """
 
 # ╔═╡ 5bbb5349-534a-48e2-8da5-08527784bc87
 md"""
 ### Row Picture
-The row picture of $G \times s$ illustrates the relationship between the slowness vector and the traveltime errors. It shows that the raypaths (rows of $G$) that have the strongest correlation with the slowness vector will have a higher traveltime error when compared to the others. This is because when a raypath passes through all the perturbed pixels of the medium, it will experience a greater delay, leading to a higher traveltime residual. In other words, the higher the correlation of a raypath with slowness vector, the more it is affected by the perturbations in the medium and hence higher traveltime residual.
+The row picture of ``G \times s`` illustrates the relationship between the slowness vector and the traveltime errors. It shows that the raypaths (rows of ``G``) that have the strongest correlation with the slowness vector will have a higher traveltime error when compared to the others. This is because when a raypath passes through all the perturbed pixels of the medium, it will experience a greater delay, leading to a higher traveltime residual. In other words, the higher the correlation of a raypath with slowness vector, the more it is affected by the perturbations in the medium and hence higher traveltime residual.
 """
 
 # ╔═╡ 7883ecc5-b01f-49d3-98c0-67676701e90e
 md"### Column Picture
-The column picture of $G \times s$ gives insight into the tradeoff between different pixels in the model grid. When two pixels are illuminated by a similar set of raypaths, they appear as dependent columns in the matrix $G$. As a result, these dependent columns can be linearly combined to produce no effect on the observed travel times. This means that changes in the slowness in these dependent pixels will not have any effect on the calculated traveltimes, and thus the solution to the inverse problem is not unique. It is important to keep in mind the tradeoff between these pixels while solving the inverse problem, and regularization may be needed to obtain a unique solution.
+The column picture of `G \times s` gives insight into the tradeoff between different pixels in the model grid. When two pixels are illuminated by a similar set of raypaths, they appear as dependent columns in the matrix `G`. As a result, these dependent columns can be linearly combined to produce no effect on the observed travel times. This means that changes in the slowness in these dependent pixels will not have any effect on the calculated traveltimes, and thus the solution to the inverse problem is not unique. It is important to keep in mind the tradeoff between these pixels while solving the inverse problem, and regularization may be needed to obtain a unique solution.
 "
 
 # ╔═╡ 792e9b54-3438-4338-913c-190565d38029
@@ -92,12 +92,12 @@ Gradient is formed by backpropagation of traveltime residuals.
 # ╔═╡ 9a5bac04-d1d9-49f4-b7c4-b18bfdd436ef
 md"""
 ### Column Picture
-The column picture of $G^{\text{T}} \times \Delta d$ illustrates how the traveltime residuals are distributed across the model grid. It represents a weighted sum of the raypaths, where the weights are given by the traveltime residuals. This means that higher values in the model will be spread along the raypaths whose associated traveltimes do not match the observed traveltimes.
+The column picture of ``G^{\text{T}} \times \Delta d`` illustrates how the traveltime residuals are distributed across the model grid. It represents a weighted sum of the raypaths, where the weights are given by the traveltime residuals. This means that higher values in the model will be spread along the raypaths whose associated traveltimes do not match the observed traveltimes.
 """
 
 # ╔═╡ 6680a1f4-0cc5-4dc8-a0a2-f5b5014c712a
 md"""### Row Picture
-The row picture of $G^{\text{T}} \times \Delta d$ represents the correlation between the model pixels and the data residuals. It shows that the model pixels whose ray distribution corresponds with the data residuals are given a larger weight. In other words, pixels that are intersected by high-residual rays are highlighted, or this means that the pixels in the model that are most responsible for the residuals in the data will be given more weight in the image.
+The row picture of ``G^{\text{T}} \times \Delta d`` represents the correlation between the model pixels and the data residuals. It shows that the model pixels whose ray distribution corresponds with the data residuals are given a larger weight. In other words, pixels that are intersected by high-residual rays are highlighted, or this means that the pixels in the model that are most responsible for the residuals in the data will be given more weight in the image.
 """
 
 # ╔═╡ 924555b0-5ddc-4ee5-ad32-4696f9fb47e4
@@ -109,6 +109,9 @@ Here, we shall simply use the Moore-Penrose pseudoinverse to map the observed tr
 # ╔═╡ 4344de43-abfa-45c6-ab84-8578ba87f60f
 λrange = logrange(1e-5, 1e5, length=100) |> collect
 
+# ╔═╡ 7a0d1e30-3000-4a00-9000-000000000001
+md"### Tikhonov & First-Difference Inversion"
+
 # ╔═╡ 1bc87b69-a59c-4074-b57d-011bf5e3df73
 md"Finally, we will take the inverse of slowness and reshape it to produce the final 2-D seismic velocity model."
 
@@ -119,6 +122,9 @@ md"Check if the observations are satisfied by the estimated model."
 md"""
 As a sanity check, we will now test the operator `G` by computing travel times in a homogeneous medium analytically. This will make sure that raytracing is done correctly.
 """
+
+# ╔═╡ 7a0d1e30-3000-4a00-9000-000000000002
+md"### Validating the Forward Operator"
 
 # ╔═╡ 1547ff9a-0fa8-4295-94dd-73bd3678129f
 # get inverse operator using SVD (damped least squares)
@@ -134,108 +140,88 @@ end
 c = Dict(["Backpropagate the data residual" => :grad_slowness, "Estimate seismic velocity" => :cest])
 
 # ╔═╡ df1f716a-f961-4f6b-821c-e1038f190449
-md"## Uncertainity"
+md"## Uncertainty"
 
 # ╔═╡ 27465f25-d6c7-4855-a20f-1142b8cd3e9f
 md"[Scree plot](https://en.wikipedia.org/wiki/Scree_plot#:~:text=In%20multivariate%20statistics%2C%20a%20scree,principal%20component%20analysis%20(PCA).)"
 
-# ╔═╡ 70e78f3d-a261-43b1-a590-966c7c96021c
-md"Slider to choose the row of the Hessian matrix."
+# ╔═╡ 7a0d1e30-3000-4a00-9000-000000000003
+md"### Resolution, Uncertainty & the Hessian"
 
-# ╔═╡ fe682b63-2a06-4c32-8dc0-2f99ba48a873
-@bind irowm Slider(1:(length(xgrid_inv)-1)*(length(zgrid_inv)-1), show_value=true, default=div(length(xgrid_inv) * length(zgrid_inv), 4))
+# ╔═╡ 70e78f3d-a261-43b1-a590-966c7c96021c
+md"Click a pixel on the **Inverted Model** panel (in the widget above) -- its Hessian row and model-resolution row already update live in the widget's own third panel. The full Hessian matrix below is a complementary, complete-matrix view of the same quantity."
 
 # ╔═╡ ae30bfd8-6b42-4aa7-90f2-e7303b359b94
 md"""
-We will now vis. rows of data and model resolution matrices.
+We will now visualize a row of the data resolution matrix. Click a ray on the **True Model & Rays** panel above (in `paint` mode) to choose which row to show.
 """
-
-# ╔═╡ 1807eb3a-ce0b-46fe-8c70-fa4af3d9ebad
-@bind irowd Slider(1:acq.nr*acq.ns, show_value=true)
 
 # ╔═╡ 010a12e2-1abc-4471-a81b-005c30578e63
 md"## Appendix"
 
-# ╔═╡ 6a0e653c-5a60-48d6-a3de-2c9409558b71
-import PlutoUIExtra
-
-# ╔═╡ 3b3342fd-e1f9-4bb0-ac0e-580b2ec2af2b
-PlutoUIExtra.Sidebar(
-	(@bind acq confirm(acq_input())), location="center left"
-)
-
-# ╔═╡ 81f6f055-fd51-455a-9dae-bc8a03b0d94f
-PlutoUIExtra.Sidebar(
-	(@bind pert confirm(perturbation_input(xgrid, zgrid))),
-	md"---",
-	(@bind regenerate_medium CounterButton("Regenerate Medium")), location="upper left"
-)
-
-# ╔═╡ bd08b641-e332-4b9b-9a44-2aea39d80b6c
-PlutoUIExtra.Sidebar(
-	md"#### Inversion Parameters",
-	(@bind res confirm(resolution_input())),
-	md"---",
-	md"Choose the regularization parameter", (@bind λ Slider(λrange, show_value=true)),
-	
-	location="lower left"
-)
-
 # ╔═╡ 442255bc-4d49-4602-b0d4-a935871a9fe8
 # define a for modelling and inversion
 
+# ╔═╡ 7a0d1e20-2000-4a00-9000-000000000001
+md"### Painted Medium & Grids"
+
+# ╔═╡ 7a0d1e20-2000-4a00-9000-000000000002
+begin
+    const RT_PNX = 120   # fixed painting-canvas resolution, independent of the true/inverted grids
+    const RT_PNZ = 120
+    const RT_DS_TRUE = 25.0   # true-model grid spacing, m -- fixed, not exposed to the student
+end
+
+# ╔═╡ 7a0d1e20-2000-4a00-9000-000000000003
+"""
+	sample_paint_bilinear(pert, PNX, PNZ, xq, zq)
+
+Bilinearly sample the flat `PNZ`x`PNX` painted-perturbation raster (m/s, `iz*PNX+ix+1`
+flat order, spanning the fixed domain `[-1000, 1000]` m in both `x` and `z`) at physical
+coordinate `(xq, zq)`. This lets one fixed painting canvas be resampled onto the true-model
+grid (fixed at [`RT_DS_TRUE`](@ref)) without the painting resolution needing to know
+anything about the physics grid's own resolution. The widget's own JS carries an identical
+copy of this formula so the heatmap the student paints always matches the medium
+[`get_medium`](@ref) actually builds from it.
+"""
+function sample_paint_bilinear(pert, PNX, PNZ, xq, zq)
+    fx = clamp((xq + 1000) / 2000 * (PNX - 1), 0.0, PNX - 1 - 1e-9)
+    fz = clamp((zq + 1000) / 2000 * (PNZ - 1), 0.0, PNZ - 1 - 1e-9)
+    ix0, iz0 = floor(Int, fx), floor(Int, fz)
+    tx, tz = fx - ix0, fz - iz0
+    v00 = pert[iz0*PNX+ix0+1]
+    v10 = pert[iz0*PNX+ix0+2]
+    v01 = pert[(iz0+1)*PNX+ix0+1]
+    v11 = pert[(iz0+1)*PNX+ix0+2]
+    return (v00 * (1 - tx) + v10 * tx) * (1 - tz) + (v01 * (1 - tx) + v11 * tx) * tz
+end
+
 # ╔═╡ da873791-517d-4ac3-80f8-ceae5808be24
 begin
-    xgrid = range(-1000, stop=1000, length=floor(Int, 2000 / res.ds))
-    zgrid = range(-1000, stop=1000, length=floor(Int, 2000 / res.ds))
-end;
-
-# ╔═╡ 322d1562-2197-4131-bd17-93aed063e55c
-begin
-    xgrid_inv = range(-1000, stop=1000, length=floor(Int, 2000 / res.ds_inv))
-    zgrid_inv = range(-1000, stop=1000, length=floor(Int, 2000 / res.ds_inv))
+    xgrid = range(-1000, stop=1000, length=floor(Int, 2000 / RT_DS_TRUE))
+    zgrid = range(-1000, stop=1000, length=floor(Int, 2000 / RT_DS_TRUE))
 end;
 
 # ╔═╡ cf99206b-8a78-40de-bd0d-20bb37ec0b09
 md"""
-`get_medium` generates a medium with a background velocity of 2000 m/s,
-and a circular perturbation. It outputs the velocity matrix and the corresponding slowness vector.
+`get_medium` generates a medium with a background velocity of 2000 m/s, plus the
+perturbation the student painted onto the widget above (resampled from the fixed painting
+canvas onto whichever grid is asked for). It outputs the velocity matrix and the
+corresponding slowness vector.
 """
 
 # ╔═╡ 2bf78ef8-8fc5-4e0b-a7c0-f72757bae6f6
-function get_medium(xgrid, zgrid, pert=nothing)
+function get_medium(xgrid, zgrid, pert)
     nx = length(xgrid)
     nz = length(zgrid)
-    ctrue = 2000.0 * ones(nz - 1, nx - 1)
-    if !(pert === nothing) # check if perturbation is required
-        # Generate random ellipticity and orientation
-        a = pert.r * rand(Uniform(0.5, 2))
-        b = pert.r * rand(Uniform(0.5, 2))
-        theta = rand(Uniform(0, 2π))
-        cos_theta = cos(theta)
-        sin_theta = sin(theta)
-        
-        for iz in 1:nz-1, ix in 1:nx-1
-            x = xgrid[ix] - pert.x
-            z = zgrid[iz] - pert.z
-            # Rotate coordinates
-            x_rot = x * cos_theta + z * sin_theta
-            z_rot = -x * sin_theta + z * cos_theta
-            # Check if point is inside the ellipse
-            if (x_rot / a)^2 + (z_rot / b)^2 < 1
-                ctrue[iz, ix] += -100
-            end
-        end
+    ctrue = fill(2000.0, nz - 1, nx - 1)
+    for iz in 1:nz-1, ix in 1:nx-1
+        xc = (xgrid[ix] + xgrid[ix+1]) / 2
+        zc = (zgrid[iz] + zgrid[iz+1]) / 2
+        ctrue[iz, ix] += sample_paint_bilinear(pert, RT_PNX, RT_PNZ, xc, zc)
     end
     strue = vec(inv.(ctrue))
     return ctrue, strue
-end
-
-
-# ╔═╡ 092331da-31a4-403d-b0cb-6e7705c6d81b
-begin
-	regenerate_medium
-	ctrue, strue = get_medium(xgrid, zgrid, pert);
 end
 
 # ╔═╡ 3d1cd3b5-66f5-44a8-805a-496e801be858
@@ -244,20 +230,7 @@ md"""
 """
 
 # ╔═╡ 1040f2b8-3999-46fb-9e3d-c163264a4f8a
-@warn "The straight-ray implementation in this notebook requires sources and receivers on the outer edge of the 2-D grid, i.e., arbitrary positions are not allowed."
-
-# ╔═╡ f71dbf67-c6c2-444b-acf4-0569ee85bc6b
-# careful before changing these; only place sources and receivers on the outer edge of the grid
-function get_source_receivers_outer_edge(xgrid, zgrid, ns, nr)
-    srcz = (ns == 1) ? [sample(zgrid)] : range(zgrid[2], stop=zgrid[end-1], length=ns)
-    srcx = fill(xgrid[1], ns)
-    recz = (nr == 1) ? [sample(zgrid)] : range(zgrid[2], stop=zgrid[end-1], length=nr)
-    recx = fill(xgrid[end], nr)
-    return srcz, srcx, recx, recz
-end
-
-# ╔═╡ aa9782b5-88be-43a2-b1e1-d68f289a8fec
-srcz, srcx, recx, recz = get_source_receivers_outer_edge(xgrid, zgrid, acq.ns, acq.nr);
+@warn "The straight-ray implementation in this notebook requires sources and receivers on the outer edge of the 2-D grid -- this is why the widget only lets you place them on the left/right edges of the True Model panel, not anywhere on the grid."
 
 # ╔═╡ 565af43c-8b85-4ab4-b72d-ac9560efd4fc
 # find intersect b/w two segments
@@ -319,83 +292,6 @@ function get_forw_operator(xgrid, zgrid, srcx, srcz, recx, recz)
     return G
 end
 
-# ╔═╡ 7df1cd87-40fa-45c1-9d85-1d491c414a18
-Gtrue = get_forw_operator(xgrid, zgrid, srcx, srcz, recx, recz);
-
-# ╔═╡ 3d201819-788b-4d90-b3a6-5483fc16ca81
-dobs = Gtrue * strue;
-
-# ╔═╡ dce75e41-274b-4e6a-8949-5caaeef7238a
-G = get_forw_operator(xgrid_inv, zgrid_inv, srcx, srcz, recx, recz);
-
-# ╔═╡ ad441089-505f-4da2-a345-548e8c4dd7d2
-plot(heatmap(z=G), Layout(xaxis_title="model vector index", yaxis_autorange="reversed", yaxis_title="data vector index", width=450, title="Forward Operator"))
-
-# ╔═╡ 2713503d-165f-47f9-8ece-4cd5ddc0bb21
-λ1 = inv(tr(G' * G))
-
-# ╔═╡ a60daaa3-d5da-4ac5-b40b-65bbbffdae55
-H = spdiagm(ones(size(G, 2)));
-
-# ╔═╡ 464f5a71-d820-4300-b062-e2eb9491f612
-λ2 = inv(tr(H' * H))
-
-# ╔═╡ 774ebdcf-3d88-47b8-aa66-f59822b18321
-Gi = pinv(G); # compute Moore-Penrose pseudoinverse
-
-# ╔═╡ 80910abe-97df-4283-bc18-d8c8e876174e
-sprior = fill(inv(2000.), size(G, 2));
-
-# ╔═╡ fc4be0cb-5531-4432-a265-30f0cc27494d
-function get_tikhonov_solution(dobs)
-	return inv(λ1 * G' * G + λ2 * λ * H' * H) * (
-    λ1 * G' * dobs + λ2 * λ * H' * sprior)
-end
-
-# ╔═╡ e4d99869-844e-4c1b-a64c-9cbf1eabab99
-sest1 = get_tikhonov_solution(dobs)
-
-# ╔═╡ 68b24556-4731-4b8f-b8a6-7aa7ffa38a92
-cest1 = reshape((inv.(sest1)), length(zgrid_inv) - 1, length(xgrid_inv) - 1);
-
-# ╔═╡ a26fd943-dd6c-4e42-b6b0-5c9a17f31b19
-plot([scatter(y=dobs, name="observed"), scatter(y=G * sest1, name="predicted")], Layout(title="Data Residual (Observed Vs. Predicted Traveltimes)", xaxis_title="# raypath", yaxis_title="traveltime"))
-
-# ╔═╡ 58867c8d-af21-48e9-ab0c-4472711e8eb0
-begin
-    tt_analytic = vec([(sqrt(sum(abs2.([srcx[is] - recx[ir], srcz[is] - recz[ir]])))) * inv(2000) for ir in 1:acq.nr, is in 1:acq.ns])
-    tt_G = G * inv.(fill(2000, (length(zgrid_inv) - 1) * (length(xgrid_inv) - 1)))
-    @test tt_analytic ≈ tt_G
-end
-
-# ╔═╡ 0bf44317-45cf-4899-8b1b-dfa1fe018db4
-data_residual = tt_G - dobs;
-
-# ╔═╡ 461859c0-5f94-469c-a054-4553045bac17
-grad_slowness = reshape(G' * data_residual, length(zgrid_inv) - 1, length(xgrid_inv) - 1);
-
-# ╔═╡ acc8d4d0-a332-478f-8630-b22a10e7063b
-function plot_G_scree()
-    s = svd(G)
-    plot(s.S, Layout(title="Singular values of G"))
-end
-
-# ╔═╡ aa36d8d7-a7d4-4aa4-b0ee-b07d36cc453b
-plot_G_scree()
-
-# ╔═╡ 3c7cddb2-72c6-45d1-a902-f66cb67d2835
-plot(heatmap(z=transpose(G) * G), Layout(yaxis_autorange="reversed", title="the Hessian matrix", xaxis_title="model index", yaxis_title="model index", width=450))
-
-# ╔═╡ f408a310-fce3-4876-819e-3457037bd48f
-plot(heatmap(x=xgrid_inv, y=zgrid_inv, z=reshape((transpose(G)*G)[irowm, :], length(zgrid_inv) - 1, length(xgrid_inv) - 1)), Layout(yaxis_autorange="reversed", title="row of the Hessian matrix", width=450))
-
-# ╔═╡ 5bdd9d83-3911-4ab5-aefb-5ead429ac5a5
-plot(heatmap(x=xgrid_inv, y=zgrid_inv, z=reshape((Gi*G)[irowm, :], length(zgrid_inv) - 1, length(xgrid_inv) - 1)),
-    Layout(yaxis_autorange="reversed", title="Row of Model Resolution Matrix", width=450))
-
-# ╔═╡ a3bf8549-fff8-4423-8a87-a81cb21f9eb1
-plot((G*Gi)[irowd, :], Layout(title="Row of data resolution matrix", xaxis_title="raypath index"))
-
 # ╔═╡ 4daad9cb-5651-4757-a390-27bbbfa5d4c9
 
 """
@@ -441,153 +337,11 @@ function vertical_differencing_operator(rows, cols)
     return sparse(row_indices, col_indices, data, num_pixels, num_pixels)
 end
 
-# ╔═╡ 272428e7-f865-4d9e-9df1-9fb45dec6a96
-Dv = vertical_differencing_operator(length(zgrid_inv) - 1, length(xgrid_inv) - 1,)
-
-# ╔═╡ 0ac7a1d4-f9c4-4e9a-a1fd-ff7629022fad
-Dh = horizontal_differencing_operator(length(zgrid_inv) - 1, length(xgrid_inv) - 1,)
-
-# ╔═╡ 59c0e9a2-ab43-45b8-83a8-e0e865b1895d
-λ3 = inv(tr(Dh' * Dh))
-
-# ╔═╡ 11ffa65f-6c38-48bd-b22b-07c238596473
-function get_first_difference_regularized_solution(dobs)
-	return inv(λ1 * G' * G + λ3 * λ * Dh' * Dh + λ3 * λ * Dv' * Dv) * (
-    λ1 * G' * dobs)
-end
-
-# ╔═╡ 0a336d04-b2c5-45d6-b2a4-7f03666cb597
-sest2 = get_first_difference_regularized_solution(dobs)
-
-# ╔═╡ 9dfe9cd4-9baa-4808-9b7a-d01c62ee6d40
-cest2 = reshape((inv.(sest2)), length(zgrid_inv) - 1, length(xgrid_inv) - 1);
-
-# ╔═╡ ffb59613-e16b-4d38-9c36-c778f92842e0
-plot([scatter(y=dobs, name="observed"), scatter(y=G * sest2, name="predicted")], Layout(title="Data Residual (Observed Vs. Predicted Traveltimes)", xaxis_title="# raypath", yaxis_title="traveltime"))
-
-# ╔═╡ 4dd5df1f-f0bc-49ec-a533-4498ed17d223
-md"""
-### UI
-"""
-
-# ╔═╡ 208932c4-a57b-487d-9d3b-f165b4a4a4ed
-function perturbation_input(xgrid, zgrid)
-    nx = length(xgrid)
-    nz = length(zgrid)
-    return PlutoUI.combine() do Child
-        p = [
-            md"""
-x= $(Child("x", Slider(xgrid, default=xgrid[div(nx,2)], show_value=true)))
-			""",
-			md"""
-                     and z= $(Child("z", Slider(zgrid, default=zgrid[div(nz,2)], show_value=true)))
-                     """,
-        ]
-        r = [
-            md"""
-            $(Child("r", Slider(range(10, stop=500, length=10), default=330, show_value=true)))
-            """,]
-
-        md"""### Medium Parameters
-Circular perturbation at $(p) with scale ∈ [10, 500] m
-	$(r)
- """
-    end
-end
-
-# ╔═╡ 7e6ae5d6-ff89-45f5-914a-c58d3e185041
-function resolution_input()
-    return PlutoUI.combine() do Child
-        d = [
-            md"""
-Resolution (m) of true $(Child("ds", Slider(range(10,stop=200), default=25, show_value=true)))
-			""",
-			md"""
-            and inverted $(Child("ds_inv", Slider(range(10,stop=1000), default=150, show_value=true))) media
-            """,
-        ]
-
-        md"$(d)"
-    end
-end
-
-# ╔═╡ 6702fde2-8847-407b-9d69-8e099374d6ce
-function acq_input()
-    return PlutoUI.combine() do Child
-        d = [
-            md"""
-            Choose number of sources $(Child("ns", Slider(2:2:50, show_value=true, default=25)))
-            """,
-			md"""
-			and receivers $(Child("nr", Slider(2:2:50, show_value=true, default=25)))
-			"""
-        ]
-
-        md"""
-  ### Acquisition Setup
-  $(d)
-  """
-    end
-end
-
 # ╔═╡ b338591d-cc11-4e9e-827e-7fcee5b2d38b
 md"### Plots"
 
-# ╔═╡ b1350eb1-059e-4f83-a539-2e2befc3dabb
-function plot_models()
-
-    fig = Plot(Layout(yaxis_autorange="reversed", height=600, width=650, title=attr(font_size=12,), font=attr(
-            size=10), yaxis=attr(scaleanchor="x"), Subplots(shared_xaxes=true, shared_yaxes=true, horizontal_spacing=0.3, rows=2, cols=2, subplot_titles=["True Seismic Velocity" "Gradient" "Tikhonov Regularization" "First-Order Difference Regularization"])))
-    add_trace!(fig, heatmap(
-            x=xgrid,
-            y=zgrid,
-            z=reshape(ctrue, length(zgrid) - 1, length(xgrid) - 1), colorscale="jet", colorbar=attr(x=0.35, y=0.75, len=0.25)), row=1, col=1)
-    add_trace!(fig, heatmap(
-            x=xgrid_inv,
-            y=zgrid_inv,
-            z=(grad_slowness), colorscale="jet", colorbar=attr(x=1, y=0.75, len=0.25)), row=1, col=2)
-
-    add_trace!(fig, heatmap(
-            x=xgrid_inv,
-            y=zgrid_inv,
-            z=(cest1), colorscale="jet", colorbar=attr(x=0.35, y=0.25, len=0.25), zmin=minimum(ctrue), zmax=maximum(ctrue)), row=2, col=1)
-    add_trace!(fig, heatmap(
-            x=xgrid_inv,
-            y=zgrid_inv,
-            z=(cest2), colorscale="jet", colorbar=attr(x=1, y=0.25, len=0.25), zmin=minimum(ctrue), zmax=maximum(ctrue)), row=2, col=2)
-
-    return PlutoPlotly.plot(fig)
-
-end
-
-# ╔═╡ 842ec98f-505a-4873-9c64-725e2f92cbb9
-plot_models()
-
-# ╔═╡ 4114f8f4-51a5-4af6-b8b7-e17480d942e3
-# Normalize residuals to [0,1]
-norm_residuals = (data_residual .- minimum(data_residual)) ./ (maximum(data_residual) - minimum(data_residual))
-
-# ╔═╡ e8e733ee-586d-4ef6-a8ad-8c793cc8e3e9
-# Map to seismic colormap (blue → red)
-data_residual_colors = get.(Ref(reverse(colorschemes[:seismic])), norm_residuals)
-
 # ╔═╡ 44eddeed-1763-4c04-b213-b7469983286d
 # data_residual_colors = get.(Ref(colorschemes[:seismic]), (data_residual .- minimum(data_residual)) ./ maximum(data_residual));
-
-# ╔═╡ 1161cc82-6b2d-42e0-99fe-2dfb1a2d00b6
-ray_setup = broadcast(reshape(1:acq.nr, acq.nr, 1), reshape(1:acq.ns, 1, acq.ns)) do ir, is
-    scatter(x=[srcx[is], recx[ir]], y=[srcz[is], recz[ir]], marker=attr(symbol=["asterisk", "triangle-down"], size=[10, 10], line=attr(color="black"), color=data_residual_colors[ir+(is-1)*acq.nr]), opacity=0.15, mode="lines+markers",)
-end;
-
-# ╔═╡ d7dd7859-9489-4bfc-bc77-edec76fe96f2
-function plot_ray_setup()
-    return plot(vec(ray_setup), Layout(yaxis_autorange="reversed", font=attr(
-            size=10), showlegend=false, width=450, title="Ray Geometry<br>(red ray paths have higher data residuals)", yaxis_tickvals=zgrid_inv, xaxis_tickvals=xgrid_inv, xaxis=attr(title="x", ticks="outside", tickwidth=1, tickcolor="black", ticklen=10, gridcolor="gray"), yaxis=attr(title="z", scaleanchor="x", ticks="outside", tickwidth=1, tickcolor="black", ticklen=10, gridcolor="gray"), xaxis_zeroline=false, yaxis_zeroline=false,))
-end
-
-
-# ╔═╡ 4509e5b8-8d54-47e1-9ba7-b4929fd2d2fc
-plot_ray_setup()
 
 # ╔═╡ 1499710e-1316-4113-b551-83d0e01151ab
 # ╠═╡ disabled = true
@@ -758,6 +512,904 @@ plot_tikzcol("model pixel 1", "model pixel 2", "model pixel N", "slowness vector
 # ╔═╡ 68c959c7-b8e9-4992-b4ce-a793d1a34d20
 plot_tikzcol("raypath 1", "raypath 2", "raypath K", "data residual", s1="N×K", s2="K×1")
 
+# ╔═╡ 7a0d1e40-4000-4a00-9000-000000000001
+md"### The Interactive Widget"
+
+# ╔═╡ 7a0d1e40-4000-4a00-9000-000000000002
+begin
+    struct RayTomographyInput
+        pert::Vector{Float64}   # flat RT_PNZ*RT_PNX painted perturbation raster, m/s
+        srcZ::Vector{Float64}   # source z positions, m (x pinned to the left edge)
+        recZ::Vector{Float64}   # receiver z positions, m (x pinned to the right edge)
+        ds_inv::Float64         # inverted-grid resolution, m (draggable on the Inverted Model panel)
+        lamIdx::Int              # index into λrange
+        paintMode::String        # "slow" | "fast"
+        brush::Float64           # m
+        mode::String             # "paint" | "source" | "receiver" | "delete" -- what a True Model click does
+        viewMode::String         # "tikhonov" | "firstdiff"
+        resPanelMode::String     # "hessian" | "modelres"
+        pickedPixel::Int         # 1-based flat inversion-grid pixel index, 0 = none yet
+        pickedRay::Int           # 1-based flat ray index (ir + (is-1)*nr), 0 = none yet
+    end
+    RayTomographyInput(; pert=zeros(RT_PNX * RT_PNZ), srcZ=collect(range(-950.0, 950.0, length=25)),
+        recZ=collect(range(-950.0, 950.0, length=25)), ds_inv=150.0,
+        lamIdx=1, paintMode="slow", brush=120.0, mode="paint", viewMode="tikhonov", resPanelMode="hessian",
+        pickedPixel=0, pickedRay=0) =
+        RayTomographyInput(pert, srcZ, recZ, ds_inv, lamIdx, paintMode, brush, mode, viewMode, resPanelMode, pickedPixel, pickedRay)
+
+    Base.get(w::RayTomographyInput) = Dict{String,Any}(
+        "pert" => w.pert, "srcZ" => w.srcZ, "recZ" => w.recZ, "ds_inv" => w.ds_inv,
+        "lamIdx" => w.lamIdx, "paintMode" => w.paintMode, "brush" => w.brush, "mode" => w.mode,
+        "viewMode" => w.viewMode, "resPanelMode" => w.resPanelMode,
+        "pickedPixel" => w.pickedPixel, "pickedRay" => w.pickedRay)
+
+    function Base.show(io::IO, ::MIME"text/html", w::RayTomographyInput)
+        write(io, """
+        <div id="rtwidget">
+        <style>
+        #rtwidget{font-family:sans-serif;color:#e5e7eb;width:100%;box-sizing:border-box}
+        #rtwidget .rt-title{width:100%;box-sizing:border-box;text-align:center;margin-bottom:10px;
+          background:#0a0f18;border:1px solid #3b5c85;border-radius:6px;padding:10px 14px}
+        #rtwidget .rt-title-desc{font-size:17px;font-weight:700;color:#e5e7eb}
+        #rtwidget .rt-title-hint{font-size:13px;color:#9ca3af;margin-top:3px}
+        #rtwidget .rt-row{display:flex;gap:16px;flex-wrap:wrap;justify-content:center;align-items:flex-start}
+        #rtwidget .rt-panel{background:#000;border:1px solid #374151;border-radius:6px;padding:8px}
+        #rtwidget .rt-panel-title{font-size:14px;font-weight:700;color:#e5e7eb;margin-bottom:4px;text-align:center}
+        #rtwidget .rt-caption{font-size:12px;color:#9ca3af;text-align:center;margin-top:4px}
+        #rtwidget canvas{display:block;cursor:crosshair}
+        #rtwidget .rt-controls{width:100%;box-sizing:border-box;margin-top:14px;display:grid;
+          grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:8px;font:14px sans-serif;align-content:start}
+        #rtwidget .rt-control-group{background:#050505;border:1px solid #2f3744;border-radius:6px;padding:10px 12px}
+        #rtwidget .rt-control-title{font-size:15px;font-weight:700;color:#e5e7eb;margin-bottom:6px}
+        #rtwidget .rt-control-row{display:grid;grid-template-columns:minmax(50px,70px) minmax(60px,1fr) minmax(44px,64px);gap:6px;align-items:center;margin:5px 0}
+        #rtwidget .rt-control-row label{font-size:13px;color:#9ca3af}
+        #rtwidget .rt-control-row input[type=range]{width:100%;min-width:0}
+        #rtwidget .rt-value{font-size:12px;color:#e5e7eb;text-align:right;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+        #rtwidget .rt-actions{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+        #rtwidget button{border-radius:4px;border:1px solid #9ca3af;background:#606060;color:#f3f4f6;padding:6px 10px;font-size:13px;cursor:pointer}
+        #rtwidget button.active{background:#2563eb;border-color:#93c5fd}
+        #rtwidget .rt-cbar-label{font-size:11px;color:#9ca3af;margin:6px 0 2px;text-align:center}
+        #rtwidget .rt-cbar{cursor:default;display:block;margin:0 auto}
+        </style>
+
+        <div class="rt-title">
+          <div class="rt-title-desc">Paint any velocity anomaly you like -- neither regularizer hands it back to you exactly.</div>
+          <div class="rt-title-hint">drag on the True Model to paint &middot; pick a mode below to place, move, or delete sources/receivers &middot; click a pixel or drag the yellow dot on the Inverted Model</div>
+        </div>
+
+        <div class="rt-row">
+          <div>
+            <div class="rt-panel-title">True Model &amp; Rays</div>
+            <div class="rt-panel"><canvas id="rt-truemap"></canvas></div>
+            <div class="rt-caption" id="rt-true-caption"></div>
+            <div class="rt-cbar-label">velocity perturbation from 2000 m/s background</div>
+            <canvas id="rt-truecbar" class="rt-cbar"></canvas>
+          </div>
+          <div>
+            <div class="rt-panel-title" id="rt-inv-title">Inverted Model &mdash; Tikhonov</div>
+            <div class="rt-panel"><canvas id="rt-invmap"></canvas></div>
+            <div class="rt-caption" id="rt-inv-caption"></div>
+            <div class="rt-cbar-label">recovered velocity, m/s</div>
+            <canvas id="rt-invcbar" class="rt-cbar"></canvas>
+          </div>
+          <div>
+            <div class="rt-panel-title" id="rt-res-title">Hessian Row</div>
+            <div class="rt-panel"><canvas id="rt-resmap"></canvas></div>
+            <div class="rt-caption" id="rt-res-caption"></div>
+            <div class="rt-cbar-label">sensitivity, click a pixel on the Inverted Model</div>
+            <canvas id="rt-rescbar" class="rt-cbar"></canvas>
+          </div>
+        </div>
+
+        <div class="rt-controls">
+          <div class="rt-control-group">
+            <div class="rt-control-title">Paint</div>
+            <div class="rt-actions">
+              <button id="rt-paint-slow" type="button">Slower (red)</button>
+              <button id="rt-paint-fast" type="button">Faster (blue)</button>
+            </div>
+            <div class="rt-control-row"><label>brush</label><input type="range" id="rt-brush" min="40" max="400" step="10" value="$(w.brush)"><span class="rt-value" id="rt-brush-v"></span></div>
+            <div class="rt-actions"><button id="rt-clear" type="button">Clear paint</button></div>
+          </div>
+          <div class="rt-control-group">
+            <div class="rt-control-title">True Model click does</div>
+            <div class="rt-actions">
+              <button id="rt-mode-paint" type="button">Paint</button>
+              <button id="rt-mode-source" type="button">Place Source</button>
+              <button id="rt-mode-receiver" type="button">Place Receiver</button>
+              <button id="rt-mode-delete" type="button">Delete</button>
+            </div>
+          </div>
+          <div class="rt-control-group">
+            <div class="rt-control-title">Regularization</div>
+            <div class="rt-actions">
+              <button id="rt-view-tik" type="button">Tikhonov</button>
+              <button id="rt-view-fd" type="button">First-Difference</button>
+            </div>
+            <div class="rt-control-row"><label>&lambda;</label><input type="range" id="rt-lam" min="1" max="$(length(λrange))" step="1" value="$(w.lamIdx)"><span class="rt-value" id="rt-lam-v"></span></div>
+          </div>
+          <div class="rt-control-group">
+            <div class="rt-control-title">Third Panel Shows</div>
+            <div class="rt-actions">
+              <button id="rt-res-hessian" type="button">Hessian Row</button>
+              <button id="rt-res-modelres" type="button">Model Resolution Row</button>
+            </div>
+          </div>
+        </div>
+        </div>
+
+        <script>
+        {
+        const par = currentScript.previousElementSibling;
+        // WideCell's own ResizeObserver widens `par` asynchronously, some unknown number of
+        // frames after this script first runs -- reading par.clientWidth before that lands
+        // would bake a too-small layout into a script that only sizes once. Wait for a real
+        // width via our own ResizeObserver instead of guessing how many frames to skip.
+        function rtInit(){
+        const PNX=$(RT_PNX), PNZ=$(RT_PNZ);
+        const XMIN=-1000, XMAX=1000, ZMIN=-1000, ZMAX=1000;
+        const LAMRANGE = [$(join(λrange, ","))];
+
+        let pert = $(w.pert == zeros(RT_PNX * RT_PNZ) ? "new Array(PNX*PNZ).fill(0)" : "[" * join(w.pert, ",") * "]");
+        let srcz = [$(join(w.srcZ, ","))];
+        let recz = [$(join(w.recZ, ","))];
+        let dsInv=$(w.ds_inv), lamIdx=$(w.lamIdx);
+        let paintMode="$(w.paintMode)", brush=$(w.brush), mode="$(w.mode)", viewMode="$(w.viewMode)", resPanelMode="$(w.resPanelMode)";
+        let pickedPixel=$(w.pickedPixel), pickedRay=$(w.pickedRay);
+        const MAX_STATIONS = 50;
+
+        // A layout pass hasn't always finished by the time this script first runs, so
+        // innerWidth/clientWidth can transiently read 0 -- fall back to a sane width rather
+        // than baking a permanently-too-small SEC into a script that only runs once.
+        const winW = window.innerWidth || 1200;
+        const availW = Math.min(winW*0.9, par.clientWidth || winW*0.9, 1600) || 900;
+        const GAP = 16;
+        const heightBudget = Math.max(190, window.innerHeight - 320);
+        let SEC = Math.max(190, (availW - GAP*2)/3);
+        SEC = Math.min(SEC, heightBudget, 380);
+        const SEC_W = SEC, SEC_H = SEC;
+        const DPR = window.devicePixelRatio || 1;
+
+        function hidpi(canvas, context, w, h){
+          canvas.width = Math.round(w*DPR); canvas.height = Math.round(h*DPR);
+          canvas.style.width = w+'px'; canvas.style.height = h+'px';
+          context.setTransform(DPR,0,0,DPR,0,0);
+        }
+        const trueCv = par.querySelector('#rt-truemap');
+        const trueCtx = trueCv.getContext('2d');
+        hidpi(trueCv, trueCtx, SEC_W, SEC_H);
+        const invCv = par.querySelector('#rt-invmap');
+        const invCtx = invCv.getContext('2d');
+        hidpi(invCv, invCtx, SEC_W, SEC_H);
+        const resCv = par.querySelector('#rt-resmap');
+        const resCtx = resCv.getContext('2d');
+        hidpi(resCv, resCtx, SEC_W, SEC_H);
+        const trueCbarCv = par.querySelector('#rt-truecbar'), trueCbarCtx = trueCbarCv.getContext('2d');
+        const invCbarCv = par.querySelector('#rt-invcbar'), invCbarCtx = invCbarCv.getContext('2d');
+        const resCbarCv = par.querySelector('#rt-rescbar'), resCbarCtx = resCbarCv.getContext('2d');
+        hidpi(trueCbarCv, trueCbarCtx, SEC_W, 34);
+        hidpi(invCbarCv, invCbarCtx, SEC_W, 34);
+        hidpi(resCbarCv, resCbarCtx, SEC_W, 34);
+
+        function toScreen(x,z){ return [ (x-XMIN)/(XMAX-XMIN)*SEC_W, (z-ZMIN)/(ZMAX-ZMIN)*SEC_H ]; }
+        function toWorld(px,pz){ return [ XMIN+px/SEC_W*(XMAX-XMIN), ZMIN+pz/SEC_H*(ZMAX-ZMIN) ]; }
+
+        // Mirrors Julia's `sample_paint_bilinear` exactly (same flat index convention,
+        // same domain) so the heatmap painted here always matches the medium Julia builds.
+        function pertAt(xw, zw){
+          const fx = Math.max(0, Math.min(PNX-1-1e-9, (xw-XMIN)/(XMAX-XMIN)*(PNX-1)));
+          const fz = Math.max(0, Math.min(PNZ-1-1e-9, (zw-ZMIN)/(ZMAX-ZMIN)*(PNZ-1)));
+          const ix0 = Math.floor(fx), iz0 = Math.floor(fz);
+          const tx = fx-ix0, tz = fz-iz0;
+          const v00 = pert[iz0*PNX+ix0], v10 = pert[iz0*PNX+ix0+1];
+          const v01 = pert[(iz0+1)*PNX+ix0], v11 = pert[(iz0+1)*PNX+ix0+1];
+          return (v00*(1-tx)+v10*tx)*(1-tz) + (v01*(1-tx)+v11*tx)*tz;
+        }
+
+        const PAINT_STEP_MS = 12, PERT_CAP_MS = 300;
+        function paintAt(xw, zw, brushM){
+          const sign = paintMode==='fast' ? 1 : -1;
+          const r2 = brushM*brushM;
+          for(let iz=0; iz<PNZ; iz++){
+            const zc = ZMIN + iz/(PNZ-1)*(ZMAX-ZMIN);
+            const dz = zc-zw;
+            for(let ix=0; ix<PNX; ix++){
+              const xc = XMIN + ix/(PNX-1)*(XMAX-XMIN);
+              const dx = xc-xw;
+              const d2 = dx*dx+dz*dz;
+              if(d2 < r2*4){
+                const falloff = Math.exp(-d2/(2*r2/4));
+                const idx = iz*PNX+ix;
+                pert[idx] = Math.max(-PERT_CAP_MS, Math.min(PERT_CAP_MS, pert[idx] + falloff*PAINT_STEP_MS*sign));
+              }
+            }
+          }
+        }
+
+        // diverging colormap: blue=faster, red=slower, matching this repo's usual tomography convention.
+        function velColor(v, mx){
+          const t = Math.max(-1, Math.min(1, v/mx));
+          if(t>=0) return [Math.round(255*(1-t)), Math.round(255*(1-t)), 255];
+          const s=-t; return [255, Math.round(255*(1-s)), Math.round(255*(1-s))];
+        }
+        function drawColorbar(cbarCtx, mx, mid, fmt){
+          const w = SEC_W, h = 34, barH=14, barY=2;
+          cbarCtx.clearRect(0,0,w,h);
+          for(let i=0;i<w;i++){
+            const t = i/(w-1);
+            const v = -mx + t*2*mx;
+            const [r,g,b] = velColor(v, mx);
+            cbarCtx.fillStyle = 'rgb('+r+','+g+','+b+')';
+            cbarCtx.fillRect(i, barY, 1, barH);
+          }
+          cbarCtx.strokeStyle = '#4b5563'; cbarCtx.lineWidth = 1;
+          cbarCtx.strokeRect(0.5, barY+0.5, w-1, barH-1);
+          cbarCtx.fillStyle = '#9ca3af'; cbarCtx.font = '10px sans-serif';
+          cbarCtx.textAlign = 'left'; cbarCtx.fillText(fmt(mid-mx), 2, barY+barH+12);
+          cbarCtx.textAlign = 'right'; cbarCtx.fillText(fmt(mid+mx), w-2, barY+barH+12);
+          cbarCtx.textAlign = 'center'; cbarCtx.fillText(fmt(mid), w/2, barY+barH+12);
+          cbarCtx.textAlign = 'left';
+        }
+
+        // ---- pushed from Julia (RtPush) ----
+        let rayColors=null;
+        let cest1Flat=null, cest2Flat=null, hessRowFlat=null, modelResRowFlat=null, nxInv=0, nzInv=0;
+
+        function drawStarMarker(cx, cy, r, fill, stroke){
+          const spikes = 5, rOuter = r, rInner = r * 0.45;
+          trueCtx.beginPath();
+          for(let i=0; i<spikes*2; i++){
+            const rad = i % 2 === 0 ? rOuter : rInner;
+            const ang = -Math.PI/2 + i*Math.PI/spikes;
+            const x = cx + rad*Math.cos(ang), y = cy + rad*Math.sin(ang);
+            i===0 ? trueCtx.moveTo(x,y) : trueCtx.lineTo(x,y);
+          }
+          trueCtx.closePath();
+          trueCtx.fillStyle = fill; trueCtx.fill();
+          trueCtx.strokeStyle = stroke; trueCtx.lineWidth = 1; trueCtx.stroke();
+        }
+        function drawTriangleDownMarker(cx, cy, r, fill, stroke){
+          trueCtx.beginPath();
+          for(let i=0; i<3; i++){
+            const ang = Math.PI/2 + i*2*Math.PI/3;
+            const x = cx + r*Math.cos(ang), y = cy + r*Math.sin(ang);
+            i===0 ? trueCtx.moveTo(x,y) : trueCtx.lineTo(x,y);
+          }
+          trueCtx.closePath();
+          trueCtx.fillStyle = fill; trueCtx.fill();
+          trueCtx.strokeStyle = stroke; trueCtx.lineWidth = 1.5; trueCtx.stroke();
+        }
+
+        function distToSegment(px,py,x1,y1,x2,y2){
+          const dx=x2-x1, dy=y2-y1;
+          const len2 = dx*dx+dy*dy;
+          let t = len2>0 ? ((px-x1)*dx+(py-y1)*dy)/len2 : 0;
+          t = Math.max(0, Math.min(1, t));
+          const cx = x1+t*dx, cy = y1+t*dy;
+          return Math.hypot(px-cx, py-cy);
+        }
+        let hoverRay = -1;
+        function nearestRay(px,py){
+          let best=-1, bestD=1e9;
+          for(let is=0; is<srcz.length; is++){
+            const [sx,sy] = toScreen(XMIN, srcz[is]);
+            for(let ir=0; ir<recz.length; ir++){
+              const [rx,ry] = toScreen(XMAX, recz[ir]);
+              const d = distToSegment(px,py, sx,sy, rx,ry);
+              if(d<bestD){ bestD=d; best = ir + is*recz.length; }
+            }
+          }
+          return {idx:best, dist:bestD};
+        }
+        const RAY_PICK_TOL = 6, MARKER_PICK_TOL = 9;
+        function nearestMarker(px,py){
+          let best=null, bestD=MARKER_PICK_TOL;
+          for(let i=0;i<srcz.length;i++){
+            const [sx,sy] = toScreen(XMIN, srcz[i]);
+            const d = Math.hypot(px-sx,py-sy);
+            if(d<bestD){ bestD=d; best={type:'source', idx:i}; }
+          }
+          for(let i=0;i<recz.length;i++){
+            const [sx,sy] = toScreen(XMAX, recz[i]);
+            const d = Math.hypot(px-sx,py-sy);
+            if(d<bestD){ bestD=d; best={type:'receiver', idx:i}; }
+          }
+          return best;
+        }
+
+        function drawRays(){
+          const n = srcz.length*recz.length;
+          if(!rayColors || rayColors.length !== n) return;
+          const nr2 = recz.length;
+          trueCtx.lineWidth = 1;
+          for(let is=0; is<srcz.length; is++){
+            const [sx,sy] = toScreen(XMIN, srcz[is]);
+            for(let ir=0; ir<nr2; ir++){
+              const idx = ir + is*nr2;
+              if(idx===hoverRay || idx===pickedRay-1) continue;
+              const [rx,ry] = toScreen(XMAX, recz[ir]);
+              trueCtx.globalAlpha = 0.15;
+              trueCtx.strokeStyle = rayColors[idx];
+              trueCtx.beginPath(); trueCtx.moveTo(sx,sy); trueCtx.lineTo(rx,ry); trueCtx.stroke();
+            }
+          }
+          trueCtx.globalAlpha = 1;
+          if(pickedRay>0 && pickedRay-1 < rayColors.length){
+            const idx = pickedRay-1, is=Math.floor(idx/nr2), ir=idx%nr2;
+            const [sx,sy]=toScreen(XMIN,srcz[is]), [rx,ry]=toScreen(XMAX,recz[ir]);
+            trueCtx.lineWidth=2.4; trueCtx.strokeStyle = rayColors[idx];
+            trueCtx.beginPath(); trueCtx.moveTo(sx,sy); trueCtx.lineTo(rx,ry); trueCtx.stroke();
+          }
+          if(hoverRay>=0 && hoverRay !== pickedRay-1){
+            const idx=hoverRay, is=Math.floor(idx/nr2), ir=idx%nr2;
+            const [sx,sy]=toScreen(XMIN,srcz[is]), [rx,ry]=toScreen(XMAX,recz[ir]);
+            trueCtx.lineWidth=2; trueCtx.strokeStyle = '#facc15';
+            trueCtx.beginPath(); trueCtx.moveTo(sx,sy); trueCtx.lineTo(rx,ry); trueCtx.stroke();
+          }
+        }
+
+        function drawTrue(){
+          const img = trueCtx.createImageData(Math.round(SEC_W*DPR), Math.round(SEC_H*DPR));
+          const wpx = img.width, hpx = img.height;
+          for(let py=0; py<hpx; py++){
+            const zw = ZMIN + py/hpx*(ZMAX-ZMIN);
+            for(let pxi=0; pxi<wpx; pxi++){
+              const xw = XMIN + pxi/wpx*(XMAX-XMIN);
+              const [r,g,b] = velColor(pertAt(xw,zw), PERT_CAP_MS);
+              const idx = (py*wpx+pxi)*4;
+              img.data[idx]=r; img.data[idx+1]=g; img.data[idx+2]=b; img.data[idx+3]=255;
+            }
+          }
+          trueCtx.putImageData(img, 0, 0);
+          drawRays();
+          for(let is_=0; is_<srcz.length; is_++){
+            const [sx,sy] = toScreen(XMIN, srcz[is_]);
+            drawStarMarker(sx, sy, 7, '#f5f3ef', '#0a0f18');
+          }
+          for(let ir_=0; ir_<recz.length; ir_++){
+            const [rx,ry] = toScreen(XMAX, recz[ir_]);
+            drawTriangleDownMarker(rx, ry, 7, '#38bdf8', '#0a0f18');
+          }
+          trueCtx.strokeStyle = '#374151'; trueCtx.lineWidth = 1; trueCtx.strokeRect(0.5,0.5,SEC_W-1,SEC_H-1);
+          par.querySelector('#rt-true-caption').textContent =
+            srcz.length + ' sources \\u00d7 ' + recz.length + ' receivers \\u00b7 mode: ' + mode;
+          drawColorbar(trueCbarCtx, PERT_CAP_MS, 0, v => (Math.abs(v)<1e-9?'0':(v>=0?'+':'')+v.toFixed(0))+' m/s');
+        }
+
+        function invFlatIndex(ix0, iz0, nz){ return ix0*(nz-1) + iz0; }
+        function pickedPixelRect(nx, nz){
+          const idx0 = pickedPixel-1, ix0 = Math.floor(idx0/(nz-1)), iz0 = idx0 - ix0*(nz-1);
+          const x0 = XMIN + ix0/(nx-1)*(XMAX-XMIN), x1 = XMIN + (ix0+1)/(nx-1)*(XMAX-XMIN);
+          const z0 = ZMIN + iz0/(nz-1)*(ZMAX-ZMIN), z1 = ZMIN + (iz0+1)/(nz-1)*(ZMAX-ZMIN);
+          const [px0,py0] = toScreen(x0,z0), [px1,py1] = toScreen(x1,z1);
+          return [px0,py0,px1-px0,py1-py0];
+        }
+        function drawGridLines(ctx, nx, nz){
+          ctx.strokeStyle = 'rgba(255,255,255,0.25)'; ctx.lineWidth = 1;
+          for(let ix=0; ix<nx; ix++){
+            const [x,_y] = toScreen(XMIN+ix/(nx-1)*(XMAX-XMIN), 0);
+            ctx.beginPath(); ctx.moveTo(x,0); ctx.lineTo(x,SEC_H); ctx.stroke();
+          }
+          for(let iz=0; iz<nz; iz++){
+            const [_x,y] = toScreen(0, ZMIN+iz/(nz-1)*(ZMAX-ZMIN));
+            ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(SEC_W,y); ctx.stroke();
+          }
+        }
+        function invGridHandlePos(){ return toScreen(XMIN+dsInv, ZMIN+dsInv); }
+        function drawInv(){
+          invCtx.clearRect(0,0,SEC_W,SEC_H);
+          const flat = viewMode==='tikhonov' ? cest1Flat : cest2Flat;
+          if(!flat || !nxInv || !nzInv){
+            invCtx.fillStyle = '#6b7280'; invCtx.font = '12px sans-serif'; invCtx.fillText('computing...', 10, 18);
+            drawColorbar(invCbarCtx, PERT_CAP_MS, 2000, v => v.toFixed(0)+' m/s');
+            return;
+          }
+          const img = invCtx.createImageData(Math.round(SEC_W*DPR), Math.round(SEC_H*DPR));
+          const wpx = img.width, hpx = img.height;
+          for(let py=0; py<hpx; py++){
+            const zw = ZMIN + py/hpx*(ZMAX-ZMIN);
+            const iz0 = Math.max(0, Math.min(nzInv-2, Math.floor((zw-ZMIN)/(ZMAX-ZMIN)*(nzInv-1))));
+            for(let pxi=0; pxi<wpx; pxi++){
+              const xw = XMIN + pxi/wpx*(XMAX-XMIN);
+              const ix0 = Math.max(0, Math.min(nxInv-2, Math.floor((xw-XMIN)/(XMAX-XMIN)*(nxInv-1))));
+              const v = flat[invFlatIndex(ix0,iz0,nzInv)];
+              const [r,g,b] = velColor(v-2000, PERT_CAP_MS);
+              const idx = (py*wpx+pxi)*4;
+              img.data[idx]=r; img.data[idx+1]=g; img.data[idx+2]=b; img.data[idx+3]=255;
+            }
+          }
+          invCtx.putImageData(img, 0, 0);
+          drawGridLines(invCtx, nxInv, nzInv);
+          if(pickedPixel>0){
+            const [rx,ry,rw,rh] = pickedPixelRect(nxInv, nzInv);
+            invCtx.strokeStyle = '#facc15'; invCtx.lineWidth = 2;
+            invCtx.strokeRect(rx, ry, rw, rh);
+          }
+          const [hx,hy] = invGridHandlePos();
+          invCtx.beginPath(); invCtx.arc(hx,hy,6,0,2*Math.PI);
+          invCtx.fillStyle = '#facc15'; invCtx.fill(); invCtx.strokeStyle='#0a0f18'; invCtx.lineWidth=1.5; invCtx.stroke();
+          invCtx.strokeStyle = '#374151'; invCtx.lineWidth = 1; invCtx.strokeRect(0.5,0.5,SEC_W-1,SEC_H-1);
+          par.querySelector('#rt-inv-caption').textContent =
+            (nxInv-1) + '\\u00d7' + (nzInv-1) + ' cells \\u00b7 drag the yellow dot to resize \\u00b7 click a pixel to inspect it';
+          drawColorbar(invCbarCtx, PERT_CAP_MS, 2000, v => v.toFixed(0)+' m/s');
+        }
+
+        function drawRes(){
+          resCtx.clearRect(0,0,SEC_W,SEC_H);
+          const flat = resPanelMode==='hessian' ? hessRowFlat : modelResRowFlat;
+          par.querySelector('#rt-res-title').textContent = resPanelMode==='hessian' ? 'Hessian Row' : 'Model Resolution Row';
+          if(!flat || !nxInv || !nzInv){
+            resCtx.fillStyle = '#6b7280'; resCtx.font = '12px sans-serif';
+            resCtx.fillText('click a pixel on the', 10, 18);
+            resCtx.fillText('Inverted Model panel', 10, 34);
+            resCtx.strokeStyle = '#374151'; resCtx.lineWidth = 1; resCtx.strokeRect(0.5,0.5,SEC_W-1,SEC_H-1);
+            return;
+          }
+          let mx = 1e-12;
+          for(const v of flat) mx = Math.max(mx, Math.abs(v));
+          const img = resCtx.createImageData(Math.round(SEC_W*DPR), Math.round(SEC_H*DPR));
+          const wpx = img.width, hpx = img.height;
+          for(let py=0; py<hpx; py++){
+            const zw = ZMIN + py/hpx*(ZMAX-ZMIN);
+            const iz0 = Math.max(0, Math.min(nzInv-2, Math.floor((zw-ZMIN)/(ZMAX-ZMIN)*(nzInv-1))));
+            for(let pxi=0; pxi<wpx; pxi++){
+              const xw = XMIN + pxi/wpx*(XMAX-XMIN);
+              const ix0 = Math.max(0, Math.min(nxInv-2, Math.floor((xw-XMIN)/(XMAX-XMIN)*(nxInv-1))));
+              const v = flat[invFlatIndex(ix0,iz0,nzInv)];
+              const [r,g,b] = velColor(v, mx);
+              const idx = (py*wpx+pxi)*4;
+              img.data[idx]=r; img.data[idx+1]=g; img.data[idx+2]=b; img.data[idx+3]=255;
+            }
+          }
+          resCtx.putImageData(img, 0, 0);
+          drawGridLines(resCtx, nxInv, nzInv);
+          if(pickedPixel>0){
+            const [rx,ry,rw,rh] = pickedPixelRect(nxInv, nzInv);
+            resCtx.strokeStyle = '#facc15'; resCtx.lineWidth = 2;
+            resCtx.strokeRect(rx, ry, rw, rh);
+          }
+          resCtx.strokeStyle = '#374151'; resCtx.lineWidth = 1; resCtx.strokeRect(0.5,0.5,SEC_W-1,SEC_H-1);
+          par.querySelector('#rt-res-caption').textContent = 'row for the pixel outlined in yellow';
+          drawColorbar(resCbarCtx, mx, 0, v => v.toExponential(1));
+        }
+
+        function syncControls(){
+          par.querySelector('#rt-brush').value = brush; par.querySelector('#rt-brush-v').textContent = brush.toFixed(0)+' m';
+          par.querySelector('#rt-lam').value = lamIdx; par.querySelector('#rt-lam-v').textContent = LAMRANGE[lamIdx-1].toExponential(1);
+          par.querySelector('#rt-paint-slow').classList.toggle('active', paintMode==='slow');
+          par.querySelector('#rt-paint-fast').classList.toggle('active', paintMode==='fast');
+          par.querySelector('#rt-mode-paint').classList.toggle('active', mode==='paint');
+          par.querySelector('#rt-mode-source').classList.toggle('active', mode==='source');
+          par.querySelector('#rt-mode-receiver').classList.toggle('active', mode==='receiver');
+          par.querySelector('#rt-mode-delete').classList.toggle('active', mode==='delete');
+          par.querySelector('#rt-view-tik').classList.toggle('active', viewMode==='tikhonov');
+          par.querySelector('#rt-view-fd').classList.toggle('active', viewMode==='firstdiff');
+          par.querySelector('#rt-res-hessian').classList.toggle('active', resPanelMode==='hessian');
+          par.querySelector('#rt-res-modelres').classList.toggle('active', resPanelMode==='modelres');
+          par.querySelector('#rt-inv-title').textContent = 'Inverted Model \\u2014 ' + (viewMode==='tikhonov' ? 'Tikhonov' : 'First-Difference');
+        }
+
+        let commitInFlight = false;
+        function commit(){
+          commitInFlight = true;
+          par.value = { pert, srcZ: srcz, recZ: recz, ds_inv: dsInv, lamIdx, paintMode, brush, mode, viewMode, resPanelMode, pickedPixel, pickedRay };
+          par.dispatchEvent(new CustomEvent('input'));
+        }
+        function throttledCommit(){ if(!commitInFlight) commit(); }
+
+        par.addEventListener('rt-update', e=>{
+          rayColors = e.detail.rayColors;
+          cest1Flat = e.detail.cest1Flat; cest2Flat = e.detail.cest2Flat;
+          hessRowFlat = e.detail.hessRowFlat; modelResRowFlat = e.detail.modelResRowFlat;
+          nxInv = e.detail.nxInv; nzInv = e.detail.nzInv;
+          commitInFlight = false;
+          drawTrue(); drawInv(); drawRes();
+        });
+
+        // ---- True Model canvas: paint, place/move/delete sources & receivers, pick a ray ----
+        let painting = false, draggingMarker = null;
+        trueCv.addEventListener('mousedown', e=>{
+          const rect = trueCv.getBoundingClientRect();
+          const px = e.clientX-rect.left, py = e.clientY-rect.top;
+          const hit = nearestMarker(px,py);
+          if(hit && mode==='delete'){
+            if(hit.type==='source'){ if(srcz.length>1) srcz = srcz.filter((_,i)=>i!==hit.idx); }
+            else { if(recz.length>1) recz = recz.filter((_,i)=>i!==hit.idx); }
+            drawTrue(); commit();
+            return;
+          }
+          if(hit){ draggingMarker = hit; return; }
+          const [xw,zw] = toWorld(px,py);
+          if(mode==='source'){
+            if(srcz.length<MAX_STATIONS){ srcz = srcz.concat([Math.max(ZMIN,Math.min(ZMAX,zw))]); drawTrue(); commit(); }
+            return;
+          }
+          if(mode==='receiver'){
+            if(recz.length<MAX_STATIONS){ recz = recz.concat([Math.max(ZMIN,Math.min(ZMAX,zw))]); drawTrue(); commit(); }
+            return;
+          }
+          if(mode==='delete') return;
+          const near = nearestRay(px,py);
+          if(near.dist < RAY_PICK_TOL){ pickedRay = near.idx+1; drawTrue(); commit(); return; }
+          painting = true;
+          paintAt(xw, zw, brush);
+          drawTrue();
+        });
+        window.addEventListener('mousemove', e=>{
+          const rect = trueCv.getBoundingClientRect();
+          const px = e.clientX-rect.left, py = e.clientY-rect.top;
+          if(draggingMarker){
+            const zc = Math.max(ZMIN, Math.min(ZMAX, toWorld(px, Math.max(0,Math.min(SEC_H,py)))[1]));
+            if(draggingMarker.type==='source') srcz[draggingMarker.idx] = zc; else recz[draggingMarker.idx] = zc;
+            drawTrue();
+            return;
+          }
+          if(px<0||px>SEC_W||py<0||py>SEC_H){ if(hoverRay>=0){ hoverRay=-1; drawTrue(); } return; }
+          if(painting){ const [xw,zw]=toWorld(px,py); paintAt(xw,zw,brush); drawTrue(); return; }
+          if(mode==='paint'){
+            const near = nearestRay(px,py);
+            const newHover = near.dist < RAY_PICK_TOL ? near.idx : -1;
+            if(newHover !== hoverRay){ hoverRay = newHover; drawTrue(); }
+          }
+        });
+        window.addEventListener('mouseup', ()=>{
+          if(draggingMarker){ draggingMarker=null; commit(); return; }
+          if(painting) commit();
+          painting = false;
+        });
+
+        // ---- Inverted Model canvas: drag the yellow dot to resize the grid, else click a pixel ----
+        let draggingGrid = false, draggingGridHappened = false;
+        invCv.addEventListener('mousedown', e=>{
+          const rect = invCv.getBoundingClientRect();
+          const px = e.clientX-rect.left, py = e.clientY-rect.top;
+          const [hx,hy] = invGridHandlePos();
+          if(Math.hypot(px-hx,py-hy) < 10){ draggingGrid = true; draggingGridHappened = false; }
+        });
+        window.addEventListener('mousemove', e=>{
+          if(!draggingGrid) return;
+          draggingGridHappened = true;
+          const rect = invCv.getBoundingClientRect();
+          const px = e.clientX-rect.left;
+          const xw = toWorld(Math.max(0,Math.min(SEC_W,px)), 0)[0];
+          dsInv = Math.max(10, Math.min(1000, Math.round(xw - XMIN)));
+          drawInv();
+        });
+        window.addEventListener('mouseup', ()=>{ if(draggingGrid){ draggingGrid=false; commit(); } });
+        invCv.addEventListener('click', e=>{
+          if(draggingGridHappened){ draggingGridHappened=false; return; }
+          if(!nxInv || !nzInv) return;
+          const rect = invCv.getBoundingClientRect();
+          const px = e.clientX-rect.left, py = e.clientY-rect.top;
+          const [xw,zw] = toWorld(px,py);
+          const ix0 = Math.max(0, Math.min(nxInv-2, Math.floor((xw-XMIN)/(XMAX-XMIN)*(nxInv-1))));
+          const iz0 = Math.max(0, Math.min(nzInv-2, Math.floor((zw-ZMIN)/(ZMAX-ZMIN)*(nzInv-1))));
+          pickedPixel = invFlatIndex(ix0,iz0,nzInv) + 1;
+          drawInv(); drawRes(); commit();
+        });
+
+        par.querySelector('#rt-paint-slow').addEventListener('click', ()=>{ paintMode='slow'; syncControls(); });
+        par.querySelector('#rt-paint-fast').addEventListener('click', ()=>{ paintMode='fast'; syncControls(); });
+        par.querySelector('#rt-mode-paint').addEventListener('click', ()=>{ mode='paint'; syncControls(); drawTrue(); });
+        par.querySelector('#rt-mode-source').addEventListener('click', ()=>{ mode='source'; syncControls(); drawTrue(); });
+        par.querySelector('#rt-mode-receiver').addEventListener('click', ()=>{ mode='receiver'; syncControls(); drawTrue(); });
+        par.querySelector('#rt-mode-delete').addEventListener('click', ()=>{ mode='delete'; syncControls(); drawTrue(); });
+        par.querySelector('#rt-view-tik').addEventListener('click', ()=>{ viewMode='tikhonov'; syncControls(); drawInv(); commit(); });
+        par.querySelector('#rt-view-fd').addEventListener('click', ()=>{ viewMode='firstdiff'; syncControls(); drawInv(); commit(); });
+        par.querySelector('#rt-res-hessian').addEventListener('click', ()=>{ resPanelMode='hessian'; syncControls(); drawRes(); commit(); });
+        par.querySelector('#rt-res-modelres').addEventListener('click', ()=>{ resPanelMode='modelres'; syncControls(); drawRes(); commit(); });
+        par.querySelector('#rt-clear').addEventListener('click', ()=>{
+          pert = new Array(PNX*PNZ).fill(0); drawTrue(); commit();
+        });
+
+        par.addEventListener('input', e=>{
+          if(e.target===par) return;
+          e.stopImmediatePropagation();
+          const id = e.target.id, v = e.target.value;
+          if(id==='rt-brush'){ brush=+v; par.querySelector('#rt-brush-v').textContent=brush.toFixed(0)+' m'; return; }
+          else if(id==='rt-lam'){ lamIdx=+v; par.querySelector('#rt-lam-v').textContent=LAMRANGE[lamIdx-1].toExponential(1); }
+          else return;
+          throttledCommit();
+        }, true);
+
+        par.querySelector('#rt-brush-v').textContent = brush.toFixed(0)+' m';
+        syncControls(); drawTrue(); drawInv(); drawRes();
+        }
+        // Debounce rather than act on the first callback: WideCell's own resize of `par`
+        // (narrow default column -> full wide width) fires this observer more than once in
+        // quick succession, and reacting to the first one bakes in the still-narrow size.
+        // Waiting for callbacks to stop for a bit means we always use the settled width,
+        // whatever it ends up being (including "stayed narrow" on a small viewport).
+        let rtTimer = null;
+        const rtRo = new ResizeObserver(() => {
+          clearTimeout(rtTimer);
+          rtTimer = setTimeout(() => { rtRo.disconnect(); rtInit(); }, 150);
+        });
+        rtRo.observe(par);
+        }
+        </script>
+
+        """)
+    end
+
+    const _rt_ready = true
+end
+
+# ╔═╡ 7a0d1e10-1000-4a00-9000-000000000001
+begin
+    _rt_ready
+    WideCell(@bind rt RayTomographyInput(); max_width=1500)
+end
+
+# ╔═╡ 7a0d1e10-1000-4a00-9000-000000000002
+# The bond starts as `nothing` until the widget's first real interaction in a live browser
+# reports back -- fall back to the same defaults the widget itself opens with.
+rt_safe = rt isa AbstractDict ? rt : Dict{String,Any}(
+    "pert" => zeros(RT_PNX * RT_PNZ), "srcZ" => collect(range(-950.0, 950.0, length=25)),
+    "recZ" => collect(range(-950.0, 950.0, length=25)), "ds_inv" => 150.0,
+    "lamIdx" => 1, "paintMode" => "slow", "brush" => 120.0, "mode" => "paint",
+    "viewMode" => "tikhonov", "resPanelMode" => "hessian", "pickedPixel" => 0, "pickedRay" => 0)
+
+# ╔═╡ 7a0d1e10-1000-4a00-9000-000000000003
+# Coerce every field out of the loosely-typed bond dict to its real type here, once -- every
+# downstream cell works with these concretely-typed values and never touches `rt_safe` again.
+begin
+    rt_pert = Float64.(rt_safe["pert"])
+    rt_srcZ = let z = Float64.(get(rt_safe, "srcZ", [0.0]))
+        isempty(z) ? [0.0] : clamp.(z, -1000.0, 1000.0)
+    end
+    rt_recZ = let z = Float64.(get(rt_safe, "recZ", [0.0]))
+        isempty(z) ? [0.0] : clamp.(z, -1000.0, 1000.0)
+    end
+    rt_ds_inv = clamp(Float64(rt_safe["ds_inv"]), 10.0, 1000.0)
+    rt_lamIdx = clamp(round(Int, rt_safe["lamIdx"]), 1, length(λrange))
+    rt_lambda = λrange[rt_lamIdx]
+    rt_viewMode = rt_safe["viewMode"]
+    rt_resPanelMode = get(rt_safe, "resPanelMode", "hessian")
+end;
+
+# ╔═╡ 322d1562-2197-4131-bd17-93aed063e55c
+begin
+    xgrid_inv = range(-1000, stop=1000, length=floor(Int, 2000 / rt_ds_inv))
+    zgrid_inv = range(-1000, stop=1000, length=floor(Int, 2000 / rt_ds_inv))
+end;
+
+# ╔═╡ 272428e7-f865-4d9e-9df1-9fb45dec6a96
+Dv = vertical_differencing_operator(length(zgrid_inv) - 1, length(xgrid_inv) - 1,)
+
+# ╔═╡ 0ac7a1d4-f9c4-4e9a-a1fd-ff7629022fad
+Dh = horizontal_differencing_operator(length(zgrid_inv) - 1, length(xgrid_inv) - 1,)
+
+# ╔═╡ 59c0e9a2-ab43-45b8-83a8-e0e865b1895d
+λ3 = inv(tr(Dh' * Dh))
+
+# ╔═╡ 092331da-31a4-403d-b0cb-6e7705c6d81b
+ctrue, strue = get_medium(xgrid, zgrid, rt_pert);
+
+# ╔═╡ aa9782b5-88be-43a2-b1e1-d68f289a8fec
+# Sources/receivers are placed directly by the student (widget's Source/Receiver/Delete modes);
+# x is pinned to the outer edges, only z is student-controlled.
+begin
+    srcz = rt_srcZ
+    srcx = fill(-1000.0, length(srcz))
+    recz = rt_recZ
+    recx = fill(1000.0, length(recz))
+end;
+
+# ╔═╡ dce75e41-274b-4e6a-8949-5caaeef7238a
+G = get_forw_operator(xgrid_inv, zgrid_inv, srcx, srcz, recx, recz);
+
+# ╔═╡ ad441089-505f-4da2-a345-548e8c4dd7d2
+plot(heatmap(z=G), Layout(xaxis_title="model vector index", yaxis_autorange="reversed", yaxis_title="data vector index", width=450, title="Forward Operator"))
+
+# ╔═╡ 2713503d-165f-47f9-8ece-4cd5ddc0bb21
+λ1 = inv(tr(G' * G))
+
+# ╔═╡ a60daaa3-d5da-4ac5-b40b-65bbbffdae55
+H = spdiagm(ones(size(G, 2)));
+
+# ╔═╡ 464f5a71-d820-4300-b062-e2eb9491f612
+λ2 = inv(tr(H' * H))
+
+# ╔═╡ 774ebdcf-3d88-47b8-aa66-f59822b18321
+Gi = pinv(G); # compute Moore-Penrose pseudoinverse
+
+# ╔═╡ 80910abe-97df-4283-bc18-d8c8e876174e
+sprior = fill(inv(2000.), size(G, 2));
+
+# ╔═╡ fc4be0cb-5531-4432-a265-30f0cc27494d
+"""
+	get_tikhonov_solution(dobs, λval)
+
+Damped least-squares estimate of the slowness, trading off data misfit against a
+zeroth-order (identity) regularizer weighted by `λval` towards `sprior`.
+"""
+function get_tikhonov_solution(dobs, λval)
+	return inv(λ1 * G' * G + λ2 * λval * H' * H) * (
+    λ1 * G' * dobs + λ2 * λval * H' * sprior)
+end
+
+# ╔═╡ 11ffa65f-6c38-48bd-b22b-07c238596473
+"""
+	get_first_difference_regularized_solution(dobs, λval)
+
+Damped least-squares estimate of the slowness, trading off data misfit against a
+first-order (roughness-penalizing) regularizer weighted by `λval`.
+"""
+function get_first_difference_regularized_solution(dobs, λval)
+	return inv(λ1 * G' * G + λ3 * λval * Dh' * Dh + λ3 * λval * Dv' * Dv) * (
+    λ1 * G' * dobs)
+end
+
+# ╔═╡ acc8d4d0-a332-478f-8630-b22a10e7063b
+function plot_G_scree()
+    s = svd(G)
+    plot(s.S, Layout(title="Singular values of G"))
+end
+
+# ╔═╡ aa36d8d7-a7d4-4aa4-b0ee-b07d36cc453b
+plot_G_scree()
+
+# ╔═╡ 3c7cddb2-72c6-45d1-a902-f66cb67d2835
+plot(heatmap(z=transpose(G) * G), Layout(yaxis_autorange="reversed", title="the Hessian matrix", xaxis_title="model index", yaxis_title="model index", width=450))
+
+# ╔═╡ 58867c8d-af21-48e9-ab0c-4472711e8eb0
+begin
+    tt_analytic = vec([(sqrt(sum(abs2.([srcx[is] - recx[ir], srcz[is] - recz[ir]])))) * inv(2000) for ir in 1:length(recx), is in 1:length(srcx)])
+    tt_G = G * inv.(fill(2000, (length(zgrid_inv) - 1) * (length(xgrid_inv) - 1)))
+    @test tt_analytic ≈ tt_G
+end
+
+# ╔═╡ 7a0d1e10-1000-4a00-9000-000000000004
+# `pickedPixel`/`pickedRay` of 0 means "nothing clicked yet" -- fall back to the same default
+# row each slider used to open with, otherwise clamp the click to the current grid/acquisition size
+# (which may have since changed independently of the last click).
+begin
+    rt_irowm = rt_safe["pickedPixel"] == 0 ? div(length(xgrid_inv) * length(zgrid_inv), 4) :
+               clamp(round(Int, rt_safe["pickedPixel"]), 1, (length(xgrid_inv) - 1) * (length(zgrid_inv) - 1))
+    rt_irowd = rt_safe["pickedRay"] == 0 ? 1 :
+               clamp(round(Int, rt_safe["pickedRay"]), 1, length(recz) * length(srcz))
+end;
+
+# ╔═╡ f408a310-fce3-4876-819e-3457037bd48f
+# row of the Hessian matrix (Gᵀ·G) for the pixel clicked on the widget's Inverted Model panel --
+# shown live in the widget's own third panel via RtPush, not as a separate static plot.
+rt_hessRow = (transpose(G) * G)[rt_irowm, :];
+
+# ╔═╡ 5bdd9d83-3911-4ab5-aefb-5ead429ac5a5
+# row of the model resolution matrix (Gi·G) for the same clicked pixel, same live display.
+rt_modelResRow = (Gi * G)[rt_irowm, :];
+
+# ╔═╡ a3bf8549-fff8-4423-8a87-a81cb21f9eb1
+plot((G*Gi)[rt_irowd, :], Layout(title="Row of data resolution matrix", xaxis_title="raypath index"))
+
+# ╔═╡ 7df1cd87-40fa-45c1-9d85-1d491c414a18
+Gtrue = get_forw_operator(xgrid, zgrid, srcx, srcz, recx, recz);
+
+# ╔═╡ 3d201819-788b-4d90-b3a6-5483fc16ca81
+dobs = Gtrue * strue;
+
+# ╔═╡ 0bf44317-45cf-4899-8b1b-dfa1fe018db4
+data_residual = tt_G - dobs;
+
+# ╔═╡ 461859c0-5f94-469c-a054-4553045bac17
+grad_slowness = reshape(G' * data_residual, length(zgrid_inv) - 1, length(xgrid_inv) - 1);
+
+# ╔═╡ 4114f8f4-51a5-4af6-b8b7-e17480d942e3
+# Normalize residuals to [0,1]
+norm_residuals = (data_residual .- minimum(data_residual)) ./ (maximum(data_residual) - minimum(data_residual))
+
+# ╔═╡ e4d99869-844e-4c1b-a64c-9cbf1eabab99
+sest1 = get_tikhonov_solution(dobs, rt_lambda)
+
+# ╔═╡ 68b24556-4731-4b8f-b8a6-7aa7ffa38a92
+cest1 = reshape((inv.(sest1)), length(zgrid_inv) - 1, length(xgrid_inv) - 1);
+
+# ╔═╡ 0a336d04-b2c5-45d6-b2a4-7f03666cb597
+sest2 = get_first_difference_regularized_solution(dobs, rt_lambda)
+
+# ╔═╡ 9dfe9cd4-9baa-4808-9b7a-d01c62ee6d40
+cest2 = reshape((inv.(sest2)), length(zgrid_inv) - 1, length(xgrid_inv) - 1);
+
+# ╔═╡ b1350eb1-059e-4f83-a539-2e2befc3dabb
+function plot_models()
+
+    fig = Plot(Layout(yaxis_autorange="reversed", height=600, width=650, title=attr(font_size=12,), font=attr(
+            size=10), yaxis=attr(scaleanchor="x"), Subplots(shared_xaxes=true, shared_yaxes=true, horizontal_spacing=0.3, rows=2, cols=2, subplot_titles=["True Seismic Velocity" "Gradient" "Tikhonov Regularization" "First-Order Difference Regularization"])))
+    add_trace!(fig, heatmap(
+            x=xgrid,
+            y=zgrid,
+            z=reshape(ctrue, length(zgrid) - 1, length(xgrid) - 1), colorscale="jet", colorbar=attr(x=0.35, y=0.75, len=0.25)), row=1, col=1)
+    add_trace!(fig, heatmap(
+            x=xgrid_inv,
+            y=zgrid_inv,
+            z=(grad_slowness), colorscale="jet", colorbar=attr(x=1, y=0.75, len=0.25)), row=1, col=2)
+
+    add_trace!(fig, heatmap(
+            x=xgrid_inv,
+            y=zgrid_inv,
+            z=(cest1), colorscale="jet", colorbar=attr(x=0.35, y=0.25, len=0.25), zmin=minimum(ctrue), zmax=maximum(ctrue)), row=2, col=1)
+    add_trace!(fig, heatmap(
+            x=xgrid_inv,
+            y=zgrid_inv,
+            z=(cest2), colorscale="jet", colorbar=attr(x=1, y=0.25, len=0.25), zmin=minimum(ctrue), zmax=maximum(ctrue)), row=2, col=2)
+
+    return PlutoPlotly.plot(fig)
+
+end
+
+# ╔═╡ 842ec98f-505a-4873-9c64-725e2f92cbb9
+plot_models()
+
+# ╔═╡ a26fd943-dd6c-4e42-b6b0-5c9a17f31b19
+plot([scatter(y=dobs, name="observed"), scatter(y=G * sest1, name="predicted")], Layout(title="Data Residual (Observed Vs. Predicted Traveltimes)", xaxis_title="# raypath", yaxis_title="traveltime"))
+
+# ╔═╡ ffb59613-e16b-4d38-9c36-c778f92842e0
+plot([scatter(y=dobs, name="observed"), scatter(y=G * sest2, name="predicted")], Layout(title="Data Residual (Observed Vs. Predicted Traveltimes)", xaxis_title="# raypath", yaxis_title="traveltime"))
+
+# ╔═╡ e8e733ee-586d-4ef6-a8ad-8c793cc8e3e9
+# Map to seismic colormap (blue → red)
+data_residual_colors = get.(Ref(reverse(colorschemes[:seismic])), norm_residuals)
+
+# ╔═╡ 7a0d1e40-4000-4a00-9000-000000000003
+md"""
+`RtPush` does no physics of its own -- it takes the already-computed forward operator,
+inversion, and data-residual results and hands them to the *already-rendered*
+[`RayTomographyInput`](@ref) widget by dispatching a browser `CustomEvent`, the same
+pattern used by `RayPush` in `ray-theory-eikonal-equation.jl`.
+"""
+
+# ╔═╡ 7a0d1e40-4000-4a00-9000-000000000004
+"""
+	rt_hex(c)
+
+Format a `Colors.jl` `RGB` as a `"#rrggbb"` string for use as a canvas `strokeStyle`.
+"""
+rt_hex(c) = "#" * string(round(Int, clamp(255 * c.r, 0, 255)), base=16, pad=2) *
+            string(round(Int, clamp(255 * c.g, 0, 255)), base=16, pad=2) *
+            string(round(Int, clamp(255 * c.b, 0, 255)), base=16, pad=2)
+
+# ╔═╡ 7a0d1e40-4000-4a00-9000-000000000005
+begin
+    struct RtPush
+        rayColors::Any
+        cest1Flat::Any
+        cest2Flat::Any
+        hessRowFlat::Any
+        modelResRowFlat::Any
+        nxInv::Int
+        nzInv::Int
+    end
+    function Base.show(io::IO, ::MIME"text/html", p::RtPush)
+        write(io, """
+        <script>
+        {
+        const w = document.getElementById('rtwidget');
+        if(w){
+          w.dispatchEvent(new CustomEvent('rt-update', { detail: {
+            rayColors: [$(join(repr.(p.rayColors), ","))],
+            cest1Flat: [$(join(p.cest1Flat, ","))],
+            cest2Flat: [$(join(p.cest2Flat, ","))],
+            hessRowFlat: [$(join(p.hessRowFlat, ","))],
+            modelResRowFlat: [$(join(p.modelResRowFlat, ","))],
+            nxInv: $(p.nxInv),
+            nzInv: $(p.nzInv),
+          }}));
+        }
+        }
+        </script>
+        """)
+    end
+end
+
+# ╔═╡ 7a0d1e40-4000-4a00-9000-000000000006
+RtPush(
+    rt_hex.(data_residual_colors),
+    vec(cest1), vec(cest2),
+    rt_hessRow, rt_modelResRow,
+    length(xgrid_inv), length(zgrid_inv),
+)
+
 # ╔═╡ 00000000-0000-0000-0000-000000000001
 PLUTO_PROJECT_TOML_CONTENTS = """
 [deps]
@@ -773,26 +1425,24 @@ PlutoPlotly = "8e989ff0-3d88-8e9f-f020-2b208a939ff0"
 PlutoTeachingTools = "661c6b06-c737-4d37-b85c-46df65de6f69"
 PlutoTest = "cb4044da-4d16-4ffa-a6a3-8cad7f73ebdc"
 PlutoUI = "7f904dfe-b85e-4ff6-b463-dae2292396a8"
-PlutoUIExtra = "a011ac08-54e6-4ec3-ad1c-4165f16ac4ce"
 SparseArrays = "2f01184e-e22b-5df5-ae63-d93ebab69eaf"
 StatsBase = "2913bbd2-ae8a-5f71-8c99-4fb6c76f3a91"
 TikzPictures = "37f6aa50-8035-52d0-81c2-5a1d08754b2d"
 
 [compat]
 ColorSchemes = "~3.31.0"
-Colors = "~0.12.10"
-Distances = "~0.10.11"
-Distributions = "~0.25.115"
-GLMNet = "~0.7.2"
+Colors = "~0.12.11"
+Distances = "~0.10.12"
+Distributions = "~0.25.122"
+GLMNet = "~0.7.4"
 HDF5 = "~0.17.2"
-Pluto = "~0.20.19"
-PlutoPlotly = "~0.4.4"
-PlutoTeachingTools = "~0.2.14"
+Pluto = "~0.20.21"
+PlutoPlotly = "~0.4.6"
+PlutoTeachingTools = "~0.2.15"
 PlutoTest = "~0.2.2"
-PlutoUI = "~0.7.55"
-PlutoUIExtra = "~0.1.8"
-StatsBase = "~0.34.2"
-TikzPictures = "~3.5.0"
+PlutoUI = "~0.7.77"
+StatsBase = "~0.34.9"
+TikzPictures = "~3.5.1"
 """
 
 # ╔═╡ 00000000-0000-0000-0000-000000000002
@@ -801,37 +1451,13 @@ PLUTO_MANIFEST_TOML_CONTENTS = """
 
 julia_version = "1.12.4"
 manifest_format = "2.0"
-project_hash = "f060d41a6d031b887b472419bcdd988bfb77376c"
+project_hash = "3368e8032bf3a6bbf811019c98b7374bfea087cb"
 
 [[deps.AbstractPlutoDingetjes]]
 deps = ["Pkg"]
 git-tree-sha1 = "6e1d2a35f2f90a4bc7c2ed98079b2ba09c35b83a"
 uuid = "6e696c72-6542-2067-7265-42206c756150"
 version = "1.3.2"
-
-[[deps.Accessors]]
-deps = ["CompositionsBase", "ConstructionBase", "Dates", "InverseFunctions", "MacroTools"]
-git-tree-sha1 = "856ecd7cebb68e5fc87abecd2326ad59f0f911f3"
-uuid = "7d9f7c33-5ae7-4f3b-8dc6-eff91059b697"
-version = "0.1.43"
-
-    [deps.Accessors.extensions]
-    AxisKeysExt = "AxisKeys"
-    IntervalSetsExt = "IntervalSets"
-    LinearAlgebraExt = "LinearAlgebra"
-    StaticArraysExt = "StaticArrays"
-    StructArraysExt = "StructArrays"
-    TestExt = "Test"
-    UnitfulExt = "Unitful"
-
-    [deps.Accessors.weakdeps]
-    AxisKeys = "94b1ba4f-4ee9-5380-92f1-94cde586c3c5"
-    IntervalSets = "8197267c-284f-5f27-9208-e0e47529a953"
-    LinearAlgebra = "37e2e46d-f89d-539d-b4ee-838fcccc9c8e"
-    StaticArrays = "90137ffa-7385-5640-81b9-e52037218182"
-    StructArrays = "09ab397b-f2b6-538f-b94a-2f83cf4a842a"
-    Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
-    Unitful = "1986cc42-f94f-5a68-af5c-568840ba703d"
 
 [[deps.AliasTables]]
 deps = ["PtrArrays", "Random"]
@@ -933,15 +1559,6 @@ deps = ["Artifacts", "Libdl"]
 uuid = "e66e0078-7015-5450-92f7-15fbd957f2ae"
 version = "1.3.0+1"
 
-[[deps.CompositionsBase]]
-git-tree-sha1 = "802bb88cd69dfd1509f6670416bd4434015693ad"
-uuid = "a33af91c-f02d-484b-be07-31d278c5ca2b"
-version = "0.1.2"
-weakdeps = ["InverseFunctions"]
-
-    [deps.CompositionsBase.extensions]
-    CompositionsBaseInverseFunctionsExt = "InverseFunctions"
-
 [[deps.ConcurrentUtilities]]
 deps = ["Serialization", "Sockets"]
 git-tree-sha1 = "d9d26935a0bcffc87d2613ce14c527c99fc543fd"
@@ -953,21 +1570,6 @@ deps = ["ExproniconLite", "OrderedCollections", "TOML"]
 git-tree-sha1 = "4358750bb58a3caefd5f37a4a0c5bfdbbf075252"
 uuid = "5218b696-f38b-4ac9-8b61-a12ec717816d"
 version = "0.17.6"
-
-[[deps.ConstructionBase]]
-git-tree-sha1 = "b4b092499347b18a015186eae3042f72267106cb"
-uuid = "187b0558-2788-49d3-abe0-74a17ed4e7c9"
-version = "1.6.0"
-
-    [deps.ConstructionBase.extensions]
-    ConstructionBaseIntervalSetsExt = "IntervalSets"
-    ConstructionBaseLinearAlgebraExt = "LinearAlgebra"
-    ConstructionBaseStaticArraysExt = "StaticArrays"
-
-    [deps.ConstructionBase.weakdeps]
-    IntervalSets = "8197267c-284f-5f27-9208-e0e47529a953"
-    LinearAlgebra = "37e2e46d-f89d-539d-b4ee-838fcccc9c8e"
-    StaticArrays = "90137ffa-7385-5640-81b9-e52037218182"
 
 [[deps.Crayons]]
 git-tree-sha1 = "249fe38abf76d48563e2f4556bebd215aa317e15"
@@ -984,11 +1586,6 @@ deps = ["Compat", "DataAPI", "DataStructures", "Future", "InlineStrings", "Inver
 git-tree-sha1 = "d8928e9169ff76c6281f39a659f9bca3a573f24c"
 uuid = "a93c6f00-e57d-5684-b7b6-d8193f3e46c0"
 version = "1.8.1"
-
-[[deps.DataPipes]]
-git-tree-sha1 = "29077a8d5c093f4e0988e92c0d76f56c4c581900"
-uuid = "02685ad9-2d12-40c3-9f73-c6aeda6a7ff5"
-version = "0.3.18"
 
 [[deps.DataStructures]]
 deps = ["OrderedCollections"]
@@ -1100,26 +1697,6 @@ deps = ["Statistics"]
 git-tree-sha1 = "05882d6995ae5c12bb5f36dd2ed3f61c98cbb172"
 uuid = "53c48c17-4a7d-5ca2-90c5-79b7896eea93"
 version = "0.8.5"
-
-[[deps.FlexiMaps]]
-deps = ["Accessors", "DataPipes", "InverseFunctions"]
-git-tree-sha1 = "c2e79264c5e749d099d7ae854f64ec73f2f9e3e9"
-uuid = "6394faf6-06db-4fa8-b750-35ccc60383f7"
-version = "0.1.29"
-
-    [deps.FlexiMaps.extensions]
-    AxisKeysExt = "AxisKeys"
-    DictionariesExt = "Dictionaries"
-    IntervalSetsExt = "IntervalSets"
-    StructArraysExt = "StructArrays"
-    UnitfulExt = "Unitful"
-
-    [deps.FlexiMaps.weakdeps]
-    AxisKeys = "94b1ba4f-4ee9-5380-92f1-94cde586c3c5"
-    Dictionaries = "85a47980-9c8c-11e8-2b9f-f7ca1fa99fb4"
-    IntervalSets = "8197267c-284f-5f27-9208-e0e47529a953"
-    StructArrays = "09ab397b-f2b6-538f-b94a-2f83cf4a842a"
-    Unitful = "1986cc42-f94f-5a68-af5c-568840ba703d"
 
 [[deps.Fontconfig_jll]]
 deps = ["Artifacts", "Bzip2_jll", "Expat_jll", "FreeType2_jll", "JLLWrappers", "Libdl", "Libuuid_jll", "Zlib_jll"]
@@ -1268,31 +1845,6 @@ version = "1.4.5"
 deps = ["Markdown"]
 uuid = "b77e0a4c-d291-57a0-90e8-8db25a27a240"
 version = "1.11.0"
-
-[[deps.IntervalSets]]
-git-tree-sha1 = "d966f85b3b7a8e49d034d27a189e9a4874b4391a"
-uuid = "8197267c-284f-5f27-9208-e0e47529a953"
-version = "0.7.13"
-
-    [deps.IntervalSets.extensions]
-    IntervalSetsRandomExt = "Random"
-    IntervalSetsRecipesBaseExt = "RecipesBase"
-    IntervalSetsStatisticsExt = "Statistics"
-
-    [deps.IntervalSets.weakdeps]
-    Random = "9a3f8284-a2c9-5f02-9a11-845980a1fd5c"
-    RecipesBase = "3cdcf5f2-1ef4-517c-9805-6587b60abb01"
-    Statistics = "10745b16-79ce-11e8-11f9-7d13ad32a3b2"
-
-[[deps.InverseFunctions]]
-git-tree-sha1 = "a779299d77cd080bf77b97535acecd73e1c5e5cb"
-uuid = "3587e190-3f89-42d0-90ee-14403ec27112"
-version = "0.1.17"
-weakdeps = ["Dates", "Test"]
-
-    [deps.InverseFunctions.extensions]
-    InverseFunctionsDatesExt = "Dates"
-    InverseFunctionsTestExt = "Test"
 
 [[deps.InvertedIndices]]
 git-tree-sha1 = "6da3c4316095de0f5ee2ebd875df8721e7e0bdbe"
@@ -1747,12 +2299,6 @@ git-tree-sha1 = "6ed167db158c7c1031abf3bd67f8e689c8bdf2b7"
 uuid = "7f904dfe-b85e-4ff6-b463-dae2292396a8"
 version = "0.7.77"
 
-[[deps.PlutoUIExtra]]
-deps = ["AbstractPlutoDingetjes", "ConstructionBase", "FlexiMaps", "HypertextLiteral", "InteractiveUtils", "IntervalSets", "Markdown", "PlutoUI", "Random", "Reexport"]
-git-tree-sha1 = "b4ff5d24e2dc8fbf319cd44f9f81b5356e27bafb"
-uuid = "a011ac08-54e6-4ec3-ad1c-4165f16ac4ce"
-version = "0.1.8"
-
 [[deps.PooledArrays]]
 deps = ["DataAPI", "Future"]
 git-tree-sha1 = "36d8b4b899628fb92c2749eb488d884a926614d3"
@@ -2169,20 +2715,15 @@ version = "0.15.0+0"
 # ╠═7e72f1fc-345a-4a2d-b03b-8a7549ef6efc
 # ╠═35c21158-fc55-45f6-930d-7b82c2c0685d
 # ╟─d9d53d21-09ee-47cd-b661-8787de32f2c1
-# ╟─842ec98f-505a-4873-9c64-725e2f92cbb9
-# ╟─4509e5b8-8d54-47e1-9ba7-b4929fd2d2fc
-# ╟─3b3342fd-e1f9-4bb0-ac0e-580b2ec2af2b
-# ╟─81f6f055-fd51-455a-9dae-bc8a03b0d94f
-# ╟─bd08b641-e332-4b9b-9a44-2aea39d80b6c
 # ╟─f9089736-3744-4382-8bc0-68fc04b3cddb
-# ╠═aa9782b5-88be-43a2-b1e1-d68f289a8fec
-# ╠═7df1cd87-40fa-45c1-9d85-1d491c414a18
-# ╠═092331da-31a4-403d-b0cb-6e7705c6d81b
-# ╠═3d201819-788b-4d90-b3a6-5483fc16ca81
+# ╟─7a0d1e10-1000-4a00-9000-000000000001
+# ╟─7a0d1e10-1000-4a00-9000-000000000002
+# ╟─7a0d1e10-1000-4a00-9000-000000000003
 # ╟─5bbb5349-534a-48e2-8da5-08527784bc87
 # ╟─8037f78d-8938-42fc-98a2-210b442c00f0
 # ╟─7883ecc5-b01f-49d3-98c0-67676701e90e
 # ╟─5dd62dd3-fc67-4043-9579-aea1b1a922a9
+# ╟─842ec98f-505a-4873-9c64-725e2f92cbb9
 # ╟─ad441089-505f-4da2-a345-548e8c4dd7d2
 # ╟─792e9b54-3438-4338-913c-190565d38029
 # ╠═0bf44317-45cf-4899-8b1b-dfa1fe018db4
@@ -2200,6 +2741,7 @@ version = "0.15.0+0"
 # ╠═4344de43-abfa-45c6-ab84-8578ba87f60f
 # ╠═774ebdcf-3d88-47b8-aa66-f59822b18321
 # ╠═80910abe-97df-4283-bc18-d8c8e876174e
+# ╟─7a0d1e30-3000-4a00-9000-000000000001
 # ╠═fc4be0cb-5531-4432-a265-30f0cc27494d
 # ╠═e4d99869-844e-4c1b-a64c-9cbf1eabab99
 # ╠═11ffa65f-6c38-48bd-b22b-07c238596473
@@ -2211,50 +2753,50 @@ version = "0.15.0+0"
 # ╟─a26fd943-dd6c-4e42-b6b0-5c9a17f31b19
 # ╟─ffb59613-e16b-4d38-9c36-c778f92842e0
 # ╟─8fb45733-6b2b-428a-9536-fe6b6e2f2aa3
+# ╟─7a0d1e30-3000-4a00-9000-000000000002
 # ╠═58867c8d-af21-48e9-ab0c-4472711e8eb0
 # ╠═1547ff9a-0fa8-4295-94dd-73bd3678129f
 # ╠═848e19a7-73bc-40c4-98bb-310b9f9c8079
 # ╟─df1f716a-f961-4f6b-821c-e1038f190449
 # ╟─27465f25-d6c7-4855-a20f-1142b8cd3e9f
 # ╠═aa36d8d7-a7d4-4aa4-b0ee-b07d36cc453b
+# ╟─7a0d1e30-3000-4a00-9000-000000000003
 # ╠═acc8d4d0-a332-478f-8630-b22a10e7063b
 # ╠═3c7cddb2-72c6-45d1-a902-f66cb67d2835
 # ╟─70e78f3d-a261-43b1-a590-966c7c96021c
-# ╟─fe682b63-2a06-4c32-8dc0-2f99ba48a873
 # ╠═f408a310-fce3-4876-819e-3457037bd48f
 # ╟─ae30bfd8-6b42-4aa7-90f2-e7303b359b94
 # ╠═5bdd9d83-3911-4ab5-aefb-5ead429ac5a5
-# ╠═1807eb3a-ce0b-46fe-8c70-fa4af3d9ebad
 # ╠═a3bf8549-fff8-4423-8a87-a81cb21f9eb1
 # ╟─010a12e2-1abc-4471-a81b-005c30578e63
 # ╠═dcaeb6a8-78d1-11ec-24fb-4509de0a7d7b
-# ╠═6a0e653c-5a60-48d6-a3de-2c9409558b71
 # ╠═442255bc-4d49-4602-b0d4-a935871a9fe8
+# ╟─7a0d1e20-2000-4a00-9000-000000000001
+# ╠═7a0d1e20-2000-4a00-9000-000000000002
+# ╠═7a0d1e20-2000-4a00-9000-000000000003
 # ╠═da873791-517d-4ac3-80f8-ceae5808be24
 # ╠═322d1562-2197-4131-bd17-93aed063e55c
+# ╠═7a0d1e10-1000-4a00-9000-000000000004
 # ╟─cf99206b-8a78-40de-bd0d-20bb37ec0b09
 # ╠═2bf78ef8-8fc5-4e0b-a7c0-f72757bae6f6
+# ╠═092331da-31a4-403d-b0cb-6e7705c6d81b
 # ╟─3d1cd3b5-66f5-44a8-805a-496e801be858
 # ╟─1040f2b8-3999-46fb-9e3d-c163264a4f8a
-# ╠═f71dbf67-c6c2-444b-acf4-0569ee85bc6b
+# ╠═aa9782b5-88be-43a2-b1e1-d68f289a8fec
 # ╠═565af43c-8b85-4ab4-b72d-ac9560efd4fc
 # ╠═3e2460ec-102a-4d3c-a4c5-5d6c6e2193ec
 # ╠═82d3a20f-ea2b-47e6-96df-45fa568da9f8
+# ╠═7df1cd87-40fa-45c1-9d85-1d491c414a18
+# ╠═3d201819-788b-4d90-b3a6-5483fc16ca81
 # ╠═4daad9cb-5651-4757-a390-27bbbfa5d4c9
 # ╠═b4800358-212d-4efc-af6e-8bbdd53609e6
 # ╠═272428e7-f865-4d9e-9df1-9fb45dec6a96
 # ╠═0ac7a1d4-f9c4-4e9a-a1fd-ff7629022fad
-# ╟─4dd5df1f-f0bc-49ec-a533-4498ed17d223
-# ╠═208932c4-a57b-487d-9d3b-f165b4a4a4ed
-# ╠═7e6ae5d6-ff89-45f5-914a-c58d3e185041
-# ╠═6702fde2-8847-407b-9d69-8e099374d6ce
 # ╟─b338591d-cc11-4e9e-827e-7fcee5b2d38b
 # ╠═b1350eb1-059e-4f83-a539-2e2befc3dabb
 # ╠═4114f8f4-51a5-4af6-b8b7-e17480d942e3
 # ╠═e8e733ee-586d-4ef6-a8ad-8c793cc8e3e9
 # ╠═44eddeed-1763-4c04-b213-b7469983286d
-# ╠═1161cc82-6b2d-42e0-99fe-2dfb1a2d00b6
-# ╠═d7dd7859-9489-4bfc-bc77-edec76fe96f2
 # ╠═07a56b99-964f-499d-913b-9c2aaeae6b51
 # ╠═1499710e-1316-4113-b551-83d0e01151ab
 # ╟─ce416101-f2e1-4b67-a166-b099325c3be2
@@ -2262,5 +2804,11 @@ version = "0.15.0+0"
 # ╟─d974f740-2c3e-4225-bed8-f444bccde910
 # ╟─d06052d3-07c3-43b6-909d-b31b06097fd3
 # ╟─0d000f59-ecb2-4fc9-9f21-c60eac17b3bf
+# ╟─7a0d1e40-4000-4a00-9000-000000000001
+# ╠═7a0d1e40-4000-4a00-9000-000000000002
+# ╟─7a0d1e40-4000-4a00-9000-000000000003
+# ╠═7a0d1e40-4000-4a00-9000-000000000004
+# ╠═7a0d1e40-4000-4a00-9000-000000000005
+# ╠═7a0d1e40-4000-4a00-9000-000000000006
 # ╟─00000000-0000-0000-0000-000000000001
 # ╟─00000000-0000-0000-0000-000000000002
