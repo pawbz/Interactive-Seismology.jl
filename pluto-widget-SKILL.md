@@ -470,25 +470,76 @@ Check for this any time you override an ancestor's `width` from inside a widget 
 `transform` computed relative to the *old* size is a common way for that kind of override to leave things
 visually off-kilter even though the override itself "worked."
 
-### 2. Size the canvas(es) and control grid from the viewport, not a fixed pixel constant
+### 2. Size the canvas(es) and control grid from `par.clientWidth`, not a `window.innerWidth` fraction
 
 At the top of the widget's `<script>`, before anything else, compute how much room you actually have and
 derive your drawing-surface size from it:
 
 ```js
 const par = currentScript.previousElementSibling   // your #yourwidget div
-const availW = Math.min(window.innerWidth*0.8, par.clientWidth || window.innerWidth*0.8)
+const availW = Math.min(par.clientWidth || (window.innerWidth*0.8 || 900), <maxWidthMatchingWideCell>)
 const heightBudget = Math.max(<floor>, window.innerHeight - <reserveForEverythingElse>)
 ```
 
-`availW` is capped by *both* 80% of the viewport *and* whatever the (now-widened) wide-cell wrapper
-actually gives you — belt and suspenders. `heightBudget` is what makes "no scroll" real: it bounds your
-square/tall canvas's height by the vertical space actually left after reserving room for whatever sits
-above/below it (a comparison strip, the control panel, margins). **Measure that reserve empirically** —
-don't guess. Load the widget, read `getBoundingClientRect().height` on the controls section and any other
-canvas, and set the reserve to match. Guessing low causes the widget to overflow the screen; guessing high
-just under-sizes the canvas. See "How this was tuned" below for the actual numbers that came out of doing
-this for the two reference widgets.
+**`par.clientWidth` is the number that actually matters — trust it, don't cap it against a fraction of
+`window.innerWidth`.** An earlier version of this section recommended
+`Math.min(window.innerWidth*0.8, par.clientWidth || ..., ...)` as "belt and suspenders." That's wrong
+whenever the notebook column is wide relative to the browser window (a wide viewport, or Pluto's sidebar
+collapsed) — `window.innerWidth*0.8` can be *smaller* than the real, already-`WideCell`-bounded
+`clientWidth`, and `Math.min` silently picks the smaller, artificial number. The symptom is easy to
+misdiagnose: every canvas ends up correctly proportioned *relative to itself*, so nothing looks broken in
+isolation — but each canvas's wrapping `.{p}-panel` div (an ordinary block element with no JS-set width)
+stretches to fill the *real* available flex space regardless, since only the canvas's pixel dimensions are
+fixed by JS. The result is a dead stripe of the panel's own background color to the right of the canvas —
+easy to mistake for a separate layout bug, when it's really just this one Math.min term. Confirmed live on
+three separate widgets in this repo, all sharing the same buggy formula: canvases sized from
+`0.85×window.innerWidth` while their panels had already stretched to a wider, correctly-`clientWidth`-measured
+row. Only fall back to a `window.innerWidth`-based estimate when `clientWidth` itself is unavailable
+(reads `0` — see the timing gotcha below), and cap the *result* against whatever max-width you gave
+`WideCell`/the CSS override, not against a window fraction.
+
+`heightBudget` is what makes "no scroll" real: it bounds your square/tall canvas's height by the vertical
+space actually left after reserving room for whatever sits above/below it (a comparison strip, the control
+panel, margins). **Measure that reserve empirically** — don't guess. Load the widget, read
+`getBoundingClientRect().height` on the controls section and any other canvas, and set the reserve to
+match. Guessing low causes the widget to overflow the screen; guessing high just under-sizes the canvas.
+See "How this was tuned" below for the actual numbers that came out of doing this for the two reference
+widgets.
+
+**If the widget uses `WideCell` (not the manual CSS `!important` override), reading `par.clientWidth`
+immediately at the top of the script — as shown above — can itself be too early**, for the reason already
+noted in "A simpler, official alternative to the hand-rolled wide-cell CSS": `WideCell`'s own
+`ResizeObserver` widens `par` *asynchronously*, some unknown number of frames after the widget's script
+first runs. Reading `clientWidth` before that lands bakes a too-small layout into a script that (per the
+duplicate-execution guard earlier in this doc) only ever sizes once. The manual CSS `!important` override
+doesn't have this problem — it's applied synchronously by the browser's own stylesheet cascade before any
+script runs — but plain `WideCell` does. Fix: wrap the *entire* setup (sizing, `hidpi()` canvas creation,
+drawing functions, event listener attachment, the initial `draw()` call) in a named function, and invoke it
+only via a debounced `ResizeObserver` on `par` — this is `ray-tomography.jl`'s `rtInit`/`rtRo` pattern,
+worth copying verbatim rather than re-deriving:
+
+```js
+function yourInit(){
+  // everything: availW, hidpi() calls, drawXxx() functions, addEventListener(...), draw()
+}
+// Debounce rather than act on the first callback: WideCell's resize of `par` (narrow default
+// column -> full wide width) can fire this more than once in quick succession, and reacting
+// to the first one bakes in the still-narrow size. Waiting for callbacks to stop for a bit
+// means yourInit() always uses the settled width, whatever it ends up being (including
+// "stayed narrow" on a small viewport).
+let yourTimer = null;
+const yourRo = new ResizeObserver(() => {
+  clearTimeout(yourTimer);
+  yourTimer = setTimeout(() => { yourRo.disconnect(); yourInit(); }, 150);
+});
+yourRo.observe(par);
+```
+
+`ResizeObserver.observe()` fires an initial callback on the next frame even with no real resize, so this
+also naturally serves as "wait one tick, then init with the real size" — you don't need a separate direct
+call to `yourInit()` anywhere else. `.disconnect()` after the debounced fire means it only actually
+re-inits once in practice, so it's safe to declare all your widget's persistent state (`let state = {...}`,
+`let pushed = null`, etc.) *inside* `yourInit()` too, rather than hoisting it above.
 
 **Then let the controls grid use the full `availW`, not the (possibly much smaller, height-limited) canvas
 row's width.** These are two independent widths — a square canvas capped by *height* can end up much

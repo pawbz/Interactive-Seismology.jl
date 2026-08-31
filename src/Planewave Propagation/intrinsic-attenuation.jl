@@ -24,11 +24,7 @@ end
 
 # ╔═╡ 74a3e9e3-ed09-4582-91fc-47944d5744db
 begin
-    using Symbolics
-    using SymbolicUtils
     using PlutoUI
-    using PlutoTeachingTools
-    using PlutoPlotly
     using FFTW
 end
 
@@ -38,12 +34,12 @@ TableOfContents()
 # ╔═╡ fbbee9cc-493d-11ed-00fd-b1e3bddbb3fa
 md"""
 # Intrinsic Attenuation
-As opposed to adiabatic wave propagation, the wave motion in the earth is spatially attenuated. In other words, for anelastic earth, the integral of kinetic energy and the strain energy is no longer held constant due to internal friction and conversion to heat. In general, the dimensionless quantity $Q$ that summarizes this intrinsic attenuation is dependent on the frequency of the propagating waves. Over the range of frequencies observed in seismology, it has been observed that 
-- observations suggest that $Q$ is effectively constant, and
-- the earth is only mildly anelastic i.e., $Q\gg1$.
-As a result, the high frequencies are attenuated more than the low frequencies; a traveling pulse in the earth gradually loses its high frequencies causing changes in pulse shapes with distance from the source. This notebook helps visualize these effects considering a plane wave with an impulsive shape propagating in the $x$-direction.
+As opposed to adiabatic wave propagation, the wave motion in the earth is spatially attenuated. In other words, for anelastic earth, the integral of kinetic energy and the strain energy is no longer held constant due to internal friction and conversion to heat. In general, the dimensionless quantity ``Q`` that summarizes this intrinsic attenuation is dependent on the frequency of the propagating waves. Over the range of frequencies observed in seismology, it has been observed that
+- observations suggest that ``Q`` is effectively constant, and
+- the earth is only mildly anelastic i.e., ``Q\gg1``.
+As a result, the high frequencies are attenuated more than the low frequencies; a traveling pulse in the earth gradually loses its high frequencies causing changes in pulse shapes with distance from the source. This notebook visualizes these effects using two receivers at different distances from a common source -- exactly the setup a seismologist actually uses to *measure* ``Q`` in the field, via the **spectral ratio method**. Along the way it also contrasts the everywhere-assumed ``Q\gg1`` approximation against Kjartansson's (1979) exact constant-``Q`` model, so the approximation's own limits become visible rather than assumed.
 
-Attenuation is observed to be strongest in the upper mantle and inner core. Attenuation decreases rapidly with depth, with a high attenuation in the curst that is attributed to the effects of cracks and fluids. 
+Attenuation is observed to be strongest in the upper mantle and inner core. Attenuation decreases rapidly with depth, with a high attenuation in the crust that is attributed to the effects of cracks and fluids.
 
 ##### [Interactive Seismology Notebooks](https://pawbz.github.io/Interactive-Seismology.jl/)
 
@@ -52,193 +48,1099 @@ Instructor: *Pawan Bharadwaj*,
 Indian Institute of Science, Bengaluru, India
 """
 
-# ╔═╡ 36de89c5-8cf6-44de-baaf-cbe409818578
-@bind medium Radio(["elastic" => "elastic", "anelastic1" => "anelastic (non-dipersive)", "anelastic2" => "anelastic (dispersive)"], default="anelastic1")
-
-# ╔═╡ 5d9fed8c-860b-48d8-a30d-e1c79f5db1e8
-md"Depending on the type of the medium selected above, the planewave solution is given below."
-
-# ╔═╡ 9cc49e2c-864d-4fad-9b49-456a85bcf0a2
+# ╔═╡ d60cf031-d375-4da6-ace3-abd5043d6364
 md"""
-Towards plotting the plane-wave solution, we shall first choose the frequency wave.
+## Quality Factor (``Q``) and the Nearly-Constant-``Q`` Approximation
 
-frequency (Hz): $(@bind fp Slider(range(1, stop=5, length=10), default=2, show_value=true)) $(@bind tplot Clock(0.1))
-"""
-
-# ╔═╡ a1c6aea0-35d1-4a5a-9147-461b496a5d82
-md"""
-In the case of anelastic earth, input the quality factor Q to interact with the monochromatic plane wave plotted above. Notice that for a given Q, the high frequencies travel far from $x=0$ without, compared to the low frequencies.
-
-Q: $(@bind Qp Slider(range(5, stop=50, length=20), default=5, show_value=true))
-"""
-
-# ╔═╡ 89ef2430-308b-4bbf-b70b-7688fa4d5251
-md"""
-We can synthesize the pulse in the time domain by summing all the Fourier components in order to notice the change in the pulse shape as we increase the $x$ distance from the source.
-
-distance to the receiver: $(@bind xr Slider(range(30, stop=100, length=25), show_value=true))
-"""
-
-# ╔═╡ 53653e30-cec8-467a-bdca-c713f93e67a1
-md"""
-## Quality Factor ($Q$)
-Assuming $Q\gg1$, we can write 
-```math 
+Assuming ``Q\gg1``, we can write
+```math
 \frac{1}{Q(\omega)} = -\frac{1}{\pi}\frac{\Delta A}{A}.
 ```
-Here, $\Delta A$ is the gradual spatial decay in the amplitude of the propagating wave as it travels a distance of one wavelength:
+Here, ``\Delta A`` is the gradual spatial decay in the amplitude of the propagating wave as it travels a distance of one wavelength:
 ```math
 \Delta A = \frac{d A}{d x}\lambda = \frac{d A}{d x}\frac{2\pi c}{\omega}.
 ```
-This results in an exponentially decaying solution 
+This results in an exponentially decaying solution
 ```math
-A(x) = A_0\,\exp\left(-\frac{\omega x}{2 c Q}\right).
+A(x) = A_0\,\exp\left(-\frac{\omega x}{2 c Q}\right) = A_0\,\exp\left(-\pi f\, t^*(x)\right), \qquad t^*(x) \equiv \frac{x}{cQ},
 ```
+where the second form -- in ordinary frequency ``f=\omega/2\pi`` -- introduces **``t^*``** ("t-star"), the standard seismological measure of *accumulated* attenuation along a path: the travel time ``x/c`` divided by ``Q``. Every result below is naturally written in terms of ``t^*``, not ``x`` and ``Q`` separately, because ``t^*`` is what a real measurement actually recovers (see "Measuring ``Q``" below).
+
+!!! warning "This is an approximation, not the whole story"
+    This is **Futterman's (1962) linear, "nearly constant ``Q``" formula**, and it is only
+    the leading-order behavior as ``Q\to\infty`` of an exact model derived below. The
+    widget's `Futterman (Q≫1)` button uses exactly this formula; `Kjartansson (exact)`
+    uses the exact one, valid for any ``Q``.
 """
 
-
-# ╔═╡ ef3cd032-b515-411c-8c6b-cc6d23d2f2f9
+# ╔═╡ 304689e0-f318-4730-be5d-e112517d81ad
 md"""
-## Dispersion
-Attenuation causes a small amount of velocity dispersion. Otherwise, attenuation of high frequencies will cause pulse broadening and violates causality. An important result from Aki & Richards (ch. 5) is that the velocity c is given by the expression below.
+## From Amplitude Decay to Dispersion -- Causality Demands It
+
+Attenuation cannot come alone. If high frequencies decayed faster than low ones while
+every frequency traveled at the *same* speed, a sharp pulse would arrive at some distance
+already broadened -- but the leading edge of a causal signal cannot move faster than the
+fastest frequency component allows, no matter how small its amplitude. The only way to
+keep the response causal is for the wave speed itself to depend (weakly) on frequency:
+faster propagation at higher frequency compensates for their disproportionate energy
+loss, so the broadened arrival still respects causality. This amplitude-dispersion
+pairing is a direct consequence of the Kramers-Kronig relations that any causal, linear
+response function must obey -- attenuation and dispersion are two faces of one physical
+mechanism, never independent knobs.
+
+The Dispersion & Attenuation panel above plots exactly this: the phase velocity
+``c(\omega)`` rises (very slightly, since real ``Q\gg1``) with frequency, for both the
+approximate and exact models derived below.
 """
 
-# ╔═╡ 4f7a0cf2-d25e-4414-8ac7-62b2f31fe8e0
+# ╔═╡ b3273cac-84b5-458a-86c0-a530bd769ba0
 md"""
-## Attenuating Planewave
+## Kjartansson's Exact Constant-``Q`` Model
+
+Futterman's formula above is a linearization. The exact result, valid for *any* ``Q`` and
+not just ``Q\gg1``, comes from asking a sharper question: what is the *only* causal
+material response that makes ``Q`` exactly frequency-independent?
+
+Linear viscoelasticity relates stress and strain in the frequency domain by a complex
+modulus, ``\Sigma(\omega) = M(\omega)E(\omega)``. The loss angle -- and hence ``Q``, via
+``1/Q=\tan(\arg M(\omega))`` -- is frequency-independent only if ``\arg M(\omega)`` itself
+does not depend on ``|\omega|``. A causal power-law creep function is the *only* choice
+that achieves this exactly (Kjartansson, 1979):
+```math
+M(\omega) = M_0\left(\frac{i\omega}{\omega_0}\right)^{2\gamma}
+          = M_0\left|\frac{\omega}{\omega_0}\right|^{2\gamma} e^{i\pi\gamma\,\mathrm{sgn}(\omega)},
+\qquad \frac{1}{Q} = \tan(\pi\gamma) \iff \gamma = \frac{1}{\pi}\arctan\!\left(\frac{1}{Q}\right).
+```
+``\arg M(\omega)=\pi\gamma\,\mathrm{sgn}(\omega)`` truly has no ``|\omega|``-dependence --
+this is the entire content of "constant ``Q``" here, confirmed numerically in the
+Appendix rather than merely asserted. Substituting ``M(\omega)`` into the 1-D wave
+equation's solution gives the exact closed forms this notebook uses:
+```math
+c(\omega) = c_0\left|\frac{\omega}{\omega_0}\right|^{\gamma}, \qquad
+\alpha(\omega) = \tan\!\left(\frac{\pi\gamma}{2}\right)\mathrm{sgn}(\omega)\,\frac{\omega}{c(\omega)}.
+```
+As ``Q\to\infty``, ``\gamma\to 1/(\pi Q)\to 0``, and expanding both expressions to leading
+order in ``\gamma`` reproduces Futterman's linear formula and its ``\omega/(2cQ)`` decay
+rate exactly -- the Appendix's self-check sweeps ``Q`` and shows this discrepancy
+shrinking monotonically to zero, i.e. Futterman's formula is not a separate, coincidentally
+similar approximation; it is the small-``\gamma`` limit of this one exact model.
 """
 
-# ╔═╡ 0685a215-4c7b-420d-b779-a94da325988b
-@syms x z ω Q A₀ t π
+# ╔═╡ 892eb702-189e-4b3f-a4a0-89e4763b97ac
+md"""
+## Geometric Spreading vs. Intrinsic Attenuation
 
-# ╔═╡ 383f706b-97a9-4f69-a5e1-4b56a91af720
-@syms ı::Complex{Real}
+A real recorded amplitude combines two, physically unrelated effects: **geometric
+spreading** -- energy conservation spreading a fixed total energy over a growing
+wavefront, with no loss to heat -- and the **intrinsic attenuation** derived above, true
+anelastic energy loss. For a point source, a body wave's spherical wavefront grows as
+``x^2`` in area, so amplitude falls as ``x^{-1}``; a surface wave's cylindrical wavefront
+grows only as ``x``, so its amplitude falls more slowly, as ``x^{-1/2}``. The Distance
+Axis panel above overlays this combined envelope,
+```math
+A(x) \propto x^{-n}\,e^{-\alpha(\omega)x}, \qquad n=1 \text{ (body wave)},\ \ n=\tfrac12 \text{ (surface wave)},
+```
+along the axis both receivers sit on -- drag them and watch where they land relative to
+the pure geometric-spreading curve compared to the pure intrinsic-attenuation curve.
 
-# ╔═╡ b11c4313-73e6-4d78-bc10-6c64120ae8a9
-@syms c::Real # amplitude of either P or S waves
+Crucially, geometric spreading is *frequency-independent* -- it is a single multiplicative
+constant at any given ``x``, with nothing to say about waveform shape or pulse
+broadening. This single fact is what makes the spectral ratio method below work at all.
+"""
 
-# ╔═╡ 6d1613fa-5fa0-47b8-b39b-520070d786a8
-function A(medium, A₀)
-    if (medium == "elastic")
-        return A₀
-    elseif (medium == "anelastic1")
-        return A₀ * exp(-ω * x / 2 / c / Q)
-    elseif (medium == "anelastic2")
-        return A₀ * exp(-ω * x / 2 / c / Q) * exp(ı * ω * x * log(ω / ω₀) / π / c₀ / Q)
+# ╔═╡ a1041e34-78f7-4212-898a-7e1e6d0770d8
+md"""
+## Measuring ``Q``: The Spectral Ratio Method
+
+Everything above described *forward* modeling: given ``Q``, predict the waveform. In
+practice a seismologist has the opposite problem -- given two recorded waveforms, recover
+``Q``. The classic technique is the **spectral ratio method**, and the Waveforms &
+Spectral Ratio panel above builds it live from the two draggable receivers.
+
+Take two receivers at distances ``x_1,x_2`` in the same medium, and Fourier-transform
+each recorded pulse to get complex spectra ``U_1(f)``, ``U_2(f)``. Using the amplitude law
+from the very first section, written in terms of ``t^*``:
+```math
+\ln\left|\frac{U_2(f)}{U_1(f)}\right|
+= \ln\left(\frac{A_2}{A_1}\right) - \pi f\left(t^*(x_2)-t^*(x_1)\right)
+= \underbrace{\ln\left(\frac{A_2}{A_1}\right)}_{\text{intercept}}
+  \;-\; \pi\,\Delta t^*\cdot f,
+```
+where ``A_1,A_2`` are ANY frequency-independent amplitude factors -- geometric spreading,
+an unknown radiation pattern, a site response, an instrument gain difference. **This
+quantity is exactly linear in ``f``, with a slope that depends on ``\Delta t^*`` alone.**
+Fitting a straight line to ``\ln|U_2(f)/U_1(f)|`` therefore recovers ``\Delta t^*`` from
+the *slope*, completely independent of whatever those frequency-independent factors
+happen to be -- they only ever shift the *intercept*. Since ``\Delta t^*=(x_2-x_1)/(c_0Q)``,
+knowing the source-receiver geometry converts the fitted slope directly into an estimate
+of ``Q``:
+```math
+\widehat{Q} = -\frac{\pi(x_2-x_1)}{c_0\cdot\text{slope}}.
+```
+The panel's readout shows this recovered ``\widehat{Q}`` next to the "true" (dialed-in)
+``Q`` -- try dragging the receivers further apart (a larger, more measurable ``\Delta
+t^*``) or toggling independent geometric-spreading exponents at the two receivers and
+watch the *intercept* move while ``\widehat{Q}`` stays put. The Appendix's self-check
+demonstrates precisely this invariance numerically.
+"""
+
+# ╔═╡ b2b60060-a73d-4006-911b-36a28c0e7554
+md"""
+## References
+
+- Aki, K., & Richards, P. G. (2002). *Quantitative Seismology* (2nd ed.), ch. 5 --
+  the nearly-constant-``Q`` (Futterman) dispersion relation and the spectral ratio method.
+- Futterman, W. I. (1962). Dispersive body waves. *Journal of Geophysical Research*,
+  67(13), 5279-5291.
+- Kjartansson, E. (1979). Constant Q-wave propagation and attenuation. *Journal of
+  Geophysical Research*, 84(B9), 4737-4748.
+- The FFT-based plane-wave synthesis pattern (`source_spectrum`, plain-array frequency
+  response, `irfft`) follows `Born-approximation.jl`. The two-receiver drag mechanic
+  follows `viscoelastic-rheology.jl`'s 1-D handle drag; the split time/frequency panel
+  follows `wave-mode-duality-1D.jl`'s "Receiver Record" panel.
+"""
+
+# ╔═╡ 02e113c5-b3b6-4e9e-9670-c937af00d7c2
+md"## Appendix"
+
+# ╔═╡ d9b9ee19-f549-4c4f-8b79-6a360bfd5f2d
+md"### Reference Medium & Grids"
+
+# ╔═╡ bdf54ecf-72c8-4741-b655-142fc23be647
+begin
+    "Reference angular frequency (rad/s) that every dispersion/attenuation formula below is anchored to -- 10 Hz, an arbitrary but fixed choice matching the notebook's earlier convention."
+    const OMEGA0 = 2π * 10
+
+    """
+    	source_spectrum(tgrid, fpeak)
+
+    A Gaussian-shaped amplitude spectrum peaked at `fpeak` Hz, sampled on the real-FFT
+    frequency grid implied by `tgrid`. Returns `(freqgrid, Fsource)`; the DC bin is
+    zeroed since a DC source carries no travel-time information here.
+    """
+    function source_spectrum(tgrid, fpeak)
+        freqgrid = collect(rfftfreq(length(tgrid), inv(step(tgrid))))
+        Fsource = exp.(-abs2.(freqgrid .- fpeak) .* 1.0e-1)
+        Fsource[1] = 0.0
+        return freqgrid, Fsource
     end
 end
 
-# ╔═╡ ca29d9b8-d6a7-46d9-bc4f-4bfc263e7009
-planewave = A(medium, A₀) * exp(ı * ω * (t - (x / c)))
+# ╔═╡ 189722e0-e9ea-42e8-ad75-684e6da5ad04
+md"### Kjartansson's Exact Constant-Q Model"
 
-# ╔═╡ eb190d1a-3c6b-407a-a586-9b13ed40b106
-planewave
+# ╔═╡ e9e188a6-ec01-4a4f-9168-cf185b14cb05
+begin
+    """
+    	kjartansson_gamma(Q)
 
-# ╔═╡ 2e6ad714-5972-41ce-92c9-f30a8b50f3dd
-md"""
-## Appendix
-"""
+    The power-law exponent ``\\gamma`` in Kjartansson's (1979) exact constant-``Q``
+    model, ``\\gamma=(1/\\pi)\\arctan(1/Q)``. This single number sets both the phase-velocity
+    power law and the (exactly frequency-independent) loss angle simultaneously --
+    ``1/Q=\\tan(\\pi\\gamma)`` by construction (see the self-check below).
+    """
+    kjartansson_gamma(Q) = atan(1 / Q) / π
 
-# ╔═╡ 197dd532-fe5d-43d3-bf51-ac10f960dadf
-# reference wave speed is assumed to be 2 km/s
-cp = 2;
+    """
+    	kjartansson_phase_velocity(ω, Q, ω0, c0)
 
-# ╔═╡ 4b67cd08-e56c-42ab-9205-a5b4ed4919dc
-# assume a time grid
-tgrid = range(-100, stop=100, length=2048) .+ xr / cp
+    Kjartansson's (1979) EXACT causal phase velocity for a medium with quality factor
+    `Q`, reference frequency `ω0`, and phase velocity `c0` at that reference:
+    ``c(\\omega)=c_0|\\omega/\\omega_0|^\\gamma``, `γ` from [`kjartansson_gamma`](@ref).
+    Valid for any `Q`, not just `Q≫1` -- contrast with the linearized
+    [`futterman_phase_velocity`](@ref).
+    """
+    kjartansson_phase_velocity(ω, Q, ω0, c0) = c0 * abs(ω / ω0)^kjartansson_gamma(Q)
 
-# ╔═╡ 39cbdb94-dc0c-4d26-855a-94ce52b05dde
-# get the corresponding frequency grid
-freqgrid = rfftfreq(length(tgrid), inv(step(tgrid)))
+    """
+    	kjartansson_attenuation_coeff(ω, Q, ω0, c0)
 
-# ╔═╡ d237a9eb-775a-4d9c-b53c-192f90952ea1
-@syms c₀::Real ω₀::Real
-
-# ╔═╡ a3989848-a4ce-4a6d-94a5-245fb57474a0
-c_dispersive(ω, Q, c₀, ω₀) = c₀ * (1 + 1 / π / Q * log(ω / ω₀)) # not used atm
-
-# ╔═╡ 4039e2b0-0406-45dc-89c4-058281769ad3
-c ~ c_dispersive(ω, Q, c₀, ω₀)
-
-# ╔═╡ fe778290-0f29-4a06-9399-4a15ccf38fe4
-# substitute before plotting
-function subs(ex, om=nothing)
-    substitute(ex, [ı => im, π => pi, A₀ => 1, Q => Qp, c₀ => cp, c => cp, ω => om, ω₀ => 2 * pi * 10])
-end
-
-# ╔═╡ 24edc710-f14e-4bb4-87f5-7bb48f592e2f
-# scalar field at the receiver in the frequency domain
-Ureceiver = map(freqgrid) do f
-    if (iszero(f)) # instability at zero frequency 
-        return complex(1.0, 0.0)
-    else
-        return Complex{Float64}(substitute(subs(planewave, 2 * pi * f), [x => xr, t => xr / cp]))
+    Kjartansson's (1979) exact spatial attenuation coefficient,
+    ``\\alpha(\\omega)=\\tan(\\pi\\gamma/2)\\,\\mathrm{sgn}(\\omega)\\,\\omega/c(\\omega)``, so
+    that amplitude decays as `exp(-α(ω)x)` over a distance `x`. Reduces to `ω/(2Qc0)` as
+    `Q→∞` (see [`futterman_attenuation_coeff`](@ref) and its self-check).
+    """
+    function kjartansson_attenuation_coeff(ω, Q, ω0, c0)
+        γ = kjartansson_gamma(Q)
+        c = kjartansson_phase_velocity(ω, Q, ω0, c0)
+        return tan(π * γ / 2) * sign(ω) * ω / c
     end
 end
 
-# ╔═╡ a7ae29f7-52a6-4ded-aed8-d2579fc84076
-# do an fft to get the time series
-ureceiver = fftshift(irfft(Ureceiver, length(tgrid)))
-
-# ╔═╡ 434f4be3-ecb2-4a0e-9ffc-d24795ef5560
+# ╔═╡ 3f5f9b5a-2131-432a-b58d-132cf1800610
 let
-    fig = Plot(Layout(title="Recorded pulse at $(xr) km", xaxis=attr(range=(-50, 100), title="time (s)"),
-        yaxis=attr(title="amplitude", range=(0, 0.2e-1))))
-    add_trace!(fig, scatter(x=tgrid, y=ureceiver))
-    plot(fig)
+    Qtest = 12.3
+    γ = kjartansson_gamma(Qtest)
+    lhs = 1 / Qtest
+    rhs = tan(π * γ)
+
+    ω0test, c0test = 2π * 10, 3000.0
+    ωs = 2π .* [0.1, 1.0, 5.0, 20.0, 100.0, 500.0]
+    γs = [kjartansson_gamma(Qtest) for _ in ωs]  # γ (hence the loss angle πγ) has no ω-dependence by construction
+
+    @assert isapprox(lhs, rhs; rtol=1e-10)
+    @assert allequal(γs)
+
+    md"""
+    !!! correct "Self-check"
+        ``1/Q`` = $(round(lhs,digits=6)) matches ``\tan(\pi\gamma)`` =
+        $(round(rhs,digits=6)) to machine precision -- the algebraic identity
+        `kjartansson_gamma` is built from. And ``\gamma``, the ONLY quantity setting the
+        loss angle ``\pi\gamma``, has no ``\omega``-dependence at all across a
+        $(round(Int,ωs[end]/ωs[1]))-fold frequency sweep -- ``Q`` really is
+        frequency-independent in this model, not approximately so.
+    """
 end
 
-# ╔═╡ 2c192f02-3a6b-48fa-9a68-d51c8e6b4bc5
-plot_planewave_fn = build_function(subs(planewave, fp / 2 / pi), x, z, t, expression=Val{false})
+# ╔═╡ 14a5545d-858e-407b-a193-0e5abc9f68b1
+md"### Futterman's Nearly-Constant-Q Approximation (Q≫1)"
 
-# ╔═╡ ff83c90d-9f0d-46ce-a8ef-b690273add4f
-function plot_planewave(u, t1=0)
-    # we need to discretize space before plotting 
-    xgrid = range(-100, stop=100, length=100)
-    zgrid = xgrid
+# ╔═╡ 22bda95b-a685-46ad-8284-075bafd27581
+begin
+    """
+    	futterman_phase_velocity(ω, Q, ω0, c0)
 
+    Futterman's (1962) "nearly constant Q" phase velocity, the ``Q\\gg1`` linearization
+    of [`kjartansson_phase_velocity`](@ref): ``c(\\omega)=c_0[1+(1/\\pi Q)\\ln(\\omega/\\omega_0)]``.
+    This is the formula Aki & Richards (ch. 5) give for the standard constant-``Q``
+    dispersion relation, exact only in the limit ``Q\\to\\infty`` (see the self-check below).
+    """
+    futterman_phase_velocity(ω, Q, ω0, c0) = c0 * (1 + log(ω / ω0) / (π * Q))
 
+    """
+    	futterman_attenuation_coeff(ω, Q, c)
 
-    up0 = [real(plot_planewave_fn(x, z, 0)) for z in zgrid, x in xgrid]
-    clim = (-maximum(abs.(up0)), maximum(abs.(up0)))
-
-
-    up = [real(plot_planewave_fn(x, z, tplot)) for z in zgrid, x in xgrid]
-    fig = Plot(Layout(width=325, height=300))
-    add_trace!(fig, heatmap(x=xgrid, y=zgrid, z=up, colorscale=:seismic, zmin=clim[1], zmax=clim[2]))
-    plot(fig)
-
+    The small-loss (``Q\\gg1``) limit of [`kjartansson_attenuation_coeff`](@ref):
+    ``\\alpha(\\omega)=\\omega/(2Qc)``, the amplitude decay rate already derived in the
+    "Quality Factor" section above.
+    """
+    futterman_attenuation_coeff(ω, Q, c) = ω / (2 * Q * c)
 end
 
-# ╔═╡ 8e2d55d4-340f-49ca-963d-ef33477ed60d
-plot_planewave(planewave)
+# ╔═╡ ea207d15-c2b9-472c-9fc3-79b7000a1738
+let
+    ω0test, c0test = 2π * 10, 3000.0
+    ωtest = 2π * 15.0
+
+    # Futterman's formula itself approximates γ=atan(1/Q)/π by the cruder 1/(πQ) -- so
+    # comparing it against Kjartansson's EXACT γ mixes two independent small-parameter
+    # approximations (the exponential linearization, and atan(1/Q)≈1/Q) that don't have
+    # to combine monotonically while BOTH are still non-negligible (roughly Q≲50, where
+    # they partly cancel at some Q and reinforce at others). Once Q is large enough that
+    # atan(1/Q)≈1/Q is already excellent (Q≳50), only the single remaining small
+    # parameter matters and convergence genuinely is monotonic -- checked directly below.
+    Qs = [50.0, 100.0, 500.0, 1000.0, 1.0e4, 1.0e5]
+    errs_c = [abs(kjartansson_phase_velocity(ωtest, Q, ω0test, c0test) -
+                  futterman_phase_velocity(ωtest, Q, ω0test, c0test)) / c0test for Q in Qs]
+    errs_a = [abs(kjartansson_attenuation_coeff(ωtest, Q, ω0test, c0test) -
+                  futterman_attenuation_coeff(ωtest, Q, c0test)) /
+              kjartansson_attenuation_coeff(ωtest, Q, ω0test, c0test) for Q in Qs]
+
+    @assert issorted(errs_c; rev=true)
+    @assert issorted(errs_a; rev=true)
+    @assert errs_c[end] < 1.0e-9 && errs_a[end] < 1.0e-5
+
+    # even at a fairly modest Q=10 (well short of "Q≫1"), the two formulas already agree
+    # closely -- the approximation is useful long before it's asymptotically exact
+    Q10 = 10.0
+    errc10 = abs(kjartansson_phase_velocity(ωtest, Q10, ω0test, c0test) -
+                 futterman_phase_velocity(ωtest, Q10, ω0test, c0test)) / c0test
+    erra10 = abs(kjartansson_attenuation_coeff(ωtest, Q10, ω0test, c0test) -
+                 futterman_attenuation_coeff(ωtest, Q10, c0test)) /
+             kjartansson_attenuation_coeff(ωtest, Q10, ω0test, c0test)
+    @assert errc10 < 0.01 && erra10 < 0.02
+
+    md"""
+    !!! correct "Self-check"
+        Both Futterman formulas are literally the ``Q\to\infty`` limit of Kjartansson's
+        exact ones: sweeping ``Q`` from $(Int(Qs[1])) to $(Qs[end]) at a fixed frequency
+        (comfortably past the point where Futterman's own ``\gamma\approx1/(\pi Q)``
+        shortcut is itself accurate), the relative discrepancy in phase velocity shrinks
+        monotonically from $(round(errs_c[1]*100,sigdigits=2))% down to
+        $(round(errs_c[end]*100,sigdigits=3))%, and in attenuation from
+        $(round(errs_a[1]*100,sigdigits=2))% down to $(round(errs_a[end]*100,sigdigits=3))%.
+        Even at a much more modest ``Q`` = $(Int(Q10)), the two already agree to
+        $(round(errc10*100,sigdigits=2))% (velocity) and $(round(erra10*100,sigdigits=2))%
+        (attenuation) -- confirming the linearization is genuinely the small-``\gamma``
+        limit of the exact model, not a separately-derived formula that merely happens to
+        look similar.
+    """
+end
+
+# ╔═╡ 6bfbe8d3-3ef0-4a82-8266-59794fd6118a
+md"### Geometric Spreading"
+
+# ╔═╡ fd66f5ad-1b8e-4b0e-9377-32d8f15e9ac2
+"""
+	spreading_factor(x, n)
+
+Geometric-spreading amplitude decay over a distance `x`: ``x^{-n}``. `n=1` for body
+waves (spherical spreading of a point-source wavefront), `n=0.5` for surface waves
+(cylindrical spreading, energy spread over a growing ring rather than a growing sphere).
+"""
+spreading_factor(x, n) = x^(-n)
+
+# ╔═╡ 82ff57b2-3824-42db-9d55-a3c7fc377131
+md"### Plane-Wave Synthesis"
+
+# ╔═╡ 0ec1c415-c990-46eb-bfdf-17d062442f90
+begin
+    """
+    	attenuation_response(freqgrid, x, Q, ω0, c0, model)
+
+    The complex propagation operator for a distance `x`, RELATIVE to the pure `x/c0`
+    bulk delay (i.e. what multiplies the source spectrum after the trivial travel time at
+    the reference velocity `c0` has already been factored out -- see
+    [`receiver_spectrum`](@ref)). `model` selects which phase-velocity/attenuation pair to
+    use:
+    - `"elastic"`: no attenuation, no dispersion -- `1.0+0im` for every frequency.
+    - `"futterman"`: [`futterman_phase_velocity`](@ref)/[`futterman_attenuation_coeff`](@ref).
+    - `"kjartansson"`: [`kjartansson_phase_velocity`](@ref)/[`kjartansson_attenuation_coeff`](@ref).
+
+    `f=0` is skipped (returned as `1.0+0im`) since both dispersion laws are singular
+    there; [`source_spectrum`](@ref) already zeroes the DC bin anyway.
+    """
+    function attenuation_response(freqgrid, x, Q, ω0, c0, model)
+        return map(freqgrid) do f
+            iszero(f) && return complex(1.0, 0.0)
+            ω = 2π * f
+            if model == "elastic"
+                return complex(1.0, 0.0)
+            elseif model == "futterman"
+                c = futterman_phase_velocity(ω, Q, ω0, c0)
+                α = futterman_attenuation_coeff(ω, Q, c0)
+            elseif model == "kjartansson"
+                c = kjartansson_phase_velocity(ω, Q, ω0, c0)
+                α = kjartansson_attenuation_coeff(ω, Q, ω0, c0)
+            else
+                error("unknown model $model")
+            end
+            return exp(im * ω * x * (1 / c0 - 1 / c)) * exp(-α * x)
+        end
+    end
+
+    """
+    	receiver_spectrum(freqgrid, Fsource, x, n, Q, ω0, c0, model)
+
+    The full complex spectrum recorded at distance `x`: the source spectrum `Fsource`,
+    scaled by [`spreading_factor`](@ref)`(x,n)`, times [`attenuation_response`](@ref) for
+    the requested `model`. The trivial bulk delay `x/c0` is DELIBERATELY not included in
+    the returned phase -- every receiver's pulse is synthesized on the same shared,
+    `x`-independent time grid, so a distant receiver's pulse appears centered near `t=0`
+    just like a close one, isolating the interesting (dispersion/attenuation) part of the
+    story from the boring part (it simply arrives later). See [`synthesize_pulse`](@ref).
+    """
+    function receiver_spectrum(freqgrid, Fsource, x, n, Q, ω0, c0, model)
+        return Fsource .* spreading_factor(x, n) .* attenuation_response(freqgrid, x, Q, ω0, c0, model)
+    end
+
+    """
+    	synthesize_pulse(tgrid, spectrum)
+
+    Time-domain pulse from a real-FFT `spectrum` sampled on the grid implied by `tgrid`,
+    via `irfft` then `fftshift` -- paired with [`receiver_spectrum`](@ref)'s zero-phase,
+    reduced-time convention, `fftshift` places the pulse's peak near the MIDDLE of
+    `tgrid` (which must be symmetric about 0) rather than at its wrapped-around start.
+    """
+    synthesize_pulse(tgrid, spectrum) = fftshift(irfft(spectrum, length(tgrid)))
+end
+
+# ╔═╡ f668c317-1166-4ab1-b96c-c46eaf9ee136
+let
+    tgrid_test = range(-2.0, 2.0, length=1024)
+    freqgrid_test, Fsource_test = source_spectrum(tgrid_test, 5.0)
+    x1test, ntest = 40.0, 1.0
+
+    spec_source_only = Fsource_test .* spreading_factor(x1test, ntest)
+    pulse_source = synthesize_pulse(tgrid_test, spec_source_only)
+
+    spec_elastic = receiver_spectrum(freqgrid_test, Fsource_test, x1test, ntest, 30.0, OMEGA0, 3000.0, "elastic")
+    pulse_elastic = synthesize_pulse(tgrid_test, spec_elastic)
+
+    resid = maximum(abs.(pulse_elastic .- pulse_source))
+    peak_idx = argmax(abs.(pulse_elastic))
+    peak_t = tgrid_test[peak_idx]
+
+    @assert isapprox(resid, 0.0; atol=1e-9)
+    @assert isapprox(peak_t, 0.0; atol=2 * step(tgrid_test))
+
+    md"""
+    !!! correct "Self-check"
+        With `model="elastic"`, `receiver_spectrum` differs from a bare, spreading-scaled
+        copy of the source spectrum by at most $(round(resid,sigdigits=2)) in the
+        synthesized time series -- zero to numerical precision, confirming
+        `attenuation_response` really is the identity when there's nothing to attenuate.
+        Its peak sits at reduced time $(round(peak_t,digits=4)) s, within one grid
+        step of ``0`` -- the reduced-time convention is doing its job.
+    """
+end
+
+# ╔═╡ 8271e3a5-308d-42b4-b636-1a59f18361f6
+md"### The Spectral Ratio Method"
+
+# ╔═╡ 9c1c2062-c62a-48dd-9d0f-651d848afccd
+begin
+    """
+    	log_spectral_ratio(U1, U2)
+
+    ``\\ln|U_2(f)/U_1(f)|``, the quantity a spectral-ratio ``Q`` measurement actually
+    fits a line to -- theoretically linear in `f` with slope ``-\\pi\\Delta t^*`` (see
+    [`estimate_Q`](@ref)), regardless of any frequency-independent amplitude prefactors.
+    """
+    log_spectral_ratio(U1, U2) = log.(abs.(U2) ./ abs.(U1))
+
+    """
+    	linear_fit(x, y)
+
+    Ordinary least-squares slope and intercept of `y` against `x`, via the normal
+    equations `[x ones(length(x))] \\ y`. This notebook's smallest general-purpose
+    regression helper -- no larger-scoped one exists elsewhere in this repo to reuse
+    (`ray-tomography.jl`'s `get_tikhonov_solution` solves a damped normal-equations
+    problem specific to travel-time tomography, not a plain 1-D fit).
+    """
+    function linear_fit(x, y)
+        Adesign = [x ones(length(x))]
+        slope, intercept = Adesign \ y
+        return slope, intercept
+    end
+
+    """
+    	estimate_Q(slope, x1, x2, c0)
+
+    Recover ``Q`` from the fitted [`linear_fit`](@ref) `slope` of
+    [`log_spectral_ratio`](@ref) vs. frequency (Hz). Since ``t^*(x)=x/(cQ)`` and
+    ``\\ln|U_2/U_1|=\\text{const}-\\pi f\\Delta t^*`` with ``\\Delta t^*=(x_2-x_1)/(c_0Q)``,
+    ``\\text{slope}=-\\pi(x_2-x_1)/(c_0Q)``, so ``Q=-\\pi(x_2-x_1)/(c_0\\cdot\\text{slope})``.
+    """
+    estimate_Q(slope, x1, x2, c0) = -π * (x2 - x1) / (c0 * slope)
+end
+
+# ╔═╡ fb5825ce-55cf-4b48-8513-0669fbe876cd
+let
+    tgrid_test = range(-2.0, 2.0, length=2048)
+    freqgrid_test, Fsource_test = source_spectrum(tgrid_test, 5.0)
+    x1test, x2test, c0test, Qtrue = 20.0, 80.0, 3000.0, 25.0
+    mask = Fsource_test .> 0.05 * maximum(Fsource_test)
+
+    U1 = receiver_spectrum(freqgrid_test, Fsource_test, x1test, 1.0, Qtrue, OMEGA0, c0test, "kjartansson")
+    U2 = receiver_spectrum(freqgrid_test, Fsource_test, x2test, 1.0, Qtrue, OMEGA0, c0test, "kjartansson")
+    ratio = log_spectral_ratio(U1, U2)
+    slope, intercept = linear_fit(freqgrid_test[mask], ratio[mask])
+    Qest = estimate_Q(slope, x1test, x2test, c0test)
+    relerr = abs(Qest - Qtrue) / Qtrue
+
+    # geometric-spreading invariance: give receiver 2 a DIFFERENT spreading exponent AND
+    # an arbitrary amplitude multiplier (standing in for an unknown radiation-pattern or
+    # site difference) -- the fitted SLOPE (hence Q_est) must be unchanged, only the
+    # intercept should move
+    U1b = receiver_spectrum(freqgrid_test, Fsource_test, x1test, 1.0, Qtrue, OMEGA0, c0test, "kjartansson")
+    U2b = 3.7 .* receiver_spectrum(freqgrid_test, Fsource_test, x2test, 0.5, Qtrue, OMEGA0, c0test, "kjartansson")
+    ratiob = log_spectral_ratio(U1b, U2b)
+    slopeb, interceptb = linear_fit(freqgrid_test[mask], ratiob[mask])
+    Qestb = estimate_Q(slopeb, x1test, x2test, c0test)
+
+    @assert relerr < 0.05
+    @assert isapprox(slope, slopeb; rtol=1e-8)
+    @assert isapprox(Qest, Qestb; rtol=1e-8)
+    @assert !isapprox(intercept, interceptb; rtol=1e-3)
+
+    md"""
+    !!! correct "Self-check"
+        Synthesizing two receivers at a known ``Q_{\rm true}`` = $(Int(Qtrue)) and fitting
+        the spectral ratio recovers ``\widehat{Q}`` = $(round(Qest,digits=2)) --
+        $(round(relerr*100,digits=2))% error, from nothing but the two waveforms. Giving
+        receiver 2 a DIFFERENT geometric-spreading exponent (``n=0.5`` instead of ``1``)
+        and an arbitrary ``3.7\times`` amplitude factor (standing in for an unknown
+        radiation pattern or site response) leaves the fitted slope, and therefore
+        ``\widehat{Q}`` = $(round(Qestb,digits=2)), unchanged to within
+        $(round(abs(slope-slopeb)/abs(slope)*100,sigdigits=2))%, while the intercept
+        visibly shifts from $(round(intercept,digits=3)) to $(round(interceptb,digits=3)).
+        This is *why* the spectral-ratio method works without needing to know or correct
+        for spreading: it only ever reads the slope.
+    """
+end
+
+# ╔═╡ 097e5d11-4857-4fd3-a587-3d72d2567180
+md"### The Interactive Widget"
+
+# ╔═╡ f3674d89-497d-43c3-9741-8a1d8e3fc860
+begin
+    """
+    	AttenuationInput(; model="futterman", Q=25.0, c0=3.0, fp=3.0, x1=20.0, x2=80.0, n1=1.0, n2=1.0)
+
+    Initial state for the widget: dispersion/attenuation `model` (`"elastic"`,
+    `"futterman"`, or `"kjartansson"`), quality factor `Q`, reference velocity `c0`
+    (km/s), source peak frequency `fp` (Hz), the two receiver distances `x1`,`x2` (km,
+    draggable on the Distance Axis panel), and each receiver's own geometric-spreading
+    exponent `n1`,`n2`.
+    """
+    struct AttenuationInput
+        model::String
+        Q::Float64
+        c0::Float64
+        fp::Float64
+        x1::Float64
+        x2::Float64
+        n1::Float64
+        n2::Float64
+    end
+    AttenuationInput(; model="futterman", Q=25.0, c0=3.0, fp=3.0, x1=20.0, x2=80.0, n1=1.0, n2=1.0) =
+        AttenuationInput(model, Q, c0, fp, x1, x2, n1, n2)
+
+    Base.get(w::AttenuationInput) = Dict{String,Any}(
+        "model" => w.model, "Q" => w.Q, "c0" => w.c0, "fp" => w.fp,
+        "x1" => w.x1, "x2" => w.x2, "n1" => w.n1, "n2" => w.n2)
+
+    """
+    	Base.show(io, ::MIME"text/html", w::AttenuationInput)
+
+    Render the three-panel scene: a Dispersion & Attenuation curve panel, a Distance Axis
+    panel with a fixed source and two draggable receivers, and a split
+    Waveforms/Spectral-Ratio panel, plus a "Medium & Source" and a "Geometric Spreading"
+    control group below.
+    """
+    function Base.show(io::IO, ::MIME"text/html", w::AttenuationInput)
+        write(io, """
+        <div id="iawidget">
+        <style>
+        #iawidget{font-family:sans-serif;color:#e5e7eb;width:100%;box-sizing:border-box}
+        #iawidget .ia-title{width:100%;box-sizing:border-box;text-align:center;margin-bottom:10px;
+          background:#0a0f18;border:1px solid #3b5c85;border-radius:6px;padding:10px 14px}
+        #iawidget .ia-title-desc{font-size:17px;font-weight:700;color:#e5e7eb}
+        #iawidget .ia-title-hint{font-size:13px;color:#9ca3af;margin-top:3px}
+        #iawidget .ia-row{display:flex;gap:16px;flex-wrap:wrap;justify-content:center;align-items:flex-start;margin-bottom:14px}
+        #iawidget .ia-row-secondary{display:flex;gap:16px;margin-bottom:14px}
+        #iawidget .ia-panel{background:#000;border:1px solid #374151;border-radius:6px;padding:8px}
+        #iawidget .ia-panel-title{font-size:14px;font-weight:700;color:#e5e7eb;margin-bottom:4px;text-align:center}
+        #iawidget .ia-caption{font-size:12px;color:#9ca3af;text-align:center;margin-top:4px}
+        #iawidget canvas{display:block;cursor:default}
+        #iawidget .ia-controls{width:100%;box-sizing:border-box;display:flex;gap:12px;flex-wrap:wrap}
+        #iawidget .ia-control-group{flex:1 1 280px;min-width:260px;background:#050505;border:1px solid #2f3744;border-radius:6px;padding:10px 12px}
+        #iawidget .ia-control-title{font-size:15px;font-weight:700;color:#e5e7eb;margin-bottom:6px}
+        #iawidget .ia-control-row{display:grid;grid-template-columns:70px minmax(60px,1fr) 64px;gap:6px;align-items:center;margin:5px 0}
+        #iawidget .ia-control-row label{font-size:13px;color:#9ca3af}
+        #iawidget .ia-control-row input[type=range]{width:100%;min-width:0}
+        #iawidget .ia-value{font-size:12px;color:#e5e7eb;text-align:right;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+        #iawidget .ia-actions{display:flex;gap:6px;flex-wrap:wrap}
+        #iawidget button{border-radius:4px;border:1px solid #9ca3af;background:#606060;color:#f3f4f6;padding:6px 10px;font-size:13px;cursor:pointer}
+        #iawidget button.active{background:#2563eb;border-color:#93c5fd}
+        #iawidget button:hover{background:#767676}
+        </style>
+
+        <div class="ia-title">
+          <div class="ia-title-desc">Two receivers, one source -- measure Q the way a seismologist actually does.</div>
+          <div class="ia-title-hint">drag either receiver (triangle) along the Distance Axis &middot; pick a dispersion model, Q, c&#8320;, and source frequency below &middot; the Waveforms panel's slope-fitted Q&#770; is read straight off the spectral ratio, not handed to you</div>
+        </div>
+
+        <div class="ia-row">
+          <div>
+            <div class="ia-panel-title">Dispersion &amp; Attenuation</div>
+            <div class="ia-panel"><canvas id="ia-dispersion"></canvas></div>
+            <div class="ia-caption">c(&omega;)/c&#8320; vs. frequency &middot; Futterman (blue) vs. Kjartansson (orange)</div>
+          </div>
+          <div>
+            <div class="ia-panel-title">Distance Axis: Source &amp; Receivers</div>
+            <div class="ia-panel"><canvas id="ia-axis"></canvas></div>
+            <div class="ia-caption" id="ia-axis-caption">drag a triangle to move that receiver</div>
+          </div>
+        </div>
+
+        <div class="ia-row-secondary">
+          <div style="flex:1 1 100%">
+            <div class="ia-panel-title">Waveforms &amp; Spectral Ratio</div>
+            <div class="ia-panel"><canvas id="ia-record"></canvas></div>
+            <div class="ia-caption">left: both receivers' pulses (reduced time) &middot; right: ln|U&#8322;/U&#8321;| vs. frequency with the fitted line</div>
+          </div>
+        </div>
+
+        <div class="ia-controls">
+          <div class="ia-control-group">
+            <div class="ia-control-title">Medium &amp; Source</div>
+            <div class="ia-actions">
+              <button id="ia-model-elastic" type="button">Elastic</button>
+              <button id="ia-model-futterman" type="button">Futterman (Q&#8811;1)</button>
+              <button id="ia-model-kjartansson" type="button">Kjartansson (exact)</button>
+            </div>
+            <div class="ia-control-row"><label>Q</label><input type="range" id="ia-Q" min="3" max="200" step="1" value="$(w.Q)"><span class="ia-value" id="ia-Q-v"></span></div>
+            <div class="ia-control-row"><label>c&#8320; (km/s)</label><input type="range" id="ia-c0" min="1" max="8" step="0.1" value="$(w.c0)"><span class="ia-value" id="ia-c0-v"></span></div>
+            <div class="ia-control-row"><label>f&#7605; (Hz)</label><input type="range" id="ia-fp" min="1" max="10" step="0.1" value="$(w.fp)"><span class="ia-value" id="ia-fp-v"></span></div>
+          </div>
+          <div class="ia-control-group">
+            <div class="ia-control-title">Geometric Spreading</div>
+            <div class="ia-actions">
+              <button id="ia-spread-body" type="button">Both: body wave (n=1)</button>
+              <button id="ia-spread-surface" type="button">Both: surface wave (n=0.5)</button>
+            </div>
+            <div class="ia-control-row"><label>r&#8321; n</label><input type="range" id="ia-n1" min="0.3" max="2" step="0.1" value="$(w.n1)"><span class="ia-value" id="ia-n1-v"></span></div>
+            <div class="ia-control-row"><label>r&#8322; n</label><input type="range" id="ia-n2" min="0.3" max="2" step="0.1" value="$(w.n2)"><span class="ia-value" id="ia-n2-v"></span></div>
+          </div>
+        </div>
+        </div>
+
+        <script>
+        {
+        const par = currentScript.previousElementSibling;
+        // Pluto can execute a cell's <script> tag more than once against the SAME
+        // persistent DOM nodes (a client's initial connection replays intermediate cell
+        // outputs, and later edits rerun this cell) -- guard so only the first execution
+        // for this widget instance wires anything up, matching every other widget in
+        // this repo (e.g. viscoelastic-rheology.jl's `_eplInitialized` guard).
+        if(!par._iaInitialized){
+        par._iaInitialized = true;
+
+        // WideCell's own ResizeObserver widens `par` asynchronously, some unknown number
+        // of frames after this script first runs -- reading par.clientWidth before that
+        // lands bakes a too-small layout into every canvas (confirmed: canvases came out
+        // sized to a narrow pre-widen clientWidth while their .ia-panel wrapper divs
+        // stretched to the real, later-widened row width, leaving a large blank gap of
+        // the wrapper's own black background to the right of each canvas). Deferring the
+        // whole setup into iaInit(), invoked only via a debounced ResizeObserver on
+        // `par`, waits for the real settled width instead of guessing how many frames to
+        // skip -- same pattern as ray-tomography.jl's rtInit().
+        function iaInit(){
+        let state = { model: "$(w.model)", Q: $(w.Q), c0: $(w.c0), fp: $(w.fp),
+          x1: $(w.x1), x2: $(w.x2), n1: $(w.n1), n2: $(w.n2) };
+        let pushed = null; // {fdisp,cfutt,ckjar,xaxis,env1,env2,tgrid,pulse1,pulse2,fband,ratio,slope,intercept,Qest,dtstarEst}
+        let commitInFlight = false;
+
+        // par.clientWidth (measured post-settle, see iaInit's own comment above) already
+        // reflects the real column width -- WideCell's own max_width already bounds it,
+        // and Pluto's chrome/sidebar are already subtracted out of it. Capping it further
+        // against window.innerWidth*fraction is redundant at best and, whenever the
+        // notebook column is wide relative to the browser window (a wide viewport, or a
+        // narrow Pluto sidebar), actively WRONG: that fraction can be smaller than the
+        // real clientWidth, silently shrinking every canvas below its own wrapper's
+        // width and leaving a dead, unused stripe of the wrapper's own black background
+        // to its right (confirmed live: canvases sized from 0.85*innerWidth while their
+        // .ia-panel wrappers had already stretched to a wider, correctly-measured row).
+        const availW = Math.min(par.clientWidth || 1400, 1400) || 900;
+        const GAP = 16;
+        const PW = Math.max(260, (availW - GAP)/2);
+        const PH = Math.max(170, Math.round(PW*0.55));
+        const RECORD_W = availW;
+        const RECORD_H = Math.max(190, Math.round(RECORD_W*0.26));
+        const DPR = window.devicePixelRatio || 1;
+
+        function hidpi(canvas, ctx, w, h){
+          canvas.width = Math.round(w*DPR); canvas.height = Math.round(h*DPR);
+          canvas.style.width = w+'px'; canvas.style.height = h+'px';
+          ctx.setTransform(DPR,0,0,DPR,0,0);
+        }
+
+        const dispCv = par.querySelector('#ia-dispersion'), dispCtx = dispCv.getContext('2d');
+        hidpi(dispCv, dispCtx, PW, PH);
+        const axisCv = par.querySelector('#ia-axis'), axisCtx = axisCv.getContext('2d');
+        hidpi(axisCv, axisCtx, PW, PH);
+        const recCv = par.querySelector('#ia-record'), recCtx = recCv.getContext('2d');
+        hidpi(recCv, recCtx, RECORD_W, RECORD_H);
+
+        const modelBtns = { elastic: par.querySelector('#ia-model-elastic'), futterman: par.querySelector('#ia-model-futterman'), kjartansson: par.querySelector('#ia-model-kjartansson') };
+        const QIn = par.querySelector('#ia-Q'), QV = par.querySelector('#ia-Q-v');
+        const c0In = par.querySelector('#ia-c0'), c0V = par.querySelector('#ia-c0-v');
+        const fpIn = par.querySelector('#ia-fp'), fpV = par.querySelector('#ia-fp-v');
+        const n1In = par.querySelector('#ia-n1'), n1V = par.querySelector('#ia-n1-v');
+        const n2In = par.querySelector('#ia-n2'), n2V = par.querySelector('#ia-n2-v');
+        const axisCaption = par.querySelector('#ia-axis-caption');
+
+        function drawStarMarker(ctx, cx, cy, r, fill, stroke){
+          const spikes = 5, rOuter = r, rInner = r * 0.45;
+          ctx.beginPath();
+          for(let i=0; i<spikes*2; i++){
+            const rad = i % 2 === 0 ? rOuter : rInner;
+            const ang = -Math.PI/2 + i*Math.PI/spikes;
+            const x = cx + rad*Math.cos(ang), y = cy + rad*Math.sin(ang);
+            i===0 ? ctx.moveTo(x,y) : ctx.lineTo(x,y);
+          }
+          ctx.closePath();
+          ctx.fillStyle = fill; ctx.fill();
+          ctx.strokeStyle = stroke; ctx.lineWidth = 1; ctx.stroke();
+        }
+        function drawTriangleDownMarker(ctx, cx, cy, r, fill, stroke){
+          ctx.beginPath();
+          for(let i=0; i<3; i++){
+            const ang = Math.PI/2 + i*2*Math.PI/3;
+            const x = cx + r*Math.cos(ang), y = cy + r*Math.sin(ang);
+            i===0 ? ctx.moveTo(x,y) : ctx.lineTo(x,y);
+          }
+          ctx.closePath();
+          ctx.fillStyle = fill; ctx.fill();
+          ctx.strokeStyle = stroke; ctx.lineWidth = 1.5; ctx.stroke();
+        }
+
+        function syncControlLabels(){
+          for(const k in modelBtns) modelBtns[k].classList.toggle('active', state.model===k);
+          QV.textContent = state.Q.toFixed(0);
+          c0V.textContent = state.c0.toFixed(1)+' km/s';
+          fpV.textContent = state.fp.toFixed(1)+' Hz';
+          n1V.textContent = state.n1.toFixed(1);
+          n2V.textContent = state.n2.toFixed(1);
+        }
+        syncControlLabels();
+
+        function emit(){
+          commitInFlight = true;
+          par.value = { model: state.model, Q: state.Q, c0: state.c0, fp: state.fp,
+            x1: state.x1, x2: state.x2, n1: state.n1, n2: state.n2 };
+          par.dispatchEvent(new CustomEvent('input'));
+        }
+        function throttledEmit(){ if(!commitInFlight) emit(); }
+
+        // ---- Dispersion & Attenuation panel ----
+        function drawDispersion(){
+          dispCtx.clearRect(0,0,PW,PH);
+          dispCtx.strokeStyle = '#374151'; dispCtx.lineWidth = 1; dispCtx.strokeRect(0.5,0.5,PW-1,PH-1);
+          if(!pushed){ dispCtx.fillStyle='#6b7280'; dispCtx.font='12px sans-serif'; dispCtx.fillText('computing...', 10, 18); return; }
+          const bandL = 40, bandB = 18, plotW = PW-bandL-6, plotH = PH-bandB-6;
+          const fmin = pushed.fdisp[0], fmax = pushed.fdisp[pushed.fdisp.length-1];
+          const allY = pushed.cfutt.concat(pushed.ckjar).concat([1.0]);
+          let ymin = Math.min(...allY), ymax = Math.max(...allY);
+          const pad = Math.max(1e-4, (ymax-ymin)*0.15); ymin -= pad; ymax += pad;
+          function xOf(f){ return bandL + (Math.log10(f)-Math.log10(fmin))/(Math.log10(fmax)-Math.log10(fmin))*plotW; }
+          function yOf(v){ return 6 + plotH - (v-ymin)/(ymax-ymin)*plotH; }
+
+          function drawCurve(arr, color, alpha){
+            dispCtx.globalAlpha = alpha; dispCtx.strokeStyle = color; dispCtx.lineWidth = 1.8;
+            dispCtx.beginPath();
+            for(let i=0;i<arr.length;i++){
+              const x = xOf(pushed.fdisp[i]), y = yOf(arr[i]);
+              i===0 ? dispCtx.moveTo(x,y) : dispCtx.lineTo(x,y);
+            }
+            dispCtx.stroke(); dispCtx.globalAlpha = 1;
+          }
+          if(state.model === 'elastic'){
+            dispCtx.strokeStyle = '#e5e7eb'; dispCtx.lineWidth = 1.8;
+            dispCtx.beginPath(); dispCtx.moveTo(bandL, yOf(1.0)); dispCtx.lineTo(bandL+plotW, yOf(1.0)); dispCtx.stroke();
+            drawCurve(pushed.cfutt, '#38bdf8', 0.3);
+            drawCurve(pushed.ckjar, '#f97316', 0.3);
+          } else {
+            drawCurve(pushed.cfutt, '#38bdf8', state.model==='futterman' ? 1.0 : 0.3);
+            drawCurve(pushed.ckjar, '#f97316', state.model==='kjartansson' ? 1.0 : 0.3);
+          }
+          dispCtx.strokeStyle = '#4b5563'; dispCtx.beginPath(); dispCtx.moveTo(bandL,yOf(1.0)+0.5); dispCtx.lineTo(bandL+plotW,yOf(1.0)+0.5); dispCtx.stroke();
+          dispCtx.fillStyle = '#e5e7eb'; dispCtx.font = '10px sans-serif'; dispCtx.textAlign='left';
+          dispCtx.fillText('c/c\\u2080='+ymin.toFixed(3)+'..'+ymax.toFixed(3), bandL+2, 12);
+          dispCtx.fillStyle = '#9ca3af';
+          dispCtx.fillText(fmin.toFixed(1)+' Hz', bandL, PH-4);
+          dispCtx.textAlign='right'; dispCtx.fillText(fmax.toFixed(0)+' Hz', bandL+plotW, PH-4);
+        }
+
+        // ---- Distance Axis panel ----
+        const AX_XMIN = 0, AX_XMAX = 150, AX_MINGAP = 4;
+        function axisLayout(){
+          const padL = 22, padR = 14, midY = PH*0.62;
+          const plotW = PW - padL - padR;
+          return { padL, plotW, midY };
+        }
+        function xToPx(x){ const {padL, plotW} = axisLayout(); return padL + (x-AX_XMIN)/(AX_XMAX-AX_XMIN)*plotW; }
+        function clampAway(v, other){
+          v = Math.max(AX_XMIN+2, Math.min(AX_XMAX, v));
+          if(Math.abs(v-other) < AX_MINGAP) v = other + Math.sign(v-other || 1)*AX_MINGAP;
+          return Math.max(AX_XMIN+2, Math.min(AX_XMAX, v));
+        }
+
+        function drawAxis(){
+          axisCtx.clearRect(0,0,PW,PH);
+          axisCtx.strokeStyle = '#374151'; axisCtx.lineWidth = 1; axisCtx.strokeRect(0.5,0.5,PW-1,PH-1);
+          const {padL, plotW, midY} = axisLayout();
+
+          // combined spreading x attenuation envelope, one curve per receiver's own n
+          if(pushed){
+            function drawEnvelope(env, color){
+              axisCtx.strokeStyle = color; axisCtx.globalAlpha = 0.55; axisCtx.lineWidth = 1.3;
+              axisCtx.beginPath();
+              for(let i=0;i<pushed.xaxis.length;i++){
+                const x = xToPx(pushed.xaxis[i]), y = midY - env[i]*(midY-14);
+                i===0 ? axisCtx.moveTo(x,y) : axisCtx.lineTo(x,y);
+              }
+              axisCtx.stroke(); axisCtx.globalAlpha = 1;
+            }
+            drawEnvelope(pushed.env1, '#38bdf8');
+            drawEnvelope(pushed.env2, '#f97316');
+          }
+
+          axisCtx.strokeStyle = '#4b5563'; axisCtx.beginPath();
+          axisCtx.moveTo(padL, midY); axisCtx.lineTo(padL+plotW, midY); axisCtx.stroke();
+
+          drawStarMarker(axisCtx, xToPx(0), midY, 8, '#facc15', '#000');
+          axisCtx.fillStyle = '#9ca3af'; axisCtx.font = '10px sans-serif'; axisCtx.textAlign='center';
+          axisCtx.fillText('source', xToPx(0), midY+22);
+
+          drawTriangleDownMarker(axisCtx, xToPx(state.x1), midY, 7, '#38bdf8', '#0a0f18');
+          axisCtx.fillStyle = '#38bdf8';
+          axisCtx.fillText('r\\u2081 '+state.x1.toFixed(0)+' km', xToPx(state.x1), midY+22);
+          drawTriangleDownMarker(axisCtx, xToPx(state.x2), midY, 7, '#f97316', '#0a0f18');
+          axisCtx.fillStyle = '#f97316';
+          axisCtx.fillText('r\\u2082 '+state.x2.toFixed(0)+' km', xToPx(state.x2), midY+22);
+
+          axisCtx.fillStyle = '#6b7280'; axisCtx.textAlign='left'; axisCtx.font='9px sans-serif';
+          axisCtx.fillText('0', padL, midY-8);
+          axisCtx.textAlign='right';
+          axisCtx.fillText(AX_XMAX+' km', padL+plotW, midY-8);
+        }
+
+        let activeDrag = null; // null | 'r1' | 'r2'
+        let dragAnchorPx = 0, dragAnchorX = 0;
+
+        function axisPointerXY(ev){
+          const r = axisCv.getBoundingClientRect();
+          return [ (ev.clientX-r.left)*(PW/r.width), (ev.clientY-r.top)*(PH/r.height) ];
+        }
+        axisCv.addEventListener('mousedown', ev => {
+          const [px, py] = axisPointerXY(ev);
+          const {midY} = axisLayout();
+          if(Math.abs(py-midY) > 20) return;
+          const p1 = xToPx(state.x1), p2 = xToPx(state.x2);
+          if(Math.abs(px-p1) <= Math.abs(px-p2) && Math.abs(px-p1) < 10){ activeDrag='r1'; dragAnchorPx=px; dragAnchorX=state.x1; return; }
+          if(Math.abs(px-p2) < 10){ activeDrag='r2'; dragAnchorPx=px; dragAnchorX=state.x2; }
+        });
+        axisCv.addEventListener('mousemove', ev => {
+          if(activeDrag) return;
+          const [px, py] = axisPointerXY(ev);
+          const {midY} = axisLayout();
+          const near = Math.abs(py-midY) < 20 && (Math.abs(px-xToPx(state.x1))<10 || Math.abs(px-xToPx(state.x2))<10);
+          axisCv.style.cursor = near ? 'grab' : 'default';
+        });
+        window.addEventListener('mousemove', ev => {
+          if(!activeDrag) return;
+          const [px] = axisPointerXY(ev);
+          const {plotW} = axisLayout();
+          const pxPerKm = plotW/(AX_XMAX-AX_XMIN);
+          const newX = dragAnchorX + (px-dragAnchorPx)/pxPerKm;
+          if(activeDrag === 'r1') state.x1 = clampAway(newX, state.x2);
+          else state.x2 = clampAway(newX, state.x1);
+          axisCaption.textContent = 'r\\u2081='+state.x1.toFixed(0)+' km, r\\u2082='+state.x2.toFixed(0)+' km';
+          drawAxis();
+          throttledEmit();
+        });
+        window.addEventListener('mouseup', () => { if(activeDrag){ axisCv.style.cursor='grab'; } activeDrag = null; });
+
+        // ---- Waveforms & Spectral Ratio panel ----
+        function drawRecord(){
+          recCtx.clearRect(0,0,RECORD_W,RECORD_H);
+          recCtx.strokeStyle = '#374151'; recCtx.lineWidth = 1; recCtx.strokeRect(0.5,0.5,RECORD_W-1,RECORD_H-1);
+          if(!pushed){ recCtx.fillStyle='#6b7280'; recCtx.font='12px sans-serif'; recCtx.fillText('computing...', 10, 18); return; }
+          const halfW = Math.floor(RECORD_W/2);
+          const bandL = 34, bandB = 16, plotH = RECORD_H-bandB;
+          const plotWL = halfW-bandL-4, plotWR = RECORD_W-halfW-bandL-4;
+
+          // left: both pulses, reduced time
+          {
+            const mx = Math.max(...pushed.pulse1.map(Math.abs), ...pushed.pulse2.map(Math.abs), 1e-12);
+            const midY = plotH*0.5, amp = plotH*0.42/mx, nt = pushed.tgrid.length;
+            function drawPulse(p, color, dashed){
+              recCtx.strokeStyle = color; recCtx.lineWidth = 1.5;
+              recCtx.setLineDash(dashed ? [4,3] : []);
+              recCtx.beginPath();
+              for(let i=0;i<nt;i++){
+                const x = bandL + i/(nt-1)*plotWL, y = midY - p[i]*amp;
+                i===0 ? recCtx.moveTo(x,y) : recCtx.lineTo(x,y);
+              }
+              recCtx.stroke(); recCtx.setLineDash([]);
+            }
+            drawPulse(pushed.pulse1, '#38bdf8', false);
+            drawPulse(pushed.pulse2, '#f97316', true);
+            recCtx.strokeStyle = '#4b5563'; recCtx.beginPath(); recCtx.moveTo(bandL,midY); recCtx.lineTo(bandL+plotWL,midY); recCtx.stroke();
+            recCtx.fillStyle = '#9ca3af'; recCtx.font = '9px sans-serif'; recCtx.textAlign='center';
+            recCtx.fillText('reduced time (s)', bandL+plotWL/2, RECORD_H-3);
+          }
+          // right: log spectral ratio + fit
+          {
+            const nf = pushed.fband.length;
+            const fmax = pushed.fband[nf-1];
+            const rmin = Math.min(...pushed.ratio), rmax = Math.max(...pushed.ratio);
+            const pad = Math.max(1e-6, (rmax-rmin)*0.15);
+            const ymin = rmin-pad, ymax = rmax+pad;
+            const ox = halfW+bandL;
+            function xOf(f){ return ox + f/fmax*plotWR; }
+            function yOf(v){ return 4 + plotH - (v-ymin)/(ymax-ymin)*plotH*0.94; }
+            recCtx.fillStyle = '#f97316';
+            for(let i=0;i<nf;i+=Math.max(1,Math.floor(nf/120))){
+              recCtx.beginPath(); recCtx.arc(xOf(pushed.fband[i]), yOf(pushed.ratio[i]), 1.6, 0, 7); recCtx.fill();
+            }
+            recCtx.strokeStyle = '#38bdf8'; recCtx.lineWidth = 1.5;
+            recCtx.beginPath();
+            recCtx.moveTo(xOf(0), yOf(pushed.intercept));
+            recCtx.lineTo(xOf(fmax), yOf(pushed.intercept + pushed.slope*fmax));
+            recCtx.stroke();
+            recCtx.fillStyle = '#9ca3af'; recCtx.font = '9px sans-serif'; recCtx.textAlign='center';
+            recCtx.fillText('frequency (Hz)', ox+plotWR/2, RECORD_H-3);
+          }
+          recCtx.strokeStyle = '#4b5563'; recCtx.beginPath(); recCtx.moveTo(halfW+0.5,0); recCtx.lineTo(halfW+0.5,RECORD_H); recCtx.stroke();
+          recCtx.fillStyle = '#e5e7eb'; recCtx.font = '11px sans-serif'; recCtx.textAlign='left';
+          recCtx.fillText('u(t): r\\u2081 solid / r\\u2082 dashed', bandL+2, 12);
+          recCtx.fillText('ln|U\\u2082/U\\u2081| (dots) + fit (line)', halfW+bandL+2, 12);
+          recCtx.fillStyle = '#facc15'; recCtx.textAlign='right'; recCtx.font='12px sans-serif';
+          recCtx.fillText('Q true='+state.Q.toFixed(0)+'  Q\\u0302 ='+pushed.Qest.toFixed(1)+'  \\u0394t*='+pushed.dtstarEst.toFixed(3)+'s', RECORD_W-6, 12);
+        }
+
+        function draw(){ drawDispersion(); drawAxis(); drawRecord(); }
+        draw();
+
+        for(const k in modelBtns){
+          modelBtns[k].addEventListener('click', () => { state.model = k; syncControlLabels(); draw(); emit(); });
+        }
+        QIn.addEventListener('input', () => { state.Q = parseFloat(QIn.value); syncControlLabels(); emit(); });
+        c0In.addEventListener('input', () => { state.c0 = parseFloat(c0In.value); syncControlLabels(); emit(); });
+        fpIn.addEventListener('input', () => { state.fp = parseFloat(fpIn.value); syncControlLabels(); emit(); });
+        n1In.addEventListener('input', () => { state.n1 = parseFloat(n1In.value); syncControlLabels(); emit(); });
+        n2In.addEventListener('input', () => { state.n2 = parseFloat(n2In.value); syncControlLabels(); emit(); });
+        par.querySelector('#ia-spread-body').addEventListener('click', () => {
+          state.n1 = 1.0; state.n2 = 1.0; n1In.value = 1.0; n2In.value = 1.0; syncControlLabels(); emit();
+        });
+        par.querySelector('#ia-spread-surface').addEventListener('click', () => {
+          state.n1 = 0.5; state.n2 = 0.5; n1In.value = 0.5; n2In.value = 0.5; syncControlLabels(); emit();
+        });
+
+        par.addEventListener('ia-update', event => {
+          commitInFlight = false;
+          pushed = event.detail;
+          draw();
+        });
+        }
+        // Debounce rather than act on the first callback: WideCell's resize of `par`
+        // (narrow default column -> full wide width) can fire this more than once in
+        // quick succession, and reacting to the first one bakes in the still-narrow
+        // size. Waiting for callbacks to stop for a bit means iaInit() always uses the
+        // settled width, whatever it ends up being (including "stayed narrow" on a
+        // small viewport) -- same pattern as ray-tomography.jl's rtRo/rtInit.
+        let iaTimer = null;
+        const iaRo = new ResizeObserver(() => {
+          clearTimeout(iaTimer);
+          iaTimer = setTimeout(() => { iaRo.disconnect(); iaInit(); }, 150);
+        });
+        iaRo.observe(par);
+        }
+        }
+        </script>
+        """)
+    end
+
+    const _ia_ready = true
+end
+
+# ╔═╡ 0f94962d-5f79-4a45-ba8d-af7cb46a6ac6
+begin
+    _ia_ready
+    WideCell(@bind ia AttenuationInput(); max_width=1400)
+end
+
+# ╔═╡ cb0e9b09-698b-4d99-a809-1ec83592a74f
+"""
+	AttenuationPush(fdisp, cfutt, ckjar, xaxis, env1, env2, tgrid, pulse1, pulse2, fband, ratio, slope, intercept, Qest, dtstarEst)
+
+Bundles every array the widget's JS needs for one redraw and dispatches them as a single
+`'ia-update'` CustomEvent on `#iawidget` -- the live analogue of the Appendix computation
+above, re-run whenever the bound `ia` value changes.
+"""
+struct AttenuationPush
+    fdisp::Vector{Float64}
+    cfutt::Vector{Float64}
+    ckjar::Vector{Float64}
+    xaxis::Vector{Float64}
+    env1::Vector{Float64}
+    env2::Vector{Float64}
+    tgrid::Vector{Float64}
+    pulse1::Vector{Float64}
+    pulse2::Vector{Float64}
+    fband::Vector{Float64}
+    ratio::Vector{Float64}
+    slope::Float64
+    intercept::Float64
+    Qest::Float64
+    dtstarEst::Float64
+end
+
+# ╔═╡ 8bbde385-1077-431e-9848-05e7fb5ed45d
+function Base.show(io::IO, ::MIME"text/html", p::AttenuationPush)
+    write(io, """
+    <script>
+    {
+    const w = document.getElementById('iawidget');
+    if(w){
+      w.dispatchEvent(new CustomEvent('ia-update', { detail: {
+        fdisp: [$(join(p.fdisp, ","))],
+        cfutt: [$(join(p.cfutt, ","))],
+        ckjar: [$(join(p.ckjar, ","))],
+        xaxis: [$(join(p.xaxis, ","))],
+        env1: [$(join(p.env1, ","))],
+        env2: [$(join(p.env2, ","))],
+        tgrid: [$(join(p.tgrid, ","))],
+        pulse1: [$(join(p.pulse1, ","))],
+        pulse2: [$(join(p.pulse2, ","))],
+        fband: [$(join(p.fband, ","))],
+        ratio: [$(join(p.ratio, ","))],
+        slope: $(p.slope),
+        intercept: $(p.intercept),
+        Qest: $(p.Qest),
+        dtstarEst: $(p.dtstarEst)
+      }}));
+    }
+    }
+    </script>
+    """)
+end
+
+# ╔═╡ 7c9e696f-251b-4fe0-a09e-e777844101a2
+let
+    model = String(ia["model"])
+    Q = Float64(ia["Q"])
+    c0 = Float64(ia["c0"])
+    fp = Float64(ia["fp"])
+    x1 = Float64(ia["x1"])
+    x2 = Float64(ia["x2"])
+    n1 = Float64(ia["n1"])
+    n2 = Float64(ia["n2"])
+
+    tgrid = range(-3.0, 3.0, length=1024)
+    freqgrid, Fsource = source_spectrum(tgrid, fp)
+
+    fdisp = 10 .^ range(log10(0.3), log10(30.0), length=80)
+    ωdisp = 2π .* fdisp
+    cfutt = [futterman_phase_velocity(ω, Q, OMEGA0, c0) / c0 for ω in ωdisp]
+    ckjar = [kjartansson_phase_velocity(ω, Q, OMEGA0, c0) / c0 for ω in ωdisp]
+
+    xaxis = range(2.0, 150.0, length=120)
+    atten_ref = [abs(only(attenuation_response([fp], x, Q, OMEGA0, c0, model))) for x in xaxis]
+    env1 = [spreading_factor(x, n1) for x in xaxis] .* atten_ref
+    env2 = [spreading_factor(x, n2) for x in xaxis] .* atten_ref
+    env1 = env1 ./ maximum(env1)
+    env2 = env2 ./ maximum(env2)
+
+    U1 = receiver_spectrum(freqgrid, Fsource, x1, n1, Q, OMEGA0, c0, model)
+    U2 = receiver_spectrum(freqgrid, Fsource, x2, n2, Q, OMEGA0, c0, model)
+    pulse1 = synthesize_pulse(tgrid, U1)
+    pulse2 = synthesize_pulse(tgrid, U2)
+
+    mask = Fsource .> 0.05 * maximum(Fsource)
+    fband = freqgrid[mask]
+    ratio = log_spectral_ratio(U1, U2)[mask]
+    slope, intercept = linear_fit(fband, ratio)
+    Qest = estimate_Q(slope, x1, x2, c0)
+    dtstarEst = -slope / π
+
+    AttenuationPush(collect(fdisp), cfutt, ckjar, collect(xaxis), env1, env2,
+        collect(tgrid), pulse1, pulse2, collect(fband), ratio, slope, intercept,
+        Qest, dtstarEst)
+end
 
 # ╔═╡ 00000000-0000-0000-0000-000000000001
 PLUTO_PROJECT_TOML_CONTENTS = """
 [deps]
 FFTW = "7a1cc6ca-52ef-59f5-83cd-3a7055c09341"
-PlutoPlotly = "8e989ff0-3d88-8e9f-f020-2b208a939ff0"
-PlutoTeachingTools = "661c6b06-c737-4d37-b85c-46df65de6f69"
 PlutoUI = "7f904dfe-b85e-4ff6-b463-dae2292396a8"
-SymbolicUtils = "d1185830-fcd6-423d-90d6-eec64667417b"
-Symbolics = "0c5d862f-8b57-4792-8d23-62f2024744c7"
 
 [compat]
 FFTW = "~1.10.0"
-PlutoPlotly = "~0.6.0"
-PlutoTeachingTools = "~0.4.6"
 PlutoUI = "~0.7.72"
-SymbolicUtils = "~3.32.0"
-Symbolics = "~6.56.0"
 """
 
 # ╔═╡ 00000000-0000-0000-0000-000000000002
 PLUTO_MANIFEST_TOML_CONTENTS = """
 # This file is machine-generated - editing it directly is not advised
 
-julia_version = "1.12.1"
+julia_version = "1.12.4"
 manifest_format = "2.0"
-project_hash = "f599c9d12af15d8cb52eabf134300afa895a7c01"
+project_hash = "ce8a8bd91a0621b5464d5f2acaf73e0a293ad028"
 
 [[deps.ADTypes]]
 git-tree-sha1 = "27cecae79e5cc9935255f90c53bb831cc3c870d7"
@@ -537,7 +1439,7 @@ version = "0.7.16"
 [[deps.Downloads]]
 deps = ["ArgTools", "FileWatching", "LibCURL", "NetworkOptions"]
 uuid = "f43a241f-c20a-4ad4-852c-f6b1247861c6"
-version = "1.6.0"
+version = "1.7.0"
 
 [[deps.DynamicPolynomials]]
 deps = ["Future", "LinearAlgebra", "MultivariatePolynomials", "MutableArithmetics", "Reexport", "Test"]
@@ -768,7 +1670,7 @@ version = "0.6.4"
 [[deps.LibCURL_jll]]
 deps = ["Artifacts", "LibSSH2_jll", "Libdl", "OpenSSL_jll", "Zlib_jll", "nghttp2_jll"]
 uuid = "deac9b47-8bc7-5906-a0fe-35ac56dc84c0"
-version = "8.11.1+1"
+version = "8.15.0+0"
 
 [[deps.LibGit2]]
 deps = ["LibGit2_jll", "NetworkOptions", "Printf", "SHA"]
@@ -853,7 +1755,7 @@ version = "0.3.7"
 
 [[deps.MozillaCACerts_jll]]
 uuid = "14a3606d-f60d-562e-9121-12d972cd8159"
-version = "2025.5.20"
+version = "2025.11.4"
 
 [[deps.MultivariatePolynomials]]
 deps = ["DataStructures", "LinearAlgebra", "MutableArithmetics"]
@@ -903,7 +1805,7 @@ version = "0.8.7+0"
 [[deps.OpenSSL_jll]]
 deps = ["Artifacts", "Libdl"]
 uuid = "458c3c95-2e84-50aa-8efc-19380b2a3a95"
-version = "3.5.1+0"
+version = "3.5.4+0"
 
 [[deps.OpenSpecFun_jll]]
 deps = ["Artifacts", "CompilerSupportLibraries_jll", "JLLWrappers", "Libdl"]
@@ -937,7 +1839,7 @@ version = "2.8.3"
 [[deps.Pkg]]
 deps = ["Artifacts", "Dates", "Downloads", "FileWatching", "LibGit2", "Libdl", "Logging", "Markdown", "Printf", "Random", "SHA", "TOML", "Tar", "UUIDs", "p7zip_jll"]
 uuid = "44cfe95a-1eb2-52ea-b672-e2afdf69b78f"
-version = "1.12.0"
+version = "1.12.1"
 weakdeps = ["REPL"]
 
     [deps.Pkg.extensions]
@@ -1451,42 +2353,43 @@ uuid = "1317d2d5-d96f-522e-a858-c73665f53c3e"
 version = "2022.0.0+1"
 
 [[deps.p7zip_jll]]
-deps = ["Artifacts", "Libdl"]
+deps = ["Artifacts", "CompilerSupportLibraries_jll", "Libdl"]
 uuid = "3f19e933-33d8-53b3-aaab-bd5110c3b7a0"
-version = "17.5.0+2"
+version = "17.7.0+0"
 """
 
 # ╔═╡ Cell order:
+# ╟─74a3e9e3-ed09-4582-91fc-47944d5744db
 # ╠═a9436d89-ad43-4cb8-8619-67c0e26eb686
 # ╟─fbbee9cc-493d-11ed-00fd-b1e3bddbb3fa
-# ╟─36de89c5-8cf6-44de-baaf-cbe409818578
-# ╟─5d9fed8c-860b-48d8-a30d-e1c79f5db1e8
-# ╠═eb190d1a-3c6b-407a-a586-9b13ed40b106
-# ╟─9cc49e2c-864d-4fad-9b49-456a85bcf0a2
-# ╟─8e2d55d4-340f-49ca-963d-ef33477ed60d
-# ╟─a1c6aea0-35d1-4a5a-9147-461b496a5d82
-# ╟─89ef2430-308b-4bbf-b70b-7688fa4d5251
-# ╠═434f4be3-ecb2-4a0e-9ffc-d24795ef5560
-# ╟─53653e30-cec8-467a-bdca-c713f93e67a1
-# ╟─ef3cd032-b515-411c-8c6b-cc6d23d2f2f9
-# ╠═4039e2b0-0406-45dc-89c4-058281769ad3
-# ╟─4f7a0cf2-d25e-4414-8ac7-62b2f31fe8e0
-# ╠═0685a215-4c7b-420d-b779-a94da325988b
-# ╠═383f706b-97a9-4f69-a5e1-4b56a91af720
-# ╠═b11c4313-73e6-4d78-bc10-6c64120ae8a9
-# ╠═ca29d9b8-d6a7-46d9-bc4f-4bfc263e7009
-# ╠═6d1613fa-5fa0-47b8-b39b-520070d786a8
-# ╟─2e6ad714-5972-41ce-92c9-f30a8b50f3dd
-# ╠═74a3e9e3-ed09-4582-91fc-47944d5744db
-# ╠═4b67cd08-e56c-42ab-9205-a5b4ed4919dc
-# ╠═39cbdb94-dc0c-4d26-855a-94ce52b05dde
-# ╠═197dd532-fe5d-43d3-bf51-ac10f960dadf
-# ╠═24edc710-f14e-4bb4-87f5-7bb48f592e2f
-# ╠═a7ae29f7-52a6-4ded-aed8-d2579fc84076
-# ╠═d237a9eb-775a-4d9c-b53c-192f90952ea1
-# ╠═a3989848-a4ce-4a6d-94a5-245fb57474a0
-# ╠═fe778290-0f29-4a06-9399-4a15ccf38fe4
-# ╠═2c192f02-3a6b-48fa-9a68-d51c8e6b4bc5
-# ╠═ff83c90d-9f0d-46ce-a8ef-b690273add4f
+# ╟─0f94962d-5f79-4a45-ba8d-af7cb46a6ac6
+# ╟─d60cf031-d375-4da6-ace3-abd5043d6364
+# ╟─304689e0-f318-4730-be5d-e112517d81ad
+# ╟─b3273cac-84b5-458a-86c0-a530bd769ba0
+# ╟─892eb702-189e-4b3f-a4a0-89e4763b97ac
+# ╟─a1041e34-78f7-4212-898a-7e1e6d0770d8
+# ╟─b2b60060-a73d-4006-911b-36a28c0e7554
+# ╟─02e113c5-b3b6-4e9e-9670-c937af00d7c2
+# ╟─d9b9ee19-f549-4c4f-8b79-6a360bfd5f2d
+# ╠═bdf54ecf-72c8-4741-b655-142fc23be647
+# ╟─189722e0-e9ea-42e8-ad75-684e6da5ad04
+# ╠═e9e188a6-ec01-4a4f-9168-cf185b14cb05
+# ╠═3f5f9b5a-2131-432a-b58d-132cf1800610
+# ╟─14a5545d-858e-407b-a193-0e5abc9f68b1
+# ╠═22bda95b-a685-46ad-8284-075bafd27581
+# ╠═ea207d15-c2b9-472c-9fc3-79b7000a1738
+# ╟─6bfbe8d3-3ef0-4a82-8266-59794fd6118a
+# ╠═fd66f5ad-1b8e-4b0e-9377-32d8f15e9ac2
+# ╟─82ff57b2-3824-42db-9d55-a3c7fc377131
+# ╠═0ec1c415-c990-46eb-bfdf-17d062442f90
+# ╠═f668c317-1166-4ab1-b96c-c46eaf9ee136
+# ╟─8271e3a5-308d-42b4-b636-1a59f18361f6
+# ╠═9c1c2062-c62a-48dd-9d0f-651d848afccd
+# ╠═fb5825ce-55cf-4b48-8513-0669fbe876cd
+# ╟─097e5d11-4857-4fd3-a587-3d72d2567180
+# ╠═f3674d89-497d-43c3-9741-8a1d8e3fc860
+# ╠═cb0e9b09-698b-4d99-a809-1ec83592a74f
+# ╠═8bbde385-1077-431e-9848-05e7fb5ed45d
+# ╟─7c9e696f-251b-4fe0-a09e-e777844101a2
 # ╟─00000000-0000-0000-0000-000000000001
 # ╟─00000000-0000-0000-0000-000000000002

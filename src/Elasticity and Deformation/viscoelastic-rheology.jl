@@ -89,6 +89,32 @@ spring (stiffness) or the dashpot (viscosity) between the wall and the block, or
 aside below for why bracing, specifically, is what ``\nu`` is really about.
 """
 
+# ╔═╡ d3f8a2c1-7e5b-4c9a-8d16-2f4a6e8c0b31
+md"""
+## The Mirror Image: Fixing the Strain Instead of the Stress
+
+Every pull above was **force-controlled**: the handle sets the applied stress, and
+whatever strain results is left to creep further the longer you hold a steady pull. That
+is a genuinely different experiment from squeezing something to a fixed shape and
+clamping it there -- **displacement-controlled**. Switch the toggle above the block to
+"Stretch & hold" to try it: now the handle sets the *strain* directly, and once you stop
+moving it (hold the mouse steady, exactly the same "hold" gesture as before), simulated
+time advances again -- except this time it's the *stress* that visibly relaxes, decaying
+toward zero while your strain stays pinned exactly where you left it.
+
+This is the textbook **stress relaxation** test, the mirror image of the **creep** test
+above: same Maxwell dashpot, same material, but which quantity is held fixed and which is
+left to respond has flipped. Held at a fixed strain, stress decays exponentially,
+``\sigma(t)=\sigma_0e^{-t/\tau_{\rm relax}}`` (`stress_from_strain_with_relaxation` in the
+Appendix), with its own relaxation time ``\tau_{\rm relax}=3\eta/E`` -- close to, but not
+identical to, the shear-based ``\tau_M=\eta/\mu`` from the timescale strip above the block
+(the two differ by exactly ``3/(2(1+\nu))``, the same Trouton-ratio bookkeeping from the
+aside below, just applied to a different clock). Geophysically, this is the more literal
+picture of what happens right after an earthquake locks a fault segment at a new, fixed
+offset: it's the *stress* that offset left behind which relaxes over the postseismic years
+that follow, not a stress someone keeps re-applying by hand.
+"""
+
 # ╔═╡ 3e1a5c9a-8b7f-4a2f-9d1e-6f5c4b8e2d3a
 md"""
 ## Two Clocks, Compared to Whatever Clock You're Asking About
@@ -113,15 +139,29 @@ quickly the material can even *find out* that a force was applied somewhere else
 ``I \ll 1`` means elastic information crosses the region far faster than the loading
 changes, so ``\nabla\cdot\sigma\approx0`` at every instant -- quasi-statics.
 
-Do the same rescaling to the Maxwell rheology already sitting in this block's dashpot,
-``\dot\varepsilon = \dot\sigma/E + \sigma/\eta``, and a second, independent group appears:
+Do the same rescaling to the Maxwell rheology sitting in this block's dashpot -- but the
+dashpot is fundamentally a *shear* element (it only ever relaxes the deviatoric,
+shape-changing part of the stress), while the handle applies a plain uniaxial pull. Split
+that pull into its deviatoric and volumetric parts (`` [`axial_maxwell_creep_rate`](@ref)
+``, Appendix) and only ``2/3`` of it -- the deviatoric third -- ever reaches the dashpot;
+the rest is a lossless volume change the dashpot never feels. Working through that split
+turns the rheology into:
 
 ```math
+\dot\varepsilon = \frac{\dot\sigma}{E} + \frac{\sigma}{3\eta}, \qquad
 De = \frac{\tau_M}{T}, \qquad \tau_M = \frac{\eta}{\mu}.
 ```
 
+``\eta`` here is the material's *shear* viscosity -- the same one that sets
+``\tau_M=\eta/\mu`` -- so the ``3`` in front of it is not a fitted fudge factor. It is the
+classic **Trouton ratio**: pulling a Newtonian material along one axis resists exactly
+``3\times`` as hard, per unit strain rate, as shearing it does, purely from how much of a
+uniaxial pull is actually shear. Skip that factor (an easy mistake -- the 1-D
+spring-and-dashpot cartoon doesn't show it) and matching this block's creep to a real
+mantle viscosity needs a fictitious, ``3\times``-too-small ``\eta``.
+
 ``De \gg 1``: the dashpot hasn't had time to move, ``\sigma\approx E\varepsilon`` --
-elastic. ``De \ll 1``: plenty of time to relax, ``\sigma\approx\eta\dot\varepsilon`` --
+elastic. ``De \ll 1``: plenty of time to relax, ``\sigma\approx 3\eta\dot\varepsilon`` --
 viscous. ``De\sim1``: both terms matter -- viscoelastic. ``I`` and ``De`` are *independent*
 questions -- one asks whether inertia matters, the other whether flow matters -- so
 together they sort every regime this widget can reach:
@@ -357,15 +397,42 @@ function strain_from_stress(stress_path, E, sigma_y0; H=0.0, plastic_cap=1.5)
     return strain, eps_p_path
 end
 
+# ╔═╡ 5e2c9a3f-1b6d-4f2a-9c0e-7a3f8d1b6e42
+md"### Why the Dashpot Only Feels a Third of the Pull"
+
+# ╔═╡ 7f4a1d8e-2c5b-4e9f-a0d3-6b1c8e4f2a97
+"""
+	axial_maxwell_creep_rate(sigma, eta)
+
+The creep-strain RATE a Maxwell dashpot contributes under a plain uniaxial stress
+`sigma`, given the material's *shear* viscosity `eta` -- the same `eta` that sets
+``\\tau_M = \\eta/\\mu`` in [`wave_relaxation_clocks`](@ref). The dashpot is fundamentally
+a shear element: it only ever relaxes the deviatoric (shape-changing) part of the stress
+tensor, ``\\dot e_{ij} = \\dot s_{ij}/(2\\mu) + s_{ij}/(2\\eta)``. A uniaxial stress
+`sigma` (lateral stresses held at zero) splits into a purely elastic, lossless
+volumetric part ``p=\\sigma/3`` and a deviatoric part ``s_{11}=\\sigma-p=2\\sigma/3``;
+only that deviatoric third ever reaches the dashpot, giving
+``\\dot\\varepsilon_{\\rm creep}=\\dot e_{11}=s_{11}/(2\\eta)=\\sigma/(3\\eta)``.
+
+The `3` is not a fitted fudge factor -- it's the classic *Trouton ratio*: pulling a
+Newtonian material along one axis resists exactly ``3\\times`` as hard, per unit strain
+rate, as shearing it does. Used by [`strain_from_stress_with_creep`](@ref); multiply by
+an elapsed time and accumulate to get creep strain.
+"""
+axial_maxwell_creep_rate(sigma, eta) = sigma / (3 * eta)
+
 # ╔═╡ a0900587-c705-4fb9-99b6-002b4fe257c8
 """
 	strain_from_stress_with_creep(stress_path, time_path, E, sigma_y0, eta; H=0.0, plastic_cap=1.5)
 
 The "silly putty" extension of [`strain_from_stress`](@ref): the same yield-capped
 elastic/plastic response, plus a Maxwell dashpot in series that creeps continuously
-under *any* sustained nonzero stress, at rate `σ/η`. Unlike yielding (which depends only
-on how *hard* you pull), creep depends on how *long* you hold a given pull: integrated
-here as `Δε_creep = σ·Δt/η` between successive samples of `time_path` (seconds).
+under *any* sustained nonzero stress, at rate [`axial_maxwell_creep_rate`](@ref)`(σ,
+η) = σ/(3η)` -- the Trouton-ratio-corrected rate for a *uniaxial* stress acting on a
+dashpot that is fundamentally a shear element (see the derivation there and in
+[`wave_relaxation_clocks`](@ref)). Unlike yielding (which depends only on how *hard* you
+pull), creep depends on how *long* you hold a given pull: integrated here as
+`Δε_creep = σ·Δt/(3η)` between successive samples of `time_path` (seconds).
 
 Returns `(strain_path, residual_path)`, where `residual_path` is the *combined*
 plastic-plus-creep strain left behind once stress returns to zero -- the quantity the
@@ -405,12 +472,92 @@ function strain_from_stress_with_creep(stress_path, time_path, E, sigma_y0, eta;
         end
         if i > 1
             dt = max(time_path[i] - time_path[i-1], 0.0)
-            eps_c += sig * dt / eta
+            eps_c += axial_maxwell_creep_rate(sig, eta) * dt
         end
         strain[i] = eps_p + eps_c + sig / E
         residual_path[i] = eps_p + eps_c
     end
     return strain, residual_path
+end
+
+# ╔═╡ f3a1b2c4-6d5e-4a8b-9c1f-2e7d4b6a8f01
+md"### Squeezing Instead of Pulling: Stress Relaxation Under Fixed Strain"
+
+# ╔═╡ a7c3e9f1-4b2d-4e6a-8f19-3d5c7b9e1a02
+"""
+	axial_stress_relaxation_time(E, eta)
+
+The axial Maxwell relaxation time ``\\tau_{\\rm relax}=3\\eta/E`` that
+[`stress_from_strain_with_relaxation`](@ref) decays with once strain is held fixed --
+the constant-*strain* dual of the constant-*stress* creep rate
+[`axial_maxwell_creep_rate`](@ref), both carrying the same Trouton-ratio ``3``. Related to
+the shear-based ``\\tau_M=\\eta/\\mu`` from [`wave_relaxation_clocks`](@ref) by
+``\\tau_{\\rm relax}=\\tau_M\\cdot 3/(2(1+\\nu))`` -- the same dashpot, timed two different
+ways (a uniaxial pull vs. a pure shear), so the two clocks agree in order of magnitude but
+are not numerically identical. See the self-check below.
+"""
+axial_stress_relaxation_time(E, eta) = 3 * eta / E
+
+# ╔═╡ b8d4f0a2-5c3e-4f7b-9a2d-4e6d8c0f2b13
+"""
+	stress_from_strain_with_relaxation(strain_path, time_path, E, eta; sigma_cap=Inf)
+
+The displacement-controlled dual of [`strain_from_stress_with_creep`](@ref): given a
+*prescribed total strain* history `strain_path` (the widget clamps the block at a fixed
+elongation instead of pulling with a fixed force), return the stress the Maxwell element
+carries as a result.
+
+Differentiating the same decomposition used everywhere in this notebook,
+``\\varepsilon=\\sigma/E+\\varepsilon_c``, ``\\dot\\varepsilon_c=\\sigma/(3\\eta)`` (the
+Trouton-corrected rate from [`axial_maxwell_creep_rate`](@ref)), at *prescribed*
+``\\varepsilon(t)`` gives a first-order linear ODE for ``\\sigma``:
+
+```math
+\\dot\\sigma + \\frac{\\sigma}{\\tau} = E\\dot\\varepsilon, \\qquad
+\\tau = \\tau_{\\rm relax} = \\frac{3\\eta}{E}
+```
+
+(see [`axial_stress_relaxation_time`](@ref)). Rather than a forward-Euler step, which
+would need a fine ``\\Delta t/\\tau`` to avoid drifting, each sample interval is integrated
+*exactly*, treating the strain rate as constant (``r=\\Delta\\varepsilon/\\Delta t``) over
+that one interval -- the standard variation-of-parameters solution:
+
+```math
+\\sigma_i = \\sigma_{i-1}e^{-\\Delta t/\\tau} + Er\\tau\\left(1-e^{-\\Delta t/\\tau}\\right)
+```
+
+When `strain_path` stops changing (``r=0``, the "fix it" moment), this collapses to the
+textbook **stress relaxation** solution ``\\sigma(t)=\\sigma_0e^{-t/\\tau}`` exactly, to
+machine precision, no matter how coarsely the hold is sampled -- see the self-check below.
+
+Ignores plasticity -- a relaxation test is normally run below yield, so unlike
+[`strain_from_stress_with_creep`](@ref) there is no return-mapping here, only an optional
+hard `sigma_cap` (default `Inf`) that clips runaway stress if `strain_path` is pushed
+unrealistically far. Returns `(stress_path, eps_c_path)`, where `eps_c_path =
+strain_path .- stress_path./E` is whatever the elastic relation can't otherwise explain --
+the creep residual, in the units [`lateral_strain_from_axial`](@ref) expects.
+"""
+function stress_from_strain_with_relaxation(strain_path, time_path, E, eta; sigma_cap=Inf)
+    n = length(strain_path)
+    stress = zeros(Float64, n)
+    tau = axial_stress_relaxation_time(E, eta)
+    stress[1] = clamp(E * strain_path[1], -sigma_cap, sigma_cap)
+    for i in 2:n
+        dt = max(time_path[i] - time_path[i-1], 0.0)
+        rate = dt > 0 ? (strain_path[i] - strain_path[i-1]) / dt : 0.0
+        x = dt / tau
+        decay = exp(-x)
+        # 1-exp(-x) loses precision catastrophically as x->0 (exactly the near-elastic,
+        # huge-eta limit this function is supposed to reduce to exactly) -- expm1 is the
+        # standard fix, accurate to machine precision for small x where a naive `1-decay`
+        # was actually the dominant source of error, not the Euler-vs-exact integration
+        # this function exists to avoid (confirmed directly: `1-decay` gave ~1e-4 relative
+        # error per step here, `-expm1(-x)` brings it back to ~1e-13).
+        one_minus_decay = -expm1(-x)
+        stress[i] = clamp(stress[i-1] * decay + E * rate * tau * one_minus_decay, -sigma_cap, sigma_cap)
+    end
+    eps_c_path = strain_path .- stress ./ E
+    return stress, eps_c_path
 end
 
 # ╔═╡ 1a52d2bb-c6ac-4e0d-8a00-39ec56e0cdff
@@ -694,15 +841,16 @@ let
     err_d = maximum(abs.(strain_hugeeta .- strain_noc))
     @assert isapprox(err_d, 0.0; atol=1e-8)
 
-    # a held constant stress below yield should creep linearly in time: eps_creep = sigma*t/eta,
-    # the analytic Maxwell creep solution for a step load.
+    # a held constant stress below yield should creep linearly in time: eps_creep =
+    # sigma*t/(3*eta) -- the Trouton-ratio-corrected analytic Maxwell creep solution for
+    # a uniaxial step load (see axial_maxwell_creep_rate).
     eta_test = 200.0
     sigma_held = 3.0  # below sy_test=10, so no plastic contribution -- isolates the creep term
     T_hold = 5.0
     stress_e = fill(sigma_held, 100)
     time_e = collect(range(0, T_hold; length=100))
     strain_e, residual_e = strain_from_stress_with_creep(stress_e, time_e, E_test, sy_test, eta_test)
-    creep_theory = sigma_held * T_hold / eta_test
+    creep_theory = sigma_held * T_hold / (3 * eta_test)
     @assert isapprox(residual_e[end], creep_theory; atol=1e-3)
     @assert isapprox(strain_e[end], sigma_held / E_test + creep_theory; atol=1e-3)
 
@@ -739,8 +887,9 @@ let
         creep term changes nothing (``$(round(err_d, sigdigits=3))`` difference) when
         ``\eta`` is huge, and holding a below-yield stress of ``$(sigma_held)`` for
         ``$(T_hold)`` s at ``\eta=$(eta_test)`` creeps by ``$(round(residual_e[end], digits=4))``
-        --- matching the analytic Maxwell solution ``\sigma t/\eta =
-        $(round(creep_theory, digits=4))`` exactly: the same force, held longer,
+        --- matching the Trouton-corrected Maxwell solution ``\sigma t/(3\eta)`` =
+        $(round(creep_theory, digits=4)) exactly (not the uncorrected ``\sigma t/\eta``
+        a plain 1-D reading of the dashpot law would suggest): the same force, held longer,
         deforms more, with no yielding involved at all. And the lateral (necking) strain
         matches ``-\nu\varepsilon`` exactly while purely elastic, then switches to the
         incompressible ``-0.5\varepsilon`` exactly once nothing elastic is left ---
@@ -785,6 +934,45 @@ begin
     G_from_Enu(E, nu) = E / (2 * (1 + nu))
 end
 
+# ╔═╡ 3d8b6f21-9e4a-4c7d-b502-1f6a9d3e8c05
+let
+    sigma_t, eta_t = 12.0e6, 4.0e19
+
+    # the deviatoric decomposition this function is derived from, spelled out directly:
+    # uniaxial sigma with zero lateral stress -> mean stress p, deviatoric s_ij
+    p_t = sigma_t / 3
+    s11_t, s22_t, s33_t = sigma_t - p_t, -p_t, -p_t
+    @assert isapprox(s11_t + s22_t + s33_t, 0.0; atol=1e-6)   # deviator is traceless, always
+    @assert isapprox(s11_t, 2 * sigma_t / 3; atol=1e-6)
+
+    # the dashpot law e_dot = s/(2*eta) applied to JUST the deviatoric part must reproduce
+    # this function exactly
+    edot_direct = s11_t / (2 * eta_t)
+    @assert isapprox(edot_direct, axial_maxwell_creep_rate(sigma_t, eta_t); rtol=1e-12)
+
+    # the elastic identity that makes E the right (unmodified) coefficient for the RATE
+    # term while eta needs the factor of 3: 1/(3mu) + 1/(9K) must equal 1/E exactly, for
+    # any K, mu -- this is what lets the widget keep a single E for elastic loading while
+    # still needing 3eta, not eta, for creep
+    K_t, mu_t = 50.0e9, 30.0e9
+    E_t = E_from_KG(K_t, mu_t)
+    lhs = 1 / (3 * mu_t) + 1 / (9 * K_t)
+    @assert isapprox(lhs, 1 / E_t; rtol=1e-10)
+
+    md"""
+    !!! correct "Self-check"
+        A uniaxial stress of $(sigma_t/1e6) MPa splits into a deviatoric part
+        $(round(s11_t/1e6, digits=2)) MPa --- exactly ``2/3`` of the total, confirmed
+        directly from the (traceless, by construction) stress deviator --- and a lossless
+        volumetric third. Feeding only that deviatoric part into the dashpot's own law
+        ``s/(2\eta)`` reproduces `axial_maxwell_creep_rate` exactly, and the same
+        decomposition's elastic half confirms ``1/(3\mu)+1/(9K)=1/E`` to
+        $(round(abs(lhs*E_t-1), sigdigits=2)) relative error --- exactly why the widget
+        can keep a single, unmodified ``E`` for the elastic slope while still needing
+        ``3\eta``, not ``\eta``, for creep.
+    """
+end
+
 # ╔═╡ 3cf3b5c7-f651-4a0d-842e-ba54b5bb4c59
 """
 	wave_relaxation_clocks(E_GPa, nu, eta_Pas, L_km, rho)
@@ -801,6 +989,111 @@ function wave_relaxation_clocks(E_GPa, nu, eta_Pas, L_km, rho)
     mu_Pa = G_from_Enu(E_GPa, nu) * 1.0e9
     Vs = sqrt(mu_Pa / rho)
     return (L_km * 1.0e3) / Vs, eta_Pas / mu_Pa
+end
+
+# ╔═╡ c9e5a1b3-6d4f-4a8c-8b3e-5f7e9d1a3c24
+let
+    E_test2, eta_test2 = 300.0, 500.0  # tau_relax = 3*eta/E = 5 (arbitrary consistent units)
+    tau_test2 = axial_stress_relaxation_time(E_test2, eta_test2)
+    @assert isapprox(tau_test2, 5.0; atol=1e-12)
+
+    # reduces to plain elasticity when eta is huge (no creep to speak of): a ramping strain
+    # history should give stress = E*strain exactly at every sample, same style of check as
+    # strain_from_stress_with_creep's own huge-eta reduction above.
+    strain_ramp = collect(range(0, 0.01; length=50))
+    time_ramp = collect(range(0, 1.0; length=50))
+    stress_elastic, _ = stress_from_strain_with_relaxation(strain_ramp, time_ramp, E_test2, 1.0e12)
+    err_elastic = maximum(abs.(stress_elastic .- E_test2 .* strain_ramp))
+    @assert isapprox(err_elastic, 0.0; atol=1e-9)
+
+    # the classic relaxation test: strain held flat at eps0 from t=0 onward -- exactly the
+    # "fix it" moment the widget's hold gesture represents -- sampled at only a handful of
+    # points across 6*tau_relax, deliberately coarse, since the whole point of integrating
+    # each interval exactly (not with forward-Euler) is that it shouldn't matter.
+    eps0 = 0.02
+    n_hold = 6
+    T_hold = 6 * tau_test2
+    time_relax = collect(range(0, T_hold; length=n_hold))
+    strain_relax = fill(eps0, n_hold)
+    stress_relax, eps_c_relax = stress_from_strain_with_relaxation(strain_relax, time_relax, E_test2, eta_test2)
+    sigma0 = E_test2 * eps0  # stress[1] == E*strain_path[1] exactly -- the function's own first line
+    theory = sigma0 .* exp.(-time_relax ./ tau_test2)
+    err_relax = maximum(abs.(stress_relax .- theory)) / sigma0
+    eps_c_theory = eps0 * (1 - exp(-T_hold / tau_test2))  # everything not-yet-relaxed strain has become creep
+
+    @assert isapprox(err_relax, 0.0; atol=1e-12)
+    @assert stress_relax[end] < 0.01 * sigma0
+    @assert isapprox(eps_c_relax[end], eps_c_theory; atol=1e-10)
+
+    # independent validation: a crude explicit-Euler integration of the SAME ODE on a very
+    # fine grid (not the function under test), as ground truth, versus our function
+    # evaluated at only a handful of points on the identical strain-vs-time path -- if the
+    # exact per-interval formula is right, evaluating it coarsely should still land on the
+    # fine-grid answer, which an explicit-Euler integrator at that same coarse spacing
+    # could not. The one thing the coarse grid must still do is place a sample exactly at
+    # the ramp's own kink (t_ramp_b): "exact per interval" means exact GIVEN that the true
+    # strain rate really is constant across each sampled interval, and a coarse interval
+    # straddling an unresolved kink violates that premise by construction -- that would be
+    # testing whether 8 points can resolve a kink they were never given the location of,
+    # not whether the integrator is correct.
+    eps0_b, t_ramp_b, t_hold_b = 0.015, 2.0, 25.0
+    strain_of_t(t) = t <= t_ramp_b ? eps0_b * t / t_ramp_b : eps0_b
+    n_fine = 200_000
+    t_fine = collect(range(0, t_ramp_b + t_hold_b; length=n_fine))
+    sigma_fine = zeros(n_fine)
+    sigma_fine[1] = E_test2 * strain_of_t(t_fine[1])
+    for i in 2:n_fine
+        dtf = t_fine[i] - t_fine[i-1]
+        rate = (strain_of_t(t_fine[i]) - strain_of_t(t_fine[i-1])) / dtf
+        sigma_fine[i] = sigma_fine[i-1] + dtf * (E_test2 * rate - sigma_fine[i-1] / tau_test2)
+    end
+    n_coarse = 8
+    t_coarse = vcat([0.0, t_ramp_b], collect(range(t_ramp_b, t_ramp_b + t_hold_b; length=n_coarse-1))[2:end])
+    strain_coarse = strain_of_t.(t_coarse)
+    stress_coarse, _ = stress_from_strain_with_relaxation(strain_coarse, t_coarse, E_test2, eta_test2)
+    err_coarse_vs_fine = abs(stress_coarse[end] - sigma_fine[end]) / (E_test2 * eps0_b)
+    @assert err_coarse_vs_fine < 1e-5
+
+    # ties the two clocks together: the axial relaxation time and the shear-based tau_M
+    # from wave_relaxation_clocks must differ by exactly 3/(2(1+nu)), the same
+    # Trouton-ratio bookkeeping applied to a different clock
+    nu_check = 0.25
+    E_check_GPa, eta_check_Pas = 75.0, 1.0e19
+    _, tauM_check = wave_relaxation_clocks(E_check_GPa, nu_check, eta_check_Pas, 15.0, 2700.0)
+    tau_relax_check = axial_stress_relaxation_time(E_check_GPa * 1.0e9, eta_check_Pas)
+    ratio_check = tau_relax_check / tauM_check
+    ratio_theory = 3 / (2 * (1 + nu_check))
+    @assert isapprox(ratio_check, ratio_theory; rtol=1e-9)
+
+    md"""
+    !!! correct "Self-check"
+        With ``\eta`` huge, `stress_from_strain_with_relaxation` reduces to plain
+        elasticity, ``\sigma=E\varepsilon``, exactly ($(round(err_elastic, sigdigits=3))
+        error). The real test: hold a strain of $(eps0) fixed for ``6\tau_{\rm relax}``,
+        sampled at only $(n_hold) points -- deliberately coarse, since integrating each
+        interval exactly (rather than with forward-Euler) should make that not matter.
+        Stress matches the textbook ``\sigma_0e^{-t/\tau_{\rm relax}}`` to
+        $(round(err_relax, sigdigits=3)) relative error (machine precision, as it should
+        be -- the strain never changes during the hold, so the "exact per interval"
+        formula's own approximation, that the strain rate is constant over each interval,
+        is exactly true here, not merely a good approximation), decaying to
+        $(round(stress_relax[end]/sigma0*100, sigdigits=2))% of its starting value --
+        essentially fully relaxed, with essentially all of the held strain now creep
+        (``\varepsilon_c\to`` $(round(eps_c_relax[end], sigdigits=4)), matching
+        ``\varepsilon_0(1-e^{-6})=`` $(round(eps_c_theory, sigdigits=4)) to
+        $(round(abs(eps_c_relax[end]/eps_c_theory-1)*100, sigdigits=2))%): with nothing
+        left to relax, there is almost nothing left to be elastic either. Independently,
+        evaluating a *different*, genuinely ramp-then-hold strain path at only
+        $(n_coarse) points lands within $(round(err_coarse_vs_fine*100, sigdigits=2))%
+        of a $(n_fine)-step explicit-Euler integration of the identical ODE -- exactly the
+        coarse-sampling robustness the exact-per-interval update was built for, confirmed
+        against an independent (if crude) numerical reference rather than just against
+        itself. And the two relaxation clocks agree exactly where theory says they should:
+        ``\tau_{\rm relax}/\tau_M=`` $(round(ratio_check, digits=4)), matching
+        ``3/(2(1+\nu))=`` $(round(ratio_theory, digits=4)) to machine precision -- the same
+        dashpot, the same Trouton-ratio bookkeeping, just timing a uniaxial pull instead of
+        a pure shear.
+    """
 end
 
 # ╔═╡ 6a1af493-35f5-4813-8940-1992c72cb1e5
@@ -833,13 +1126,18 @@ let
 
     # a :step at finite eta must show BOTH pieces of the story: the very first sample is
     # the pure elastic jump (no creep has had time to accumulate yet), and the last sample
-    # must have crept measurably past it
-    t_s, stress_s, strain_s, _ = scripted_forcing_response(120.0, nu_t, 200.0, 0.0, 5.0e18, :step, 20.0, 3.28 * yr)
+    # must match the Trouton-corrected analytic sum sigma/E + sigma/(3*mu) exactly, one
+    # Maxwell time later (duration = tau_M for THIS material, see mu_asth below)
+    mu_asth = G_from_Enu(120.0, nu_t) * 1.0e9
+    _, tau_M_asth = wave_relaxation_clocks(120.0, nu_t, 5.0e18, 50.0, 3300.0)
+    t_s, stress_s, strain_s, _ = scripted_forcing_response(120.0, nu_t, 200.0, 0.0, 5.0e18, :step, 20.0, tau_M_asth)
     jump_theory = 20.0e6 / (120.0e9)
+    creep_theory_s = 20.0e6 / (3 * mu_asth)
 
     @assert isapprox(err_r, 0.0; atol=1e-3)
     @assert isapprox(strain_s[1], jump_theory; rtol=1e-6)
-    @assert strain_s[end] > 2 * strain_s[1]  # creep has clearly overtaken the initial jump
+    @assert isapprox(strain_s[end], jump_theory + creep_theory_s; rtol=1e-3)
+    @assert strain_s[end] > 1.5 * strain_s[1]  # creep has clearly overtaken the initial jump
 
     md"""
     !!! correct "Self-check"
@@ -855,9 +1153,13 @@ let
         $(round(err_r*100, sigdigits=2))% once ``\eta`` is large enough that creep is
         negligible, and its `:step` correctly separates the instantaneous elastic jump
         ( $(round(strain_s[1], sigdigits=3)), matching ``\sigma/E`` exactly) from the
-        creep that follows (reaching $(round(strain_s[end], sigdigits=3)) after one
-        Maxwell time) --- the same rheology as free-play's pull-release, just driven by a
-        scripted history instead of a mouse gesture.
+        creep that follows: $(round(strain_s[end], sigdigits=3)) after one Maxwell time,
+        matching the Trouton-corrected sum ``\sigma/E+\sigma/(3\mu)`` =
+        $(round(jump_theory+creep_theory_s, sigdigits=3)) to within
+        $(round(abs(strain_s[end]/(jump_theory+creep_theory_s)-1)*100, sigdigits=2))% ---
+        not the ``2\times`` overshoot a naive ``\sigma/\eta``
+        dashpot would have given --- the same rheology as free-play's pull-release, just
+        driven by a scripted history instead of a mouse gesture.
     """
 end
 
@@ -1022,7 +1324,8 @@ begin
     Base.get(w::ElastoplasticLoadingInput) = Dict{String,Any}(
         "E" => w.E, "sigma_y" => w.sigma_y, "H" => w.H, "eta" => w.eta, "nu" => w.nu,
         "rho" => w.rho, "L" => w.L, "presetKey" => w.presetKey,
-        "stressHistory" => [0.0], "timeHistory" => [0.0], "epoch" => 0)
+        "stressHistory" => [0.0], "strainHistory" => [0.0], "timeHistory" => [0.0],
+        "controlMode" => "stress", "epoch" => 0)
 
     """
     	Base.show(io, ::MIME"text/html", w::ElastoplasticLoadingInput)
@@ -1062,6 +1365,11 @@ begin
         #eplwidget .epl-preset-btn{border-radius:4px;border:1px solid #6b7280;background:#0b0b0b;color:#e5e7eb;padding:6px 10px;font-size:12px;cursor:pointer}
         #eplwidget .epl-preset-btn:hover{background:#1f2937}
         #eplwidget .epl-preset-btn.active{border-color:#38bdf8;color:#38bdf8}
+        #eplwidget .epl-mode-row{display:flex;justify-content:center;gap:8px;flex-wrap:wrap;margin-bottom:4px}
+        #eplwidget .epl-mode-btn{border-radius:4px;border:1px solid #6b7280;background:#0b0b0b;color:#e5e7eb;padding:6px 10px;font-size:12px;cursor:pointer}
+        #eplwidget .epl-mode-btn:hover{background:#1f2937}
+        #eplwidget .epl-mode-btn.active{border-color:#4ade80;color:#4ade80}
+        #eplwidget .epl-mode-desc{font-size:12px;color:#9ca3af;text-align:center;margin-bottom:12px}
         #eplwidget .epl-control-group{background:#050505;border:1px solid #2f3744;border-radius:6px;padding:10px 14px;margin-bottom:14px}
         #eplwidget .epl-control-title{font-size:15px;font-weight:700;color:#e5e7eb;margin-bottom:6px}
         #eplwidget .epl-control-row{display:grid;grid-template-columns:110px minmax(0,1fr) 90px;gap:8px;align-items:center;margin:6px 0}
@@ -1082,6 +1390,11 @@ begin
 
         <div class="epl-main-row">
           <div class="epl-block-col">
+            <div class="epl-mode-row" id="epl-mode-row">
+              <button class="epl-mode-btn" data-mode="stress" type="button">Pull it (constant stress → creep)</button>
+              <button class="epl-mode-btn" data-mode="strain" type="button">Stretch &amp; hold (constant strain → relax)</button>
+            </div>
+            <div class="epl-mode-desc" id="epl-mode-desc"></div>
             <div class="epl-panel-title">Pull the Block</div>
             <div class="epl-panel"><canvas id="epl-scene"></canvas></div>
             <div class="epl-caption">drag the spring to change stiffness, the dashpot to change viscosity &middot; scrub bracing below to change &nu; &middot; strain exaggerated for visibility</div>
@@ -1144,6 +1457,14 @@ begin
         let state = { E: $(w.E), sigma_y: $(w.sigma_y), H: $(w.H), eta: $(w.eta), nu: $(w.nu),
           rho: $(w.rho), L: $(w.L), presetKey: "$(w.presetKey)",
           bracingIdx: 1, // matches the struct's default nu (nu_medium) above -- keep in sync
+          // 'stress': the free-play pull-release-repeat test above (force is driven, strain
+          // creeps). 'strain': its displacement-controlled dual -- drag sets a target strain
+          // directly, and holding it fixed lets the derived stress relax instead. Both modes
+          // share every other field below; only which quantity is driven vs. derived flips,
+          // and Julia (see stress_from_strain_with_relaxation in the Appendix) is what
+          // actually computes whichever side isn't driven, exactly as strain_from_stress_with_creep
+          // already does for the 'stress' mode.
+          controlMode: 'stress',
           stressHistory: [0], timeHistory: [0], stress: 0, strain: 0, epsP: 0, lateralStrain: 0,
           currentT: null, currentTLabel: '', graphMode: 'live' };
         let pushed = null;
@@ -1173,7 +1494,14 @@ begin
         const t0 = performance.now();
         function elapsed(){ return (performance.now()-t0)/1000; }
 
-        const availW = Math.min(window.innerWidth*0.85, par.clientWidth || window.innerWidth*0.85, 1150);
+        // par.clientWidth is already forced synchronously by this widget's own
+        // `pluto-cell:has(#eplwidget){width:min(85vw,1150px)!important}` CSS rule (applied
+        // before this script ever runs, unlike WideCell's async JS resize elsewhere), so
+        // it's trustworthy here without deferring via a ResizeObserver. Capping it further
+        // against window.innerWidth*0.85 is still wrong whenever that fraction is smaller
+        // than the real (CSS-bounded) clientWidth -- it silently shrinks every canvas
+        // below its own wrapper's width, leaving a dead stripe of unused black background.
+        const availW = Math.min(par.clientWidth || (window.innerWidth*0.85 || 900), 1150);
         const PW = Math.max(300, Math.floor(availW*0.72) - 14);
         const PH = Math.max(190, Math.round(PW*0.34));
         const PW_GRAPH = Math.max(200, Math.floor(availW*0.25));
@@ -1202,6 +1530,7 @@ begin
         const tsCaptionEl = par.querySelector('#epl-ts-caption');
         const materialDescEl = par.querySelector('#epl-material-desc');
         const syLabelEl = par.querySelector('#epl-sy-label');
+        const modeDescEl = par.querySelector('#epl-mode-desc');
 
         // bracing sets nu to a value the Appendix actually DERIVES from a small
         // spring-lattice solve, not an assigned number
@@ -1272,6 +1601,14 @@ begin
         const LATERAL_AMP = 3; // visual exaggeration of necking, for visibility
         const BLOCK_H_MIN = BLOCK_H * 0.2;
         const PX_PER_STRESS_UNIT = 2.5; // px of drag per MPa -- tuned for the sigma_y range below
+        // px of drag per unit strain -- calibrated against PX_PER_STRESS_UNIT at the
+        // widget's own defaults (E=75 GPa, sigma_y=100 MPa) so reaching the elastic limit
+        // (eps=sigma_y/(1000E)~=0.00133) takes ~200px, comparable to how far a stress-mode
+        // pull needs to reach the same 100 MPa (250px at 2.5px/MPa). The OLD value (30000)
+        // reached that same strain in only ~40px -- any normal drag instantly overshot into
+        // the region localStressFromStrain and Julia disagreed about (see its own comment),
+        // which was the dominant cause of the reported jitter, not just a UI-feel issue.
+        const PX_PER_STRAIN_UNIT = 150000;
         const PLASTIC_CAP = 1.5; // must match strain_from_stress's default in the Appendix
         // floors for the pull-release graph's axes (see graphBounds below) -- just large
         // enough that a near-zero sigma_y/E material doesn't zoom the axis in on noise
@@ -1282,9 +1619,14 @@ begin
 
         function emit(){
           commitInFlight = true;
+          // displayStrain doubles as the driven strain history in 'strain' mode (nothing else
+          // ever needs to correct it there -- see pushStrain) and as the Julia-corrected
+          // creep-aware strain trace in 'stress' mode; either way it's always the right thing
+          // to send as strainHistory. Symmetric with stressHistory below.
           par.value = { E: state.E, sigma_y: state.sigma_y, H: state.H, eta: state.eta, nu: state.nu,
-            rho: state.rho, L: state.L, presetKey: state.presetKey,
-            stressHistory: state.stressHistory, timeHistory: state.timeHistory, epoch: epoch };
+            rho: state.rho, L: state.L, presetKey: state.presetKey, controlMode: state.controlMode,
+            stressHistory: state.stressHistory, strainHistory: displayStrain,
+            timeHistory: state.timeHistory, epoch: epoch };
           par.dispatchEvent(new CustomEvent('input'));
         }
         function throttledEmit(){ if(!commitInFlight) emit(); }
@@ -1311,6 +1653,26 @@ begin
             epsP = s * (Math.abs(sigma) - state.sigma_y) / H_eff;
           }
           return [epsP + (sigma*1e6)/(state.E*1e9), epsP, sigma];
+        }
+
+        // local mirror of the elastic branch of the Appendix's stress_from_strain_with_relaxation
+        // -- used only for smooth, immediate visual feedback while dragging in 'strain' mode;
+        // Julia's relaxation-corrected response is authoritative and overwrites this the
+        // moment it arrives. Ignores relaxation entirely (deliberately -- relaxation only
+        // happens over elapsed time, which a single instantaneous drag sample doesn't have).
+        // Clamping this at sigma_y (the YIELD stress) was a real bug: the real Appendix
+        // function models no plasticity at all and only clamps at a much more generous
+        // sigma_cap safety valve (see the Julia cell that calls it) -- with a tight sigma_y
+        // clamp here instead, any drag past the elastic limit (trivially easy at the drag
+        // sensitivity below) pinned this local preview flat while Julia's real, unclamped-
+        // until-much-higher answer kept climbing, so every round trip snapped the displayed
+        // stress between two very different values -- the actual cause of the "jittery"
+        // feel reported live. Matching Julia's own sigma_cap formula exactly fixes it.
+        function localStressFromStrain(epsRaw){
+          const trial = 1000 * state.E * epsRaw; // GPa*strain -> MPa
+          const H_eff = Math.max(state.H, 100 * state.E); // matches Julia's 0.1*E_val*1000 (GPa->MPa)
+          const capMag = state.sigma_y + H_eff * 1.5;
+          return Math.max(-capMag, Math.min(capMag, trial));
         }
 
         // local mirror of the Appendix's lateral_strain_from_axial -- same approximation
@@ -1414,15 +1776,41 @@ begin
           return true;
         }
 
-        // keeps sampling (time, currentStress) while the block is held still under a
-        // fixed pull -- without this, holding the mouse steady would never advance
-        // state.timeHistory, and creep (which only happens over elapsed time) would be
-        // invisible unless you kept wiggling the mouse.
+        // the displacement-controlled dual of pushStress: epsRaw IS the driven quantity here
+        // (no correction needed, unlike strain in 'stress' mode -- see localStressFromStrain),
+        // and the local elastic stress guess pushed into stressHistory is what Julia's
+        // relaxation-aware response (stress_from_strain_with_relaxation, Appendix) overwrites
+        // once it arrives, mirroring exactly how displayStrain gets overwritten in 'stress' mode.
+        function pushStrain(epsRaw, force){
+          const sigma = localStressFromStrain(epsRaw);
+          const lateral = localLateralStrain(epsRaw, 0); // relaxation residual unknown until Julia responds
+          const last = displayStrain[displayStrain.length-1];
+          state.strain = epsRaw; state.stress = sigma; state.lateralStrain = lateral;
+          if(!force && Math.abs(epsRaw-last) <= 2e-6) return false;
+          const simT = dragSimTime(elapsed()-dragStartTime);
+          state.stressHistory.push(sigma);
+          state.timeHistory.push(simT);
+          displayStrain.push(epsRaw);
+          displayLateral.push(lateral);
+          if(state.stressHistory.length > 4000){
+            state.stressHistory.shift(); state.timeHistory.shift(); displayStrain.shift(); displayLateral.shift();
+          }
+          state.currentT = Math.max(0.01, 2*simT);
+          state.currentTLabel = 'your pull (holding)';
+          return true;
+        }
+
+        // keeps sampling (time, currentStress/currentStrain) while the block is held still
+        // under a fixed pull -- without this, holding the mouse steady would never advance
+        // state.timeHistory, and creep/relaxation (which only happen over elapsed time) would
+        // be invisible unless you kept wiggling the mouse. Same mechanism drives both modes;
+        // only which quantity is re-pushed (held fixed) while time advances differs.
         function startHoldSampling(){
           if(holdTimer) return;
           holdTimer = setInterval(() => {
             if(!dragging) return;
-            pushStress(state.stress, true);
+            if(state.controlMode === 'strain') pushStrain(state.strain, true);
+            else pushStress(state.stress, true);
             draw();
             throttledEmit();
           }, 150);
@@ -2027,6 +2415,16 @@ begin
             btn.classList.toggle('active', btn.dataset.preset === state.presetKey);
           });
         }
+        function modeDescFor(mode){
+          if(mode === 'strain') return "you're setting the DISPLACEMENT -- hold the handle steady (or let go) and simulated time advances while your strain stays fixed, watching the derived stress relax";
+          return "you're setting the FORCE -- hold the handle steady and simulated time advances while your stress stays fixed, watching the derived strain creep";
+        }
+        function setModeButtons(){
+          par.querySelectorAll('.epl-mode-btn').forEach(btn => {
+            btn.classList.toggle('active', btn.dataset.mode === state.controlMode);
+          });
+          modeDescEl.textContent = modeDescFor(state.controlMode);
+        }
         function syncControls(){
           const syEl = par.querySelector('#epl-sy');
           syEl.value = state.sigma_y;
@@ -2038,6 +2436,7 @@ begin
           tsTitleEl.textContent = tsTitleFor(state.graphMode);
           tsCaptionEl.textContent = tsCaptionFor(state.graphMode);
           setPresetButtons();
+          setModeButtons();
         }
         function resetMaterial(){
           // any parameter change invalidates the current deformation -- it was computed
@@ -2116,6 +2515,7 @@ begin
           state.E = p.E; state.eta = p.eta; state.rho = p.rho; state.L = p.L;
           state.sigma_y = p.sigma_y; state.H = 0;
           state.bracingIdx = p.bracingIdx; state.nu = bracingPresets[p.bracingIdx].nu;
+          state.controlMode = 'stress'; // every scripted regime preset is a force history
           state.presetKey = key;
           resetMaterial();
           state.graphMode = 'preset';
@@ -2128,12 +2528,26 @@ begin
           btn.addEventListener('click', () => applyPreset(btn.dataset.preset));
         });
 
+        // switching control mode discards the current deformation the same way a material
+        // change does -- a strain left over from a force-controlled pull (or vice versa)
+        // doesn't mean anything once the driven/derived roles have flipped
+        function selectMode(mode){
+          if(mode === state.controlMode) return;
+          state.controlMode = mode;
+          state.presetKey = null; // presets are scripted, force-controlled scenarios -- switching modes exits that context
+          resetMaterial();
+          syncControls(); draw(); emit();
+        }
+        par.querySelectorAll('.epl-mode-btn').forEach(btn => {
+          btn.addEventListener('click', () => selectMode(btn.dataset.mode));
+        });
+
         function scenePointerXY(ev){
           const r = sceneCv.getBoundingClientRect();
           return [ev.clientX - r.left, ev.clientY - r.top];
         }
 
-        let dragAnchorPx = 0, dragAnchorStress = 0;
+        let dragAnchorPx = 0, dragAnchorStress = 0, dragAnchorStrain = 0;
         let dragStartTime = 0; // elapsed() at mousedown -- also becomes "your pull period" on release
         // bumped on any hard state invalidation (release settling, reset) so a response
         // computed for a request sent *before* that point -- which can easily still be
@@ -2211,6 +2625,7 @@ begin
             sceneCv.style.cursor = 'grabbing';
             dragAnchorPx = px;
             dragAnchorStress = state.stress;
+            dragAnchorStrain = state.strain;
             dragStartTime = elapsed();
             // start a fresh time-series cycle here, unless the previous one never
             // actually grew (e.g. a click that didn't turn into a drag)
@@ -2237,7 +2652,11 @@ begin
             if(!dragging) return;
             const [px] = scenePointerXY(ev);
             cursorPx = px;
-            pushStress(dragAnchorStress + (px - dragAnchorPx) / PX_PER_STRESS_UNIT);
+            if(state.controlMode === 'strain'){
+              pushStrain(dragAnchorStrain + (px - dragAnchorPx) / PX_PER_STRAIN_UNIT);
+            } else {
+              pushStress(dragAnchorStress + (px - dragAnchorPx) / PX_PER_STRESS_UNIT);
+            }
             draw();
             throttledEmit();
             return;
@@ -2276,10 +2695,18 @@ begin
           // `pushed` at all when it's current: startRelease() later trusts whatever
           // `pushed.plasticStrain` last held, so a rejected response must never even
           // land there, or it silently corrupts the *next* release's residual target.
-          if(detail && detail.strain && detail.epoch === epoch){
+          // Julia always echoes back BOTH strain and stress, whichever one is the driven
+          // input (an exact echo, no correction needed) and whichever is derived (the
+          // authoritative creep- or relaxation-corrected value) -- see the Appendix cell
+          // that builds EplPush. Overwriting both uniformly here means this handler needs
+          // no controlMode branch of its own: in 'stress' mode strain is what gets
+          // corrected, in 'strain' mode stress is, and the other one just round-trips.
+          if(detail && detail.strain && detail.stress && detail.epoch === epoch){
             pushed = detail;
             displayStrain = pushed.strain.slice();
             state.strain = displayStrain[displayStrain.length-1];
+            state.stressHistory = pushed.stress.slice();
+            state.stress = state.stressHistory[state.stressHistory.length-1];
             state.epsP = typeof pushed.plasticStrain === 'number' ? pushed.plasticStrain : state.epsP;
             if(pushed.lateral && pushed.lateral.length){
               displayLateral = pushed.lateral.slice();
@@ -2367,6 +2794,7 @@ end
 begin
     struct EplPush
         strain::String
+        stress::String
         plasticStrain::Float64
         lateral::String
         epoch::Int
@@ -2383,6 +2811,7 @@ begin
         if(w){
           w.dispatchEvent(new CustomEvent('epl-results', { detail: {
             strain: [$(p.strain)],
+            stress: [$(p.stress)],
             plasticStrain: $(p.plasticStrain),
             lateral: [$(p.lateral)],
             epoch: $(p.epoch),
@@ -2401,7 +2830,9 @@ end
 # ╔═╡ 84911c1a-b218-40d2-b6af-0cff4180eef8
 begin
     local stress_history = epl isa AbstractDict ? Float64.(epl["stressHistory"]) : [0.0]
+    local strain_history_in = epl isa AbstractDict ? Float64.(get(epl, "strainHistory", [0.0])) : [0.0]
     local time_history = epl isa AbstractDict ? Float64.(epl["timeHistory"]) : [0.0]
+    local control_mode = epl isa AbstractDict ? get(epl, "controlMode", "stress") : "stress"
     local E_val = epl isa AbstractDict ? epl["E"] : 75.0
     local sy_val = epl isa AbstractDict ? epl["sigma_y"] : 100.0
     local H_val = epl isa AbstractDict ? epl["H"] : 0.0
@@ -2409,12 +2840,33 @@ begin
     local nu_val = epl isa AbstractDict ? epl["nu"] : 0.2412
     local epoch_val = epl isa AbstractDict ? Int(epl["epoch"]) : 0
     # convert from the widget's real-but-scaled units (MPa/GPa) to SI (Pa) before calling
-    # the creep integrator -- it works in raw Pa, and skipping this conversion (as a
-    # previous version of this cell did) makes the elastic term ~1e3x too large and the
+    # the creep/relaxation integrators -- both work in raw Pa, and skipping this conversion
+    # (as a previous version of this cell did) makes the elastic term ~1e3x too large and the
     # creep term ~1e6x too small, since sig/E and sig*dt/eta stop cancelling correctly.
     # scripted_forcing_response (below) does this same conversion internally.
-    local strain_path, residual_path = strain_from_stress_with_creep(
-        stress_history .* 1.0e6, time_history, E_val * 1.0e9, sy_val * 1.0e6, eta_val; H=H_val * 1.0e6)
+    local strain_path, residual_path, stress_path_MPa
+    if control_mode == "strain"
+        # displacement-controlled: strain is the DRIVEN input here (echoed straight back
+        # below -- see the widget's epl-results handler, which trusts it unconditionally
+        # since nothing needs to correct it), and stress is what Julia derives via the
+        # relaxation ODE. sigma_cap mirrors strain_from_stress's own plastic_cap*H_eff
+        # bound, just to stop a wildly overdriven strain from reporting an unbounded stress
+        # -- the function itself does not model plastic flow (see its docstring). E_val is
+        # GPa, sy_val/H_val are MPa -- E_val*1000 converts it to the same MPa scale before
+        # comparing/summing (mixing raw GPa and MPa numbers here was a real bug: it made
+        # this cap ~1000x too tight, clamping barely above sigma_y instead of the generous,
+        # rarely-hit ceiling this is meant to be).
+        local sigma_cap_pa = (sy_val + max(H_val, 0.1 * E_val * 1000.0) * 1.5) * 1.0e6
+        local stress_path_pa, eps_c_path = stress_from_strain_with_relaxation(
+            strain_history_in, time_history, E_val * 1.0e9, eta_val; sigma_cap=sigma_cap_pa)
+        strain_path = strain_history_in
+        residual_path = eps_c_path
+        stress_path_MPa = stress_path_pa ./ 1.0e6
+    else
+        strain_path, residual_path = strain_from_stress_with_creep(
+            stress_history .* 1.0e6, time_history, E_val * 1.0e9, sy_val * 1.0e6, eta_val; H=H_val * 1.0e6)
+        stress_path_MPa = stress_history
+    end
     local lateral_path = lateral_strain_from_axial(strain_path, residual_path, nu_val)
 
     # the CURRENTLY SELECTED preset's scripted forcing (kind/amplitude/duration) applied to
@@ -2428,8 +2880,8 @@ begin
     local anim_t, anim_stress, anim_strain, anim_lateral = scripted_forcing_response(
         E_val, nu_val, sy_val, H_val, eta_val, preset.kind, preset.amplitude, preset.duration)
 
-    EplPush(join(strain_path, ","), residual_path[end], join(lateral_path, ","), epoch_val,
-        join(anim_t, ","), join(anim_stress, ","), join(anim_strain, ","), join(anim_lateral, ","))
+    EplPush(join(strain_path, ","), join(stress_path_MPa, ","), residual_path[end], join(lateral_path, ","),
+        epoch_val, join(anim_t, ","), join(anim_stress, ","), join(anim_strain, ","), join(anim_lateral, ","))
 end
 
 # ╔═╡ 3851d568-3eaf-4a4f-b3a2-213a03958982
@@ -2685,6 +3137,7 @@ version = "1.64.0+1"
 # ╟─faf8d654-5c42-46a5-967d-93c3897273e1
 # ╟─6444aa15-39e9-4f0f-9e90-809899dd19ff
 # ╟─199e5d68-391c-4c20-871e-bf1222f28b3f
+# ╠═d3f8a2c1-7e5b-4c9a-8d16-2f4a6e8c0b31
 # ╟─3e1a5c9a-8b7f-4a2f-9d1e-6f5c4b8e2d3a
 # ╟─64f12034-4161-4d2b-b1c2-1809ee2e6e2c
 # ╟─4a425525-dba3-4dcc-b9f6-7deaf4fb0588
@@ -2693,7 +3146,14 @@ version = "1.64.0+1"
 # ╟─6ab7bf3b-19e1-477a-b046-88df986855cb
 # ╠═33fb6caf-2564-41bc-bd5f-8fba3670d887
 # ╠═6cb2a1e4-9f61-4b8a-9c3e-7d5b6a2e4f10
+# ╟─5e2c9a3f-1b6d-4f2a-9c0e-7a3f8d1b6e42
+# ╠═7f4a1d8e-2c5b-4e9f-a0d3-6b1c8e4f2a97
+# ╠═3d8b6f21-9e4a-4c7d-b502-1f6a9d3e8c05
 # ╠═a0900587-c705-4fb9-99b6-002b4fe257c8
+# ╠═f3a1b2c4-6d5e-4a8b-9c1f-2e7d4b6a8f01
+# ╠═a7c3e9f1-4b2d-4e6a-8f19-3d5c7b9e1a02
+# ╠═b8d4f0a2-5c3e-4f7b-9a2d-4e6d8c0f2b13
+# ╠═c9e5a1b3-6d4f-4a8c-8b3e-5f7e9d1a3c24
 # ╠═1a52d2bb-c6ac-4e0d-8a00-39ec56e0cdff
 # ╠═3cf3b5c7-f651-4a0d-842e-ba54b5bb4c59
 # ╠═c1d10e8c-c3e6-4ea5-8dad-d83b87c397a8
