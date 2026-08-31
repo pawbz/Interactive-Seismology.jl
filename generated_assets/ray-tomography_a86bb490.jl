@@ -735,15 +735,20 @@ begin
         let pickedPixel=$(w.pickedPixel), pickedRay=$(w.pickedRay);
         const MAX_STATIONS = 50;
 
-        // A layout pass hasn't always finished by the time this script first runs, so
-        // innerWidth/clientWidth can transiently read 0 -- fall back to a sane width rather
-        // than baking a permanently-too-small SEC into a script that only runs once.
-        const winW = window.innerWidth || 1200;
-        const availW = Math.min(winW*0.9, par.clientWidth || winW*0.9, 1600) || 900;
+        // par.clientWidth, measured here only after rtInit() is deferred past WideCell's
+        // own resize (see the comment above), already reflects the real column width --
+        // WideCell's max_width already bounds it, and Pluto's own chrome/sidebar are
+        // already subtracted out of it. Capping it further against window.innerWidth*0.9
+        // is redundant at best and, whenever the notebook column is wide relative to the
+        // browser window, actively wrong: that fraction can be SMALLER than the real
+        // clientWidth, silently shrinking every canvas below its own wrapper's width and
+        // leaving a dead stripe of the wrapper's own black background unused. Only fall
+        // back to a window-relative estimate if clientWidth is itself unavailable (0).
+        const availW = Math.min(par.clientWidth || (window.innerWidth*0.9 || 1200), 1600) || 900;
         const GAP = 16;
         const heightBudget = Math.max(190, window.innerHeight - 320);
         let SEC = Math.max(190, (availW - GAP*2)/3);
-        SEC = Math.min(SEC, heightBudget, 380);
+        SEC = Math.min(SEC, heightBudget);
         const SEC_W = SEC, SEC_H = SEC;
         const DPR = window.devicePixelRatio || 1;
 
