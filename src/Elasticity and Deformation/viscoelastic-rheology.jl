@@ -166,22 +166,21 @@ viscous. ``De\sim1``: both terms matter -- viscoelastic. ``I`` and ``De`` are *i
 questions -- one asks whether inertia matters, the other whether flow matters -- so
 together they sort every regime this widget can reach:
 
-| ``T`` vs. the two clocks | Regime | Preset |
+| ``T`` vs. the two clocks | Regime | How a hand-pull reaches it |
 |---|---|---|
 | ``T\sim\tau_{\rm wave}`` (``I\sim1``) | elastic, dynamic | *(needs real inertia -- not modeled here, see the note)* |
-| ``T\gg\tau_{\rm wave}``, ``De\gg1`` | elastic, quasi-static | Elastic Loading, Interseismic Loading |
-| ``T\gg\tau_{\rm wave}``, ``De\sim1`` | viscoelastic | Postseismic Relaxation |
-| ``T\gg\tau_{\rm wave}``, ``De\ll1`` | quasi-static, viscous | Mantle Convection |
+| ``T\gg\tau_{\rm wave}``, ``De\gg1`` | elastic, quasi-static | any quick pull-and-release, or a short hold at a stiff/high-``\eta`` setting |
+| ``T\gg\tau_{\rm wave}``, ``De\sim1`` | viscoelastic | hold a pull until the simulated duration reaches this material's own ``\tau_M`` |
+| ``T\gg\tau_{\rm wave}``, ``De\ll1`` | quasi-static, viscous | hold a pull near the end of a ~12 s drag with a soft, low-``\eta`` material |
 
 The timescale strip above the block always plots ``\tau_{\rm wave}`` and ``\tau_M`` as
 markers on one log-scale number line spanning a hundredth of a second to hundreds of
-millions of years, alongside whichever ``T`` is currently in play: a preset's own realistic
-duration, or -- while you hold a hand-pull -- *your own* pull's duration, live. The four
-presets each fast-forward through a scripted, realistic forcing over a few real seconds so
-you can actually watch ``De\gg1``, ``De\sim1``, and ``De\ll1`` play out (Elastic Loading and
-Interseismic Loading both sit at ``De\gg1``, just at very different durations); a genuinely
-elastodynamic ``I\sim1`` demonstration would need a real wave equation with mass in it,
-which this quasi-static (massless) engine deliberately doesn't attempt.
+millions of years, alongside whichever ``T`` is currently in play: *your own* pull's
+duration, live, stretched onto that same axis exactly as the note below describes -- so a
+single hold, at the right ``\eta``, can sweep through ``De\gg1``, ``De\sim1``, and
+``De\ll1`` in one gesture; a genuinely elastodynamic ``I\sim1`` demonstration would need a
+real wave equation with mass in it, which this quasi-static (massless) engine deliberately
+doesn't attempt.
 
 !!! note "Your hand cannot honestly reach these timescales -- so it's stretched"
     A real hold can only ever last a few seconds, but ``\tau_M`` for real rock spans years
@@ -284,11 +283,11 @@ Re = \frac{\rho V L}{\eta}.
 
 Mantle convection has flow speeds ``V\sim\text{cm/yr}`` and ``\eta\sim10^{21}\,\text{Pa·s}``
 -- an almost inconceivably small ``Re``. That's creeping (Stokes) flow, not turbulence,
-which is exactly why the Mantle Convection preset above never looks anything like a
-turbulent fluid despite moving enormous volumes of rock over its own ``\tau_M``. This
-notebook doesn't compute ``Re`` directly (there's no actual flow velocity in a pulled
-block, only a strain history), but it's the reason that regime is safely creeping rather
-than chaotic.
+which is exactly why holding a soft, low-``\eta`` pull long enough to reach ``De\ll1``
+above never looks anything like a turbulent fluid despite moving enormous volumes of rock
+over its own ``\tau_M``. This notebook doesn't compute ``Re`` directly (there's no actual
+flow velocity in a pulled block, only a strain history), but it's the reason that regime
+is safely creeping rather than chaotic.
 """
 
 # ╔═╡ 9b7df3b0-c0f0-4c96-8314-23842a2d97dd
@@ -605,35 +604,6 @@ function deborah_regime(tau_wave_s, tau_M_s, T_s)
         "viscous flow"
     end
     return (R_wave=R_wave, De=De, regime=regime)
-end
-
-# ╔═╡ 9d2f94d6-6ff6-4f13-8a71-64eadf2c1a40
-"""
-	scripted_forcing_response(E_GPa, nu, sigma_y_MPa, H_MPa, eta_Pas, kind, amplitude_MPa, duration_s; n=300)
-
-Drive [`strain_from_stress_with_creep`](@ref) with one of two realistic, non-periodic
-forcing shapes instead of a sine wave: `kind=:ramp` linearly ramps stress from 0 to
-`amplitude_MPa` over `duration_s` -- the interseismic-loading story, steady tectonic
-loading with essentially no time for creep. `kind=:step` jumps instantly to
-`amplitude_MPa` and holds it for `duration_s` -- the postseismic-relaxation /
-mantle-convection story, an elastic jump followed by creep. Same GPa/MPa/Pa·s/s unit
-convention as [`wave_relaxation_clocks`](@ref); this is the SAME underlying rheology as
-the free-play pull-release, just driven by a scripted history instead of a mouse gesture,
-so `duration_s` can be compared directly against the two clocks.
-
-Returns `(t_s, stress_Pa, strain, lateral)`.
-"""
-function scripted_forcing_response(E_GPa, nu, sigma_y_MPa, H_MPa, eta_Pas, kind, amplitude_MPa, duration_s; n=300)
-    t = collect(range(0, duration_s; length=n))
-    stress = if kind === :ramp
-        (amplitude_MPa * 1.0e6) .* (t ./ duration_s)
-    else
-        fill(amplitude_MPa * 1.0e6, n)
-    end
-    strain, residual = strain_from_stress_with_creep(
-        stress, t, E_GPa * 1.0e9, sigma_y_MPa * 1.0e6, eta_Pas; H=H_MPa * 1.0e6)
-    lateral = lateral_strain_from_axial(strain, residual, nu)
-    return t, stress, strain, lateral
 end
 
 # ╔═╡ 89cd485a-c305-44c0-a54c-24941c7f4e28
@@ -1117,28 +1087,6 @@ let
     @assert tw_t > 0 && tw_t < 60  # a crustal S-wave crossing a ~15 km fault: seconds, not years
     @assert tm_t > 1.0e10  # near-elastic: tau_M should dwarf any human timescale
 
-    # elastic limit of scripted_forcing_response: with eta huge, a :ramp must match the
-    # pure elastic prediction sigma(t)/E almost exactly (a little real creep remains --
-    # eta=1e30 here is very large but not literally infinite)
-    t_r, stress_r, strain_r, _ = scripted_forcing_response(E_t, nu_t, 100.0, 0.0, 1.0e30, :ramp, 60.0, 100.0)
-    strain_theory_r = stress_r ./ (E_t * 1.0e9)
-    err_r = maximum(abs.(strain_r .- strain_theory_r)) / maximum(abs.(strain_theory_r))
-
-    # a :step at finite eta must show BOTH pieces of the story: the very first sample is
-    # the pure elastic jump (no creep has had time to accumulate yet), and the last sample
-    # must match the Trouton-corrected analytic sum sigma/E + sigma/(3*mu) exactly, one
-    # Maxwell time later (duration = tau_M for THIS material, see mu_asth below)
-    mu_asth = G_from_Enu(120.0, nu_t) * 1.0e9
-    _, tau_M_asth = wave_relaxation_clocks(120.0, nu_t, 5.0e18, 50.0, 3300.0)
-    t_s, stress_s, strain_s, _ = scripted_forcing_response(120.0, nu_t, 200.0, 0.0, 5.0e18, :step, 20.0, tau_M_asth)
-    jump_theory = 20.0e6 / (120.0e9)
-    creep_theory_s = 20.0e6 / (3 * mu_asth)
-
-    @assert isapprox(err_r, 0.0; atol=1e-3)
-    @assert isapprox(strain_s[1], jump_theory; rtol=1e-6)
-    @assert isapprox(strain_s[end], jump_theory + creep_theory_s; rtol=1e-3)
-    @assert strain_s[end] > 1.5 * strain_s[1]  # creep has clearly overtaken the initial jump
-
     md"""
     !!! correct "Self-check"
         A ``15`` km crustal fault, real ``V_s`` and ``\eta`` plugged into
@@ -1147,50 +1095,12 @@ let
         periods, picked relative to that same material's two clocks, land in exactly the
         four possible regimes: seismic wave, elastic quasi-static, viscoelastic, viscous
         flow --- nothing assumed, `deborah_regime` derives the label from
-        ``\tau_{\rm wave}/T`` and ``\tau_M/T`` alone (only the last three appear as widget
-        presets; the wave regime needs real inertia this quasi-static engine doesn't have).
-        `scripted_forcing_response`'s `:ramp` matches the pure elastic prediction to within
-        $(round(err_r*100, sigdigits=2))% once ``\eta`` is large enough that creep is
-        negligible, and its `:step` correctly separates the instantaneous elastic jump
-        ( $(round(strain_s[1], sigdigits=3)), matching ``\sigma/E`` exactly) from the
-        creep that follows: $(round(strain_s[end], sigdigits=3)) after one Maxwell time,
-        matching the Trouton-corrected sum ``\sigma/E+\sigma/(3\mu)`` =
-        $(round(jump_theory+creep_theory_s, sigdigits=3)) to within
-        $(round(abs(strain_s[end]/(jump_theory+creep_theory_s)-1)*100, sigdigits=2))% ---
-        not the ``2\times`` overshoot a naive ``\sigma/\eta``
-        dashpot would have given --- the same rheology as free-play's pull-release, just
-        driven by a scripted history instead of a mouse gesture.
+        ``\tau_{\rm wave}/T`` and ``\tau_M/T`` alone (only the wave regime needs real
+        inertia this quasi-static engine doesn't have; the other three are exactly what
+        holding a hand-pull at the right ``\eta``, for the right simulated duration,
+        reaches -- see the timescale strip's own note on stretching a real hold onto the
+        full log-scale axis).
     """
-end
-
-# ╔═╡ 6cbc6bab-3e0a-415a-acd0-5ea78d7e0f36
-begin
-    # three realistic regime bundles for Widget A's preset buttons -- material + geometry +
-    # a SCRIPTED forcing (a ramp or a step-and-hold, not a periodic wave) whose kind and
-    # duration are chosen relative to THAT material's own two clocks, so each preset
-    # genuinely lands in its named regime rather than assuming round numbers happen to
-    # work. nu comes from the SAME structurally-derived bracing levels the scrub already
-    # offers (nu_light/medium/full, from the "7d5499f8" cell above) -- not a free-floating
-    # number. There is deliberately no "seismic wave" / inertial preset: this engine is
-    # quasi-static throughout (no mass), so a wave-crossing regime would need a genuinely
-    # different solver to demonstrate honestly -- tau_wave is still computed and shown for
-    # comparison, it just never gets its own scripted scenario.
-    local yr = 365.25 * 24 * 3600
-    local E_crust = E_from_KG(50.0, 30.0)
-    local E_asth = 120.0
-    local _, tm_asth = wave_relaxation_clocks(E_asth, nu_medium, 5.0e18, 50.0, 3300.0)
-
-    regime_presets = (
-        elastic=(name="Elastic loading", E=E_crust, nu=nu_medium, bracingIdx=1, eta=1.0e24, rho=2700.0,
-            L=15.0, sigma_y=500.0, H=0.0, kind=:ramp, amplitude=30.0, duration=1.0 * yr),
-        interseismic=(name="Interseismic loading", E=E_crust, nu=nu_medium, bracingIdx=1, eta=1.0e24, rho=2700.0,
-            L=15.0, sigma_y=100.0, H=0.0, kind=:ramp, amplitude=60.0, duration=100.0 * yr),
-        postseismic=(name="Postseismic relaxation", E=E_asth, nu=nu_medium, bracingIdx=1, eta=5.0e18, rho=3300.0,
-            L=50.0, sigma_y=200.0, H=0.0, kind=:step, amplitude=20.0, duration=tm_asth),
-        convection=(name="Mantle convection", E=300.0, nu=nu_full, bracingIdx=2, eta=1.0e21, rho=4500.0,
-            L=2900.0, sigma_y=50.0, H=0.0, kind=:step, amplitude=20.0, duration=50_000.0 * yr),
-    )
-    regime_presets
 end
 
 # ╔═╡ bdbf5dc7-ecd0-4a11-a3dd-a6d0a597cc72
@@ -1287,25 +1197,24 @@ begin
 
     Initial state for the pull-release-repeat widget: elastic modulus `E` (GPa), yield
     stress `sigma_y` and hardening modulus `H` (MPa), viscosity `eta` (Pa·s), Poisson's
-    ratio `nu`, density `rho` (kg/m³) and length scale `L` (km) -- all real units, used
-    both for manual dragging and for the preset-triggered scripted scenarios. There is
-    deliberately only ONE parameter set now: manual pulling at a real `η` simply shows no
+    ratio `nu`, density `rho` (kg/m³) and length scale `L` (km) -- all real units. There is
+    deliberately only ONE parameter set: manual pulling at a real `η` simply shows no
     visible creep over a few seconds of dragging (correctly -- creep needs `τ_M`, which is
-    years to millions of years), and that is the whole point of the preset animations,
-    which fast-forward through the real, relevant duration instead. `presetKey` tracks
-    which of the Appendix's `regime_presets` the scripted-scenario panel should compute.
+    years to millions of years), which is exactly why holding the handle maps real elapsed
+    time onto simulated time on a log scale (see `dragSimTime` and the timescale strip's
+    own note) rather than needing a separate scripted-scenario mode to reach it.
     The student's drag history is tracked entirely client-side and read back through this
     same bond.
 
-    !!! note "Why literal defaults, not `nu_full`/`regime_presets` directly"
+    !!! note "Why a literal default, not `nu_full` directly"
         Every default here is a plain number, deliberately not a reference to another
         notebook variable. A `@bind`-constructing cell's dependency on values used only
         inside ITS callee's default-argument expressions isn't reliably tracked by Pluto's
-        static analysis -- confirmed directly: referencing `nu_full`/`regime_presets` here
-        threw `UndefVarError` on a fresh client connecting to a cold-started kernel, even
-        though `pluto-collab restart` reported zero errors (that check doesn't reproduce a
-        new client's own bind-evaluation path). The fix is the same wherever this pattern
-        shows up in a Pluto notebook -- literal defaults only.
+        static analysis -- confirmed directly: referencing `nu_full` here threw
+        `UndefVarError` on a fresh client connecting to a cold-started kernel, even though
+        `pluto-collab restart` reported zero errors (that check doesn't reproduce a new
+        client's own bind-evaluation path). The fix is the same wherever this pattern shows
+        up in a Pluto notebook -- literal defaults only.
     """
     struct ElastoplasticLoadingInput
         E::Float64
@@ -1315,15 +1224,14 @@ begin
         nu::Float64
         rho::Float64
         L::Float64
-        presetKey::String
     end
     ElastoplasticLoadingInput(; E=75.0, sigma_y=100.0, H=0.0, eta=1.0e24, nu=0.2412,
-        rho=2700.0, L=15.0, presetKey="interseismic") =
-        ElastoplasticLoadingInput(E, sigma_y, H, eta, nu, rho, L, presetKey)
+        rho=2700.0, L=15.0) =
+        ElastoplasticLoadingInput(E, sigma_y, H, eta, nu, rho, L)
 
     Base.get(w::ElastoplasticLoadingInput) = Dict{String,Any}(
         "E" => w.E, "sigma_y" => w.sigma_y, "H" => w.H, "eta" => w.eta, "nu" => w.nu,
-        "rho" => w.rho, "L" => w.L, "presetKey" => w.presetKey,
+        "rho" => w.rho, "L" => w.L,
         "stressHistory" => [0.0], "strainHistory" => [0.0], "timeHistory" => [0.0],
         "controlMode" => "stress", "epoch" => 0)
 
@@ -1333,8 +1241,7 @@ begin
     Render the pull-release scene (a block made of an internal 2-D spring lattice, pulled
     from a handle, with a scrubbable spring+dashpot Maxwell element between the wall and
     the block), a "two clocks" comparison panel, and a graph column that shows the live
-    pull-release stress-strain trace during manual dragging or a preset's scripted
-    time-series right after that preset fires.
+    pull-release stress-strain trace in whichever of the two control modes is active.
     """
     function Base.show(io::IO, ::MIME"text/html", w::ElastoplasticLoadingInput)
         write(io, """
@@ -1361,10 +1268,6 @@ begin
           background:#050505;border:1px solid #2f3744;border-radius:6px;padding:8px;margin-bottom:14px}
         #eplwidget canvas{display:block;width:100%}
         #eplwidget #epl-scene{cursor:default}
-        #eplwidget .epl-presets-row{display:flex;justify-content:center;gap:8px;flex-wrap:wrap;margin-bottom:14px}
-        #eplwidget .epl-preset-btn{border-radius:4px;border:1px solid #6b7280;background:#0b0b0b;color:#e5e7eb;padding:6px 10px;font-size:12px;cursor:pointer}
-        #eplwidget .epl-preset-btn:hover{background:#1f2937}
-        #eplwidget .epl-preset-btn.active{border-color:#38bdf8;color:#38bdf8}
         #eplwidget .epl-mode-row{display:flex;justify-content:center;gap:8px;flex-wrap:wrap;margin-bottom:4px}
         #eplwidget .epl-mode-btn{border-radius:4px;border:1px solid #6b7280;background:#0b0b0b;color:#e5e7eb;padding:6px 10px;font-size:12px;cursor:pointer}
         #eplwidget .epl-mode-btn:hover{background:#1f2937}
@@ -1385,7 +1288,7 @@ begin
 
         <div class="epl-title">
           <div class="epl-title-desc">One block, three regimes -- elastic, viscoelastic, or viscous flow, depending on the clock you compare it to.</div>
-          <div class="epl-title-hint">drag the handle by hand, or click a preset to fast-forward through a realistic scenario -- hold a hand-pull steady and watch &sigma;_y/plasticity respond (real &eta; won't visibly creep in a few seconds, that's what the presets are for) &middot; drag the spring for stiffness, the dashpot for viscosity</div>
+          <div class="epl-title-hint">drag the handle by hand and watch &sigma;_y/plasticity respond -- hold the pull steady and simulated time sweeps from seconds to hundreds of millions of years, so real creep/relaxation shows up even though real &eta; won't visibly move in a few seconds of dragging &middot; drag the spring for stiffness, the dashpot for viscosity</div>
         </div>
 
         <div class="epl-main-row">
@@ -1412,13 +1315,6 @@ begin
               <div class="epl-control-row"><label>H (hardening)</label><input type="range" id="epl-H" min="0" max="60" step="1" value="$(w.H)"><span class="epl-value" id="epl-H-v"></span></div>
               <div class="epl-material-desc" id="epl-material-desc"></div>
               <button id="epl-reset" type="button">Reset</button>
-            </div>
-
-            <div class="epl-presets-row" id="epl-presets-row">
-              <button class="epl-preset-btn" data-preset="elastic" type="button">Elastic Loading</button>
-              <button class="epl-preset-btn" data-preset="interseismic" type="button">Interseismic Loading</button>
-              <button class="epl-preset-btn" data-preset="postseismic" type="button">Postseismic Relaxation</button>
-              <button class="epl-preset-btn" data-preset="convection" type="button">Mantle Convection</button>
             </div>
           </div>
 
@@ -1452,10 +1348,12 @@ begin
         // displayStrain is Julia's (or a local elastic prediction of) the resulting strain,
         // index-aligned with stressHistory -- never push to one without the other. Every
         // field below is a REAL unit (GPa/Pa·s/MPa/kg per m³/km) -- there is only one
-        // parameter set now; manual dragging simply shows no visible creep at a realistic
-        // eta (correctly -- creep needs tau_M, which presets fast-forward through instead).
+        // parameter set; manual dragging simply shows no visible creep at a realistic eta
+        // over a couple of real seconds (correctly -- creep needs tau_M, which is years to
+        // millions of years), which is exactly why holding the handle fast-forwards
+        // simulated time on a log scale instead (see dragSimTime below).
         let state = { E: $(w.E), sigma_y: $(w.sigma_y), H: $(w.H), eta: $(w.eta), nu: $(w.nu),
-          rho: $(w.rho), L: $(w.L), presetKey: "$(w.presetKey)",
+          rho: $(w.rho), L: $(w.L),
           bracingIdx: 1, // matches the struct's default nu (nu_medium) above -- keep in sync
           // 'stress': the free-play pull-release-repeat test above (force is driven, strain
           // creeps). 'strain': its displacement-controlled dual -- drag sets a target strain
@@ -1466,13 +1364,8 @@ begin
           // already does for the 'stress' mode.
           controlMode: 'stress',
           stressHistory: [0], timeHistory: [0], stress: 0, strain: 0, epsP: 0, lateralStrain: 0,
-          currentT: null, currentTLabel: '', graphMode: 'live' };
+          currentT: null, currentTLabel: '' };
         let pushed = null;
-        let pushedAnim = null; // {animTime, animStress(MPa), animStrain, animLateral} for state.presetKey
-        let awaitingPresetAnim = null; // preset key we're waiting for FRESH anim data for
-        let animPlaying = false, animStartMs = 0;
-        const ANIM_REAL_MS = 4000; // every preset animates over the same ~4 real seconds, whatever its true duration
-        let graphRevertTimer = null;
         let displayStrain = [0];
         let displayLateral = [0]; // parallel to displayStrain -- the transverse (necking) strain history
         // index into state.timeHistory/stressHistory/displayStrain/displayLateral where
@@ -1539,16 +1432,6 @@ begin
           { name: 'medium bracing', nu: $(nu_medium) },
           { name: 'full bracing',   nu: $(nu_full) }
         ];
-        // real-unit regime bundles from the Appendix's regime_presets -- each sets material
-        // + geometry + a SCRIPTED forcing (kind/amplitude/duration, not a period) chosen
-        // relative to THAT material's own two clocks, so clicking one always lands in its
-        // named regime
-        const REGIME_PRESETS = {
-          elastic: { name: "$(regime_presets.elastic.name)", E: $(regime_presets.elastic.E), bracingIdx: $(regime_presets.elastic.bracingIdx), eta: $(regime_presets.elastic.eta), rho: $(regime_presets.elastic.rho), L: $(regime_presets.elastic.L), sigma_y: $(regime_presets.elastic.sigma_y), kind: "$(regime_presets.elastic.kind)", amplitude: $(regime_presets.elastic.amplitude), duration: $(regime_presets.elastic.duration) },
-          interseismic: { name: "$(regime_presets.interseismic.name)", E: $(regime_presets.interseismic.E), bracingIdx: $(regime_presets.interseismic.bracingIdx), eta: $(regime_presets.interseismic.eta), rho: $(regime_presets.interseismic.rho), L: $(regime_presets.interseismic.L), sigma_y: $(regime_presets.interseismic.sigma_y), kind: "$(regime_presets.interseismic.kind)", amplitude: $(regime_presets.interseismic.amplitude), duration: $(regime_presets.interseismic.duration) },
-          postseismic: { name: "$(regime_presets.postseismic.name)", E: $(regime_presets.postseismic.E), bracingIdx: $(regime_presets.postseismic.bracingIdx), eta: $(regime_presets.postseismic.eta), rho: $(regime_presets.postseismic.rho), L: $(regime_presets.postseismic.L), sigma_y: $(regime_presets.postseismic.sigma_y), kind: "$(regime_presets.postseismic.kind)", amplitude: $(regime_presets.postseismic.amplitude), duration: $(regime_presets.postseismic.duration) },
-          convection: { name: "$(regime_presets.convection.name)", E: $(regime_presets.convection.E), bracingIdx: $(regime_presets.convection.bracingIdx), eta: $(regime_presets.convection.eta), rho: $(regime_presets.convection.rho), L: $(regime_presets.convection.L), sigma_y: $(regime_presets.convection.sigma_y), kind: "$(regime_presets.convection.kind)", amplitude: $(regime_presets.convection.amplitude), duration: $(regime_presets.convection.duration) }
-        };
         const bracingCv = par.querySelector('#epl-bracing-scrub'), bracingCtx = bracingCv.getContext('2d');
         const SCRUB_H = 34;
         function sizeScrub(cv, ctx){
@@ -1624,7 +1507,7 @@ begin
           // creep-aware strain trace in 'stress' mode; either way it's always the right thing
           // to send as strainHistory. Symmetric with stressHistory below.
           par.value = { E: state.E, sigma_y: state.sigma_y, H: state.H, eta: state.eta, nu: state.nu,
-            rho: state.rho, L: state.L, presetKey: state.presetKey, controlMode: state.controlMode,
+            rho: state.rho, L: state.L, controlMode: state.controlMode,
             stressHistory: state.stressHistory, strainHistory: displayStrain,
             timeHistory: state.timeHistory, epoch: epoch };
           par.dispatchEvent(new CustomEvent('input'));
@@ -1718,8 +1601,8 @@ begin
         // seconds to millions of years, so a HELD pull's real duration is mapped, on a log
         // scale, across that entire range -- roughly a 12-second hold sweeps from ~0.01s
         // to ~300 Myr of SIMULATED time, which is what actually gets fed to the creep
-        // integrator (via state.timeHistory) so holding long enough genuinely creeps, at
-        // whatever eta is currently dialed in, exactly like a preset would show.
+        // integrator (via state.timeHistory) so holding long enough genuinely creeps or
+        // relaxes, at whatever eta is currently dialed in.
         const DRAG_MAX_REAL_S = 12;
         function dragSimTime(realDt){
           if(realDt <= 0) return 0;
@@ -1758,9 +1641,9 @@ begin
           state.lateralStrain = lateral;
           if(!force && Math.abs(sigma-last) <= 0.3) return false;
           // simulated (not real wall-clock) time -- see dragSimTime above -- so a held
-          // pull genuinely creeps at whatever eta is currently dialed in, exactly like a
-          // preset would show, instead of needing an unrealistically tiny eta to see
-          // anything move within a human-length hold
+          // pull genuinely creeps at whatever eta is currently dialed in, instead of
+          // needing an unrealistically tiny eta to see anything move within a
+          // human-length hold
           const simT = dragSimTime(elapsed()-dragStartTime);
           state.stressHistory.push(sigma);
           state.timeHistory.push(simT);
@@ -1895,13 +1778,6 @@ begin
           // doesn't visually flatten to a line before any pull has happened
           let m = 0.001;
           for(const e of displayStrain) m = Math.max(m, Math.abs(e));
-          // during a preset's own scripted playback, the relevant range is THAT preset's
-          // strain, not the (possibly still-empty) manual pull history -- without this, a
-          // preset whose strain exceeds the tiny manual-pull floor (mantle convection
-          // creeps to several percent) stretched the block's right edge far off-canvas
-          if(state.graphMode === 'preset' && pushedAnim){
-            for(const e of pushedAnim.animStrain) m = Math.max(m, Math.abs(e));
-          }
           return m * 1.15;
         }
         function currentRightX(eMax){
@@ -2040,9 +1916,7 @@ begin
           return { sMax, eMax };
         }
 
-        // the manual pull-release stress-strain trace -- ALWAYS shows the hand-pull
-        // history (unaffected by preset clicks, which don't populate stressHistory);
-        // unchanged behavior from before, just resized to the narrower graph column
+        // the manual pull-release stress-strain trace -- resized to the narrower graph column
         function drawGraph(){
           const ctx = graphCtx, W = PW_GRAPH, H = PH_GRAPH;
           ctx.clearRect(0,0,W,H); // missing this left the LAST drawn trace on screen forever
@@ -2117,8 +1991,6 @@ begin
         // strain(t) sharing an implicit right scale (they're the same units, directly
         // comparable to each other, unlike stress) -- no numeric tick labels on either
         // axis, matching this widget's existing "colored legend, self-normalized" style;
-        // reads either the live pull-release history or a preset's scripted response,
-        // whichever state.graphMode currently points at (see applyPreset/graphRevertTimer)
         function drawTimeSeries(){
           const ctx = tsCtx, W = PW_GRAPH, H = PH_TS;
           ctx.clearRect(0,0,W,H);
@@ -2184,67 +2056,7 @@ begin
             return '±' + sMax.toFixed(sMax<10?1:0) + ' MPa · ±' + eMax.toExponential(1) + ' strain';
           }
 
-          if(state.graphMode === 'preset' && pushedAnim){
-            const times = pushedAnim.animTime, stresses = pushedAnim.animStress;
-            const axial = pushedAnim.animStrain, lateral = pushedAnim.animLateral;
-            if(times.length < 2){
-              ctx.fillStyle = '#6b7280'; ctx.font='11px sans-serif'; ctx.textAlign='center';
-              ctx.fillText('pull the block to see its history here', W/2, H/2);
-              return;
-            }
-            let tMinPos = Infinity;
-            for(const t of times) if(t > 0 && t < tMinPos) tMinPos = t;
-            if(!isFinite(tMinPos)) tMinPos = 1e-2;
-            const tMaxPos = Math.max(tMinPos * 10, times[times.length-1]);
-            const logMin = Math.log10(tMinPos), logMax = Math.log10(tMaxPos);
-            const logSpan = Math.max(1e-9, logMax - logMin);
-            const xOf = i => {
-              const t = times[i];
-              if(t <= 0) return padL;
-              const frac = (Math.log10(t) - logMin) / logSpan;
-              return padL + Math.max(0, Math.min(1, frac)) * plotW;
-            };
-            // preset times already start at 0, so "relative to cycle start" is just t itself
-            const xOfRel = t => t <= 0 ? padL : padL + Math.max(0, Math.min(1, (Math.log10(t)-logMin)/logSpan)) * plotW;
-            drawFrame();
-
-            let sMax=1e-30; for(const v of stresses) sMax=Math.max(sMax, Math.abs(v));
-            let eMax=1e-30; for(const v of axial) eMax=Math.max(eMax, Math.abs(v));
-            for(const v of lateral) eMax=Math.max(eMax, Math.abs(v));
-
-            function drawTrace(arr, maxAbs, color){
-              ctx.strokeStyle=color; ctx.lineWidth=1.6;
-              ctx.beginPath();
-              for(let i=0;i<arr.length;i++){
-                const x=xOf(i), y=zeroY - (arr[i]/maxAbs)*(plotH/2-2);
-                i===0?ctx.moveTo(x,y):ctx.lineTo(x,y);
-              }
-              ctx.stroke();
-            }
-            if(tsVisible.stress) drawTrace(stresses, sMax, '#3b82f6');
-            if(tsVisible.axial) drawTrace(axial, eMax, '#ef4444');
-            if(tsVisible.lateral) drawTrace(lateral, eMax, '#f59e0b');
-
-            // an instantaneous elastic jump only exists for a preset's step-and-hold
-            // scenarios -- mark it distinctly from the creep that follows (only meaningful
-            // while the axial-strain trace it points at is actually shown)
-            if(tsVisible.axial){
-              const jy = zeroY - (axial[0]/eMax)*(plotH/2-2);
-              ctx.setLineDash([2,2]); ctx.strokeStyle='#6b7280'; ctx.lineWidth=1;
-              ctx.beginPath(); ctx.moveTo(xOf(0), H-padB); ctx.lineTo(xOf(0), jy); ctx.stroke();
-              ctx.setLineDash([]);
-              ctx.fillStyle='#6b7280'; ctx.font='9px sans-serif'; ctx.textAlign='left';
-              ctx.fillText('elastic jump', xOf(0)+3, jy+9);
-            }
-
-            drawTimeTicks(xOfRel, tMinPos, tMaxPos);
-            const tMax = times[times.length-1] - times[0];
-            ctx.fillStyle = '#9ca3af'; ctx.font='9px sans-serif'; ctx.textAlign='center';
-            ctx.fillText('t: 0 to ' + formatDuration(tMax) + '  ·  ' + scaleLegendText(sMax, eMax), W/2, H-4);
-            return;
-          }
-
-          // live mode: each pull is its own cycle (see cycleStarts above) -- draw each as
+          // each pull is its own cycle (see cycleStarts above) -- draw each as
           // its own polyline instead of one line connecting cycle boundaries, which jumps
           // backward in (log) time and zigzags. Recent cycles opaque, older ones faded --
           // a slow gradient so several recent pulls stay comparable, not just the latest.
@@ -2375,7 +2187,7 @@ begin
           const [tauWaveS, tauMS] = drawTimescale();
           if(state.currentT == null){
             clocksTextEl.innerHTML = '&tau;_wave = <b>' + formatDuration(tauWaveS) + '</b> &middot; &tau;_M = <b>'
-              + formatDuration(tauMS) + '</b> &middot; pull the block or click a preset to compare your own timescale';
+              + formatDuration(tauMS) + '</b> &middot; pull (or hold) the block to compare your own timescale';
             return;
           }
           const {Rwave, De, regime} = deborahRegime(tauWaveS, tauMS, state.currentT);
@@ -2403,18 +2215,6 @@ begin
           updateYieldLabel();
         }
 
-        function tsTitleFor(mode){
-          return mode === 'preset' ? 'Time Series -- Scripted Scenario' : 'Time Series -- Your Pull History';
-        }
-        function tsCaptionFor(mode){
-          if(mode === 'preset') return 'stress (left scale) · axial & lateral strain (right scale) vs. time, for the preset that just fired';
-          return 'stress (left scale, MPa) · axial & lateral strain (right scale) vs. time, from your own hand-pull';
-        }
-        function setPresetButtons(){
-          par.querySelectorAll('.epl-preset-btn').forEach(btn => {
-            btn.classList.toggle('active', btn.dataset.preset === state.presetKey);
-          });
-        }
         function modeDescFor(mode){
           if(mode === 'strain') return "you're setting the DISPLACEMENT -- hold the handle steady (or let go) and simulated time advances while your strain stays fixed, watching the derived stress relax";
           return "you're setting the FORCE -- hold the handle steady and simulated time advances while your stress stays fixed, watching the derived strain creep";
@@ -2433,30 +2233,31 @@ begin
           par.querySelector('#epl-bracing-v').textContent = 'ν=' + state.nu.toFixed(3);
           drawScrubStrip(bracingCtx, bracingScrubW, bracingPresets, state.bracingIdx);
           materialDescEl.textContent = 'E: ' + describeStiffness(state.E) + '  ·  η: ' + describeViscosity(state.eta);
-          tsTitleEl.textContent = tsTitleFor(state.graphMode);
-          tsCaptionEl.textContent = tsCaptionFor(state.graphMode);
-          setPresetButtons();
+          tsTitleEl.textContent = 'Time Series -- Your Pull History';
+          tsCaptionEl.textContent = 'stress (left scale, MPa) · axial & lateral strain (right scale) vs. time, from your own hand-pull';
           setModeButtons();
         }
         function resetMaterial(){
           // any parameter change invalidates the current deformation -- it was computed
           // under the OLD material, so a strain left over from before would no longer
           // mean anything for what's now selected. This is also exactly what the Reset
-          // button itself does. Also reverts the graph/clocks panel to the plain
-          // free-play baseline -- callers that just fired a preset set graphMode/currentT
-          // again immediately afterward.
+          // button itself does.
           releasing = false;
           dragging = false;
           cursorPx = null;
-          animPlaying = false;
-          if(graphRevertTimer){ clearTimeout(graphRevertTimer); graphRevertTimer = null; }
+          // a material/mode change makes the material's Julia-computed residual
+          // (plasticStrain, whatever the previous mode meant by it) meaningless for
+          // whatever comes next -- without this, startRelease() below can pick up a
+          // STALE plasticStrain left over from before the switch (e.g. a strain-mode
+          // relaxation's creep residual) if a fresh pull-and-release happens before the
+          // first post-switch Julia response has come back to overwrite it.
+          pushed = null;
           state.stress = 0; state.strain = 0; state.epsP = 0; state.lateralStrain = 0;
           state.stressHistory = [0];
           state.timeHistory = [0]; // simulated seconds, not wall-clock -- see dragSimTime
           cycleStarts = [0];
           displayStrain = [0];
           displayLateral = [0];
-          state.graphMode = 'live';
           state.currentT = null; state.currentTLabel = '';
           epoch++;
         }
@@ -2498,34 +2299,11 @@ begin
         window.addEventListener('mouseup', () => { draggingBracing = false; });
 
         par.querySelector('#epl-reset').addEventListener('click', () => {
-          state.presetKey = null; // no preset is "active" after a plain reset
           resetMaterial();
           tsVisible = { stress: true, axial: true, lateral: true }; // un-hide any legend toggles
           syncControls();
           draw();
           emit();
-        });
-
-        // clicking a preset: reset to that scenario's material, then wait for Julia's
-        // freshly-computed scripted response before starting the one-shot playback (see
-        // the epl-results handler and playbackTick below) -- clicking the SAME preset
-        // again simply replays it, no special-casing needed
-        function applyPreset(key){
-          const p = REGIME_PRESETS[key];
-          state.E = p.E; state.eta = p.eta; state.rho = p.rho; state.L = p.L;
-          state.sigma_y = p.sigma_y; state.H = 0;
-          state.bracingIdx = p.bracingIdx; state.nu = bracingPresets[p.bracingIdx].nu;
-          state.controlMode = 'stress'; // every scripted regime preset is a force history
-          state.presetKey = key;
-          resetMaterial();
-          state.graphMode = 'preset';
-          state.currentT = p.duration;
-          state.currentTLabel = p.name.toLowerCase();
-          awaitingPresetAnim = key;
-          syncControls(); draw(); emit();
-        }
-        par.querySelectorAll('.epl-preset-btn').forEach(btn => {
-          btn.addEventListener('click', () => applyPreset(btn.dataset.preset));
         });
 
         // switching control mode discards the current deformation the same way a material
@@ -2534,7 +2312,6 @@ begin
         function selectMode(mode){
           if(mode === state.controlMode) return;
           state.controlMode = mode;
-          state.presetKey = null; // presets are scripted, force-controlled scenarios -- switching modes exits that context
           resetMaterial();
           syncControls(); draw(); emit();
         }
@@ -2713,65 +2490,8 @@ begin
               state.lateralStrain = displayLateral[displayLateral.length-1];
             }
           }
-          // the preset's scripted response has no epoch/staleness concern -- it's a pure
-          // function of the current material + presetKey, always safe to adopt. Only
-          // actually START the one-shot playback if this arrival is the fresh data a
-          // just-clicked preset is waiting for -- otherwise a slider tweak's incidental
-          // recompute would silently kick off an unwanted animation.
-          if(detail && detail.animTime){
-            pushedAnim = {
-              animTime: detail.animTime,
-              animStress: detail.animStress.map(v => v/1.0e6), // Pa -> MPa, matching sigma_y's units
-              animStrain: detail.animStrain,
-              animLateral: detail.animLateral
-            };
-            if(awaitingPresetAnim){
-              animPlaying = true;
-              animStartMs = performance.now();
-              awaitingPresetAnim = null;
-            }
-          }
           draw();
         });
-
-        // one-shot preset playback: advances a SIMULATED time (not wall-clock -- a
-        // preset's duration can be anywhere from decades to tens of thousands of years)
-        // over a fixed ~4 real seconds regardless of the true duration, reading the
-        // block's strain/lateral/stress off the precomputed response by nearest-sample
-        // lookup, then STOPS (leaves the final frame showing) -- unlike the sine-wave
-        // version this replaced, there is no reason to loop forever. A few seconds after
-        // it finishes, the graph quietly reverts to the plain pull-release trace.
-        //
-        // If this cell's script ever re-executes (Pluto reruns a cell's <script> on every
-        // output update, e.g. while a live-collab edit is still settling) while REUSING the
-        // same canvas element, a naive rAF loop from the PREVIOUS execution keeps running
-        // forever -- nothing ever cancels it -- so two (or more) loops end up racing to
-        // paint the same canvas, each with its own stale closure over old drawing code.
-        // Stashing the handle on `par` (which persists across reruns, unlike this script's
-        // own local scope) lets each new execution cancel whatever its predecessor left
-        // running, so there's only ever one live loop.
-        if(par._eplRafHandle) cancelAnimationFrame(par._eplRafHandle);
-        function playbackTick(nowMs){
-          if(!par.isConnected) return; // this script instance's widget is gone; stop for good
-          if(animPlaying && pushedAnim){
-            const frac = Math.min(1, (nowMs - animStartMs)/ANIM_REAL_MS);
-            const n = pushedAnim.animTime.length;
-            const idx = Math.min(n-1, Math.floor(frac*n));
-            state.stress = pushedAnim.animStress[idx];
-            state.strain = pushedAnim.animStrain[idx];
-            state.lateralStrain = pushedAnim.animLateral[idx];
-            draw();
-            if(frac >= 1){
-              animPlaying = false;
-              graphRevertTimer = setTimeout(() => {
-                state.graphMode = 'live';
-                syncControls(); draw();
-              }, 4000);
-            }
-          }
-          par._eplRafHandle = requestAnimationFrame(playbackTick);
-        }
-        par._eplRafHandle = requestAnimationFrame(playbackTick);
 
         syncControls();
         draw();
@@ -2798,10 +2518,6 @@ begin
         plasticStrain::Float64
         lateral::String
         epoch::Int
-        animTime::String
-        animStress::String
-        animStrain::String
-        animLateral::String
     end
     function Base.show(io::IO, ::MIME"text/html", p::EplPush)
         write(io, """
@@ -2815,10 +2531,6 @@ begin
             plasticStrain: $(p.plasticStrain),
             lateral: [$(p.lateral)],
             epoch: $(p.epoch),
-            animTime: [$(p.animTime)],
-            animStress: [$(p.animStress)],
-            animStrain: [$(p.animStrain)],
-            animLateral: [$(p.animLateral)],
           }}));
         }
         }
@@ -2843,7 +2555,6 @@ begin
     # the creep/relaxation integrators -- both work in raw Pa, and skipping this conversion
     # (as a previous version of this cell did) makes the elastic term ~1e3x too large and the
     # creep term ~1e6x too small, since sig/E and sig*dt/eta stop cancelling correctly.
-    # scripted_forcing_response (below) does this same conversion internally.
     local strain_path, residual_path, stress_path_MPa
     if control_mode == "strain"
         # displacement-controlled: strain is the DRIVEN input here (echoed straight back
@@ -2869,19 +2580,8 @@ begin
     end
     local lateral_path = lateral_strain_from_axial(strain_path, residual_path, nu_val)
 
-    # the CURRENTLY SELECTED preset's scripted forcing (kind/amplitude/duration) applied to
-    # the CURRENT material (E_val/eta_val/nu_val above, which may have been scrubbed away
-    # from that preset's own defaults) -- computed unconditionally (cheap) regardless of
-    # whether a preset animation is actually playing right now, so replaying or tweaking
-    # the material never needs an extra round trip before the data is ready
-    local preset_key_raw = epl isa AbstractDict ? epl["presetKey"] : "interseismic"
-    local preset_key = preset_key_raw === nothing ? "interseismic" : preset_key_raw
-    local preset = regime_presets[Symbol(preset_key)]
-    local anim_t, anim_stress, anim_strain, anim_lateral = scripted_forcing_response(
-        E_val, nu_val, sy_val, H_val, eta_val, preset.kind, preset.amplitude, preset.duration)
-
     EplPush(join(strain_path, ","), join(stress_path_MPa, ","), residual_path[end], join(lateral_path, ","),
-        epoch_val, join(anim_t, ","), join(anim_stress, ","), join(anim_strain, ","), join(anim_lateral, ","))
+        epoch_val)
 end
 
 # ╔═╡ 3851d568-3eaf-4a4f-b3a2-213a03958982
@@ -3157,9 +2857,7 @@ version = "1.64.0+1"
 # ╠═1a52d2bb-c6ac-4e0d-8a00-39ec56e0cdff
 # ╠═3cf3b5c7-f651-4a0d-842e-ba54b5bb4c59
 # ╠═c1d10e8c-c3e6-4ea5-8dad-d83b87c397a8
-# ╠═9d2f94d6-6ff6-4f13-8a71-64eadf2c1a40
 # ╠═6a1af493-35f5-4813-8940-1992c72cb1e5
-# ╠═6cbc6bab-3e0a-415a-acd0-5ea78d7e0f36
 # ╠═89cd485a-c305-44c0-a54c-24941c7f4e28
 # ╠═95f0ad68-ee90-42b2-91a3-f2788271964f
 # ╠═7d5499f8-dfeb-489b-8cfc-bd2d10886bf7

@@ -187,6 +187,49 @@ number can't).
    Without this, dragging the frequency cursor also randomly toggles whichever mode curve happens to be
    nearest the release point — confirmed as a real bug during development, not a hypothetical.
 
+## Editing a variable-length list of layers: a track-based depth-profile editor
+
+`Love-wave-analytic1.jl`'s `LoveWaveInput` (above) handles a single fixed boundary — dragging one line.
+A genuinely variable-length model (add/remove layers, not just resize two of them) needs a different
+shape entirely, and `Love-wave-dispersion-curves.jl`'s `LayeredMediumInput` is the reference: one canvas,
+split into vertical **tracks** (one per physical property — Vp, Vs, ρ — laid out side by side, sharing one
+depth axis on the left), with horizontal **boundary lines** running across all tracks at once (a boundary
+is a property of the *stack*, not of one track) and a colored **marker** per layer per track showing that
+layer's value on that property, connected into a step line so the profile reads at a glance.
+
+Four interactions cover everything a variable-length layered model needs, with no separate `+`/`-`
+buttons or a numeric-row table:
+- **Drag a boundary line up/down** → resize the two layers it separates (clamped so it can't cross either
+  neighboring boundary).
+- **Drag a track's marker left/right** → retune that layer's value on that one property. Enforce any real
+  physical constraint live, in the same handler, not as a separate validation pass — `LayeredMediumInput`
+  clamps `vp ≥ 1.3·vs` and `vs ≤ vp/1.3` on every drag frame, so it's *impossible* to drag into an
+  unphysical (S-wave faster than P-wave) state rather than merely discouraged.
+- **Click empty space inside a track** → insert a new boundary at that depth (splitting one layer into
+  two, both starting at the same property values — nothing jumps visually at the moment of the split).
+  Cap the layer count (`MAXLAYERS`) so the canvas doesn't degrade into unreadably thin bands.
+- **Drag a boundary within a few pixels of a neighboring boundary, then release** → delete it (merges the
+  two layers it used to separate). This reuses the *same* boundary-drag gesture as resizing — checking the
+  gap-to-neighbor only in the `mouseup` handler, not `mousemove` — so there's no separate "delete mode" or
+  right-click menu to discover; the affordance is "you can drag layers until they disappear," stated once
+  in the panel caption.
+
+**Presets via block-averaging, not a second hand-built model.** Rather than hand-writing separate
+"5-layer"/"2-layer"/"uniform" preset structs, `layered_medium_presets` derives all three from one
+`default_layers` model: split the finite layers into `n` contiguous blocks and thickness-weight-average
+each block's Vp/Vs/ρ (`Σ(value·thickness)/Σ(thickness)`) down to `n` layers, plus the true half-space
+unchanged. A "2-layer crust" preset is then just `grouped(2)` — it's guaranteed to be a physically
+sensible coarsening of the real default model rather than an independently-invented approximation that
+can quietly drift out of sync with it.
+
+Compute the shared depth axis from *live* state, not a fixed constant: `depthMax()` returns
+`max(zmax, lastBoundary * 1.35 + 20)` so the canvas grows to keep the deepest current layer comfortably
+inside frame as the user drags boundaries deeper, while never shrinking below a sane default `zmax` when
+the model is shallow.
+
+`show_vp::Bool` on the struct hides the Vp track entirely for a wave type that doesn't depend on it (Love
+waves are pure SH — only Vs and ρ matter); reuse this flag rather than always showing every track.
+
 ## Nest a control group inside the panel it most directly affects, not a generic top-level strip
 
 When a widget has multiple canvas panels and a control clearly belongs to one of them conceptually (medium
@@ -375,6 +418,40 @@ before suspecting your own code. **Fix:** move `e.stopImmediatePropagation()` *i
 that actually recognizes and handles the id, not before it — only stop propagation for the ids this
 handler is actually the owner of, and let everything else (including a sibling element's own listener)
 proceed normally.
+
+## Cleaning up a rerun cell's event listeners: `AbortController` beats a boolean guard
+
+Every widget's `<script>` can execute more than once against the *same* persistent DOM node (a
+client's initial connection replaying intermediate cell outputs, a live-collab edit re-running the
+cell) — this repo's usual fix is a boolean idempotency flag (`if(!par._xxInitialized){
+par._xxInitialized = true; ...everything... }`), which works but means the widget's behavior is
+permanently frozen from its first execution: a live-collab edit that changes the JS itself never
+actually takes effect in that browser tab until a full reload, since the guard skips the whole
+block including the parts you just edited. `LayeredMediumInput` in
+`Love-wave-dispersion-curves.jl` uses a different, more capable fix: register every listener with
+an `AbortController`'s signal, and abort the *previous* execution's controller at the top of the
+new one, before registering anything fresh:
+
+```js
+if (window.__lmCleanup) { window.__lmCleanup() }   // tear down the PREVIOUS execution's listeners
+const lmController = new AbortController()
+window.__lmCleanup = () => lmController.abort()     // this execution's own teardown, for the NEXT rerun
+const lmSignal = { signal: lmController.signal }
+
+editorCanvas.addEventListener('mousedown', handler, lmSignal)   // pass {signal} as the 3rd arg everywhere
+window.addEventListener('mousemove', handler2, lmSignal)
+```
+
+`AbortController.abort()` removes every listener registered with that signal in one call, with no
+need to track handler references individually. Stash the cleanup function on `window` (not `par`)
+if more than one instance of the widget could plausibly exist on the page at once, name it
+uniquely per widget (`__lmCleanup`, not a generic `__cleanup` every widget would collide on).
+
+**When to prefer this over the boolean guard:** anything where the JS itself is actively being
+iterated on live (which is most development) benefits from listeners actually refreshing on
+rerun instead of freezing at first-load behavior. The boolean guard is still perfectly fine for a
+widget that's finished and stable — it's simpler to read, and there's nothing wrong with it once
+you're not expecting the script body itself to keep changing under a live connection.
 
 ## Title bar: orient the viewer before they touch anything
 

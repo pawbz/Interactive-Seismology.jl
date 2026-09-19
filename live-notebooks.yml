@@ -87,6 +87,7 @@ sections:
   - name: Seismic Sources and Faulting
     live:
       - Seismic Sources and Faulting/fault-dislocation.jl
+      - Seismic Sources and Faulting/stick-slip-faulting.jl
     static:
       - Seismic Sources and Faulting/Lamb_problem.jl
       - Seismic Sources and Faulting/seismic-sources.jl

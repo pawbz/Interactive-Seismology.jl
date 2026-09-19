@@ -1,5 +1,5 @@
 ### A Pluto.jl notebook ###
-# v0.2.6
+# v0.7.0
 
 #> [frontmatter]
 #> title = "Faulting and the Surface"
@@ -614,6 +614,150 @@ begin
     end
 end
 
+# ╔═╡ accb209e-d71c-4b58-931b-45425fd4c2ab
+md"""
+### Focal Mechanism: The Beachball
+
+Strike, dip, and rake alone (not position, depth, or fault size) determine the classic
+seismological "beachball" diagram: a lower-hemisphere plot of P-wave first-motion polarity that
+shows a fault's compressional and dilatational quadrants. `rakeDeg` isn't a field of `flt` itself,
+but is already recovered exactly the way the widget's own JS derives it for its rake caption
+(``\mathrm{rake}=\operatorname{atan2}(s_{\rm dip}, s_{\rm strike})``):
+"""
+
+# ╔═╡ 3a142259-d62d-4d2c-9e48-445ce236b5fe
+"""
+    p_radiation_pattern_dc(strike_deg, dip_deg, rake_deg, takeoff_deg, azimuth_deg)
+
+Far-field P-wave radiation pattern for a double-couple point source (Aki & Richards, 2002, Eq.
+4.85), written directly in terms of strike/dip/rake rather than a full moment tensor -- exactly
+the parameters [`FaultDislocationInput`](@ref) already exposes. `takeoff_deg` is measured from the
+downward vertical (`0`=straight down, `90`=horizontal); `azimuth_deg` is clockwise from north,
+matching `strike_deg`'s own convention in [`okada_surface_displacement`](@ref). Returns a signed
+amplitude -- its sign is the first-motion polarity (compressional/dilatational) a seismometer at
+that takeoff/azimuth would record.
+"""
+function p_radiation_pattern_dc(strike_deg, dip_deg, rake_deg, takeoff_deg, azimuth_deg)
+    δ = deg2rad(dip_deg)
+    λ = deg2rad(rake_deg)
+    ih = deg2rad(takeoff_deg)
+    Δφ = deg2rad(azimuth_deg - strike_deg)
+    return cos(λ) * sin(δ) * sin(ih)^2 * sin(2Δφ) -
+           cos(λ) * cos(δ) * sin(2ih) * cos(Δφ) +
+           sin(λ) * sin(2δ) * (cos(ih)^2 - sin(ih)^2 * sin(Δφ)^2) +
+           sin(λ) * cos(δ) * sin(2ih) * sin(Δφ)
+end
+
+# ╔═╡ a95a04c4-b0e5-4286-bc29-b6e7af345182
+"""
+    beachball_polarity_grid(strike_deg, dip_deg, rake_deg; n=161)
+
+Rasterize [`p_radiation_pattern_dc`](@ref)'s sign onto an `n`×`n` grid over the unit disk, using
+the standard lower-hemisphere equal-area (Schmidt) projection: a takeoff angle `ih` (from the
+downward vertical) and azimuth `az` map to radius `r = √2·sin(ih/2)` at angle `az` measured
+clockwise from north -- so the center of the disk is straight down and the rim is the horizon,
+exactly the classic seismological "beachball" diagram. Returns a matrix of `+1` (compressional
+first motion), `-1` (dilatational), or `0` (outside the unit disk).
+"""
+function beachball_polarity_grid(strike_deg, dip_deg, rake_deg; n=161)
+    grid = zeros(Float64, n, n)
+    xs = range(-1.0, 1.0; length=n)
+    ys = range(1.0, -1.0; length=n)
+    for (i, px) in enumerate(xs), (j, py) in enumerate(ys)
+        r = hypot(px, py)
+        if r <= 1.0
+            ih = rad2deg(2 * asin(clamp(r / sqrt(2), 0.0, 1.0)))
+            az = rad2deg(atan(px, py))  # px=east, py=north -- clockwise from north
+            amp = p_radiation_pattern_dc(strike_deg, dip_deg, rake_deg, ih, az)
+            grid[j, i] = amp >= 0 ? 1.0 : -1.0
+        end
+    end
+    return grid
+end
+
+# ╔═╡ 95675036-9d86-4e0e-805e-aeda098e6265
+md"""
+### Verifying the Beachball
+"""
+
+# ╔═╡ d5187ff2-9f2a-4ba9-91d9-117c3a807439
+let
+    # A vertical strike-slip mechanism (dip=90°, rake=0°) has its two nodal planes exactly along
+    # strike and exactly perpendicular to it, at every takeoff angle -- a directly hand-verifiable
+    # special case (chosen strike is arbitrary, to make sure this isn't accidentally testing
+    # azimuth=0 itself).
+    strike = 37.0
+    for ih in (10.0, 45.0, 80.0)
+        @assert abs(p_radiation_pattern_dc(strike, 90.0, 0.0, ih, strike)) < 1e-10
+        @assert abs(p_radiation_pattern_dc(strike, 90.0, 0.0, ih, strike + 90.0)) < 1e-10
+    end
+
+    # Antipodal point-symmetry of a pure double couple -- true for ANY strike/dip/rake, not just
+    # the special case above. The far-field P amplitude is proportional to a direction vector
+    # contracted TWICE with the moment tensor (γᵢγⱼMᵢⱼ), so it's invariant, not sign-flipped, when
+    # that direction is reversed -- exactly why a double couple's lower- and upper-hemisphere
+    # beachballs are always identical, and a single hemisphere loses no information.
+    cases = [(15.0, 60.0, 30.0, 40.0, 200.0), (280.0, 10.0, -70.0, 70.0, 15.0), (0.0, 45.0, 90.0, 20.0, 300.0)]
+    for (s, d, r, ih, az) in cases
+        a1 = p_radiation_pattern_dc(s, d, r, ih, az)
+        a2 = p_radiation_pattern_dc(s, d, r, 180.0 - ih, az + 180.0)
+        @assert isapprox(a1, a2; atol=1e-10)
+    end
+
+    # Reversing the sense of slip on a FIXED fault plane (rake -> rake+180°) negates the moment
+    # tensor outright, so it must flip first-motion polarity at every single direction -- another
+    # general invariant, and a physically meaningful one: dragging the slip arrow to point the
+    # opposite way along the same fault should swap every compressional/dilatational quadrant.
+    for (s, d, r, ih, az) in cases
+        a1 = p_radiation_pattern_dc(s, d, r, ih, az)
+        a2 = p_radiation_pattern_dc(s, d, r + 180.0, ih, az)
+        @assert isapprox(a1, -a2; atol=1e-10)
+    end
+
+    md"""
+    !!! correct "Self-check"
+        A vertical strike-slip mechanism's nodal planes fall exactly along strike and
+        perpendicular to it ✓ · a pure double couple's radiation pattern is antipodally
+        point-symmetric (lower and upper hemisphere agree) ✓ · reversing the slip direction on a
+        fixed fault plane flips every first motion ✓
+    """
+end
+
+# ╔═╡ 1377e94a-6c7c-4ce2-98ba-de8606199ec1
+md"""
+### Pushing the Beachball into the Widget
+
+`BeachballPush` does no physics either — like [`FieldPush`](@ref), it takes the already-computed
+polarity grid (from [`beachball_polarity_grid`](@ref)) and hands it to the *already-rendered*
+[`FaultDislocationInput`](@ref) widget below, via the same `CustomEvent` mechanism (a second,
+independent `fd-beachball-update` event on the same widget `<div>`).
+"""
+
+# ╔═╡ e85b46b7-79ca-4bc3-92e6-54a49e571567
+begin
+    struct BeachballPush
+        grid::Any
+    end
+
+    function Base.show(io::IO, ::MIME"text/html", p::BeachballPush)
+        g = p.grid
+        n = size(g, 1)
+        write(io, """
+        <script>
+        {
+        const w = document.getElementById('fdwidget');
+        if(w){
+          w.dispatchEvent(new CustomEvent('fd-beachball-update', { detail: {
+            n: $(n),
+            grid: [$(_flatten_rowmajor(g))],
+          }}));
+        }
+        }
+        </script>
+        """)
+    end
+end
+
 # ╔═╡ 038ee4a8-5a8c-43e9-bed4-d985366e5873
 md"""
 ### The Interactive Widget
@@ -722,6 +866,11 @@ begin
               <div class="fd-check-row"><input type="checkbox" id="fd-chk-vert" checked><label for="fd-chk-vert">Vertical GPS</label></div>
               <div class="fd-check-row"><input type="checkbox" id="fd-chk-horiz"><label for="fd-chk-horiz">Horizontal GPS (magnitude)</label></div>
               <div class="fd-check-row"><input type="checkbox" id="fd-chk-insar"><label for="fd-chk-insar">InSAR fringes</label></div>
+            </div>
+            <div class="fd-control-group">
+              <div class="fd-control-title">Focal Mechanism</div>
+              <div class="fd-panel" style="display:flex;justify-content:center"><canvas id="fd-beachball"></canvas></div>
+              <div class="fd-caption" id="fd-beachball-caption"></div>
             </div>
           </div>
         </div>
@@ -845,6 +994,38 @@ begin
         cv.width = Math.round(SEC * DPR); cv.height = Math.round(SEC * DPR);
         const scale = SEC/(2*WORLD_HALF)*0.85;
         const cx = SEC/2, cy = SEC*0.48;
+
+        // Beachball panel -- a small, fixed-size focal-mechanism diagram, entirely separate from
+        // the 3D scene above. Its polarity grid is computed once in Julia (beachball_polarity_grid)
+        // and delivered here via the fd-beachball-update CustomEvent below; this code only ever
+        // paints the grid it's given, never computes radiation-pattern physics itself.
+        const BB_SIZE = 160;
+        const bbCv = par.querySelector('#fd-beachball');
+        bbCv.style.width = BB_SIZE + 'px'; bbCv.style.height = BB_SIZE + 'px';
+        bbCv.width = Math.round(BB_SIZE * DPR); bbCv.height = Math.round(BB_SIZE * DPR);
+        const bbCtx = bbCv.getContext('2d');
+        let beachballData = null; // null until Julia's first push arrives
+        function drawBeachball(){
+          bbCtx.setTransform(DPR,0,0,DPR,0,0);
+          bbCtx.clearRect(0, 0, BB_SIZE, BB_SIZE);
+          const bcx = BB_SIZE/2, bcy = BB_SIZE/2, R = BB_SIZE/2 - 4;
+          if(beachballData){
+            const n = beachballData.n, g = beachballData.grid;
+            const cell = (2*R)/n;
+            for(let j=0;j<n;j++) for(let i=0;i<n;i++){
+              const v = g[j*n+i];
+              if(v === 0) continue;
+              bbCtx.fillStyle = v > 0 ? '#111827' : '#f3f4f6';
+              bbCtx.fillRect(bcx - R + i*cell, bcy - R + j*cell, cell + 0.5, cell + 0.5);
+            }
+          }
+          bbCtx.beginPath(); bbCtx.arc(bcx, bcy, R, 0, 2*Math.PI);
+          bbCtx.strokeStyle = '#9ca3af'; bbCtx.lineWidth = 1.5; bbCtx.stroke();
+          bbCtx.fillStyle = '#9ca3af'; bbCtx.font = '11px sans-serif';
+          bbCtx.textAlign = 'center'; bbCtx.textBaseline = 'bottom';
+          bbCtx.fillText('N', bcx, bcy - R - 2);
+        }
+        drawBeachball();
 
         function proj(e,n,z){
           // z is elevation (positive up, so a buried fault passes z<0) -- z*ce must ADD to
@@ -1045,6 +1226,10 @@ begin
 
           par.querySelector('#fd-geom').textContent = 'L = '+L.toFixed(0)+' km, strike = '+strikeDeg.toFixed(0)+'°';
           par.querySelector('#fd-rake').textContent = 'rake ' + Math.round(((rakeDeg%360)+360)%360) + '°';
+          // text only -- the beachball's own polarity fill is never recomputed here, only ever
+          // repainted from Julia's pushed grid (see fd-beachball-update below)
+          par.querySelector('#fd-beachball-caption').textContent =
+            'strike '+Math.round(strikeDeg)+'°, dip '+Math.round(dipDeg)+'°, rake '+Math.round(((rakeDeg%360)+360)%360)+'°';
         }
 
         function syncControls(){
@@ -1131,6 +1316,7 @@ begin
 
         par.querySelector('#fd-reset').addEventListener('click', ()=> applyPreset('ss'));
         par.addEventListener('fd-field-update', e=>{ fieldData = e.detail; commitInFlight = false; draw3D(); });
+        par.addEventListener('fd-beachball-update', e=>{ beachballData = e.detail; drawBeachball(); });
 
         let dragMode = null, lastMouse = null;
         cv.addEventListener('mousedown', e=>{
@@ -1271,6 +1457,15 @@ FieldPush(field)
 
 # ╔═╡ 258d0573-8a98-40f2-ba4f-46573e43a865
 moment = seismic_moment(flt_safe["L"], flt_safe["W"], flt_safe["sStrike"], flt_safe["sDip"])
+
+# ╔═╡ d1111dd1-015b-4500-ad63-525953dc13ed
+rakeDeg = rad2deg(atan(Float64(flt_safe["sDip"]), Float64(flt_safe["sStrike"])))
+
+# ╔═╡ 603a1ac1-732a-400f-b255-16a11b1f39f5
+bb = beachball_polarity_grid(Float64(flt_safe["strikeDeg"]), Float64(flt_safe["dipDeg"]), rakeDeg)
+
+# ╔═╡ 4aa208d0-aaa0-4967-8e6c-a97b5036f3fb
+BeachballPush(bb)
 
 # ╔═╡ 469ddcaa-fcd0-47ec-87d1-3bca5d2fd764
 md"""
@@ -1532,7 +1727,10 @@ version = "1.64.0+1"
 # ╠═cb9f6341-becd-4ed2-bda1-dd309733762c
 # ╟─b3975a01-14a4-4de9-8781-6fb8c6439fa1
 # ╟─258d0573-8a98-40f2-ba4f-46573e43a865
+# ╟─d1111dd1-015b-4500-ad63-525953dc13ed
+# ╟─603a1ac1-732a-400f-b255-16a11b1f39f5
 # ╟─eff5c5f6-a648-4ff0-8027-a6d5b64c60af
+# ╟─4aa208d0-aaa0-4967-8e6c-a97b5036f3fb
 # ╟─469ddcaa-fcd0-47ec-87d1-3bca5d2fd764
 # ╟─0f812b1a-45d5-481c-b4bc-eaf400f2da52
 # ╟─f3862faf-3adb-4b2d-ab23-ecc0da655da3
@@ -1553,6 +1751,13 @@ version = "1.64.0+1"
 # ╟─af3f2c0e-5bb8-490b-8332-c0ef928e9d0b
 # ╠═b7708494-743f-4578-b6e1-64e474f2723b
 # ╠═cf9a4232-f9d4-4538-b243-d7c599ac896d
+# ╟─accb209e-d71c-4b58-931b-45425fd4c2ab
+# ╠═3a142259-d62d-4d2c-9e48-445ce236b5fe
+# ╠═a95a04c4-b0e5-4286-bc29-b6e7af345182
+# ╟─95675036-9d86-4e0e-805e-aeda098e6265
+# ╠═d5187ff2-9f2a-4ba9-91d9-117c3a807439
+# ╟─1377e94a-6c7c-4ce2-98ba-de8606199ec1
+# ╠═e85b46b7-79ca-4bc3-92e6-54a49e571567
 # ╟─038ee4a8-5a8c-43e9-bed4-d985366e5873
 # ╠═5378e71e-753f-49fe-8679-dd57cd0cc329
 # ╟─27fe8f86-04ae-4c3f-af82-80c229db5edb
