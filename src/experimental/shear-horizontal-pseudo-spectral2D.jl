@@ -1,5 +1,5 @@
 ### A Pluto.jl notebook ###
-# v0.20.21
+# v0.2.6
 
 #> [frontmatter]
 #> title = "Pseudo-spectral Method -- Seismic Wave Equation"
@@ -267,10 +267,16 @@ md"""
 Observer 1
 """
 
+# ╔═╡ ebcaf0f0-83ed-436e-938f-9e29c0f3fa38
+@bind obs1 confirm(position_input())
+
 # ╔═╡ 26cebdf0-84f2-4df8-8fe2-b3ad1844c786
 md"""
 Observer 2
 """
+
+# ╔═╡ 35b8eb3c-0364-44a3-9404-6933c7703ebc
+@bind obs2 confirm(position_input())
 
 # ╔═╡ b88aed3d-9cb0-4377-8797-65385ab59436
 @bind tsnap PlutoUI.combine() do Child
@@ -289,6 +295,13 @@ myheat(x, t="") = heatmap(xgrid, zgrid, x, c=:grays, aspect_ratio=1, title=t, yl
 
 # ╔═╡ f9f36d76-6e4e-4cf4-ac7a-ef9980b94936
 myheat(vy0, "Initial \$v_y\$")
+
+# ╔═╡ 0e149101-a9f8-4dc7-89b9-93c494fadc1b
+begin
+    myheat(snaps_store[tsnap[1]], L"Particle Velocity $v_y$")
+    scatter!([obs1[:xpos]], [obs1[:zpos]], label="Observer 1", legendfontsize=6, c="cyan")
+    scatter!([obs2[:xpos]], [obs2[:zpos]], label="Observer 2", legendfontsize=6, c="orange")
+end
 
 # ╔═╡ 521fbcc7-9078-48bc-b61d-749e94053a9b
 # Lets check the derivative operators
@@ -311,19 +324,6 @@ begin
         end
     end
     nothing
-end
-
-# ╔═╡ ebcaf0f0-83ed-436e-938f-9e29c0f3fa38
-@bind obs1 confirm(position_input())
-
-# ╔═╡ 35b8eb3c-0364-44a3-9404-6933c7703ebc
-@bind obs2 confirm(position_input())
-
-# ╔═╡ 0e149101-a9f8-4dc7-89b9-93c494fadc1b
-begin
-    myheat(snaps_store[tsnap[1]], L"Particle Velocity $v_y$")
-    scatter!([obs1[:xpos]], [obs1[:zpos]], label="Observer 1", legendfontsize=6, c="cyan")
-    scatter!([obs2[:xpos]], [obs2[:zpos]], label="Observer 2", legendfontsize=6, c="orange")
 end
 
 # ╔═╡ c48792ac-ed09-4ed0-acc5-c2635ab9b908

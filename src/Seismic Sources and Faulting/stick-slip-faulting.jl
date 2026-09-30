@@ -149,23 +149,30 @@ rate_state_friction(v, theta; a, b, mustar, vstar, Dc) =
 
 # ╔═╡ 4133723b-9d54-403e-84cb-92f268523f99
 """
-    spring_slider_rhs(psi, theta; k, Vpl, sigma, eta, a, b, Dc)
+    spring_slider_rhs(psi, phi; k, Vpl, sigma, eta, a, b, Dc)
 
-Right-hand side of the quasi-dynamic spring-slider ODE in `(psi, theta)` coordinates, where
-`psi = log(v)` (so `v = exp(psi)` stays positive no matter how many decades it swings during
-a slip event). Derived by differentiating the force balance
+Right-hand side of the quasi-dynamic spring-slider ODE in `(psi, phi)` coordinates, where
+`psi = log(v)` and `phi = log(theta)` (so `v = exp(psi)` and `theta = exp(phi)` both stay
+positive no matter how many decades they swing during a slip event — and, in real physical
+units, no matter how different their absolute scales are: `theta` is a real time in seconds
+and can be many orders of magnitude larger than `v`, so integrating both in log space also
+keeps the adaptive step-size controller in [`integrate_adaptive`](@ref) — which shares one
+error tolerance across the whole state vector — equally sensitive to both variables).
+Derived by differentiating the force balance
 `k*(Vpl*t - delta) - eta*v = sigma*mu(v,theta)` in `t` — using
-`d(mu)/dt = a*psidot + b*thetadot/theta` — and solving for `psidot`:
-``\\dot\\theta = 1 - v\\theta/D_c``, ``\\dot\\psi = (k(V_{pl}-v) - \\sigma b\\,\\dot\\theta/\\theta)/(\\sigma a + \\eta v)``.
+`d(mu)/dt = a*psidot + b*thetadot/theta` and `phidot = thetadot/theta` — and solving for
+`psidot`:
+``\\dot\\phi = 1/\\theta - v/D_c``, ``\\dot\\psi = (k(V_{pl}-v) - \\sigma b\\,\\dot\\phi)/(\\sigma a + \\eta v)``.
 
-Returns `(psidot, thetadot)`. `eta` is the radiation-damping coefficient that regularizes the
+Returns `(psidot, phidot)`. `eta` is the radiation-damping coefficient that regularizes the
 quasi-static approximation (see the "Governing Equations" section above).
 """
-function spring_slider_rhs(psi, theta; k, Vpl, sigma, eta, a, b, Dc)
+function spring_slider_rhs(psi, phi; k, Vpl, sigma, eta, a, b, Dc)
     v = exp(psi)
-    thetadot = 1 - v * theta / Dc
-    psidot = (k * (Vpl - v) - sigma * b * thetadot / theta) / (sigma * a + eta * v)
-    return psidot, thetadot
+    theta = exp(phi)
+    phidot = 1 / theta - v / Dc
+    psidot = (k * (Vpl - v) - sigma * b * phidot) / (sigma * a + eta * v)
+    return psidot, phidot
 end
 
 # ╔═╡ 9b71d1c6-70b5-40fa-9e43-c3c02b4082e0
@@ -213,15 +220,23 @@ shrinks accordingly. This adaptivity matters here because a stick-slip cycle spe
 all of its time in slow interseismic loading and a tiny fraction in a fast slip event — a
 fixed step size would either waste effort during the quiet phase or miss the event entirely.
 
+A hard cap of `maxsteps` steps stops the loop even if `tspan[2]` hasn't been reached yet —
+some parameter combinations (stiffness very close to the critical value, or a slip event so
+violent it needs many tiny steps to resolve) can otherwise take a long time in an interactive
+widget; returning the partial trajectory computed so far keeps the notebook responsive rather
+than hanging.
+
 Returns `(ts, us)`: a `Vector{Float64}` of times and a `Vector{Vector{Float64}}` of states.
 """
-function integrate_adaptive(f, u0, tspan; h0=1.0e-3, tol=1.0e-7, hmin=1.0e-10, hmax=0.5)
+function integrate_adaptive(f, u0, tspan; h0=1.0e-3, tol=1.0e-7, hmin=1.0e-10, hmax=0.5, maxsteps=200_000)
     t = tspan[1]
     u = collect(float.(u0))
     ts = [t]
     us = [copy(u)]
     h = h0
-    while t < tspan[2]
+    nsteps = 0
+    while t < tspan[2] && nsteps < maxsteps
+        nsteps += 1
         h = min(h, tspan[2] - t)
         u_full = rk4_step(f, u, h)
         u_half = rk4_step(f, u, h / 2)
@@ -242,54 +257,90 @@ function integrate_adaptive(f, u0, tspan; h0=1.0e-3, tol=1.0e-7, hmin=1.0e-10, h
     return ts, us
 end
 
+# ╔═╡ c6146ef8-e97a-49ae-94fb-1319ff38dd39
+"""
+    classify_regime(v, t)
+
+Classify each sample of a slip-rate time series into a coarse "earthquake family" using the
+instantaneous rate of change of log-slip-rate, ``|\\mathrm{d}\\ln v/\\mathrm{d}t|`` — a
+frequency-like quantity (units 1/time) that stays near zero during steady creep and grows
+large during a fast, impulsive slip event. Thresholds are set *adaptively*, at 1% and 30% of
+the run's own peak value, so this sorts "nothing happening" from "a slow transient" from "a
+sharp rupture" *relative to that run* — a schematic teaching classification, not a calibrated
+match to real seismological low-frequency-earthquake or tectonic-tremor frequency bands.
+
+Returns `(freq, class)`, both the same length as `v`, where `class[i]` is `0` (creep), `1`
+(slow-slip / low-frequency-earthquake-like), or `2` (regular-earthquake-like).
+"""
+function classify_regime(v, t)
+    n = length(v)
+    freq = similar(v)
+    for i in 1:n
+        i1 = max(1, i - 1)
+        i2 = min(n, i + 1)
+        freq[i] = abs(log(v[i2]) - log(v[i1])) / max(t[i2] - t[i1], eps())
+    end
+    fmax = maximum(freq)
+    f1 = 0.01 * fmax
+    f2 = 0.3 * fmax
+    class = [f < f1 ? 0 : (f < f2 ? 1 : 2) for f in freq]
+    return freq, class
+end
+
 # ╔═╡ 0e435cbe-662d-4b75-9530-0d0fa898399a
 """
     integrate_spring_slider(; a, b, Dc, Vpl, sigma, eta, k, mustar=0.6, vstar=Vpl, npoints=2000)
 
 Integrate the rate-and-state spring-slider from a small perturbation off steady sliding for
 `250*Dc/Vpl` time units (250 "loading times" — enough to show several stick-slip cycles when
-the parameters are unstable, or clean convergence to steady creep when they are stable), then
-resample onto a uniform time grid of `npoints` samples. [`integrate_adaptive`](@ref)'s own
-time steps are wildly uneven (long strides through the stick phase, tiny ones through a slip
-event); a uniform grid is what the widget's JS side plays back at a constant frame rate.
+the parameters are unstable, or clean convergence to steady creep when they are stable). The
+returned arrays keep [`integrate_adaptive`](@ref)'s own time points (decimated by index, not
+resampled, if there are more than `npoints` of them) rather than resampling onto a uniform
+real-time grid: in real physical units a coseismic slip event can last seconds while the whole
+run spans years, so a fixed number of *uniform-time* samples would place at most one or two
+points anywhere near the event no matter how large `npoints` is. The adaptive stepper already
+concentrates its points exactly where the dynamics change fast, so keeping them is what
+actually resolves the spike's shape (rather than drawing a straight line through it).
 
-Returns a named tuple `(t, v, theta, mu, stretch, kc)` where `stretch = Vpl.*t .- slip` is the
-spring's elastic stretch — the physically bounded, oscillating quantity the widget animates.
-Slip itself grows without bound, but stretch is proportional to the spring force (hence to
-stress) and saws between the stick and slip phases.
+Returns a named tuple `(t, v, theta, mu, stretch, kc, freq, eqclass)` where
+`stretch = Vpl.*t .- slip` is the spring's elastic stretch — the physically bounded,
+oscillating quantity the widget animates. Slip itself grows without bound, but stretch is
+proportional to the spring force (hence to stress) and saws between the stick and slip phases.
+`freq`/`eqclass` are from [`classify_regime`](@ref).
 """
 function integrate_spring_slider(; a, b, Dc, Vpl, sigma, eta, k, mustar=0.6, vstar=Vpl, npoints=2000)
     theta_ss = Dc / Vpl
-    u0 = (log(Vpl) + 0.05, theta_ss * 0.9)
+    u0 = (log(Vpl) + 0.05, log(theta_ss * 0.9))
     f(u) = collect(spring_slider_rhs(u[1], u[2]; k, Vpl, sigma, eta, a, b, Dc))
     tend = 250 * Dc / Vpl
-    ts, us = integrate_adaptive(f, u0, (0.0, tend))
+    tnat = Dc / Vpl
+    ts, us = integrate_adaptive(f, u0, (0.0, tend); h0=1.0e-3 * tnat, hmax=0.5 * tnat)
 
-    tgrid = collect(range(0.0, tend; length=npoints))
-    v = similar(tgrid)
-    theta = similar(tgrid)
-    j = 1
-    for (i, tq) in enumerate(tgrid)
-        while j < length(ts) && ts[j+1] <= tq
-            j += 1
-        end
-        j2 = min(j + 1, length(ts))
-        frac = ts[j2] > ts[j] ? (tq - ts[j]) / (ts[j2] - ts[j]) : 0.0
-        v[i] = exp(us[j][1] + frac * (us[j2][1] - us[j][1]))
-        theta[i] = us[j][2] + frac * (us[j2][2] - us[j][2])
-    end
+    # Keep the adaptive solver's own (highly non-uniform) time points rather than resampling
+    # onto a uniform real-time grid: a coseismic slip event can last seconds while the whole
+    # run spans years, so a fixed number of *uniform-time* samples would place at most one or
+    # two points anywhere near the event, however finely `npoints` is set. The adaptive
+    # stepper already concentrates points exactly where `spring_slider_rhs` changes fast (see
+    # `integrate_adaptive`), so using its own points directly is what actually resolves the
+    # spike shape. Only decimate (by index, preserving that natural clustering) if the run
+    # produced more points than are worth pushing to the browser.
+    idx = length(ts) > npoints ? round.(Int, range(1, length(ts); length=npoints)) : eachindex(ts)
+    t = ts[idx]
+    v = [exp(us[i][1]) for i in idx]
+    theta = [exp(us[i][2]) for i in idx]
+    n = length(t)
 
-    dt = tgrid[2] - tgrid[1]
-    slip = similar(tgrid)
+    slip = similar(t)
     slip[1] = 0.0
-    for i in 2:npoints
-        slip[i] = slip[i-1] + 0.5 * (v[i-1] + v[i]) * dt
+    for i in 2:n
+        slip[i] = slip[i-1] + 0.5 * (v[i-1] + v[i]) * (t[i] - t[i-1])
     end
 
     mu = rate_state_friction.(v, theta; a, b, mustar, vstar, Dc)
-    stretch = Vpl .* tgrid .- slip
+    stretch = Vpl .* t .- slip
     kc = critical_stiffness(; sigma, a, b, Dc, eta, Vpl)
-    return (t=tgrid, v=v, theta=theta, mu=mu, stretch=stretch, kc=kc)
+    freq, eqclass = classify_regime(v, t)
+    return (t=t, v=v, theta=theta, mu=mu, stretch=stretch, kc=kc, freq=freq, eqclass=eqclass)
 end
 
 # ╔═╡ 6df71f7e-1f23-4edb-8878-e07aba98a32d
@@ -304,6 +355,7 @@ begin
         mu::Any
         stretch::Any
         kc::Any
+        eqclass::Any
     end
     function Base.show(io::IO, ::MIME"text/html", p::StickSlipPush)
         write(io, """
@@ -318,6 +370,7 @@ begin
             mu: [$(_ss_flatten(p.mu))],
             stretch: [$(_ss_flatten(p.stretch))],
             kc: $(p.kc),
+            eqclass: [$(_ss_flatten(p.eqclass))],
           }}));
         }
         }
@@ -336,9 +389,9 @@ begin
     _check1_params = (a=0.015, b=0.010, Dc=1.0, Vpl=1.0, sigma=1.0, eta=0.002, k=0.01)
     _check1_f(u) = collect(spring_slider_rhs(u[1], u[2]; _check1_params...))
     _check1_theta_ss = _check1_params.Dc / _check1_params.Vpl
-    _check1_ts, _check1_us = integrate_adaptive(_check1_f, (log(0.3), 2 * _check1_theta_ss), (0.0, 40.0))
+    _check1_ts, _check1_us = integrate_adaptive(_check1_f, (log(0.3), log(2 * _check1_theta_ss)), (0.0, 40.0))
     _check1_v_end = exp(_check1_us[end][1])
-    _check1_theta_end = _check1_us[end][2]
+    _check1_theta_end = exp(_check1_us[end][2])
     _check1_v_err = abs(_check1_v_end - _check1_params.Vpl)
     _check1_theta_err = abs(_check1_theta_end - _check1_theta_ss)
     _check1_pass = _check1_v_err < 1.0e-4 && _check1_theta_err < 1.0e-4
@@ -361,7 +414,7 @@ begin
         p = merge(_check2_base, (k=kfac * _check2_kc,))
         f(u) = collect(spring_slider_rhs(u[1], u[2]; p...))
         theta_ss = p.Dc / p.Vpl
-        ts, us = integrate_adaptive(f, (log(p.Vpl) + 0.05, theta_ss * 0.9), (0.0, 400.0))
+        ts, us = integrate_adaptive(f, (log(p.Vpl) + 0.05, log(theta_ss * 0.9)), (0.0, 400.0))
         vs = [exp(u[1]) for u in us]
         tail = vs[max(1, length(vs) - 200):end]
         return maximum(tail) - minimum(tail)
@@ -424,6 +477,8 @@ begin
     #ss-widget .ss-panel{min-width:0;background:#050505;border:1px solid #2f3744;border-radius:6px;padding:8px}
     #ss-widget .ss-panel-title{font-size:16px;font-weight:700;color:#e5e7eb;margin:0 0 6px}
     #ss-widget .ss-caption-note{color:#ef4444;font-weight:400;font-size:13px}
+    #ss-widget .ss-legend{display:flex;flex-wrap:wrap;gap:10px;font-size:12px;color:#9ca3af;margin-bottom:5px}
+    #ss-widget .ss-swatch{display:inline-block;width:9px;height:9px;border-radius:2px;margin-right:4px}
     #ss-widget .ss-canvas-wrap{position:relative}
     #ss-widget canvas{display:block;width:100%;height:300px;background:#000;border:1px solid #374151;border-radius:5px;box-sizing:border-box;touch-action:none}
     #ss-widget .ss-canvas-overlay{position:absolute;bottom:10px;left:50%;transform:translateX(-50%);display:flex;gap:10px;align-items:center;background:rgba(0,0,0,.55);padding:5px 10px;border-radius:6px}
@@ -464,6 +519,11 @@ begin
     </section>
     <section class="ss-panel">
       <div class="ss-panel-title">Slip rate &amp; friction vs. time <span class="ss-caption-note">&mdash; red line = now</span></div>
+      <div class="ss-legend">
+        <span><i class="ss-swatch" style="background:#6b7280"></i>creep</span>
+        <span><i class="ss-swatch" style="background:#f59e0b"></i>slow-slip / LFE-like</span>
+        <span><i class="ss-swatch" style="background:#ef4444"></i>regular-earthquake-like</span>
+      </div>
       <div class="ss-canvas-wrap">
         <canvas id="ss-strip" aria-label="Slip rate and friction time series"></canvas>
         <div id="ss-phase-inset"><canvas id="ss-phase" aria-label="Phase portrait"></canvas><div class="ss-phase-label">phase portrait: v vs. &theta; (log&ndash;log)</div></div>
@@ -509,7 +569,7 @@ begin
   const W=900,H=300,PW=132,PH=112
   const PLAYBACK_SECONDS=12
   let state={a:$(w.a),b_minus_a:$(w.b_minus_a),Dc:$(w.Dc),Vpl:$(w.Vpl),sigma:$(w.sigma),eta:$(w.eta),k:$(w.k)}
-  let data=null, playIdx=0, playing=false, playStart=0, commitInFlight=false, pendingCommit=false
+  let data=null, playIdx=0, playing=false, playStart=0, looping=false, commitInFlight=false, pendingCommit=false
   const sliderIds=['a','b_minus_a','Dc','Vpl','sigma','eta','k']
   const inputs={}, values={}
   sliderIds.forEach(key=>{inputs[key]=par.querySelector('#ss-'+key);values[key]=par.querySelector('#ss-'+key+'v')})
@@ -570,7 +630,7 @@ begin
   })
   par.addEventListener('ss-push',e=>{
     const d=e.detail
-    data={t:d.t,v:d.v,theta:d.theta,mu:d.mu,stretch:d.stretch,kc:d.kc}
+    data={t:d.t,v:d.v,theta:d.theta,mu:d.mu,stretch:d.stretch,kc:d.kc,eqclass:d.eqclass}
     data.vmax=Math.max(...data.v)
     data.smin=Math.min(...data.stretch);data.smax=Math.max(...data.stretch)
     playIdx=0
@@ -585,20 +645,22 @@ begin
       if(playIdx>=data.t.length-1) playIdx=0
       playStart=performance.now()-(playIdx/(data.t.length-1))*PLAYBACK_SECONDS*1000
       playBtn.textContent='Pause'
-      requestAnimationFrame(tick)
+      if(!looping){looping=true;requestAnimationFrame(tick)}
     } else {
       playBtn.textContent='Play'
     }
   })
   resetBtn.addEventListener('click',()=>{stopPlayback();draw()})
   function tick(now){
-    if(!playing) return
+    if(!playing){looping=false;return}
     const elapsed=(now-playStart)/1000
     let phase=elapsed/PLAYBACK_SECONDS
+    if(phase<0) phase=0
     if(phase>=1){phase=1;playing=false;playBtn.textContent='Play'}
-    playIdx=Math.min(data.t.length-1,Math.floor(phase*(data.t.length-1)))
+    playIdx=Math.max(0,Math.min(data.t.length-1,Math.floor(phase*(data.t.length-1))))
     draw()
     if(playing) requestAnimationFrame(tick)
+    else looping=false
   }
   function hidpi(canvas,ctx,w,h){const rect=canvas.getBoundingClientRect();canvas.width=Math.max(1,Math.round(rect.width*DPR));canvas.height=Math.max(1,Math.round(rect.height*DPR));const scale=Math.min(canvas.width/w,canvas.height/h),dx=(canvas.width-w*scale)/2,dy=(canvas.height-h*scale)/2;ctx.setTransform(scale,0,0,scale,dx,dy)}
   function line(ctx,x1,y1,x2,y2,color,width){ctx.save();ctx.strokeStyle=color;ctx.lineWidth=width;ctx.beginPath();ctx.moveTo(x1,y1);ctx.lineTo(x2,y2);ctx.stroke();ctx.restore()}
@@ -633,7 +695,7 @@ begin
   function drawStrip(){
     if(!data) return drawEmpty(stx,W,H)
     stx.clearRect(0,0,W,H);stx.fillStyle='#000';stx.fillRect(0,0,W,H)
-    const left=66,right=860,topV=24,botV=170,topMu=192,botMu=280
+    const left=66,right=860,topV=24,botV=160,classY0=166,classY1=176,topMu=192,botMu=280
     const tmax=data.t[data.t.length-1]
     const logv=data.v.map(x=>Math.log10(Math.max(x,1e-12)))
     const lvmin=Math.min(...logv),lvmax=Math.max(...logv)
@@ -647,6 +709,17 @@ begin
     stx.strokeStyle='#38bdf8';stx.lineWidth=2;stx.beginPath()
     for(let i=0;i<data.t.length;i++){const x=xOf(data.t[i]),y=yOfV(logv[i]);if(i===0)stx.moveTo(x,y);else stx.lineTo(x,y)}
     stx.stroke()
+    const classColor=['#6b7280','#f59e0b','#ef4444']
+    stx.fillStyle=classColor[0]
+    stx.fillRect(left,classY0,right-left,classY1-classY0)
+    for(const cls of [1,2]){
+      stx.fillStyle=classColor[cls]
+      for(let i=0;i<data.t.length;i++){
+        if(data.eqclass[i]!==cls) continue
+        const xc=xOf(data.t[i])
+        stx.fillRect(xc-1.5,classY0,3,classY1-classY0)
+      }
+    }
     stx.fillStyle='#e5e7eb';stx.font='13px sans-serif';stx.textAlign='left';stx.fillText('friction coefficient μ',left,topMu-6)
     line(stx,left,botMu,right,botMu,'#374151',1)
     stx.strokeStyle='#a78bfa';stx.lineWidth=2;stx.beginPath()
@@ -726,7 +799,7 @@ end
 _ss_solution = integrate_spring_slider(a=_ss_a, b=_ss_b, Dc=_ss_Dc, Vpl=_ss_Vpl, sigma=_ss_sigma, eta=_ss_eta, k=_ss_k)
 
 # ╔═╡ 88175629-ae25-4826-94c5-ed588807ddb6
-StickSlipPush(_ss_solution.t, _ss_solution.v, _ss_solution.theta, _ss_solution.mu, _ss_solution.stretch, _ss_solution.kc)
+StickSlipPush(_ss_solution.t, _ss_solution.v, _ss_solution.theta, _ss_solution.mu, _ss_solution.stretch, _ss_solution.kc, _ss_solution.eqclass)
 
 # ╔═╡ d76775c3-8e3b-443a-ac15-1a1cd8a9173b
 PLUTO_PROJECT_TOML_CONTENTS = """
@@ -1244,6 +1317,7 @@ uuid = "23338594-aafe-5451-b93e-139f81909106"
 # ╠═9b71d1c6-70b5-40fa-9e43-c3c02b4082e0
 # ╠═48043f9d-d937-443d-9132-8c8c921a5d86
 # ╠═cabca0a8-ffb6-40aa-ab08-d507b0e0e063
+# ╠═c6146ef8-e97a-49ae-94fb-1319ff38dd39
 # ╠═0e435cbe-662d-4b75-9530-0d0fa898399a
 # ╠═c856f825-e50a-4f7c-8b2f-d99f2a5ab8b3
 # ╠═6df71f7e-1f23-4edb-8878-e07aba98a32d

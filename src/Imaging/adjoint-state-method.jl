@@ -1,5 +1,5 @@
 ### A Pluto.jl notebook ###
-# v0.20.19
+# v0.2.6
 
 #> [frontmatter]
 #> title = "Adjoint State Method"
@@ -9,6 +9,9 @@
 
 using Markdown
 using InteractiveUtils
+
+# ╔═╡ c0d3e1c8-77d9-4f69-8f1a-97b4bec409e4
+using Symbolics, SymbolicUtils, LinearAlgebra, ChainRules, PlutoUI, PlutoTeachingTools, TikzPictures
 
 # ╔═╡ 69e5bc3b-494e-4b7d-9fea-ded035d544cc
 TableOfContents()
@@ -101,20 +104,20 @@ We will now construct a vector that represents the time derivative of the veloci
 # ╔═╡ 201ebc60-90d6-40a1-8d1f-e371057af060
 dVdt = diff(V, dims=1) * δₜ
 
-# ╔═╡ de0ef73d-0df1-47bb-aec0-f1bdef92af83
-Meqs = dVdt[:, 2:end-1] .* avx(ρt) - dΣdx - F[:, 2:end-1];
-
 # ╔═╡ 4ccfa601-b3b3-47b0-98f6-4f4ec6c1b794
 ρt = repeat(reshape(ρ, 1, :), 4, 1)
-
-# ╔═╡ a72d5528-f9a4-4b82-b4c8-644ecd0fab55
-avx(ρt)
 
 # ╔═╡ e8b1a70e-f63e-45c5-a525-2c55d99ddad4
 # compute value of ρ on the velocity grid
 function avx(ρt)
   hcat([0.5 * (ρt[:, i+1] .+ ρt[:, i]) for i in 1:size(ρt, 2)-1]...)
 end
+
+# ╔═╡ de0ef73d-0df1-47bb-aec0-f1bdef92af83
+Meqs = dVdt[:, 2:end-1] .* avx(ρt) - dΣdx - F[:, 2:end-1];
+
+# ╔═╡ a72d5528-f9a4-4b82-b4c8-644ecd0fab55
+avx(ρt)
 
 # ╔═╡ f54c2aa7-2afb-4806-b932-417e3b4a41e5
 Meqs ~ 0
@@ -146,9 +149,6 @@ Ceqs ~ 0
 
 # ╔═╡ ebcbbf5e-6205-41a8-b31b-a6bed52cda5b
 md"## Leap-frog Scheme"
-
-# ╔═╡ 4d71efc9-6bf5-4aa6-8e0f-132814350351
-plot_state_tikz()
 
 # ╔═╡ 0b2ed009-e636-40d9-bf9c-8d600f3bae75
 md"The leap-frog scheme updates the values of the velocity and stress components at half-integer time steps, staggered in time and space. The first two steps (stress and velocity updates) of this scheme are marked here."
@@ -229,24 +229,12 @@ L = L₁ + L₂ + J
 # ╔═╡ 66ed7bf9-c5b7-4c27-a021-28bb5675c85f
 md"## Adjoint State Equations"
 
-# ╔═╡ 19dd77e9-4a88-4c06-9129-0c1391068900
-∂vL ~ 0
-
-# ╔═╡ 3bb85c65-89ed-4113-a498-3a0da01be0b1
-∂σL ~ 0
-
 # ╔═╡ bfd6f8e4-ea3e-4c87-b7f7-eba889e751fd
 md"## Final Condition (Time Reversal)
 To obtain the final condition, we shall compute the gradient of the Lagrangian with respect to `v(x, T)`."
 
-# ╔═╡ fad3240f-9fd1-48c5-b1f3-515d9ea038bd
-∂L∂VT ~ 0
-
 # ╔═╡ 09c11c95-a82d-48e0-85ba-6db4a8c03f29
 md"The solution of these adjoint equations is often obtained by using a time-reversed version of the original numerical solver, known as the backpropagation."
-
-# ╔═╡ 57ea4b25-0f40-4816-85ba-05669770885b
-plot_adjstate_tikz()
 
 # ╔═╡ be1c590d-d70b-40f1-8370-bc294fb29c09
 md"## Parameter Gradients
@@ -262,9 +250,6 @@ Lets compute the gradient of L with respect to ρ and μ."
 
 # ╔═╡ 3b2d5624-d365-4595-b95b-52825bc980d0
 md"## Appendix"
-
-# ╔═╡ c0d3e1c8-77d9-4f69-8f1a-97b4bec409e4
-using Symbolics, SymbolicUtils, LinearAlgebra, ChainRules, PlutoUI, PlutoTeachingTools, TikzPictures
 
 # ╔═╡ 5f6a1560-b22d-4e47-b6ee-7a306b0bc2d1
 md"### Variables"
@@ -298,6 +283,9 @@ md"This code computes the gradient of the Lagrangian with respect to the  veloci
   Differential(v)(L) |> expand_derivatives
 end;
 
+# ╔═╡ 19dd77e9-4a88-4c06-9129-0c1391068900
+∂vL ~ 0
+
 # ╔═╡ 8d09bb0b-40d9-4d79-89a3-ad0d8679b08c
 md"This code computes the gradient of the Lagrangian with respect to the stress field to obtain adjoint equations."
 
@@ -306,6 +294,9 @@ md"This code computes the gradient of the Lagrangian with respect to the stress 
   Differential(σ)(L) |> expand_derivatives
 end;
 
+# ╔═╡ 3bb85c65-89ed-4113-a498-3a0da01be0b1
+∂σL ~ 0
+
 # ╔═╡ 269f6922-7f14-45b9-91f2-554a03a92b57
 md"### Final Condition"
 
@@ -313,6 +304,9 @@ md"### Final Condition"
 ∂L∂VT = broadcast(V[end, :]) do v
   Differential(v)(L) |> expand_derivatives
 end;
+
+# ╔═╡ fad3240f-9fd1-48c5-b1f3-515d9ea038bd
+∂L∂VT ~ 0
 
 # ╔═╡ 8d67dc24-a8b1-4a4f-9811-f46e7b09fc08
 md"### Gradient Expressions"
@@ -372,60 +366,6 @@ end
 
 # ╔═╡ 38257847-5ae7-4a5a-a937-22a6729a3640
 md"### Tikz"
-
-# ╔═╡ 5a9e17d9-2552-48fd-b3ad-0a1e50279953
-# t1, t2, t3, tv are texts
-# s1 and s2 are labels with sizes
-plot_state_tikz() = TikzPicture(L"""
-   
-   \tikzstyle{vertex}=[circle,minimum size=20pt,inner sep=0pt]
-
-  \foreach \name/\x in {v(0)/1, v(t_1)/5, v(t_2)/9, v(t_3)/13, v(T)/17}
-    \node[vertex,fill=black!25,] (v-\x) at (\x,0) {$\name$};
-
- \foreach \name/\x in {\sigma(0)/3, \sigma(\hat{t}_1)/7, \sigma(\hat{t}_2)/11, \sigma(\hat{t}_3)/15}
-    \node[vertex,fill=red!25] (s-\x) at (\x,-1) {$\name$};
-
- \foreach \name/\x in {f(0)/3, f(\hat{t}_1)/7, f(\hat{t}_2)/11, f(\hat{t}_3)/15}
-    \node[vertex,fill=blue!25] (f-\x) at (\x,1) {$\name$};
-
- \draw[->,thick, red] (s-3) -- (s-7) node[above, midway, red] {1};
-\draw[->,thick, red] (v-5) -- (s-7) node[above, midway, red] {1};
-\draw[->,thick, blue] (s-7) -- (v-9) node[below, midway, blue] {2};
-	\draw[->,thick, blue] (v-5) -- (v-9) node[above, midway, blue] {2};
-
-\node[above right=-2mm of s-3] {=0};
-\node[above right=-2mm of v-1] {=0};
-  """, options=tikz_default_options, preamble=tikz_preamble, width="20cm")
-
-# ╔═╡ 21af98b7-712d-4b25-a9fa-41d008f97962
-# t1, t2, t3, tv are texts
-# s1 and s2 are labels with sizes
-plot_adjstate_tikz() = TikzPicture(L"""
-
-
-   \tikzstyle{vertex}=[circle,minimum size=20pt,inner sep=0pt]
-
-  \foreach \name/\x in {u(0)/1, u(\hat{t}_1)/5, u(\hat{t}_2)/9, u(\hat{t}_3)/13, u(\hat{T})/17}
-    \node[vertex,fill=black!25,] (v-\x) at (\x,0) {$\name$};
-
- \foreach \name/\x in {\tau(t_1)/3, \tau(t_2)/7, \tau(t_3)/11, \tau(T)/15}
-    \node[vertex,fill=red!25] (s-\x) at (\x,-1) {$\name$};
-
- \foreach \name/\x in { g(t_1)/7, g(t_2)/11, g(t_3)/15}
-    \node[vertex,fill=blue!25] (f-\x) at (\x,1) {$\name$};
-
-
- \draw[->,thick, red] (s-15) -- (s-11) node[above, midway, red] {1};
-\draw[->,thick, red] (v-13) -- (s-11) node[above, midway, red] {1};
-\draw[->,thick, blue] (s-11) -- (v-9) node[below, midway, blue] {2};
-	\draw[->,thick, blue] (v-13) -- (v-9) node[above, midway, blue] {2};
-
-\node[above right=-2mm of s-15] {=0};
-\node[above right=-2mm of v-17] {=0};
-
-
-  """, options=tikz_default_options, preamble=tikz_preamble, width="20cm")
 
 # ╔═╡ 8e514e64-0172-4b47-974d-efaa8e1f4990
 tikz_default_options = raw"""
@@ -492,6 +432,66 @@ tikz_preamble = raw"""
   \usetikzlibrary{shapes.geometric}
   \usetikzlibrary{backgrounds}
   """
+
+# ╔═╡ 5a9e17d9-2552-48fd-b3ad-0a1e50279953
+# t1, t2, t3, tv are texts
+# s1 and s2 are labels with sizes
+plot_state_tikz() = TikzPicture(L"""
+   
+   \tikzstyle{vertex}=[circle,minimum size=20pt,inner sep=0pt]
+
+  \foreach \name/\x in {v(0)/1, v(t_1)/5, v(t_2)/9, v(t_3)/13, v(T)/17}
+    \node[vertex,fill=black!25,] (v-\x) at (\x,0) {$\name$};
+
+ \foreach \name/\x in {\sigma(0)/3, \sigma(\hat{t}_1)/7, \sigma(\hat{t}_2)/11, \sigma(\hat{t}_3)/15}
+    \node[vertex,fill=red!25] (s-\x) at (\x,-1) {$\name$};
+
+ \foreach \name/\x in {f(0)/3, f(\hat{t}_1)/7, f(\hat{t}_2)/11, f(\hat{t}_3)/15}
+    \node[vertex,fill=blue!25] (f-\x) at (\x,1) {$\name$};
+
+ \draw[->,thick, red] (s-3) -- (s-7) node[above, midway, red] {1};
+\draw[->,thick, red] (v-5) -- (s-7) node[above, midway, red] {1};
+\draw[->,thick, blue] (s-7) -- (v-9) node[below, midway, blue] {2};
+	\draw[->,thick, blue] (v-5) -- (v-9) node[above, midway, blue] {2};
+
+\node[above right=-2mm of s-3] {=0};
+\node[above right=-2mm of v-1] {=0};
+  """, options=tikz_default_options, preamble=tikz_preamble, width="20cm")
+
+# ╔═╡ 4d71efc9-6bf5-4aa6-8e0f-132814350351
+plot_state_tikz()
+
+# ╔═╡ 21af98b7-712d-4b25-a9fa-41d008f97962
+# t1, t2, t3, tv are texts
+# s1 and s2 are labels with sizes
+plot_adjstate_tikz() = TikzPicture(L"""
+
+
+   \tikzstyle{vertex}=[circle,minimum size=20pt,inner sep=0pt]
+
+  \foreach \name/\x in {u(0)/1, u(\hat{t}_1)/5, u(\hat{t}_2)/9, u(\hat{t}_3)/13, u(\hat{T})/17}
+    \node[vertex,fill=black!25,] (v-\x) at (\x,0) {$\name$};
+
+ \foreach \name/\x in {\tau(t_1)/3, \tau(t_2)/7, \tau(t_3)/11, \tau(T)/15}
+    \node[vertex,fill=red!25] (s-\x) at (\x,-1) {$\name$};
+
+ \foreach \name/\x in { g(t_1)/7, g(t_2)/11, g(t_3)/15}
+    \node[vertex,fill=blue!25] (f-\x) at (\x,1) {$\name$};
+
+
+ \draw[->,thick, red] (s-15) -- (s-11) node[above, midway, red] {1};
+\draw[->,thick, red] (v-13) -- (s-11) node[above, midway, red] {1};
+\draw[->,thick, blue] (s-11) -- (v-9) node[below, midway, blue] {2};
+	\draw[->,thick, blue] (v-13) -- (v-9) node[above, midway, blue] {2};
+
+\node[above right=-2mm of s-15] {=0};
+\node[above right=-2mm of v-17] {=0};
+
+
+  """, options=tikz_default_options, preamble=tikz_preamble, width="20cm")
+
+# ╔═╡ 57ea4b25-0f40-4816-85ba-05669770885b
+plot_adjstate_tikz()
 
 # ╔═╡ f9f5cb83-ab6b-4de2-9ea4-4a4d984f0489
 md"""## References

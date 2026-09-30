@@ -1,11 +1,11 @@
 ### A Pluto.jl notebook ###
-# v0.2.6
+# v1.0.3
 
 #> [frontmatter]
-#> title = "Lamb's Problem"
-#> layout = "layout.jlhtml"
 #> tags = ["pointsource"]
+#> title = "Lamb's Problem"
 #> description = "Superposition of planewaves"
+#> layout = "layout.jlhtml"
 
 using Markdown
 using InteractiveUtils
@@ -129,6 +129,27 @@ sums it (numerically, as a Riemann sum — not with `QuadGK`, despite what an ea
 this notebook claimed) over the whole `` k `` range to reconstruct the full field.
 """
 
+# ╔═╡ 05ec38ea-3431-490c-bc38-24f8c1b2d54f
+"""
+    conical_wave(k, ω, r, δz, layer::Layer, ωref)
+
+One term (one horizontal wavenumber `k`) of the Sommerfeld/Weyl integral above: the
+contribution of a single conical wave to the point-source field in `layer`, at range `r` and
+vertical offset `δz` from the source. `ω`/`r`/`δz` are meant to broadcast together (typically
+`ω` down rows, `r`/`δz` across columns, matching [`get_wavefield`](@ref)'s `param.Ω`/`param.R`/
+`param.Z` grids), so one call fills an entire frequency-range grid for this `k`.
+
+Uses [`causal_velocity`](@ref) and [`vertical_slowness`](@ref) exactly as the reflectivity
+machinery below does, so the direct wave and every reflected/converted phase share one
+consistent, causally-dispersive medium.
+"""
+function conical_wave(k, ω, r, δz, layer::Layer, ωref)
+    c = causal_velocity.(layer.vp, layer.Qp, ω, ωref)
+    q = vertical_slowness.(c, k ./ ω)
+    kz = ω .* q
+    return Bessels.besselj0.(k .* r) .* exp.(im .* kz .* δz) .* k ./ kz ./ im
+end
+
 # ╔═╡ e2fea7d5-00a3-4796-ad51-26f2dcffa55b
 md"## Medium"
 
@@ -191,6 +212,72 @@ const GUTENBERG_MODEL = [
 
 # ╔═╡ 360de109-d7db-4402-bca8-5b39c6f17da9
 md"## Derive Reflection Coefficients"
+
+# ╔═╡ f25f798f-0ecc-4931-b8b5-9c958b83850f
+begin
+"""
+    reflectivity_matrix(layers::Vector{Layer}, p, ω, ω_ref)
+
+Full 2×2 reflectivity matrix seen at the top of layer 1 (just below the free surface — there is
+no free surface in this recursion yet, see the To-Do), for a unit downgoing wave in layer 1.
+Column `j`/row `i` convention matches [`zoeppritz_interface`](@ref): element `[1,1]` is P→P,
+`[2,1]` is P→S, etc.
+
+Uses Kennett's R/T recursion, working from the half-space upward: at the top of the half-space
+there is (by definition) nothing left to reflect off, so `Rplus = 0` there; each step up adds
+one more layer by propagating the current effective reflectivity `Rbar` through that layer's own
+thickness ([`one_way_phase`](@ref)) and combining it with that layer's own interface response
+([`zoeppritz_interface`](@ref)) via `Rplus = Rd + Td*Rbar*inv(I - Ru*Rbar)*Tu` — the standard
+formula for the *effective* reflectivity of an interface backed by more layers, accounting for
+every internal multiple exactly (not just a first-order approximation), since the recursion
+itself already contains lower interfaces' full effect via `Rbar`.
+"""
+function reflectivity_matrix(layers::Vector{Layer}, p, ω, ω_ref)
+    N = length(layers)
+    if N <= 1 || iszero(ω)
+        return zeros(ComplexF64, 2, 2)  # no interface -> no reflection
+    end
+    Rplus = zeros(ComplexF64, 2, 2)  # at top of halfspace: no reflection
+
+    for ℓ in (N - 1):-1:1
+        lay_dn = layers[ℓ + 1]
+        E = Matrix{ComplexF64}(I, 2, 2)
+        if isfinite(lay_dn.thickness)
+            vp = causal_velocity(lay_dn.vp, lay_dn.Qp, ω, ω_ref)
+            vs = causal_velocity(lay_dn.vs, lay_dn.Qs, ω, ω_ref)
+            qP = vertical_slowness(vp, p)
+            qS = vertical_slowness(vs, p)
+            eP = one_way_phase(qP, ω, lay_dn.thickness)
+            eS = one_way_phase(qS, ω, lay_dn.thickness)
+            E = Diagonal([eP, eS]) |> Matrix
+        end
+        Rbar = E * Rplus * E
+
+        Rd, Td, Ru, Tu = zoeppritz_interface(layers[ℓ], layers[ℓ + 1], p, ω, ω_ref)
+        Den = I - Ru * Rbar
+        Rplus = Rd + Td * (Rbar * (Den \ Tu))
+    end
+
+    return Rplus
+end
+
+"""
+    reflectivity_pp(layers, p, ω, ω_ref)
+
+P→P reflectivity at the top of layer 1 — `reflectivity_matrix(layers, p, ω, ω_ref)[1, 1]`.
+"""
+reflectivity_pp(layers::Vector{Layer}, p, ω, ω_ref) = reflectivity_matrix(layers, p, ω, ω_ref)[1, 1]
+
+"""
+    reflectivity_ps(layers, p, ω, ω_ref)
+
+P→S (mode-converted) reflectivity at the top of layer 1, for a unit downgoing P in layer 1 —
+`reflectivity_matrix(layers, p, ω, ω_ref)[2, 1]`. This is what drives the `Psreflect` phase in
+[`get_phase`](@ref): the same P-source Sommerfeld integral, weighted by the P→S coefficient
+instead of P→P.
+"""
+reflectivity_ps(layers::Vector{Layer}, p, ω, ω_ref) = reflectivity_matrix(layers, p, ω, ω_ref)[2, 1]
+end
 
 # ╔═╡ 687b7062-ee25-4498-948f-43b187e0ccfa
 """
@@ -255,27 +342,6 @@ notebook's Performance self-check for the measured cost of getting this wrong.
 function vertical_slowness(v, p)
     arg = (1 / abs2(v)) - abs2(p)
     return arg >= 0 ? complex(-sqrt(arg)) : 1im * sqrt(-arg)
-end
-
-# ╔═╡ 05ec38ea-3431-490c-bc38-24f8c1b2d54f
-"""
-    conical_wave(k, ω, r, δz, layer::Layer, ωref)
-
-One term (one horizontal wavenumber `k`) of the Sommerfeld/Weyl integral above: the
-contribution of a single conical wave to the point-source field in `layer`, at range `r` and
-vertical offset `δz` from the source. `ω`/`r`/`δz` are meant to broadcast together (typically
-`ω` down rows, `r`/`δz` across columns, matching [`get_wavefield`](@ref)'s `param.Ω`/`param.R`/
-`param.Z` grids), so one call fills an entire frequency-range grid for this `k`.
-
-Uses [`causal_velocity`](@ref) and [`vertical_slowness`](@ref) exactly as the reflectivity
-machinery below does, so the direct wave and every reflected/converted phase share one
-consistent, causally-dispersive medium.
-"""
-function conical_wave(k, ω, r, δz, layer::Layer, ωref)
-    c = causal_velocity.(layer.vp, layer.Qp, ω, ωref)
-    q = vertical_slowness.(c, k ./ ω)
-    kz = ω .* q
-    return Bessels.besselj0.(k .* r) .* exp.(im .* kz .* δz) .* k ./ kz ./ im
 end
 
 # ╔═╡ c9bf8e13-eee2-45ae-9ce5-4901c344c8f6
@@ -439,72 +505,6 @@ function zoeppritz_interface(l1::Layer, l2::Layer, p, ω, ω_ref)
         Tup[:, j] = t2
     end
     return Rdown, Tdown, Rup, Tup
-end
-
-# ╔═╡ f25f798f-0ecc-4931-b8b5-9c958b83850f
-begin
-"""
-    reflectivity_matrix(layers::Vector{Layer}, p, ω, ω_ref)
-
-Full 2×2 reflectivity matrix seen at the top of layer 1 (just below the free surface — there is
-no free surface in this recursion yet, see the To-Do), for a unit downgoing wave in layer 1.
-Column `j`/row `i` convention matches [`zoeppritz_interface`](@ref): element `[1,1]` is P→P,
-`[2,1]` is P→S, etc.
-
-Uses Kennett's R/T recursion, working from the half-space upward: at the top of the half-space
-there is (by definition) nothing left to reflect off, so `Rplus = 0` there; each step up adds
-one more layer by propagating the current effective reflectivity `Rbar` through that layer's own
-thickness ([`one_way_phase`](@ref)) and combining it with that layer's own interface response
-([`zoeppritz_interface`](@ref)) via `Rplus = Rd + Td*Rbar*inv(I - Ru*Rbar)*Tu` — the standard
-formula for the *effective* reflectivity of an interface backed by more layers, accounting for
-every internal multiple exactly (not just a first-order approximation), since the recursion
-itself already contains lower interfaces' full effect via `Rbar`.
-"""
-function reflectivity_matrix(layers::Vector{Layer}, p, ω, ω_ref)
-    N = length(layers)
-    if N <= 1 || iszero(ω)
-        return zeros(ComplexF64, 2, 2)  # no interface -> no reflection
-    end
-    Rplus = zeros(ComplexF64, 2, 2)  # at top of halfspace: no reflection
-
-    for ℓ in (N - 1):-1:1
-        lay_dn = layers[ℓ + 1]
-        E = Matrix{ComplexF64}(I, 2, 2)
-        if isfinite(lay_dn.thickness)
-            vp = causal_velocity(lay_dn.vp, lay_dn.Qp, ω, ω_ref)
-            vs = causal_velocity(lay_dn.vs, lay_dn.Qs, ω, ω_ref)
-            qP = vertical_slowness(vp, p)
-            qS = vertical_slowness(vs, p)
-            eP = one_way_phase(qP, ω, lay_dn.thickness)
-            eS = one_way_phase(qS, ω, lay_dn.thickness)
-            E = Diagonal([eP, eS]) |> Matrix
-        end
-        Rbar = E * Rplus * E
-
-        Rd, Td, Ru, Tu = zoeppritz_interface(layers[ℓ], layers[ℓ + 1], p, ω, ω_ref)
-        Den = I - Ru * Rbar
-        Rplus = Rd + Td * (Rbar * (Den \ Tu))
-    end
-
-    return Rplus
-end
-
-"""
-    reflectivity_pp(layers, p, ω, ω_ref)
-
-P→P reflectivity at the top of layer 1 — `reflectivity_matrix(layers, p, ω, ω_ref)[1, 1]`.
-"""
-reflectivity_pp(layers::Vector{Layer}, p, ω, ω_ref) = reflectivity_matrix(layers, p, ω, ω_ref)[1, 1]
-
-"""
-    reflectivity_ps(layers, p, ω, ω_ref)
-
-P→S (mode-converted) reflectivity at the top of layer 1, for a unit downgoing P in layer 1 —
-`reflectivity_matrix(layers, p, ω, ω_ref)[2, 1]`. This is what drives the `Psreflect` phase in
-[`get_phase`](@ref): the same P-source Sommerfeld integral, weighted by the P→S coefficient
-instead of P→P.
-"""
-reflectivity_ps(layers::Vector{Layer}, p, ω, ω_ref) = reflectivity_matrix(layers, p, ω, ω_ref)[2, 1]
 end
 
 # ╔═╡ dea0645d-cb7c-4488-913b-ba225595aceb
@@ -1654,6 +1654,31 @@ begin
     PlutoUI.WideCell(@bind ctrl LambControlsInput(layers); max_width=1400)
 end
 
+# ╔═╡ 3c1a2b4e-0002-4000-8000-100000000002
+# pmax=Inf includes every plane wave (head wave present); pmax=p_c_P excludes everything at or
+# beyond the first interface's own P critical slowness (head wave switched off) -- see
+# critical_slowness and get_phase/get_wavefield's own docstrings for why this specific value.
+lamb_pmax = ctrl["head_wave"] ? Inf : critical_slowness(layers).p_c_P
+
+# ╔═╡ 53a45db3-8571-4fc7-a855-5173030b7cb9
+seismograms = let
+    phase = ctrl["phase"]
+    C = if phase == "direct"
+        get_wavefield(seismograms_param, layers, Direct(); pmax=lamb_pmax)
+    elseif phase == "preflect"
+        get_wavefield(seismograms_param, layers, Preflect(); pmax=lamb_pmax)
+    elseif phase == "psreflect"
+        get_wavefield(seismograms_param, layers, Psreflect(); pmax=lamb_pmax)
+    else # "sum" -- what a real seismogram actually records: every phase, superposed. Preflect
+        # and Psreflect are computed TOGETHER here (get_wavefield_pp_ps), not as two separate
+        # get_wavefield calls, since they'd otherwise redo the same expensive reflectivity_matrix
+        # recursion twice for no reason -- see that function's own docstring.
+        pp, ps = get_wavefield_pp_ps(seismograms_param, layers; pmax=lamb_pmax)
+        get_wavefield(seismograms_param, layers, Direct(); pmax=lamb_pmax) .+ pp .+ ps
+    end
+    irfft(remove_zero_frequency!(C), seismograms_param.Nt, 1)
+end;
+
 # ╔═╡ e7c1cbf4-7939-45a2-a754-b36ae9bdcab4
 md"""### To Do
 - **A free surface.** Everything here is reflection off interfaces *below* the source; there's
@@ -1698,31 +1723,6 @@ function critical_slowness(layers::Vector{Layer})
     l2 = layers[2]
     return (p_c_P=1 / l2.vp, p_c_S=1 / l2.vs)
 end
-
-# ╔═╡ 3c1a2b4e-0002-4000-8000-100000000002
-# pmax=Inf includes every plane wave (head wave present); pmax=p_c_P excludes everything at or
-# beyond the first interface's own P critical slowness (head wave switched off) -- see
-# critical_slowness and get_phase/get_wavefield's own docstrings for why this specific value.
-lamb_pmax = ctrl["head_wave"] ? Inf : critical_slowness(layers).p_c_P
-
-# ╔═╡ 53a45db3-8571-4fc7-a855-5173030b7cb9
-seismograms = let
-    phase = ctrl["phase"]
-    C = if phase == "direct"
-        get_wavefield(seismograms_param, layers, Direct(); pmax=lamb_pmax)
-    elseif phase == "preflect"
-        get_wavefield(seismograms_param, layers, Preflect(); pmax=lamb_pmax)
-    elseif phase == "psreflect"
-        get_wavefield(seismograms_param, layers, Psreflect(); pmax=lamb_pmax)
-    else # "sum" -- what a real seismogram actually records: every phase, superposed. Preflect
-        # and Psreflect are computed TOGETHER here (get_wavefield_pp_ps), not as two separate
-        # get_wavefield calls, since they'd otherwise redo the same expensive reflectivity_matrix
-        # recursion twice for no reason -- see that function's own docstring.
-        pp, ps = get_wavefield_pp_ps(seismograms_param, layers; pmax=lamb_pmax)
-        get_wavefield(seismograms_param, layers, Direct(); pmax=lamb_pmax) .+ pp .+ ps
-    end
-    irfft(remove_zero_frequency!(C), seismograms_param.Nt, 1)
-end;
 
 # ╔═╡ 4a000003-0000-4000-8000-400000000003
 begin

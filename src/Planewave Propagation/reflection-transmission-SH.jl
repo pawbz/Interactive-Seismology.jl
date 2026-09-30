@@ -1,11 +1,11 @@
 ### A Pluto.jl notebook ###
-# v0.2.6
+# v1.0.3
 
 #> [frontmatter]
-#> title = "Reflected and Transmitted SH Waves"
 #> tags = ["planewaves"]
-#> layout = "layout.jlhtml"
+#> title = "Reflected and Transmitted SH Waves"
 #> description = "In this notebook, we shall investigate the behavior of waves that love to hop between two geological layers like kids in a bouncy castle."
+#> layout = "layout.jlhtml"
 
 using Markdown
 using InteractiveUtils
@@ -202,38 +202,6 @@ md"Similarly, the vertical component of the slowness vector in the second layer 
 
 # ╔═╡ 8c81ddb5-bf4d-4610-bfea-3d1a27ffd61f
 md"We can finally, update the expression of `SHAᵣ` and `SHAₜ` using the MOHO parameters and plot them"
-
-# ╔═╡ a089ab5b-4703-4d4d-a7ab-11197b4b907c
-"""
-    sh_interface_coefficients(β₁, β₂, ρ₁, ρ₂, θ)
-
-Return the transmitted and reflected SH displacement-amplitude coefficients at
-incident angle `θ` (radians). This is the direct numerical form of the
-Symbolics derivation above; keeping it separate prevents a symbolic
-`substitute`/`simplify` pass for every point in the interactive sweep.
-"""
-function sh_interface_coefficients(
-    β₁::Float64,
-    β₂::Float64,
-    ρ₁::Float64,
-    ρ₂::Float64,
-    θ::Float64,
-)
-    p = sin(θ) / β₁
-    η₁ = sqrt((inv(β₁)^2 - p^2) + 0im)
-    η₂ = sqrt((inv(β₂)^2 - p^2) + 0im)
-    q₁ = ρ₁ * β₁^2 * η₁
-    q₂ = ρ₂ * β₂^2 * η₂
-    denominator = q₁ + q₂
-
-    return (
-        transmitted = ComplexF64(2q₁ / denominator),
-        reflected = ComplexF64((q₁ - q₂) / denominator),
-    )
-end
-
-SHAₜ_ex(θ) = sh_interface_coefficients(β₁MOHO, β₂MOHO, ρ₁MOHO, ρ₂MOHO, Float64(θ)).transmitted
-SHAᵣ_ex(θ) = sh_interface_coefficients(β₁MOHO, β₂MOHO, ρ₁MOHO, ρ₂MOHO, Float64(θ)).reflected
 
 # ╔═╡ eeee5555-5555-5555-5555-555555555555
 md"""
@@ -745,6 +713,40 @@ critical angle `asin(β₁MOHO/β₂MOHO)` -- see the sign convention noted wher
 it's used to build the wavefield, below.
 """
 ηₜMOHO(θ) = sqrt((inv(β₂MOHO)^2 - (pMOHO(θ))^2) + 0im)
+
+# ╔═╡ a089ab5b-4703-4d4d-a7ab-11197b4b907c
+begin
+    """
+        sh_interface_coefficients(β₁, β₂, ρ₁, ρ₂, θ)
+
+    Return the transmitted and reflected SH displacement-amplitude coefficients at
+    incident angle `θ` (radians). This is the direct numerical form of the
+    Symbolics derivation above; keeping it separate prevents a symbolic
+    `substitute`/`simplify` pass for every point in the interactive sweep.
+    """
+    function sh_interface_coefficients(
+        β₁::Float64,
+        β₂::Float64,
+        ρ₁::Float64,
+        ρ₂::Float64,
+        θ::Float64,
+    )
+        p = sin(θ) / β₁
+        η₁ = sqrt((inv(β₁)^2 - p^2) + 0im)
+        η₂ = sqrt((inv(β₂)^2 - p^2) + 0im)
+        q₁ = ρ₁ * β₁^2 * η₁
+        q₂ = ρ₂ * β₂^2 * η₂
+        denominator = q₁ + q₂
+
+        return (
+            transmitted = ComplexF64(2q₁ / denominator),
+            reflected = ComplexF64((q₁ - q₂) / denominator),
+        )
+    end
+
+    SHAₜ_ex(θ) = sh_interface_coefficients(β₁MOHO, β₂MOHO, ρ₁MOHO, ρ₂MOHO, Float64(θ)).transmitted
+    SHAᵣ_ex(θ) = sh_interface_coefficients(β₁MOHO, β₂MOHO, ρ₁MOHO, ρ₂MOHO, Float64(θ)).reflected
+end
 
 # ╔═╡ ffff6666-6666-6666-6666-666666666666
 let

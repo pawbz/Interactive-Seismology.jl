@@ -1,11 +1,11 @@
 ### A Pluto.jl notebook ###
-# v0.2.6
+# v1.0.3
 
 #> [frontmatter]
-#> title = "Ray Tomography"
 #> tags = ["raytheory"]
-#> layout = "layout.jlhtml"
+#> title = "Ray Tomography"
 #> description = "This notebook focuses on the inverse formulation of 2-D first-arrival travel times."
+#> layout = "layout.jlhtml"
 
 using Markdown
 using InteractiveUtils
@@ -115,6 +115,16 @@ or regularization-slider tick: `AtA`, `AtA_eig`, and `GiG` are the pieces that l
 widget's Regularization slider and the resolution-row panel stay cheap regardless of how
 big the inverted grid is.
 """
+
+# ╔═╡ 7a0d1e50-5000-4a00-9000-000000000003
+"""
+Eigendecomposition of the (symmetric) `AtA = G'G`, computed once per geometry change.
+Since the identity regularizer used by [`get_tikhonov_solution`](@ref) shares `AtA`'s own
+eigenvectors, this turns *every* λ-slider tick into an O(n²) diagonal rescale instead of
+re-forming and inverting an n×n matrix from scratch (O(n³)) -- see that function's
+docstring for the derivation.
+"""
+AtA_eig = eigen(Symmetric(AtA));
 
 # ╔═╡ 4344de43-abfa-45c6-ab84-8578ba87f60f
 λrange = logrange(1e-5, 1e5, length=100) |> collect
@@ -419,21 +429,6 @@ end
 
 # ╔═╡ 44eddeed-1763-4c04-b213-b7469983286d
 # data_residual_colors = get.(Ref(colorschemes[:seismic]), (data_residual .- minimum(data_residual)) ./ maximum(data_residual));
-
-# ╔═╡ 1499710e-1316-4113-b551-83d0e01151ab
-# ╠═╡ disabled = true
-#=╠═╡
-h5open("ray_tomography_assignment_Jan2025.h5", "w") do file
-    write(file, "G", G) 
-	 write(file, "d", dobs)
-	write(file, "xgrid_inv", collect(xgrid_inv))
-	write(file, "zgrid_inv", collect(zgrid_inv)) 
-	write(file, "srcx", srcx)
-	write(file, "srcz", collect(srcz))
-	write(file, "recx", collect(recx))
-	write(file, "recz", collect(recz)) 
-end
-  ╠═╡ =#
 
 # ╔═╡ ce416101-f2e1-4b67-a166-b099325c3be2
 md"### Tikz"
@@ -1313,16 +1308,6 @@ plot(heatmap(z=G), Layout(xaxis_title="model vector index", yaxis_autorange="rev
 # ╔═╡ 7a0d1e50-5000-4a00-9000-000000000002
 AtA = G' * G;
 
-# ╔═╡ 7a0d1e50-5000-4a00-9000-000000000003
-"""
-Eigendecomposition of the (symmetric) `AtA = G'G`, computed once per geometry change.
-Since the identity regularizer used by [`get_tikhonov_solution`](@ref) shares `AtA`'s own
-eigenvectors, this turns *every* λ-slider tick into an O(n²) diagonal rescale instead of
-re-forming and inverting an n×n matrix from scratch (O(n³)) -- see that function's
-docstring for the derivation.
-"""
-AtA_eig = eigen(Symmetric(AtA));
-
 # ╔═╡ 2713503d-165f-47f9-8ece-4cd5ddc0bb21
 λ1 = inv(tr(AtA))
 
@@ -1416,6 +1401,21 @@ plot([scatter(y=dobs, name="observed"), scatter(y=G * sest1, name="predicted")],
 
 # ╔═╡ ffb59613-e16b-4d38-9c36-c778f92842e0
 plot([scatter(y=dobs, name="observed"), scatter(y=G * sest2, name="predicted")], Layout(title="Data Residual (Observed Vs. Predicted Traveltimes)", xaxis_title="# raypath", yaxis_title="traveltime"))
+
+# ╔═╡ 1499710e-1316-4113-b551-83d0e01151ab
+# ╠═╡ disabled = true
+#=╠═╡
+h5open("ray_tomography_assignment_Jan2025.h5", "w") do file
+    write(file, "G", G) 
+	 write(file, "d", dobs)
+	write(file, "xgrid_inv", collect(xgrid_inv))
+	write(file, "zgrid_inv", collect(zgrid_inv)) 
+	write(file, "srcx", srcx)
+	write(file, "srcz", collect(srcz))
+	write(file, "recx", collect(recx))
+	write(file, "recz", collect(recz)) 
+end
+  ╠═╡ =#
 
 # ╔═╡ e8e733ee-586d-4ef6-a8ad-8c793cc8e3e9
 # Map to seismic colormap (blue → red)

@@ -1,14 +1,16 @@
 ### A Pluto.jl notebook ###
-# v0.20.19
+# v0.2.6
 
 using Markdown
 using InteractiveUtils
 
-# ╔═╡ a014b745-80ad-49d2-8845-6017893c6ee1
-# plot time reversal 
+# ╔═╡ 29dba895-e906-4c59-8434-04d38aa90960
 begin
-	heatmap(xgrid, zgrid, real(simage), yflip=true, ylabel="depth", xlabel="distance", title="source image")
-	# scatter!(sloc_true...)
+	using Plots
+	using SpecialFunctions
+	using LinearAlgebra
+	using AbstractFFTs
+	using FFTW
 end
 
 # ╔═╡ 575dcf54-7091-11ec-07f4-cf45bade8070
@@ -24,24 +26,6 @@ seismic migration, imaging a brain tumour..
 $G_0=-0.25\rho i H^2_0(kr)$
 where $k=2\pi fv_0^{-1}$
 """
-
-# ╔═╡ f8c9f94a-91cd-4b97-90e6-4deeca1d47f3
-begin
-	#
-	# sloc is the source location
-	# rloc is the receiver location
-	# f is the frequency to be modelled 
-	# 2D homogeneous Green's functions 
-	function G0(f, sloc, rloc)
-		k = 2*pi*f / v0
-	    r = sqrt(sum(abs2.(sloc .- rloc)))
-	    data = -0.25 * rho0 * im * hankelh2(0, k * r)
-	    return data
-	end
-	# function G0all(f, sloc, rlocs) 
-		# return [G0(f, sloc, rloc) for rloc in rlocs]
-	# end
-end
 
 # ╔═╡ 2228a72d-eb22-4ebf-b339-76746b2811f7
 # experimental parameters
@@ -72,6 +56,31 @@ begin
 	simage = zeros(Complex{Float64},length(zgrid), length(xgrid))
 end
 
+# ╔═╡ a014b745-80ad-49d2-8845-6017893c6ee1
+# plot time reversal 
+begin
+	heatmap(xgrid, zgrid, real(simage), yflip=true, ylabel="depth", xlabel="distance", title="source image")
+	# scatter!(sloc_true...)
+end
+
+# ╔═╡ f8c9f94a-91cd-4b97-90e6-4deeca1d47f3
+begin
+	#
+	# sloc is the source location
+	# rloc is the receiver location
+	# f is the frequency to be modelled 
+	# 2D homogeneous Green's functions 
+	function G0(f, sloc, rloc)
+		k = 2*pi*f / v0
+	    r = sqrt(sum(abs2.(sloc .- rloc)))
+	    data = -0.25 * rho0 * im * hankelh2(0, k * r)
+	    return data
+	end
+	# function G0all(f, sloc, rlocs) 
+		# return [G0(f, sloc, rloc) for rloc in rlocs]
+	# end
+end
+
 # ╔═╡ 2c3cad56-02b9-4a52-aee4-4a25455e0410
 function forw!(d, sloc) # use this to model data for every test point
 		for (i, f) in enumerate(freqs), (j, rloc) in enumerate(rlocs)
@@ -97,15 +106,6 @@ end
 for  (iz,z) in enumerate(zgrid), (ix,x) in enumerate(xgrid)
 	forw!(dmod, [z,x])
 	simage[iz, ix] = dot(dobs, dmod)
-end
-
-# ╔═╡ 29dba895-e906-4c59-8434-04d38aa90960
-begin
-	using Plots
-	using SpecialFunctions
-	using LinearAlgebra
-	using AbstractFFTs
-	using FFTW
 end
 
 # ╔═╡ 00000000-0000-0000-0000-000000000001
