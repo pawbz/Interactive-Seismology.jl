@@ -37,6 +37,27 @@ using HypertextLiteral: @htl
 # ╔═╡ 6188ff3e-cfd5-4c9c-aa39-619dc280d494
 TableOfContents()
 
+# ╔═╡ 70e85fce-38d4-473e-9748-bebae2b9ce51
+# App shell: the Expt / Theory / Code / Help frame shared by every notebook, loaded
+# from src/assets/app-shell/. Without that folder (a lone downloaded .jl) this cell just
+# shows the help text and the notebook stays a plain notebook.
+let
+	help = md"""
+	- Two experiments: switch between **Layered medium** and **Record section** in the rail.
+	- **Layered medium:** drag boundaries and the Vp, Vs and ρ markers to edit the model; click to add a layer, drag a boundary onto its neighbour to delete it.
+	- **Record section:** choose which phases (direct, P reflection, converted reflection) and which plane waves are summed, and inspect traces and R(p).
+	"""
+	dir = joinpath(@__DIR__, "..", "assets", "app-shell")
+	if isfile(joinpath(dir, "app-shell.js"))
+		HTML(string(
+			"<style>", read(joinpath(dir, "app-shell.css"), String), "</style>",
+			"<template class=\"app-help\">", repr(MIME"text/html"(), help), "</template>",
+			"<script>", read(joinpath(dir, "app-shell.js"), String), "</script>"))
+	else
+		help
+	end
+end
+
 # ╔═╡ 1bbedd43-9e69-4ba0-a251-855f1f63dcf8
 md"""# Lamb's Problem — Reflectivity Method
 
@@ -54,7 +75,7 @@ horizontal slowness `p` is from the interface's own **critical slowness**. Below
 value every plane wave reflects and transmits like an ordinary Zoeppritz interface, contributing
 to the direct and reflected arrivals. At and beyond it, transmission goes evanescent — total
 internal reflection — and that whole extra range of plane waves is what builds the head wave.
-The hero widget below lets you switch that range on and off directly and watch the head wave
+The experiment lets you switch that range on and off directly and watch the head wave
 appear and disappear.
 
 The **Reflectivity Method** (`` R(p) `` below, via a numerically stable Kennett-style recursion,
@@ -74,7 +95,7 @@ Indian Institute of Science, Bengaluru, India
 # ╔═╡ 72aca1bf-3997-4be3-b316-921b45480c1a
 md"""## What You Just Saw — Reading the Widget
 
-Three panels in the widget above tell one connected story. The **record section** is
+Three panels in the experiment tell one connected story. The **record section** is
 [`get_wavefield`](@ref)'s frequency-domain output, inverse-FFT'd back to the time domain —
 moveout (the diagonal slant of an arrival across offsets) is the direct visual signature of a
 finite wave speed. Toggle `Direct` / `Reflected P` / `Reflected P→S` to see each arrival's own
@@ -946,7 +967,7 @@ begin
         presets_js = "{gutenberg:$(_lm_preset_js(presets["gutenberg"])),crust2:$(_lm_preset_js(presets["crust2"])),uniform:$(_lm_preset_js(presets["uniform"]))}"
         tracks_js = w.show_vp ? "['vp','vs','rho']" : "['vs','rho']"
         write(io, """
-        <div id="lmwidget">
+        <div id="lmwidget" class="app-widget" data-app-name="Layered medium">
         <style>
         #lmwidget{font-family:sans-serif;color:#d1d5db}
         #lmwidget .lm-titlebar{background:#0a0f18;border:1px solid #3b5c85;border-radius:6px;padding:12px 16px;margin-bottom:14px;text-align:center}
@@ -966,7 +987,7 @@ begin
         #lmwidget .lm-swatch{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:4px;vertical-align:middle}
         </style>
 
-        <div class="lm-titlebar">
+        <div class="lm-titlebar app-title">
           <div class="lm-titlebar-headline">Build a layered Earth model by dragging directly on the depth profile.</div>
           <div class="lm-titlebar-sub">drag a boundary line to resize a layer &middot; drag a track's marker to change Vp/Vs/&rho; &middot; click empty space to add a layer &middot; drag a boundary onto its neighbor to delete it</div>
         </div>
@@ -1307,7 +1328,7 @@ begin
     function Base.show(io::IO, ::MIME"text/html", w::LambControlsInput)
         layers_js = _lp_layers_js(w.layers)
         write(io, """
-        <div id="lpwidget">
+        <div id="lpwidget" class="app-widget" data-app-name="Record section">
         <style>
         #lpwidget{font-family:sans-serif;color:#d1d5db}
         #lpwidget .lp-titlebar{background:#0a0f18;border:1px solid #3b5c85;border-radius:6px;padding:10px 14px;margin-bottom:10px;text-align:center}
@@ -1326,7 +1347,7 @@ begin
         #lpwidget .lp-caption{font-size:12px;color:#9ca3af;margin-top:4px;text-align:center}
         </style>
 
-        <div class="lp-titlebar">
+        <div class="lp-titlebar app-title">
           <div class="lp-titlebar-headline">Choose what the panels below show.</div>
         </div>
         <div class="lp-row">
@@ -2430,6 +2451,7 @@ version = "17.7.0+0"
 # ╠═4621f804-6a44-4c46-af37-3d364ba74cfe
 # ╠═9b488729-aadc-4c1d-b971-6931d4bc9a08
 # ╠═6188ff3e-cfd5-4c9c-aa39-619dc280d494
+# ╟─70e85fce-38d4-473e-9748-bebae2b9ce51
 # ╟─1bbedd43-9e69-4ba0-a251-855f1f63dcf8
 # ╠═beef0000-0000-4000-8000-000000000000
 # ╠═beef0001-0000-4000-8000-000000000001

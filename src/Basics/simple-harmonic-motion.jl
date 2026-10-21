@@ -22,6 +22,30 @@ macro bind(def, element)
     #! format: on
 end
 
+# ╔═╡ 7f42fcd3-7e47-4192-94f5-92de278a26fc
+# App shell: the Expt / Theory / Code / Help frame shared by every notebook, loaded
+# from src/assets/app-shell/. Without that folder (a lone downloaded .jl) this cell just
+# shows the help text and the notebook stays a plain notebook.
+let
+	help = md"""
+	- **Drag** the blue block left or right to set the initial displacement x₀.
+	- **launch v₀** gives it an initial velocity; **Play**, **Restart** and **Reset IC** control the animation.
+	- **mass**, **stiffness** and **damping ζ** set the oscillator; the **presets** jump between the four damping regimes.
+	- The red line on the time-history plot marks the instant shown in the mechanical model.
+
+	**Try this:** start undamped, then change only the mass: the amplitude stays the same but the clock runs at a different rate.
+	"""
+	dir = joinpath(@__DIR__, "..", "assets", "app-shell")
+	if isfile(joinpath(dir, "app-shell.js"))
+		HTML(string(
+			"<style>", read(joinpath(dir, "app-shell.css"), String), "</style>",
+			"<template class=\"app-help\">", repr(MIME"text/html"(), help), "</template>",
+			"<script>", read(joinpath(dir, "app-shell.js"), String), "</script>"))
+	else
+		help
+	end
+end
+
 # ╔═╡ 27ab0195-38a6-4235-a782-8a5b8a7bac01
 begin
     using PlutoUI
@@ -47,7 +71,7 @@ animation, graph, and exact solution all update together.
 md"""
 ## Pull, release, and read the answer
 
-Drag the blue block horizontally to set the initial displacement ``x_0``. Use the initial
+In the experiment, drag the blue block horizontally to set the initial displacement ``x_0``. Use the initial
 velocity control when you want to launch it rather than release it from rest. The red line
 on the time-history plot is the instant currently shown in the mechanical model.
 
@@ -111,11 +135,9 @@ md"""
 ## Appendix
 
 ### Exact free-vibration solutions
+`exact_displacement(t, m, k, ζ, x₀, v₀)` evaluates the closed-form solution for whichever regime ``\zeta`` selects (undamped, underdamped, critical or overdamped), with constants fixed by the two initial conditions. `current_solution_latex` writes the same solution with the current numbers substituted, for the readout under the experiment. `bounded_state_value` reads one control from the widget and clips it to its physical range.
 
-The widget evaluates the same closed-form expressions shown above in the browser so the
-block and playhead remain smooth. Julia evaluates them independently here for the bound
-state, which is what makes the displayed numerical solution and the verification below
-auditable.
+The widget evaluates the same closed-form expressions in the browser so the block and playhead animate smoothly. Julia evaluates them independently here for the bound state, which is what makes the displayed solution and the check below auditable.
 """
 
 # ╔═╡ bc14b27d-af7e-499f-b169-cb4814810a5d
@@ -173,10 +195,9 @@ end
 # ╔═╡ 6694ed08-e429-41b8-b8ac-a2f9b417954b
 md"""
 ### The interactive widget
+`SHMInput` sends the mass, stiffness, damping ratio, initial displacement and velocity, and playback speed back to Julia. The cell after the widget clips them (`m`, `k`, `ζ`, `x₀`, `v₀`) and derives ``\omega_n``, the dashpot coefficient ``c``, the regime and the time history used by the check above.
 
-The canvas keeps a fixed logical coordinate system and uses a device-pixel-ratio transform
-for a sharp display. Dragging therefore remains physically calibrated while the graphic
-stays clear on high-resolution laptop and projector screens.
+The canvas keeps a fixed logical coordinate system and uses a device-pixel-ratio transform for a sharp display. Dragging therefore remains physically calibrated, and the graphic stays clear on high-resolution laptop and projector screens.
 """
 
 # ╔═╡ de2db126-21d0-4f72-9d26-79ba19d1b65b
@@ -209,7 +230,7 @@ begin
     """
     function Base.show(io::IO, ::MIME"text/html", w::SHMInput)
         write(io, """
-<div id="shm-widget">
+<div id="shm-widget" class="app-widget">
   <style>
     pluto-cell:has(#shm-widget){width:min(80vw,1500px)!important;margin-left:calc((100% - min(80vw,1500px))/2)!important}
     #shm-widget{width:100%;box-sizing:border-box;font:14px sans-serif;color:#d1d5db;background:#000;padding:12px;border-radius:7px}
@@ -236,16 +257,21 @@ begin
     #shm-widget .shm-metric b{color:#f3f4f6;font-variant-numeric:tabular-nums}
     @media(max-width:700px){#shm-widget .shm-workspace{grid-template-columns:1fr}#shm-widget canvas{height:245px}}
     @media(max-width:430px){#shm-widget .shm-row{grid-template-columns:78px minmax(60px,1fr) 50px}}
+    /* App shell Expt view: both panels fill the stage and their canvases its height. */
+    html[data-sa-mode="expt"] #shm-widget .shm-workspace{grid-template-rows:minmax(0,1fr);align-items:stretch!important;justify-content:stretch!important;align-content:stretch}
+    html[data-sa-mode="expt"] #shm-widget .shm-panel{display:flex;flex-direction:column;min-height:0}
+    html[data-sa-mode="expt"] #shm-widget canvas{flex:1 1 auto;height:auto;min-height:0}
+    @media(max-width:820px){html[data-sa-mode="expt"] #shm-widget .shm-workspace{grid-template-rows:none}html[data-sa-mode="expt"] #shm-widget canvas{flex:none;height:245px}}
   </style>
-  <div class="shm-title">
+  <div class="shm-title app-title">
     <div class="shm-title-desc">One initial push determines an entire exact time history.</div>
     <div class="shm-title-hint">Drag the block to set displacement &middot; set launch velocity &middot; compare damping regimes</div>
   </div>
-  <div class="shm-workspace">
+  <div class="shm-workspace app-stage">
     <section class="shm-panel"><div class="shm-panel-title">Mechanical model</div><canvas id="shm-scene" aria-label="Draggable mass spring damper animation"></canvas></section>
     <section class="shm-panel"><div class="shm-panel-title">Displacement history <span style="color:#ef4444;font-weight:400">— red line = now</span></div><canvas id="shm-plot" aria-label="Displacement versus time plot"></canvas></section>
   </div>
-  <div class="shm-controls">
+  <div class="shm-controls app-controls">
     <section class="shm-group">
       <div class="shm-control-title">Physical parameters</div>
       <div class="shm-row"><label for="shm-m">mass m</label><input id="shm-m" type="range" min="0.25" max="4" step="0.05" value="$(w.m)"><span id="shm-mv" class="shm-value"></span></div>
@@ -371,7 +397,7 @@ begin
 end
 
 # ╔═╡ f6d03a7b-3c89-4799-bcd3-8c799711ea1e
-begin
+shm_max_residual = let
     h = min(1e-4 / ωₙ, t_end / 5000)
     check_times = range(3h, t_end - 3h; length=61)
     residuals = [
@@ -380,14 +406,15 @@ begin
         k * exact_displacement(t, m, k, ζ, x₀, v₀)
         for t in check_times
     ]
-    md"""
-    ### Verifying the equation
-
-    A centered finite-difference check of ``m\ddot{x}+c\dot{x}+kx`` over the displayed
-    interval has maximum residual **$(@sprintf("%.2e", maximum(abs.(residuals))))** N.
-    The small nonzero number is numerical differentiation error, not an additional force.
-    """
+    maximum(abs.(residuals))
 end
+
+# ╔═╡ e759e250-8de3-409b-bd8d-ac128048d26d
+md"""
+### Verifying the equation
+
+The cell above substitutes `exact_displacement` into ``m\ddot{x}+c\dot{x}+kx`` with centred finite differences at 61 times across the displayed interval. The maximum residual is **$(@sprintf("%.2e", shm_max_residual))** N. The small nonzero number is numerical differentiation error, not an additional force.
+"""
 
 # ╔═╡ 00000000-0000-0000-0000-000000000001
 PLUTO_PROJECT_TOML_CONTENTS = """
@@ -629,6 +656,7 @@ version = "1.64.0+1"
 """
 
 # ╔═╡ Cell order:
+# ╟─7f42fcd3-7e47-4192-94f5-92de278a26fc
 # ╠═27ab0195-38a6-4235-a782-8a5b8a7bac01
 # ╠═548b0e6a-7284-49e1-88f7-e5ef9f8a2de5
 # ╟─9a3af4df-76fe-4381-87b7-56a3b43925cc
@@ -644,6 +672,7 @@ version = "1.64.0+1"
 # ╠═bc14b27d-af7e-499f-b169-cb4814810a5d
 # ╠═90b3d802-0993-4df2-8b48-3c3c462d5c8f
 # ╠═f6d03a7b-3c89-4799-bcd3-8c799711ea1e
+# ╟─e759e250-8de3-409b-bd8d-ac128048d26d
 # ╟─6694ed08-e429-41b8-b8ac-a2f9b417954b
 # ╠═de2db126-21d0-4f72-9d26-79ba19d1b65b
 # ╟─00000000-0000-0000-0000-000000000001

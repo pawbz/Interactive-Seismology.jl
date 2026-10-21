@@ -41,6 +41,30 @@ begin
 	TableOfContents()
 end
 
+# ╔═╡ dbdf633f-88e3-461c-af05-2b5d4836af18
+# App shell: the Expt / Theory / Code / Help frame shared by every notebook, loaded
+# from src/assets/app-shell/. Without that folder (a lone downloaded .jl) this cell just
+# shows the help text and the notebook stays a plain notebook.
+let
+	help = md"""
+	- **Drag** the white handle on the sphere to choose a plane; the arrows show its normal stress (red/blue) and shear traction (orange).
+	- The **s_ij** sliders set the stress tensor (tension positive); the **presets** load classic stress states.
+	- The middle panel colours every orientation by σn or τ; the **Mohr diagram** (compression positive) shows where the current plane sits.
+	- **μ**, **c₀** and **P_p** set the Mohr–Coulomb failure line and the pore pressure.
+
+	**Try this:** load "Critically stressed", then raise P_p and watch the point cross the failure line with no change to the stress tensor.
+	"""
+	dir = joinpath(@__DIR__, "..", "assets", "app-shell")
+	if isfile(joinpath(dir, "app-shell.js"))
+		HTML(string(
+			"<style>", read(joinpath(dir, "app-shell.css"), String), "</style>",
+			"<template class=\"app-help\">", repr(MIME"text/html"(), help), "</template>",
+			"<script>", read(joinpath(dir, "app-shell.js"), String), "</script>"))
+	else
+		help
+	end
+end
+
 # ╔═╡ fd14256d-8c69-4d8a-91b5-924a32479866
 md"""
 # Stress Tensor
@@ -54,13 +78,13 @@ the traction on a plane with normal* ``\mathbf{n}``*, and when is it enough to c
 
 !!! note "Sign convention"
 	Stress here is **tension-positive** (the elasticity/seismology convention, matching the
-	``s_{ij}`` sliders in the widget below): a positive normal stress pulls the plane apart, a
-	negative one compresses it. The **Mohr diagram** panel of the widget flips this and plots
+	``s_{ij}`` sliders in the experiment): a positive normal stress pulls the plane apart, a
+	negative one compresses it. The **Mohr diagram** panel of the experiment flips this and plots
 	**compression as positive** instead — the standard convention in rock and fault
 	mechanics, where the interesting physics (friction, failure) only happens under
 	compression. Watch for the flipped sign once here and the rest follows.
 
-Drag the white handle on the sphere below to choose a plane; the widget decomposes the
+In the experiment, drag the white handle on the sphere to choose a plane; it decomposes the
 traction on that plane live, plots it on a classical **Mohr circle for stress**, and overlays
 a **Mohr-Coulomb failure criterion** with an adjustable **pore pressure** — the mechanism
 behind injection-induced seismicity, where pumping fluid into the ground can trigger an
@@ -98,7 +122,7 @@ that matter for fault mechanics:
 
 ``\sigma_n`` (a scalar) is the **normal stress** — positive means the plane is being pulled
 apart, negative means squeezed shut. ``\boldsymbol\tau`` (a vector, tangent to the plane) is
-the **shear traction** — the part that actually drives slip. The widget above computes
+the **shear traction** — the part that actually drives slip. The experiment computes
 exactly these two quantities live, for whichever plane you're currently dragging: the red/blue
 arrow is ``\sigma_n\mathbf{n}``, the orange arrow is ``\boldsymbol\tau``.
 """
@@ -112,11 +136,11 @@ Because ``\sigma`` is symmetric, it has three real eigenvalues
 eigenvectors, the **principal axes**. On a plane oriented exactly along a principal axis, the
 shear traction vanishes identically: the traction there is *purely* normal, equal to the
 corresponding eigenvalue. Every other orientation mixes some shear in. This is exactly what
-the red/blue triad drawn on the sphere in the widget shows (red = tensile, blue = compressive
+the red/blue triad drawn on the sphere in the experiment shows (red = tensile, blue = compressive
 principal stress) — the three directions where dragging the handle would make the orange
 shear arrow disappear entirely.
 
-As a worked numeric example (independent of whatever stress state you've dragged the widget
+As a worked numeric example (independent of whatever stress state you've dragged the experiment
 to — this uses the notebook's original default ``\sigma``):
 """
 
@@ -147,7 +171,7 @@ p = \tfrac13\operatorname{tr}(\sigma) = \tfrac13(\sigma_{11}+\sigma_{22}+\sigma_
 
 is the same in every direction — pure confining pressure (negative ``p``) or pure tension
 (positive ``p``) — with **zero shear on any plane at all** (try the "Hydrostatic" preset in
-the widget above and watch the Mohr circles collapse to a single point on the axis).
+the experiment and watch the Mohr circles collapse to a single point on the axis).
 Everything else, ``\sigma' = \sigma - p\,\mathbb{I}``, is the **deviatoric stress**: the part
 that actually has a shape/shear character and is capable of driving failure. This is the same
 split that separates P-wave-like volume change from S-wave-like shape change in the strain
@@ -167,7 +191,7 @@ md"""
 
 Plotting ``(\sigma_n,\tau)`` for *every possible* plane orientation traces out a region
 bounded by three circles built from the principal stresses — the classical **Mohr diagram**
-(right-hand panel of the widget, plotted with **compression positive**, the rock-mechanics
+(right-hand panel of the experiment, plotted with **compression positive**, the rock-mechanics
 convention). The outer circle spans the two extreme principal stresses,
 ``C=\tfrac12(\sigma_1+\sigma_3)``, ``R=\tfrac12(\sigma_1-\sigma_3)``; two smaller circles
 between each adjacent pair of principal stresses sit inside it. Every physically realizable
@@ -184,7 +208,7 @@ approximately in the shaded region): writing the normal in the principal-axis fr
 \tau = \sqrt{\sum_i (\sigma_i n_i)^2 - \sigma_n^2}.
 ```
 
-The middle panel of the widget makes this same statement visually rather than
+The middle panel of the experiment makes this same statement visually rather than
 statistically: instead of one dragged point, it pixelates the whole sphere of possible
 normals and colors *every* orientation by its own ``\sigma_n`` or ``\tau`` — the exact
 field the Mohr diagram is summarizing into a shaded region. Two boundary facts fall out of
@@ -207,7 +231,7 @@ being clamped shut — the **Mohr-Coulomb failure criterion**,
 
 with friction coefficient ``\mu`` (≈0.6–0.85 for most rock — Byerlee's law) and cohesion
 ``c_0``. Drawn on the Mohr diagram, it's the red line: any plane whose point sits *above* the
-line is unstable — the widget's stability verdict flags exactly this. Because the line only
+line is unstable — the experiment's stability verdict flags exactly this. Because the line only
 depends on the *orientation-independent* ``\mu,c_0`` while the circle depends on the full
 stress state, whether *any* plane fails at all is really a question about the **big circle**:
 if it's small and low enough to clear the line everywhere, the rock is stable on every
@@ -220,7 +244,7 @@ at failure. The "Critically stressed" preset is built to sit almost exactly on t
 	fluid pressure ``P_p`` pushes back against the confining stress, reducing how hard a fault
 	is actually clamped shut *without changing the tectonic stress* ``\sigma`` *at all*.
 	Pumping fluid underground (wastewater injection, geothermal stimulation, hydraulic
-	fracturing) raises ``P_p`` directly. On the widget's Mohr diagram this shows up as a
+	fracturing) raises ``P_p`` directly. On the experiment's Mohr diagram this shows up as a
 	**leftward shift** of the point at fixed ``\tau`` — drag the ``P_p`` slider on an
 	already-close-to-failure state (try "Critically stressed") and watch the point cross the
 	line with *zero* change to the stress tensor itself. This is the accepted mechanism behind
@@ -229,11 +253,15 @@ at failure. The "Critically stressed" preset is built to sit almost exactly on t
 
 # ╔═╡ 6f33c7ed-e8a8-440d-a771-84789ee1f397
 md"""
-#### Appendix
+## Appendix
+The experiment is a self-contained browser widget, and the worked example above uses `LinearAlgebra` directly. The packages are loaded below, followed by the widget's definition.
 """
 
 # ╔═╡ b1a10001-0000-4000-8000-00000000000c
-md"### The Interactive Widget"
+md"""
+### The Interactive Widget
+`StressTensorInput` holds the six independent stress components, the plane normal ``\mathbf{n}``, the friction coefficient ``\mu``, the cohesion ``c_0`` and the pore pressure ``P_p``. Its script evaluates exactly the formulas in the narrative: the traction ``\mathbf{t} = \sigma\mathbf{n}``, its normal and shear parts, the principal stresses, the three Mohr circles, and the Mohr–Coulomb verdict with ``\sigma_{n,\mathrm{eff}} = \sigma_n - P_p``. It draws them on the sphere, on the pixelated orientation map and on the Mohr diagram. Nothing downstream reads its value; the computation stays in the browser so that dragging the plane is instant.
+"""
 
 # ╔═╡ b1a10001-0000-4000-8000-00000000000d
 begin
@@ -285,7 +313,7 @@ begin
 
 	function Base.show(io::IO, ::MIME"text/html", w::StressTensorInput)
 		write(io, """
-<div id="stswidget" style="display:flex;flex-direction:column;align-items:center;width:100%;color:#9ca3af">
+<div id="stswidget" class="app-widget" style="display:flex;flex-direction:column;align-items:center;width:100%;color:#9ca3af">
   <style>
     pluto-cell:has(#stswidget){width:min(85vw,1650px)!important;margin-left:calc((100% - min(85vw,1650px))/2)!important}
     #stswidget .sts-title{width:100%;box-sizing:border-box;text-align:center;margin-bottom:10px;background:#0a0f18;border:1px solid #3b5c85;border-radius:6px;padding:10px 14px}
@@ -330,7 +358,7 @@ begin
       #stswidget .sts-col{width:100%;max-width:520px}
     }
   </style>
-  <div class="sts-title">
+  <div class="sts-title app-title">
     <div class="sts-title-desc">Traction on a plane splits exactly into the normal stress clamping a fault shut and the shear stress driving it to slip.</div>
     <div class="sts-title-hint">drag the white handle to set the plane normal n &middot; click-drag a &sigma; value to scrub it (or click and type) &middot; drag empty space to rotate &middot; click a pixel on the middle sphere to jump n there &middot; tune &mu;, c&#8320;, P&#8346; below</div>
   </div>
@@ -1242,6 +1270,7 @@ version = "1.64.0+1"
 
 # ╔═╡ Cell order:
 # ╠═3f1bc2d1-2327-48cc-984a-df09c936da87
+# ╟─dbdf633f-88e3-461c-af05-2b5d4836af18
 # ╟─fd14256d-8c69-4d8a-91b5-924a32479866
 # ╟─b1a10001-0000-4000-8000-00000000000e
 # ╟─b1a10001-0000-4000-8000-000000000001

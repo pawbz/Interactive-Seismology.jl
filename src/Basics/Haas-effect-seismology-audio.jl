@@ -30,6 +30,29 @@ end
 # ╔═╡ 5c5c34cc-b71d-4bdc-a857-8763ae803e8c
 PlutoUI.TableOfContents(include_definitions=true)
 
+# ╔═╡ 9dfcfbe4-f490-4e38-8e97-f48c3a8cfe17
+# App shell: the Expt / Theory / Code / Help frame shared by every notebook, loaded
+# from src/assets/app-shell/. Without that folder (a lone downloaded .jl) this cell just
+# shows the help text and the notebook stays a plain notebook.
+let
+	help = md"""
+	- **Record sentence** captures a short clip from your microphone (only after you click), or **Load audio file**; the built-in test signal works too.
+	- The **Delay** slider sets when the reflected copy arrives after the direct sound.
+	- **Play direct only** plays the clip alone; the other play button adds the delayed copy. The timeline shows both arrivals and their sum.
+
+	**Try this:** step the delay through 5, 20, 40 and 80 ms and note where one sound becomes an echo.
+	"""
+	dir = joinpath(@__DIR__, "..", "assets", "app-shell")
+	if isfile(joinpath(dir, "app-shell.js"))
+		HTML(string(
+			"<style>", read(joinpath(dir, "app-shell.css"), String), "</style>",
+			"<template class=\"app-help\">", repr(MIME"text/html"(), help), "</template>",
+			"<script>", read(joinpath(dir, "app-shell.js"), String), "</script>"))
+	else
+		help
+	end
+end
+
 # ╔═╡ a63f99b1-a70d-4a17-bcdb-91f0ef0b3963
 md"""
 # There is no Haas effect in seismology. Our data are complex.
@@ -47,7 +70,7 @@ Use the sentence:
 
 > “The Earth has many seismic reflections.”
 
-You can record it directly in the notebook, or load any short audio file. Then play it
+In the experiment, you can record it directly, or load any short audio file. Then play it
 with a delayed copy. Start with the built-in voiced test signal if you want to explore
 the timing before recording.
 
@@ -58,7 +81,7 @@ the timing before recording.
 
 # ╔═╡ 7f0c9d2e-3b4a-4a4b-8e7f-1c2d3e4f5a6b
 HTML("""
-<figure id="re-room-earth-sketch" style="margin:18px 0;color:#d1d5db">
+<figure id="re-room-earth-sketch" class="app-theory" style="margin:18px 0;color:#d1d5db">
   <style>
     #re-room-earth-sketch{background:#050505;border:1px solid #2f3744;border-radius:7px;padding:12px;box-sizing:border-box}
     #re-room-earth-sketch .re-sketch-title{color:#f3f4f6;text-align:center;font:700 18px sans-serif;margin:0 0 8px}
@@ -148,6 +171,7 @@ md"""
 ## Appendix
 
 ### The interactive room-echo widget
+`RoomEchoInput` holds the delay between the direct sound and its single reflected copy, and that delay (in milliseconds) is the only value sent back to Julia. It drives the "what students should hear" readout above. Recording, loading and playback happen entirely in the browser with the Web Audio API: the received signal is the clip plus a copy of itself shifted by the chosen delay, drawn on a timeline as the blue direct trace, the red reflected trace and their sum. No audio ever leaves the browser tab.
 """
 
 # ╔═╡ 28ef5c14-eadc-4ff3-996a-006e34c4a33d
@@ -169,7 +193,7 @@ begin
 
     function Base.show(io::IO, ::MIME"text/html", w::RoomEchoInput)
         write(io, """
-<div id="rewidget">
+<div id="rewidget" class="app-widget">
   <style>
     #rewidget{width:100%;box-sizing:border-box;color:#d1d5db;font:14px sans-serif}
     #rewidget .re-title{width:100%;box-sizing:border-box;text-align:center;margin-bottom:10px;
@@ -178,6 +202,8 @@ begin
     #rewidget .re-title-hint{font-size:13px;color:#9ca3af;margin-top:3px}
     #rewidget .re-workspace{background:#000;border:1px solid #374151;border-radius:6px;padding:10px}
     #rewidget canvas{display:block;width:100%;height:auto}
+    /* App shell Expt view: the stage already provides the dark card. */
+    html[data-sa-mode="expt"] #rewidget .re-workspace{border:0;border-radius:12px}
     #rewidget .re-controls{margin-top:8px;display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:8px}
     #rewidget .re-control-group{background:#050505;border:1px solid #2f3744;border-radius:6px;padding:12px}
     #rewidget .re-control-title{color:#f3f4f6;font-size:20px;font-weight:700;margin-bottom:8px}
@@ -201,14 +227,14 @@ begin
     #rewidget .re-presets button.active{border-color:#38bdf8;background:#164e63}
     #rewidget .re-status{min-height:20px;color:#9ca3af;margin-top:10px}
   </style>
-  <div class="re-title">
+  <div class="re-title app-title">
     <div class="re-title-desc">A reflection is a delayed copy of the direct wave.</div>
     <div class="re-title-hint">Record or load a sentence · choose a delay · hear the reflected arrival</div>
   </div>
-  <div class="re-workspace">
+  <div class="re-workspace app-stage">
     <canvas id="re-canvas" width="960" height="300" aria-label="Timeline of direct, reflected, and received sound waveforms"></canvas>
   </div>
-  <div class="re-controls">
+  <div class="re-controls app-controls">
     <section class="re-control-group">
       <div class="re-control-title">Reflection delay</div>
       <label class="re-control-row" for="re-delay"><span>Delay</span>
@@ -487,9 +513,14 @@ begin
   })
 
   resizeCanvas()
-  const resizeObserver = new ResizeObserver(() => { resizeCanvas(); draw() })
+  // Stop only once the widget has left the page: Pluto can resolve `invalidation` for a
+  // bond output while keeping its DOM, which would freeze the canvas size.
+  const resizeObserver = new ResizeObserver(() => {
+    if (!par.isConnected) { resizeObserver.disconnect(); return }
+    resizeCanvas(); draw()
+  })
   resizeObserver.observe(canvas)
-  if (typeof invalidation !== 'undefined') invalidation.then(() => resizeObserver.disconnect())
+
   sync()
   par.value = {delay_ms: Number(delayInput.value)}
 </script>
@@ -507,7 +538,8 @@ end
 
 # ╔═╡ 06fafab8-a76c-4c99-9016-10dc73d8c99c
 begin
-    echo_delay = Int(room_echo["delay_ms"])
+    # The bond is `nothing` until a browser has rendered the widget: use its default.
+    echo_delay = Int((room_echo isa AbstractDict ? room_echo : Base.get(RoomEchoInput()))["delay_ms"])
     hearing_description =
         echo_delay == 0 ? "one sound" :
         echo_delay <= 20 ? "one sound — the copy fuses with the direct arrival" :
@@ -781,6 +813,7 @@ version = "1.64.0+1"
 
 # ╔═╡ Cell order:
 # ╠═5c5c34cc-b71d-4bdc-a857-8763ae803e8c
+# ╟─9dfcfbe4-f490-4e38-8e97-f48c3a8cfe17
 # ╟─a63f99b1-a70d-4a17-bcdb-91f0ef0b3963
 # ╟─6a4cd45d-4e9e-4fd7-8856-22d77bcac1b7
 # ╟─5ef3b597-6e38-4f4d-8428-d4813844e55b

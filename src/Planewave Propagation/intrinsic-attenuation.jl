@@ -31,6 +31,30 @@ end
 # ╔═╡ a9436d89-ad43-4cb8-8619-67c0e26eb686
 TableOfContents()
 
+# ╔═╡ 8a1dc5df-7fec-4106-944b-478f1292deb5
+# App shell: the Expt / Theory / Code / Help frame shared by every notebook, loaded
+# from src/assets/app-shell/. Without that folder (a lone downloaded .jl) this cell just
+# shows the help text and the notebook stays a plain notebook.
+let
+	help = md"""
+	- **Drag** the two receivers along the distance axis; their waveforms and spectral ratio update.
+	- The **model** buttons switch between elastic, Futterman (Q ≫ 1) and Kjartansson (exact) propagation.
+	- **Q**, **c₀** and the source frequency set the medium and the pulse; the spreading exponents set body-wave (1) or surface-wave (½) spreading at each receiver.
+	- The spectral-ratio panel fits a line to ln|U₂/U₁| and reports the recovered Q next to the true one.
+
+	**Try this:** give the two receivers different spreading exponents: the intercept moves, but the recovered Q stays put.
+	"""
+	dir = joinpath(@__DIR__, "..", "assets", "app-shell")
+	if isfile(joinpath(dir, "app-shell.js"))
+		HTML(string(
+			"<style>", read(joinpath(dir, "app-shell.css"), String), "</style>",
+			"<template class=\"app-help\">", repr(MIME"text/html"(), help), "</template>",
+			"<script>", read(joinpath(dir, "app-shell.js"), String), "</script>"))
+	else
+		help
+	end
+end
+
 # ╔═╡ fbbee9cc-493d-11ed-00fd-b1e3bddbb3fa
 md"""
 # Intrinsic Attenuation
@@ -69,7 +93,7 @@ where the second form -- in ordinary frequency ``f=\omega/2\pi`` -- introduces *
 !!! warning "This is an approximation, not the whole story"
     This is **Futterman's (1962) linear, "nearly constant ``Q``" formula**, and it is only
     the leading-order behavior as ``Q\to\infty`` of an exact model derived below. The
-    widget's `Futterman (Q≫1)` button uses exactly this formula; `Kjartansson (exact)`
+    experiment's `Futterman (Q≫1)` button uses exactly this formula; `Kjartansson (exact)`
     uses the exact one, valid for any ``Q``.
 """
 
@@ -88,7 +112,7 @@ pairing is a direct consequence of the Kramers-Kronig relations that any causal,
 response function must obey -- attenuation and dispersion are two faces of one physical
 mechanism, never independent knobs.
 
-The Dispersion & Attenuation panel above plots exactly this: the phase velocity
+The experiment's Dispersion & Attenuation panel plots exactly this: the phase velocity
 ``c(\omega)`` rises (very slightly, since real ``Q\gg1``) with frequency, for both the
 approximate and exact models derived below.
 """
@@ -135,8 +159,8 @@ spreading** -- energy conservation spreading a fixed total energy over a growing
 wavefront, with no loss to heat -- and the **intrinsic attenuation** derived above, true
 anelastic energy loss. For a point source, a body wave's spherical wavefront grows as
 ``x^2`` in area, so amplitude falls as ``x^{-1}``; a surface wave's cylindrical wavefront
-grows only as ``x``, so its amplitude falls more slowly, as ``x^{-1/2}``. The Distance
-Axis panel above overlays this combined envelope,
+grows only as ``x``, so its amplitude falls more slowly, as ``x^{-1/2}``. The experiment's Distance
+Axis panel overlays this combined envelope,
 ```math
 A(x) \propto x^{-n}\,e^{-\alpha(\omega)x}, \qquad n=1 \text{ (body wave)},\ \ n=\tfrac12 \text{ (surface wave)},
 ```
@@ -154,8 +178,8 @@ md"""
 
 Everything above described *forward* modeling: given ``Q``, predict the waveform. In
 practice a seismologist has the opposite problem -- given two recorded waveforms, recover
-``Q``. The classic technique is the **spectral ratio method**, and the Waveforms &
-Spectral Ratio panel above builds it live from the two draggable receivers.
+``Q``. The classic technique is the **spectral ratio method**, and the experiment's Waveforms &
+Spectral Ratio panel builds it live from the two draggable receivers.
 
 Take two receivers at distances ``x_1,x_2`` in the same medium, and Fourier-transform
 each recorded pulse to get complex spectra ``U_1(f)``, ``U_2(f)``. Using the amplitude law
@@ -201,10 +225,16 @@ md"""
 """
 
 # ╔═╡ 02e113c5-b3b6-4e9e-9670-c937af00d7c2
-md"## Appendix"
+md"""
+## Appendix
+Every curve in the experiment is computed by the Julia functions below, grouped as in the narrative: the two constant-``Q`` models, geometric spreading, plane-wave synthesis of the two recorded pulses, and the spectral-ratio fit. Each group ends with a numerical self-check.
+"""
 
 # ╔═╡ d9b9ee19-f549-4c4f-8b79-6a360bfd5f2d
-md"### Reference Medium & Grids"
+md"""
+### Reference Medium & Grids
+`OMEGA0` is the reference angular frequency (10 Hz) at which ``c = c_0``. `source_spectrum(tgrid, fpeak)` returns the real-FFT frequency grid and a Gaussian-shaped source spectrum peaked at `fpeak`, used for both receivers (with the zero-frequency bin removed).
+"""
 
 # ╔═╡ bdf54ecf-72c8-4741-b655-142fc23be647
 begin
@@ -227,7 +257,10 @@ begin
 end
 
 # ╔═╡ 189722e0-e9ea-42e8-ad75-684e6da5ad04
-md"### Kjartansson's Exact Constant-Q Model"
+md"""
+### Kjartansson's Exact Constant-Q Model
+`kjartansson_gamma(Q)` is ``\gamma = \arctan(1/Q)/\pi``. `kjartansson_phase_velocity` and `kjartansson_attenuation_coeff` are the closed forms ``c(\omega)`` and ``\alpha(\omega)`` from the narrative. The check confirms ``1/Q = \tan(\pi\gamma)`` and that ``\gamma``, which alone sets the loss angle ``\pi\gamma``, does not depend on ``\omega``.
+"""
 
 # ╔═╡ e9e188a6-ec01-4a4f-9168-cf185b14cb05
 begin
@@ -293,7 +326,10 @@ let
 end
 
 # ╔═╡ 14a5545d-858e-407b-a193-0e5abc9f68b1
-md"### Futterman's Nearly-Constant-Q Approximation (Q≫1)"
+md"""
+### Futterman's Nearly-Constant-Q Approximation (Q≫1)
+`futterman_phase_velocity` and `futterman_attenuation_coeff` give the linearized dispersion and the decay rate ``\omega/(2cQ)``. The check sweeps ``Q \ge 50`` and shows the gap to Kjartansson's exact model shrinking monotonically. Below that, the two small-parameter approximations inside Futterman's formula can partly cancel, so the convergence need not be monotonic.
+"""
 
 # ╔═╡ 22bda95b-a685-46ad-8284-075bafd27581
 begin
@@ -368,7 +404,10 @@ let
 end
 
 # ╔═╡ 6bfbe8d3-3ef0-4a82-8266-59794fd6118a
-md"### Geometric Spreading"
+md"""
+### Geometric Spreading
+`spreading_factor(x, n)` is the frequency-independent amplitude factor ``x^{-n}``, with ``n = 1`` for body waves and ``n = 1/2`` for surface waves.
+"""
 
 # ╔═╡ fd66f5ad-1b8e-4b0e-9377-32d8f15e9ac2
 """
@@ -381,7 +420,10 @@ waves (spherical spreading of a point-source wavefront), `n=0.5` for surface wav
 spreading_factor(x, n) = x^(-n)
 
 # ╔═╡ 82ff57b2-3824-42db-9d55-a3c7fc377131
-md"### Plane-Wave Synthesis"
+md"""
+### Plane-Wave Synthesis
+`attenuation_response(freqgrid, x, Q, ω0, c0, model)` is the frequency response of a path of length ``x``: phase delay from ``c(\omega)`` and amplitude decay from ``\alpha(\omega)``, for the elastic, Futterman or Kjartansson model. `receiver_spectrum` multiplies the source spectrum by it and by the spreading factor, and `synthesize_pulse` inverts back to the time domain with `irfft`. The check confirms that the elastic model returns the source pulse unchanged apart from spreading, peaking at ``t = 0`` on the notebook's reduced time axis.
+"""
 
 # ╔═╡ 0ec1c415-c990-46eb-bfdf-17d062442f90
 begin
@@ -476,7 +518,10 @@ let
 end
 
 # ╔═╡ 8271e3a5-308d-42b4-b636-1a59f18361f6
-md"### The Spectral Ratio Method"
+md"""
+### The Spectral Ratio Method
+`log_spectral_ratio(U1, U2)` is ``\ln|U_2/U_1|``, `linear_fit` fits a straight line to it over the usable frequency band, and `estimate_Q(slope, x1, x2, c0)` converts the slope into ``\widehat Q``. The check confirms that changing the spreading exponents at the two receivers moves only the intercept and leaves ``\widehat Q`` unchanged.
+"""
 
 # ╔═╡ 9c1c2062-c62a-48dd-9d0f-651d848afccd
 begin
@@ -561,7 +606,10 @@ let
 end
 
 # ╔═╡ 097e5d11-4857-4fd3-a587-3d72d2567180
-md"### The Interactive Widget"
+md"""
+### The Interactive Widget
+`AttenuationInput` sends the model, ``Q``, ``c_0``, the source peak frequency, the two receiver distances and their spreading exponents back to Julia. The last cell of the notebook computes the dispersion curves, the distance envelopes, the two pulses, the spectral ratio and its fit, and returns them as an `AttenuationPush`, whose `show` method dispatches them to the widget in one event.
+"""
 
 # ╔═╡ f3674d89-497d-43c3-9741-8a1d8e3fc860
 begin
@@ -601,7 +649,7 @@ begin
     """
     function Base.show(io::IO, ::MIME"text/html", w::AttenuationInput)
         write(io, """
-        <div id="iawidget">
+        <div id="iawidget" class="app-widget">
         <style>
         #iawidget{font-family:sans-serif;color:#e5e7eb;width:100%;box-sizing:border-box}
         #iawidget .ia-title{width:100%;box-sizing:border-box;text-align:center;margin-bottom:10px;
@@ -627,7 +675,7 @@ begin
         #iawidget button:hover{background:#767676}
         </style>
 
-        <div class="ia-title">
+        <div class="ia-title app-title">
           <div class="ia-title-desc">Two receivers, one source -- measure Q the way a seismologist actually does.</div>
           <div class="ia-title-hint">drag either receiver (triangle) along the Distance Axis &middot; pick a dispersion model, Q, c&#8320;, and source frequency below &middot; the Waveforms panel's slope-fitted Q&#770; is read straight off the spectral ratio, not handed to you</div>
         </div>
@@ -1082,14 +1130,16 @@ end
 
 # ╔═╡ 7c9e696f-251b-4fe0-a09e-e777844101a2
 let
-    model = String(ia["model"])
-    Q = Float64(ia["Q"])
-    c0 = Float64(ia["c0"])
-    fp = Float64(ia["fp"])
-    x1 = Float64(ia["x1"])
-    x2 = Float64(ia["x2"])
-    n1 = Float64(ia["n1"])
-    n2 = Float64(ia["n2"])
+    # The bond is `nothing` until a browser has rendered the widget: use its defaults.
+    ia_safe = ia isa AbstractDict ? ia : Base.get(AttenuationInput())
+    model = String(ia_safe["model"])
+    Q = Float64(ia_safe["Q"])
+    c0 = Float64(ia_safe["c0"])
+    fp = Float64(ia_safe["fp"])
+    x1 = Float64(ia_safe["x1"])
+    x2 = Float64(ia_safe["x2"])
+    n1 = Float64(ia_safe["n1"])
+    n2 = Float64(ia_safe["n2"])
 
     tgrid = range(-3.0, 3.0, length=1024)
     freqgrid, Fsource = source_spectrum(tgrid, fp)
@@ -2361,6 +2411,7 @@ version = "17.7.0+0"
 # ╔═╡ Cell order:
 # ╟─74a3e9e3-ed09-4582-91fc-47944d5744db
 # ╠═a9436d89-ad43-4cb8-8619-67c0e26eb686
+# ╟─8a1dc5df-7fec-4106-944b-478f1292deb5
 # ╟─fbbee9cc-493d-11ed-00fd-b1e3bddbb3fa
 # ╟─0f94962d-5f79-4a45-ba8d-af7cb46a6ac6
 # ╟─d60cf031-d375-4da6-ace3-abd5043d6364

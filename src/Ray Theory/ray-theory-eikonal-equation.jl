@@ -33,6 +33,29 @@ end
 # ╔═╡ ef66e643-bc46-4a44-bdb9-d641a26f4e0e
 TableOfContents()
 
+# ╔═╡ 48ed4152-7f0d-4f8b-a64d-7f9113d37ea4
+# App shell: the Expt / Theory / Code / Help frame shared by every notebook, loaded
+# from src/assets/app-shell/. Without that folder (a lone downloaded .jl) this cell just
+# shows the help text and the notebook stays a plain notebook.
+let
+	help = md"""
+	- **Paint** velocity perturbations directly on the model (faster or slower); the rays and the first-arrival wavefront respond.
+	- Choose a **background model** (homogeneous, gradient, layered, waveguide) and adjust its parameters.
+	- **Drag** the source; set the ray fan's aim and number of rays; the travel-time check compares ray-traced and Eikonal arrival times at the surface.
+
+	**Try this:** paint a slow blob in the ray fan's path and watch the rays bend around it while the wavefront develops a delay.
+	"""
+	dir = joinpath(@__DIR__, "..", "assets", "app-shell")
+	if isfile(joinpath(dir, "app-shell.js"))
+		HTML(string(
+			"<style>", read(joinpath(dir, "app-shell.css"), String), "</style>",
+			"<template class=\"app-help\">", repr(MIME"text/html"(), help), "</template>",
+			"<script>", read(joinpath(dir, "app-shell.js"), String), "</script>"))
+	else
+		help
+	end
+end
+
 # ╔═╡ 864f274b-4f28-4cf9-83f7-69a1f03ca870
 md"""
 # Ray Theory and The Eikonal Equation
@@ -41,7 +64,7 @@ Seismic ray theory is the high-frequency limit of wave propagation: when a wave'
 much shorter than the scale over which the medium changes, energy travels along well-defined
 paths — rays — that bend smoothly through velocity heterogeneity exactly the way light bends
 through a lens. This notebook derives the Eikonal equation that governs those rays from the
-elastic wave equation, then hands you a widget to see it in action: **paint velocity
+elastic wave equation, then hands you an experiment to see it in action: **paint velocity
 perturbations directly onto a background Earth model** and watch the rays bend and the
 first-arrival wavefront sweep through whatever structure you've drawn.
 
@@ -98,7 +121,7 @@ md"""
 
 The surfaces `` T(x,y,z) = \text{const.} `` are **wavefronts**. In a homogeneous medium they are
 spheres; in a heterogeneous one they take whatever shape the velocity structure forces on them —
-exactly what the widget's animated sweep shows.
+exactly what the experiment's animated sweep shows.
 
 **Rays** are lines perpendicular to the wavefronts, i.e. parallel to `` \nabla T(x,y,z) ``. If
 `` \hat s `` is the unit vector along `` \nabla T ``, then
@@ -137,7 +160,7 @@ This is the fundamental ray-tracing equation: the slowness vector bends toward r
 *higher* slowness (lower velocity) at a rate set by the local slowness gradient — exactly how
 light bends toward the normal when entering a denser medium. This notebook solves equations (2)
 and (3) numerically, stepping along the ray, to trace ray paths through the 2D heterogeneous
-medium you paint below.
+medium you paint in the experiment.
 
 !!! tip "What equation (3) tells us"
 	`` d\vec s/dl `` determines how the horizontal and vertical components of the slowness vector
@@ -185,16 +208,19 @@ to recover the ray equations derived above.
 # ╔═╡ 56cd6049-2266-4c7a-9e5f-1749f562034a
 md"""
 ## Appendix
+Everything the experiment draws is computed below: the background velocity models, the painted grid and its slowness gradients, the ray tracer for equations (2) and (3), the fast-sweeping Eikonal solver for the first-arrival wavefront, and the push to the widget.
 """
 
 # ╔═╡ 322e72d8-73aa-4386-af67-547ff74eec5e
 md"""
 ### Background Velocity Models
+`velocity_homogeneous`, `velocity_gradient`, `velocity_layered` and `velocity_waveguide` give the four background models the experiment offers: constant velocity, a linear increase with depth, a layer over a faster half-space, and a gradient with a low-velocity zone that traps rays.
 """
 
 # ╔═╡ 075b648c-e275-44f4-94ea-73a8958f15dd
 md"""
 ### Grid & Painted Perturbation
+`XMAX` and `ZMAX` fix the 500 km × 150 km domain shared with the widget. `build_velocity_grid` adds the painted percentage perturbation to the chosen background, and `slowness_grid_and_gradients` turns the result into slowness and its spatial derivatives, interpolated so the ray tracer can evaluate ``\nabla s`` anywhere.
 """
 
 # ╔═╡ 01e1393f-5b2a-423b-8a6a-0b8163cb1a1f
@@ -301,6 +327,7 @@ end
 # ╔═╡ f862769d-7fac-4408-80fd-aa3caf90c940
 md"""
 ### Ray Tracing
+`get_raypaths` steps equations (2) and (3): it advances each ray by ``dl`` along ``\hat s`` and updates ``\vec s`` by ``\nabla s\,dl``, accumulating the travel time ``\int s\,dl`` until the ray leaves the domain.
 """
 
 # ╔═╡ e8d8f418-7d68-4004-b294-b48fe82c7da9
@@ -398,6 +425,7 @@ end
 # ╔═╡ a9d965b7-0e29-4552-84e9-46b3bb8ace89
 md"""
 ### Eikonal Fast-Sweep
+`ray_surface_return` records where a ray comes back to the surface and when, the input to the experiment's travel-time check. `first_arrival_traveltimes` solves the Eikonal equation directly on the grid with Eikonal.jl's fast-sweeping method. It gives the first-arrival time everywhere at once, the wavefront the experiment animates, independently of the rays.
 """
 
 # ╔═╡ 6260a705-c8a8-4805-bd87-382dbc8a1d22
@@ -427,6 +455,7 @@ end
 # ╔═╡ 450f8df0-4270-49f0-a910-c96c6bd89882
 md"""
 ### Field Sampling for the Widget
+`ray_fan` shoots a fan of rays from the source between two take-off angles. `ray_fan_paths` and `ray_fan_surface_returns` package their paths and surface returns for the browser.
 """
 
 # ╔═╡ 94ad2aee-758d-4aca-8020-006ed515ebf9
@@ -476,6 +505,7 @@ end
 # ╔═╡ 35124aad-70e8-42bf-a985-ebcb23d39a67
 md"""
 ### The Interactive Widget
+`RayPaintInput` sends the background model and its parameters, the painted perturbation grid, the source position, and the ray-fan aim and count back to Julia. The cells after `RayPush` rebuild the grid, trace the fan, solve the Eikonal equation and push all three to the widget. Painting, the animated sweep and the travel-time check panel are drawn in the browser from those results.
 """
 
 # ╔═╡ eeaeaec0-75f0-4c57-9ce8-394d90b0ec91
@@ -505,7 +535,7 @@ begin
 
     function Base.show(io::IO, ::MIME"text/html", w::RayPaintInput)
         write(io, """
-        <div id="raywidget">
+        <div id="raywidget" class="app-widget">
         <style>
         pluto-cell:has(#raywidget) { width: min(80vw, 1500px) !important;
           margin-left: calc((100% - min(80vw, 1500px)) / 2) !important; }
@@ -537,7 +567,7 @@ begin
         #raywidget .ray-cbar{cursor:default;display:block;margin:0 auto}
         </style>
 
-        <div class="ray-title">
+        <div class="ray-title app-title">
           <div class="ray-title-desc">Paint velocity perturbations and watch how rays and wavefronts bend through them.</div>
           <div class="ray-title-hint">drag on the map to paint &middot; drag the star to move the source &middot; drag its spoke to aim and shoot a ray &middot; press Play to sweep the wavefront</div>
         </div>
@@ -2731,6 +2761,7 @@ uuid = "23338594-aafe-5451-b93e-139f81909106"
 
 # ╔═╡ Cell order:
 # ╠═ef66e643-bc46-4a44-bdb9-d641a26f4e0e
+# ╟─48ed4152-7f0d-4f8b-a64d-7f9113d37ea4
 # ╟─864f274b-4f28-4cf9-83f7-69a1f03ca870
 # ╟─e6cd1e51-7666-49e9-8d8c-523abf6fe6c9
 # ╟─cddc22f1-85fc-489d-85d3-d406d795e5a3

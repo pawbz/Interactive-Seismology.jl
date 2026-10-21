@@ -37,10 +37,33 @@ end
 # ╔═╡ 025b2827-ed43-45f5-a981-56dd599c72cb
 PlutoUI.TableOfContents(include_definitions=true)
 
+# ╔═╡ 23e0840d-fd52-4b9b-990c-1c8a82500694
+# App shell: the Expt / Theory / Code / Help frame shared by every notebook, loaded
+# from src/assets/app-shell/. Without that folder (a lone downloaded .jl) this cell just
+# shows the help text and the notebook stays a plain notebook.
+let
+	help = md"""
+	- **Drag** the red source (depth) or the blue receiver (distance) on the Earth cross-section; every ray connecting them is redrawn.
+	- **Hover** a ray to name the phase; **double-click** one to isolate it. Zoom, and drag empty space to pan.
+	- **Interstation pair** mode adds a second receiver and ranks phase pairs by how stationary their differential travel time is.
+
+	**Try this:** move the receiver beyond 100° and watch direct P disappear into the core shadow zone.
+	"""
+	dir = joinpath(@__DIR__, "..", "assets", "app-shell")
+	if isfile(joinpath(dir, "app-shell.js"))
+		HTML(string(
+			"<style>", read(joinpath(dir, "app-shell.css"), String), "</style>",
+			"<template class=\"app-help\">", repr(MIME"text/html"(), help), "</template>",
+			"<script>", read(joinpath(dir, "app-shell.js"), String), "</script>"))
+	else
+		help
+	end
+end
+
 # ╔═╡ 6b3bba88-b693-4e39-8866-8166dfc55c30
 md"""
 # Global Bodywave Arrivals
-This notebook interactively visualizes global seismic bodywave arrivals using the TauP toolkit via Python in Julia. Users can select source depth and receiver distance to explore ray paths, phases, and travel times for various seismic waves.
+An earthquake is recorded around the globe not as one arrival but as a whole family of them: waves that travel through the mantle, bounce off the surface or the core, convert between P and S, or cross the liquid outer core. This notebook draws every one of these ray paths through a standard spherically symmetric Earth (iasp91), computed with the TauP toolkit, for any source depth and receiver distance you choose.
 
 
 ##### [Interactive Seismology Notebooks](https://pawbz.github.io/Interactive-Seismology.jl/)
@@ -54,7 +77,7 @@ Indian Institute of Science, Bengaluru, India
 md"""
 ## Two receivers, one earthquake: when does the interstation arrival stack?
 
-Switch the widget above to **Interstation pair** mode to explore a different question:
+Switch the experiment to **Interstation pair** mode to explore a different question:
 when does cross-correlating what two receivers record from the same earthquake
 eventually produce a clean, repeatable signal once you average over many earthquakes?
 
@@ -114,7 +137,7 @@ begin
 
     function Base.show(io::IO, ::MIME"text/html", w::RayGeometryInput)
         write(io, """
-<div id="rgwidget" style="display:flex;flex-direction:column;align-items:center;width:100%;color:#9ca3af">
+<div id="rgwidget" class="app-widget" style="display:flex;flex-direction:column;align-items:center;width:100%;color:#9ca3af">
   <style>
     pluto-cell:has(#rgwidget) {
       width: min(80vw, 900px) !important;
@@ -133,7 +156,7 @@ begin
       padding: 6px 12px; font-size: 14px; cursor: pointer; }
     #rgwidget button.active { background: #2563eb; border-color: #60a5fa; }
   </style>
-  <div class="rg-title">
+  <div class="rg-title app-title">
     <div class="rg-title-desc" id="rgtitledesc">Where the earthquake and receiver sit determines which seismic phases connect them, and how fast each one travels.</div>
     <div class="rg-title-hint" id="rgtitlehint">drag the red source or the blue receiver &middot; zoom and drag empty space to pan &middot; double-click a ray to isolate it</div>
   </div>
@@ -856,8 +879,8 @@ end
 # ╔═╡ e0c1ab0d-32c5-47b4-9d89-e2e51c2fe0dd
 begin
     geometry = (
-        receiver_distance=Float64(arrival_controls["receiver_distance"]),
-        source_depth=Float64(arrival_controls["source_depth"]),
+        receiver_distance=Float64(arrival_controls_safe["receiver_distance"]),
+        source_depth=Float64(arrival_controls_safe["source_depth"]),
     )
 end
 
@@ -867,14 +890,19 @@ end
 # mode's TauP calls -- Pluto's own reactivity does the work, no manual mode branching
 # needed at the cell level.
 pairgeom = (
-    mode=String(arrival_controls["mode"]),
-    receiverB_distance=Float64(arrival_controls["receiverB_distance"]),
-    source_theta=Float64(arrival_controls["source_theta"]),
-    source_depth=Float64(arrival_controls["source_depth"]),
+    mode=String(arrival_controls_safe["mode"]),
+    receiverB_distance=Float64(arrival_controls_safe["receiverB_distance"]),
+    source_theta=Float64(arrival_controls_safe["source_theta"]),
+    source_depth=Float64(arrival_controls_safe["source_depth"]),
 )
 
 # ╔═╡ 9b0b4e7e-fd8f-4573-af80-ed76ff2848f5
-md"## Appendix"
+md"""
+## Appendix
+TauP (ObsPy's `obspy.taup`) runs through PythonCall in a managed Python environment. `model` is the iasp91 Earth model, and `arrivals` holds every ray path for the experiment's source depth and receiver distance.
+
+`fold_distance` and `direction_sign` express distances and directions on the shared Earth circle. `single_travel_time` and `phase_time_dict` return travel times without path geometry. `find_stationary_phase_combos` searches every pair of phases for a jointly stationary differential travel time. `mirrored_arrival_segments` splits each path into P and S legs for drawing. The two push cells send the paths (single-receiver mode) or the ranked phase pairs (interstation mode) to the widget.
+"""
 
 # ╔═╡ dd4cb9d8-8d6e-4ea8-b6bf-545631fecff8
 taup = pyimport("obspy.taup")
@@ -1232,6 +1260,25 @@ md"""
 
 
 
+
+# ╔═╡ a86074bd-bec2-401f-b3e8-4186fa9ba920
+# The bond is `nothing` until a browser has rendered the widget: use its defaults.
+arrival_controls_safe = arrival_controls isa AbstractDict ? arrival_controls : Base.get(RayGeometryInput())
+
+# ╔═╡ f6ab4553-deaa-4509-bbb4-ad7ab2914351
+md"""
+## Reading the ray paths
+
+In a spherically symmetric Earth every ray keeps a constant **ray parameter**
+
+```math
+p = \frac{r\sin i}{v(r)},
+```
+
+where ``r`` is the radius, ``i`` the angle from the vertical and ``v`` the local wave speed. As a ray dives into faster rock, ``\sin i`` must grow, so the ray bends back up toward the surface. The deepest point, where ``i = 90°``, is set by ``p``; changing ``p`` changes both the distance a ray lands at and its travel time, and ``dT/d\Delta = p``.
+
+Phase names spell out the path leg by leg: **P** and **S** in the mantle, **K** for P in the liquid outer core, **I** and **J** for P and S in the inner core, **c** and **i** for reflections at the core-mantle and inner-core boundaries, and a repeated letter (PP, SS) for a surface bounce. Legs drawn as wiggles travel as S, smooth legs as P. Some distance ranges receive no direct P at all: the outer core bends P sharply, leaving the **shadow zone** beyond about 100°, where only diffracted (Pdiff) and core (PKP) phases arrive.
+"""
 
 # ╔═╡ 00000000-0000-0000-0000-000000000001
 PLUTO_PROJECT_TOML_CONTENTS = """
@@ -1709,10 +1756,13 @@ uuid = "23338594-aafe-5451-b93e-139f81909106"
 
 # ╔═╡ Cell order:
 # ╠═025b2827-ed43-45f5-a981-56dd599c72cb
+# ╟─23e0840d-fd52-4b9b-990c-1c8a82500694
 # ╟─6b3bba88-b693-4e39-8866-8166dfc55c30
 # ╟─0426c6fd-4bb8-413f-b552-0112434d907c
+# ╟─a86074bd-bec2-401f-b3e8-4186fa9ba920
 # ╠═e0c1ab0d-32c5-47b4-9d89-e2e51c2fe0dd
 # ╠═93523ef3-a432-4149-9625-5df24d594a3b
+# ╟─f6ab4553-deaa-4509-bbb4-ad7ab2914351
 # ╟─7818c947-9bef-4399-9827-7e4a81a50962
 # ╠═8967b290-ec9f-4f8d-bca7-91d2c8c8ff18
 # ╟─9b0b4e7e-fd8f-4573-af80-ed76ff2848f5

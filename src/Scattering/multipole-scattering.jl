@@ -31,6 +31,29 @@ end
 # ╔═╡ fcf7c3ea-a7af-4eda-b77a-cd797302aa60
 TableOfContents()
 
+# ╔═╡ 7f010414-2fa6-416a-87c6-0f229483d5fd
+# App shell: the Expt / Theory / Code / Help frame shared by every notebook, loaded
+# from src/assets/app-shell/. Without that folder (a lone downloaded .jl) this cell just
+# shows the help text and the notebook stays a plain notebook.
+let
+	help = md"""
+	- Two experiments: switch between **Single-cylinder multipoles** and **Scattering regime map** in the rail.
+	- **Multipoles:** drag the circle to change ka; watch the scattered pattern go from broad (Rayleigh) to forward-peaked (geometric optics) and σ(ka) follow.
+	- **Regime map:** set the scatterer radius and number density; the D = 1 curve moves on the ka–kL diagram, separating single from multiple scattering.
+
+	**Try this:** on the regime map, raise the number density and watch the multiple-scattering region grow.
+	"""
+	dir = joinpath(@__DIR__, "..", "assets", "app-shell")
+	if isfile(joinpath(dir, "app-shell.js"))
+		HTML(string(
+			"<style>", read(joinpath(dir, "app-shell.css"), String), "</style>",
+			"<template class=\"app-help\">", repr(MIME"text/html"(), help), "</template>",
+			"<script>", read(joinpath(dir, "app-shell.js"), String), "</script>"))
+	else
+		help
+	end
+end
+
 # ╔═╡ 67f3ae02-dc84-46ef-b527-6a7ceab9ed82
 md"""
 # Multipole Scattering and the ka–kL Diagram
@@ -235,11 +258,13 @@ multipole physics reproduces the qualitative shape of the textbook ka–kL diagr
 # ╔═╡ 7e1f4e2e-7ed9-4921-b750-988da8bf2ed7
 md"""
 ## Appendix
+The single-cylinder multipole solution with its self-checks, the mean-free-path and ``D = 1`` boundary functions, and the two widgets.
 """
 
 # ╔═╡ 9bc68957-8895-4913-b6a9-c42de31d952a
 md"""
 ## Single-Cylinder Multipole Solution
+`cylinder_scattering_coefficients(ka)` solves the boundary conditions order by order for the interior and scattered coefficients ``a_n`` and ``b_n``, truncating the series at ``n = \lceil ka\rceil + 20``, safely past the orders that contribute. `far_field_amplitude` sums ``f(\theta) = \sum_n b_n e^{in\theta}``, and `scattering_cross_section` integrates ``|f|^2`` over angle.
 """
 
 # ╔═╡ e9baabb0-3e63-402d-9830-4bd71b2ec6d1
@@ -344,6 +369,7 @@ end
 # ╔═╡ da37e582-d104-4ecf-be26-339961f735fc
 md"""
 ### Verifying the Multipole Solution
+The checks confirm the Jacobi–Anger expansion against the exact plane wave, the rigid-cylinder limit of ``b_n`` against its textbook closed form, and the integrated cross-section against the closed form ``(4/k)\sum|b_n|^2``.
 """
 
 # ╔═╡ 3a30e542-560c-47f3-8575-b0896e738cb9
@@ -390,6 +416,7 @@ end
 # ╔═╡ 41f157c2-ec27-4c07-b1f9-4f5b1d49c790
 md"""
 ## Mean Free Path and the D=1 Boundary
+`mean_free_path(ka, a, n_d)` is ``\ell = 1/(n_d\,\sigma)``, and the ``D = 1`` boundary of the regime map is the propagation distance ``kL`` at which a wave has travelled one mean free path.
 """
 
 # ╔═╡ 95084277-fe1a-4b8c-bd70-5c7dac8dd277
@@ -431,6 +458,7 @@ d1_boundary_kL(ka, a, n_d; density_ratio=8.0, velocity_ratio=0.6) =
 # ╔═╡ 20fd089f-d7e8-413f-a6da-98f091787c28
 md"""
 ## Widget A: Single-Cylinder Multipole Explorer
+`MultipoleScatteringInput` sends the cylinder's ``ka`` (dragged as the circle's radius) and the contrast parameters to Julia, which returns the coefficients, the far-field pattern and the cross-section curve.
 """
 
 # ╔═╡ da44d725-33ec-4c52-bf84-1f85ea291e11
@@ -448,7 +476,7 @@ begin
 
     function Base.show(io::IO, ::MIME"text/html", w::MultipoleScatteringInput)
         write(io, """
-        <div id="mswidget">
+        <div id="mswidget" class="app-widget" data-app-name="Single-cylinder multipoles">
         <style>
         pluto-cell:has(#mswidget) { width: min(80vw, 1150px) !important;
           margin-left: calc((100% - min(80vw, 1150px)) / 2) !important; }
@@ -472,7 +500,7 @@ begin
         #mswidget .ms-value{font-size:13px;color:#e5e7eb;text-align:right;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
         </style>
 
-        <div class="ms-title">
+        <div class="ms-title app-title">
           <div class="ms-title-desc">Drag the scatterer at the center of the pattern to resize it (ka) and see the multipole expansion change character.</div>
           <div class="ms-title-hint">small ka &rarr; weak, nearly isotropic (Rayleigh) scattering &middot; large ka &rarr; strong, forward-peaked (near-geometric) scattering</div>
         </div>
@@ -745,6 +773,7 @@ end
 # ╔═╡ 1b9b4706-65af-46b8-b249-68c6417e2b95
 md"""
 ## Widget B: Scattering Regime Map
+`ScatteringRegimeMapInput` sends the scatterer radius ``a`` and number density ``n_d``. Julia recomputes the ``D = 1`` curve on a grid of ``ka``, and the widget places it on the ka–kL diagram with the three regimes shaded.
 """
 
 # ╔═╡ 6750958f-4d00-4671-b70b-a0c7b59c3058
@@ -764,7 +793,7 @@ begin
 
     function Base.show(io::IO, ::MIME"text/html", w::ScatteringRegimeMapInput)
         write(io, """
-        <div id="srmwidget">
+        <div id="srmwidget" class="app-widget" data-app-name="Scattering regime map">
         <style>
         pluto-cell:has(#srmwidget) { width: min(80vw, 1050px) !important;
           margin-left: calc((100% - min(80vw, 1050px)) / 2) !important; }
@@ -792,7 +821,7 @@ begin
         #srmwidget .srm-swatch{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:4px;vertical-align:middle}
         </style>
 
-        <div class="srm-title">
+        <div class="srm-title app-title">
           <div class="srm-title-desc">Drag the point to explore the ka&ndash;kL classification diagram.</div>
           <div class="srm-title-hint">horizontal = kL (propagation distance) &middot; vertical = ka (heterogeneity size), both relative to wavelength</div>
         </div>
@@ -1379,6 +1408,7 @@ uuid = "23338594-aafe-5451-b93e-139f81909106"
 # ╔═╡ Cell order:
 # ╟─eb35764e-ab0a-4b36-a09c-3e7b744685b1
 # ╠═fcf7c3ea-a7af-4eda-b77a-cd797302aa60
+# ╟─7f010414-2fa6-416a-87c6-0f229483d5fd
 # ╟─67f3ae02-dc84-46ef-b527-6a7ceab9ed82
 # ╟─501ec109-c79b-49f0-b3bc-8fee55e8653f
 # ╟─5b0963f4-dfa6-4739-9614-dfe60d386e71

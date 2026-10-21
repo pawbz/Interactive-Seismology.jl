@@ -28,11 +28,34 @@ using PlutoUI
 # ╔═╡ c1000002-0002-4002-8002-000000000002
 PlutoUI.TableOfContents()
 
+# ╔═╡ bdda1759-ad4d-49f6-83d9-524cebf8c0f4
+# App shell: the Expt / Theory / Code / Help frame shared by every notebook, loaded
+# from src/assets/app-shell/. Without that folder (a lone downloaded .jl) this cell just
+# shows the help text and the notebook stays a plain notebook.
+let
+	help = md"""
+	- **Click** the array map to add a receiver; click an existing receiver to remove it. **Reset** and **Clear** restore or empty the array.
+	- **Period**, **velocity** and **azimuth** set the synthetic plane wave (the cyan arrow and marker).
+	- **Polar / Cartesian** switches the beam display; the warm peak is the arrival the array recovers.
+
+	**Try this:** shrink the array to a tight cluster and watch the beam peak widen; then spread it out and watch it sharpen.
+	"""
+	dir = joinpath(@__DIR__, "..", "assets", "app-shell")
+	if isfile(joinpath(dir, "app-shell.js"))
+		HTML(string(
+			"<style>", read(joinpath(dir, "app-shell.css"), String), "</style>",
+			"<template class=\"app-help\">", repr(MIME"text/html"(), help), "</template>",
+			"<script>", read(joinpath(dir, "app-shell.js"), String), "</script>"))
+	else
+		help
+	end
+end
+
 # ╔═╡ c1000003-0003-4003-8003-000000000003
 md"""
 # Array Beamforming
 
-A seismic array does not merely record the same wave many times. Its geometry lets us test many candidate directions and apparent velocities and identify the one that aligns the recordings most coherently. Build an array below by clicking to add receivers; click an existing receiver to remove it.
+A seismic array does not merely record the same wave many times. Its geometry lets us test many candidate directions and apparent velocities and identify the one that aligns the recordings most coherently. In the experiment, build an array by clicking to add receivers; click an existing receiver to remove it.
 
 The synthetic signal is one monochromatic plane wave. The beam image is calculated in Julia from the receiver locations, selected period, velocity, and propagation direction.
 
@@ -58,21 +81,24 @@ Try a compact cluster first, then spread receivers around the map. A larger aper
 md"""
 ## The delay-and-sum test
 
-For a plane wave travelling with horizontal slowness vector `\mathbf{p}_0`, the signal at receiver `i` is delayed by `\mathbf{p}_0 \cdot \mathbf{r}_i`. For a selected angular frequency `\omega`, delay-and-sum beamforming tests a candidate `\mathbf{p}` using
+For a plane wave travelling with horizontal slowness vector ``\mathbf{p}_0``, the signal at receiver ``i`` (position ``\mathbf r_i``) is delayed by ``\mathbf{p}_0 \cdot \mathbf{r}_i``. At an angular frequency ``\omega``, delay-and-sum beamforming tests a candidate ``\mathbf{p}`` by undoing that candidate's delays and stacking:
 
 ```math
 B(\mathbf{p}) = \left|\frac{1}{N}\sum_{i=1}^{N}
 \exp\left[i\omega(\mathbf{p}-\mathbf{p}_0)\cdot\mathbf{r}_i\right]\right|^2.
 ```
 
-When the candidate slowness equals the true slowness, every phase is aligned and `B = 1`. The polar display simply parameterizes each candidate as `\mathbf{p} = \hat{\mathbf{d}}(\mathrm{azimuth})/v_{\mathrm{app}}`, which makes the recovered arrival read directly as a direction and apparent velocity.
+When the candidate slowness equals the true slowness, every phase is aligned and ``B = 1``. The polar display parameterizes each candidate as ``\mathbf{p} = \hat{\mathbf{d}}(\text{azimuth})/v_{\mathrm{app}}``, so the recovered arrival reads directly as a direction and an apparent velocity. ``B`` depends only on ``\mathbf p - \mathbf p_0``: the pattern around the peak, its width and its sidelobes, is the **array response function**, set by the receiver geometry and ``\omega`` alone.
 """
 
 # ╔═╡ c1000009-0009-4009-8009-000000000009
 md"## Appendix"
 
 # ╔═╡ c1000010-0010-4010-8010-000000000010
-md"### Receiver geometry"
+md"""
+### Receiver geometry
+`default_receivers` is the eight-station starting array, and `receiver_points` turns the widget's list of clicked positions into receiver coordinates in km.
+"""
 
 # ╔═╡ c1000011-0011-4011-8011-000000000011
 """
@@ -111,7 +137,10 @@ function receiver_points(value)
 end
 
 # ╔═╡ c1000013-0013-4013-8013-000000000013
-md"### Monochromatic array response"
+md"""
+### Monochromatic array response
+`beamforming_payload` evaluates ``B(\mathbf p)`` on a Cartesian slowness grid and on a polar (azimuth, apparent-velocity) grid for the current receivers, period, velocity and azimuth, and locates the peak in each.
+"""
 
 # ╔═╡ c1000014-0014-4014-8014-000000000014
 """
@@ -187,7 +216,10 @@ function beamforming_payload(
 end
 
 # ╔═╡ c1000015-0015-4015-8015-000000000015
-md"### Verifying the focused beam"
+md"""
+### Verifying the focused beam
+For the default array and a wave at 3.5 km/s from 40°, the polar beam peaks at exactly that velocity and azimuth with ``B = 1``. The Cartesian peak lies within one grid step of the true slowness, with power above 0.98.
+"""
 
 # ╔═╡ c1000016-0016-4016-8016-000000000016
 let
@@ -204,7 +236,10 @@ let
 end
 
 # ╔═╡ c1000017-0017-4017-8017-000000000017
-md"### The interactive widget"
+md"""
+### The interactive widget
+`ArrayBeamformingInput` sends the period, the true velocity and azimuth, and the receiver list back to Julia. The cell after the widget clips them, and the push cell calls `beamforming_payload` and returns both beam images. Switching between the polar and Cartesian views happens in the browser.
+"""
 
 # ╔═╡ c1000018-0018-4018-8018-000000000018
 begin
@@ -231,16 +266,16 @@ begin
     function Base.show(io::IO, ::MIME"text/html", w::ArrayBeamformingInput)
         points = "[" * join(("[" * string(x) * "," * string(y) * "]" for (x, y) in w.receivers), ",") * "]"
         write(io, """
-        <div id="bf-widget"><style>
+        <div id="bf-widget" class="app-widget"><style>
         #bf-widget{width:100%;max-width:1400px;margin:auto;color:#e5e7eb;font:14px system-ui,sans-serif}#bf-widget *{box-sizing:border-box}
         #bf-widget .bf-title{padding:10px 14px;margin-bottom:10px;text-align:center;background:#0a0f18;border:1px solid #3b5c85;border-radius:6px}#bf-widget .bf-title-desc{font-size:17px;font-weight:700}#bf-widget .bf-title-hint{margin-top:3px;color:#9ca3af;font-size:13px}
         #bf-widget .bf-workspace{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}#bf-widget .bf-panel,#bf-widget .bf-group{min-width:0;padding:10px;background:#050505;border:1px solid #2f3744;border-radius:6px}#bf-widget .bf-panel-title{font-size:15px;font-weight:700;color:#f3f4f6}#bf-widget .bf-caption{min-height:34px;margin:4px 0 7px;color:#9ca3af;font-size:13px;line-height:1.3}
         #bf-widget canvas{display:block;width:100%;height:310px;background:#000;border:1px solid #374151;border-radius:4px;touch-action:manipulation}#bf-widget .bf-legend{display:flex;gap:12px;flex-wrap:wrap;margin-top:7px;font-size:12px}.bf-key{display:inline-flex;align-items:center;gap:5px}.bf-swatch{width:18px;height:3px;border-radius:2px;background:currentColor}.bf-dot{width:10px;height:10px;border-radius:50%;background:currentColor}
         #bf-widget .bf-view{display:flex;gap:5px;margin:5px 0 7px}#bf-widget .bf-view button{padding:4px 8px;font-size:12px}#bf-widget .bf-view button.active{background:#8b5e23;border-color:#fbbf24}
-        #bf-widget .bf-controls{display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:8px;margin-top:10px}.bf-group-title{margin-bottom:7px;font-size:16px;font-weight:700;color:#f3f4f6}.bf-row{display:grid;grid-template-columns:minmax(78px,125px) minmax(70px,1fr) minmax(46px,70px);gap:7px;align-items:center;margin:7px 0;color:#d1d5db}#bf-widget input{width:100%;min-width:0;accent-color:#f59e0b}#bf-widget button{border:1px solid #9ca3af;border-radius:4px;padding:6px 12px;background:#606060;color:#f3f4f6;font-size:14px;cursor:pointer;margin:3px 5px 0 0}#bf-widget button:hover{background:#737373}.bf-value{color:#fbbf24;text-align:right;font-variant-numeric:tabular-nums}.bf-status{margin-top:8px;color:#d1d5db;font-size:13px;line-height:1.45}.bf-status b{color:#fbbf24}@media(max-width:760px){#bf-widget .bf-workspace{grid-template-columns:1fr}#bf-widget canvas{height:260px}}
-        </style><div class="bf-title"><div class="bf-title-desc">An array focuses a plane wave where trial delays match the receiver delays.</div><div class="bf-title-hint">Click the array map to add receivers &middot; switch beam views without recalculating &middot; inspect the focused arrival</div></div>
-        <div class="bf-workspace"><section class="bf-panel"><div class="bf-panel-title">Receiver array</div><div class="bf-caption">Map extent: ±20 km. The arrow is the synthetic wave-propagation direction.</div><canvas id="bf-array"></canvas><div class="bf-legend"><span class="bf-key" style="color:#fbbf24"><i class="bf-dot"></i>receiver</span><span class="bf-key" style="color:#38bdf8"><i class="bf-swatch"></i>plane-wave direction</span></div></section><section class="bf-panel"><div class="bf-panel-title">Delay-and-sum beam power</div><div class="bf-caption" id="bf-beam-caption">Polar view: azimuth around the circle; apparent velocity is radius.</div><div class="bf-view"><button id="bf-polar" class="active" type="button">Polar velocity</button><button id="bf-cartesian" type="button">Cartesian slowness</button></div><canvas id="bf-beam"></canvas><div class="bf-legend"><span class="bf-key" style="color:#22d3ee"><i class="bf-dot"></i>true arrival</span><span class="bf-key" style="color:#fbbf24"><i class="bf-dot"></i>recovered peak</span></div></section></div>
-        <div class="bf-controls"><section class="bf-group"><div class="bf-group-title">Incident plane wave</div><label class="bf-row"><span>Period</span><input id="bf-period" type="range" min="0.25" max="4" step="0.05" value="$(w.period)"><span id="bf-period-v" class="bf-value"></span></label><label class="bf-row"><span>Velocity</span><input id="bf-velocity" type="range" min="1.5" max="6" step="0.1" value="$(w.velocity)"><span id="bf-velocity-v" class="bf-value"></span></label><label class="bf-row"><span>Azimuth</span><input id="bf-azimuth" type="range" min="0" max="359" step="1" value="$(w.azimuth)"><span id="bf-azimuth-v" class="bf-value"></span></label></section><section class="bf-group"><div class="bf-group-title">Array editing</div><div class="bf-status">Click open map space to add a receiver. Click a nearby gold receiver to remove it. Up to 16 receivers are allowed.</div><button id="bf-reset" type="button">Reset array</button><button id="bf-clear" type="button">Clear array</button><div id="bf-summary" class="bf-status"></div></section></div></div>
+        #bf-widget .bf-controls{display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:8px;margin-top:10px}.bf-group-title{margin-bottom:7px;font-size:16px;font-weight:700;color:#f3f4f6}.bf-row{display:grid;grid-template-columns:minmax(78px,125px) minmax(70px,1fr) minmax(46px,70px);gap:7px;align-items:center;margin:7px 0;color:#d1d5db}#bf-widget input{width:100%;min-width:0;accent-color:#f59e0b}#bf-widget button{border:1px solid #9ca3af;border-radius:4px;padding:6px 12px;background:#606060;color:#f3f4f6;font-size:14px;cursor:pointer;margin:3px 5px 0 0}#bf-widget button:hover{background:#737373}.bf-value{color:#fbbf24;text-align:right;font-variant-numeric:tabular-nums}.bf-status{margin-top:8px;color:#d1d5db;font-size:13px;line-height:1.45}.bf-status b{color:#fbbf24}@media(max-width:760px){#bf-widget .bf-workspace{grid-template-columns:1fr}#bf-widget canvas{height:260px}}html[data-sa-mode="expt"] #bf-widget{max-width:none}html[data-sa-mode="expt"] #bf-widget .bf-workspace{grid-template-rows:minmax(0,1fr);align-items:stretch!important;justify-content:stretch!important;align-content:stretch}html[data-sa-mode="expt"] #bf-widget .bf-panel{display:flex;flex-direction:column;min-height:0}html[data-sa-mode="expt"] #bf-widget canvas{flex:1 1 auto;height:auto;min-height:0}@media(max-width:820px){html[data-sa-mode="expt"] #bf-widget .bf-workspace{grid-template-rows:none}html[data-sa-mode="expt"] #bf-widget canvas{flex:none;height:260px}}
+        </style><div class="bf-title app-title"><div class="bf-title-desc">An array focuses a plane wave where trial delays match the receiver delays.</div><div class="bf-title-hint">Click the array map to add receivers &middot; switch beam views without recalculating &middot; inspect the focused arrival</div></div>
+        <div class="bf-workspace app-stage"><section class="bf-panel"><div class="bf-panel-title">Receiver array</div><div class="bf-caption">Map extent: ±20 km. The arrow is the synthetic wave-propagation direction.</div><canvas id="bf-array"></canvas><div class="bf-legend"><span class="bf-key" style="color:#fbbf24"><i class="bf-dot"></i>receiver</span><span class="bf-key" style="color:#38bdf8"><i class="bf-swatch"></i>plane-wave direction</span></div></section><section class="bf-panel"><div class="bf-panel-title">Delay-and-sum beam power</div><div class="bf-caption" id="bf-beam-caption">Polar view: azimuth around the circle; apparent velocity is radius.</div><div class="bf-view"><button id="bf-polar" class="active" type="button">Polar velocity</button><button id="bf-cartesian" type="button">Cartesian slowness</button></div><canvas id="bf-beam"></canvas><div class="bf-legend"><span class="bf-key" style="color:#22d3ee"><i class="bf-dot"></i>true arrival</span><span class="bf-key" style="color:#fbbf24"><i class="bf-dot"></i>recovered peak</span></div></section></div>
+        <div class="bf-controls app-controls"><section class="bf-group"><div class="bf-group-title">Incident plane wave</div><label class="bf-row"><span>Period</span><input id="bf-period" type="range" min="0.25" max="4" step="0.05" value="$(w.period)"><span id="bf-period-v" class="bf-value"></span></label><label class="bf-row"><span>Velocity</span><input id="bf-velocity" type="range" min="1.5" max="6" step="0.1" value="$(w.velocity)"><span id="bf-velocity-v" class="bf-value"></span></label><label class="bf-row"><span>Azimuth</span><input id="bf-azimuth" type="range" min="0" max="359" step="1" value="$(w.azimuth)"><span id="bf-azimuth-v" class="bf-value"></span></label></section><section class="bf-group"><div class="bf-group-title">Array editing</div><div class="bf-status">Click open map space to add a receiver. Click a nearby gold receiver to remove it. Up to 16 receivers are allowed.</div><button id="bf-reset" type="button">Reset array</button><button id="bf-clear" type="button">Clear array</button><div id="bf-summary" class="bf-status"></div></section></div></div>
         <script>
         const currentScript=document.currentScript,par=currentScript.previousElementSibling,by=id=>par.querySelector('#'+id);
         const state={period:$(w.period),velocity:$(w.velocity),azimuth:$(w.azimuth),receivers:$points};
@@ -551,6 +586,7 @@ version = "1.64.0+1"
 # ╔═╡ Cell order:
 # ╠═c1000001-0001-4001-8001-000000000001
 # ╠═c1000002-0002-4002-8002-000000000002
+# ╟─bdda1759-ad4d-49f6-83d9-524cebf8c0f4
 # ╟─c1000003-0003-4003-8003-000000000003
 # ╟─c1000004-0004-4004-8004-000000000004
 # ╟─c1000005-0005-4005-8005-000000000005

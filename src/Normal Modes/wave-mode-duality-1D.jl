@@ -32,6 +32,29 @@ end
 # ╔═╡ 46d9831d-2b46-4030-bb15-cdc732d72e68
 TableOfContents()
 
+# ╔═╡ 4a9ecf07-04e4-4e1e-abcf-12c81eb1305c
+# App shell: the Expt / Theory / Code / Help frame shared by every notebook, loaded
+# from src/assets/app-shell/. Without that folder (a lone downloaded .jl) this cell just
+# shows the help text and the notebook stays a plain notebook.
+let
+	help = md"""
+	- Choose the **number of layers**; **drag a dashed boundary line** to move it and change each layer's wave speed.
+	- **Click** one stem in the Mode Spectrum to watch that single standing wave; **drag** across a range of stems to sum those modes.
+	- **Drag** the star (source) or the triangle (receiver); **Play** animates the string. The receiver record and its spectrum update.
+
+	**Try this:** drag a range from mode 1 up to mode 40 and watch the sum sharpen into a pulse bouncing between the ends.
+	"""
+	dir = joinpath(@__DIR__, "..", "assets", "app-shell")
+	if isfile(joinpath(dir, "app-shell.js"))
+		HTML(string(
+			"<style>", read(joinpath(dir, "app-shell.css"), String), "</style>",
+			"<template class=\"app-help\">", repr(MIME"text/html"(), help), "</template>",
+			"<script>", read(joinpath(dir, "app-shell.js"), String), "</script>"))
+	else
+		help
+	end
+end
+
 # ╔═╡ 319925c0-1512-459b-8be2-1d2650678f35
 md"""
 # Wave-Mode Duality
@@ -41,7 +64,7 @@ A vibrating string -- or a 1-D Earth -- can be described two completely equivale
 disturbance travel, reflect, and interfere. Or **decompose** it: find the string's own
 natural shapes of vibration (its *normal modes*), each oscillating forever at its own fixed
 frequency, and write the motion as a sum of those shapes. Neither view is more "real" than
-the other -- they're the same physics, seen through two different bases. This notebook lets
+the other -- they're the same physics, seen through two different bases. The experiment lets
 you paint a layered 1-D string and watch both pictures side by side: look at **one normal
 mode in isolation** (a pure standing wave), or watch a **superposition** of many modes
 sharpen, as you add more of them, into a localized pulse that bounces between the string's
@@ -95,7 +118,7 @@ of a guitar string.
 	A free string (no clamping) can move as a whole with **any** frequency -- there's
 	nothing to select discrete values. It's the boundary condition, not the wave equation
 	alone, that turns a continuum of possible frequencies into the discrete ladder
-	``\omega_1<\omega_2<\dots`` you'll see in the mode-spectrum panel below.
+	``\omega_1<\omega_2<\dots`` you'll see in the experiment's mode-spectrum panel.
 """
 
 # ╔═╡ 9a5e731a-4e70-4938-b0a9-b7fd796f4e59
@@ -132,7 +155,7 @@ matched analytically across every interface.
 md"""
 ## The Two Pictures, Side by Side
 
-**Click** a single stem in the Mode Spectrum panel to isolate that mode:
+In the experiment, **click** a single stem in the Mode Spectrum panel to isolate that mode:
 ``U_n(x)\cos(\omega_n t)`` on its own -- a pure standing wave, frozen shape, oscillating
 amplitude, `` n-1 `` fixed nodes never moving. This is the "resonance" picture -- the
 string's own natural way of vibrating, with nothing to do with where you'd actually
@@ -155,7 +178,9 @@ md"""
 """
 
 # ╔═╡ 235eff94-9dca-40e6-a37f-e906d04eb094
-PlutoUI.LocalResource("../assets/images/normal-modes1.jpg")
+md"""
+$(PlutoUI.LocalResource("../assets/images/normal-modes1.jpg"))
+"""
 
 # ╔═╡ 04f765cb-826e-4939-800e-9a4952e895bb
 md"""[[image source]](https://www.gwrinstruments.com/low-frequency-seismology-monitoring.html)
@@ -163,7 +188,7 @@ Spectra of normal modes below `1 mHz` were measured using a Superconducting Grav
 Normal modes from 3 major earthquakes are compared: Blue - Japan (11 Mar. 2011, Mw=9.0),
 Red - Chile (27 Feb. 2010, Mw=8.8), and Black - Sumatra (26 Dec. 2004, Mw=9.3). Data sets
 are 60 hours long starting 4 hours after the onset of each event and were recorded by SG
-C021 at Membach, Belgium. The same idea as the receiver-record panel in the widget above,
+C021 at Membach, Belgium. The same idea as the experiment's receiver-record panel,
 at planetary scale: a giant earthquake excites the whole Earth's normal-mode spectrum at
 once, and a long-running gravimeter record's own Fourier spectrum shows those
 eigenfrequencies directly as spectral peaks.
@@ -323,6 +348,7 @@ end
 # ╔═╡ b6a4c9d1-70e1-4e2a-9c1d-3a5b9e0d2f11
 md"""
 ### Medium Setup
+`nearest_index` snaps the source and receiver positions chosen in the experiment to the sampling grid used to draw and animate the modes.
 """
 
 # ╔═╡ 94568f52-b993-4f62-8170-776e83945438
@@ -337,6 +363,7 @@ nearest_index(rng, value) = argmin(abs.(rng .- value))
 # ╔═╡ 8f6fb806-7877-48d5-989b-9c9944e35ce5
 md"""
 ### Verifying the Solver
+Two checks. For a homogeneous fixed–fixed string the transfer-matrix solver reproduces ``\omega_n = n\pi c/L`` to machine precision. For a three-layer string the normalized modes are orthonormal, ``\int U_m U_n\,dx = \delta_{mn}``, which is what justifies the source projection ``c_n = U_n(x_s)``.
 """
 
 # ╔═╡ d7db01d4-f552-4c65-b122-ba392943f3b3
@@ -410,7 +437,7 @@ begin
 
     function Base.show(io::IO, ::MIME"text/html", w::ModeExplorerInput)
         write(io, """
-        <div id="nmwidget">
+        <div id="nmwidget" class="app-widget">
         <style>
         pluto-cell:has(#nmwidget) { width: min(80vw, 1500px) !important;
           margin-left: calc((100% - min(80vw, 1500px)) / 2) !important; }
@@ -440,7 +467,7 @@ begin
         #nmwidget button.active{background:#2563eb;border-color:#93c5fd}
         </style>
 
-        <div class="nm-title">
+        <div class="nm-title app-title">
           <div class="nm-title-desc">Watch one normal mode oscillate, or sum many of them into a traveling pulse.</div>
           <div class="nm-title-hint">click a mode below to isolate it, or drag across several to sum them &middot; drag the star (source) or triangle (receiver) &middot; Play to animate</div>
         </div>
@@ -1403,6 +1430,7 @@ uuid = "23338594-aafe-5451-b93e-139f81909106"
 
 # ╔═╡ Cell order:
 # ╠═46d9831d-2b46-4030-bb15-cdc732d72e68
+# ╟─4a9ecf07-04e4-4e1e-abcf-12c81eb1305c
 # ╟─319925c0-1512-459b-8be2-1d2650678f35
 # ╟─27ac2670-a5b2-431d-9626-c95241a00b55
 # ╟─75617746-5345-4074-bbdf-7bd3e8505aae

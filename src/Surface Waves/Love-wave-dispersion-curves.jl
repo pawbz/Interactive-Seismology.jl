@@ -1,11 +1,11 @@
 ### A Pluto.jl notebook ###
-# v0.2.6
+# v1.0.3
 
 #> [frontmatter]
-#> title = "Love Wave Dispersion Curves"
 #> tags = ["surfacewaves", "dispersion"]
-#> layout = "layout.jlhtml"
+#> title = "Love Wave Dispersion Curves"
 #> description = "Interactively build a layered Earth model and explore Love-wave phase and group-velocity dispersion."
+#> layout = "layout.jlhtml"
 
 using Markdown
 using InteractiveUtils
@@ -28,6 +28,29 @@ using PlutoUI, Printf, Roots, LinearAlgebra
 # ╔═╡ ee482657-fd34-4c92-95cd-0bf8e254676c
 TableOfContents(include_definitions=true)
 
+# ╔═╡ 0e5deadf-c09e-4c03-af47-cee77a7fdf71
+# App shell: the Expt / Theory / Code / Help frame shared by every notebook, loaded
+# from src/assets/app-shell/. Without that folder (a lone downloaded .jl) this cell just
+# shows the help text and the notebook stays a plain notebook.
+let
+	help = md"""
+	- **Drag a boundary line** to resize a layer; **drag a marker** on the Vs or ρ track to change that layer's value.
+	- **Click empty space** inside a track to add a layer; **drag a boundary onto its neighbour** to delete it.
+	- The dispersion panel shows the fundamental-mode phase and group velocity for the current model.
+
+	**Try this:** make the top layer slower and watch the short-period phase velocity drop toward its shear velocity.
+	"""
+	dir = joinpath(@__DIR__, "..", "assets", "app-shell")
+	if isfile(joinpath(dir, "app-shell.js"))
+		HTML(string(
+			"<style>", read(joinpath(dir, "app-shell.css"), String), "</style>",
+			"<template class=\"app-help\">", repr(MIME"text/html"(), help), "</template>",
+			"<script>", read(joinpath(dir, "app-shell.js"), String), "</script>"))
+	else
+		help
+	end
+end
+
 # ╔═╡ d3bc6646-b22f-4e22-87a8-da37a9aa1d1a
 md"""
 # Love Wave Dispersion Curves
@@ -35,9 +58,9 @@ This notebook provides an environment to explore dispersion of Love waves, a typ
 
 Love waves are horizontally polarized shear waves that are *trapped* in near-surface low-velocity layers. Their dispersion (variation of phase velocity with period) carries information about the elastic properties and layering of the crust and upper mantle.
 
-Here,
-- build a layered Earth model interactively, by adjusting thickness, shear velocity (`Vs`), and density (`ρ`) for each layer;
-- compute dispersion curves for Love waves and observe how changes in structure affect the shape of the dispersion curve.
+In the experiment you
+- build a layered Earth model by dragging its thickness, shear velocity (`Vs`) and density (`ρ`) directly on the depth profile;
+- watch the fundamental-mode phase- and group-velocity dispersion curves respond to every change in structure.
 
 
 ##### [Interactive Seismology Notebooks](https://pawbz.github.io/Interactive-Seismology.jl/)
@@ -148,20 +171,27 @@ begin
 	end
 end
 
-# ╔═╡ 227742dd-3cc0-4615-bde2-09dc7b890095
+# ╔═╡ e4c3449c-4645-4055-8976-d1e1f7627a5e
 md"""
-### Observed dispersion overlay
+## From Layers to a Dispersion Curve
 
-Phase file: $(@bind observed_phase_file FilePicker())
+In each layer the Love-wave displacement is ``u(z)\,e^{i(kx - \omega t)}`` with ``k = \omega/c``. Its depth dependence is carried by the **stress-displacement vector** ``(u, \tau)``, with shear traction ``\tau = \mu\,du/dz``. Across a homogeneous layer of thickness ``d`` this vector is mapped linearly from the top to the bottom by a ``2\times2`` layer matrix (`layer_matrix_SH`), and the matrices of all the layers multiply into one propagator ``M`` (the Thomson–Haskell method).
 
-Group file: $(@bind observed_group_file FilePicker())
+Two conditions close the problem:
+
+- **free surface:** ``\tau(0) = 0``, so the propagation starts from ``(u, \tau) = (1, 0)``;
+- **half-space:** only a field decaying with depth is allowed, ``u \propto e^{-k\nu z}`` with ``\nu = \sqrt{1 - c^2/\beta_N^2}``, so at its top ``\tau = -\mu_N k \nu\, u``.
+
+Matching the propagated vector to the half-space condition gives the dispersion function ``F(c) = M_{21} - R\,M_{11}`` (`dispersion_function_SH`). Its zeros, for ``c`` between the slowest shear velocity and the half-space shear velocity ``\beta_N``, are the Love modes at that period.
+
+`solve_phase_velocities_love` finds every root at each period. `track_fundamental_mode` follows the fundamental branch continuously from long periods, where the modes are well separated, to short ones. `group_velocity_from_phase` then gives
+
+```math
+U = \frac{c}{1 + \dfrac{T}{c}\dfrac{dc}{dT}} .
+```
+
+`solve_love_dispersion` chains the three. A Love wave needs a slow surface over a faster half-space: without that waveguide there is nothing to trap the SH energy, and the solver returns no curve.
 """
-
-# ╔═╡ 46e9bdbf-8618-4937-b789-c03fbe5396f7
-observed_dispersion = merge_observed_dispersion(
-	load_observed_dispersion(observed_phase_file; kind=:phase),
-	load_observed_dispersion(observed_group_file; kind=:group),
-)
 
 # ╔═╡ d2c48242-92ce-11f0-01e6-cb1b8fe1fecb
 struct Layer
@@ -179,14 +209,6 @@ struct Velocities
     phase_velocities::Vector{Float64}
     group_velocities::Vector{Float64}
 end
-
-# ╔═╡ 7e9acd7c-9cf5-45e0-8892-77c77a1fd983
-md"""
-Maximum period: $(@bind period_max Slider(20.0:5.0:200.0, default=100.0, show_value=true)) s
-"""
-
-# ╔═╡ 756e06e3-4f25-4f55-b242-26a45a1b7dd3
-periods = collect(range(5.0, stop=period_max, length=64))
 
 # ╔═╡ 9c9ad5f6-debf-4376-aaf6-759e9b0c949b
 """
@@ -572,7 +594,10 @@ end
 
 
 # ╔═╡ 80086cb5-7e39-444b-a85e-ddf46a67ec42
-md"## Appendix"
+md"""
+## Appendix
+The packages, the layered-model editor, and the Gutenberg reference model used as its default.
+"""
 
 # ╔═╡ 5a43781a-b3e4-4bac-86d1-bd822c169804
 const GUTENBERG_MODEL = [
@@ -707,7 +732,7 @@ begin
 	    presets_js = "{gutenberg:$(_lm_preset_js(presets["gutenberg"])),crust2:$(_lm_preset_js(presets["crust2"])),uniform:$(_lm_preset_js(presets["uniform"]))}"
 	    tracks_js = w.show_vp ? "['vp','vs','rho']" : "['vs','rho']"
 	    write(io, """
-	    <div id="lmwidget">
+	    <div id="lmwidget" class="app-widget">
 	    <style>
 	    #lmwidget{font-family:sans-serif;color:#d1d5db}
 	    #lmwidget .lm-titlebar{background:#0a0f18;border:1px solid #3b5c85;border-radius:6px;padding:12px 16px;margin-bottom:14px;text-align:center}
@@ -727,7 +752,7 @@ begin
 	    #lmwidget .lm-swatch{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:4px;vertical-align:middle}
 	    </style>
 
-	    <div class="lm-titlebar">
+	    <div class="lm-titlebar app-title">
 	      <div class="lm-titlebar-headline">Build a layered Earth model by dragging directly on the depth profile.</div>
 	      <div class="lm-titlebar-sub">drag a boundary line to resize a layer &middot; drag a track's marker to change Vs/&rho; &middot; click empty space to add a layer &middot; drag a boundary onto its neighbor to delete it</div>
 	    </div>
@@ -1124,9 +1149,11 @@ end
 
 # ╔═╡ 7bce51e0-9191-42eb-8fe3-cc68f9b2681f
 layers = let
-	b = Float64.(lm["boundaries"])
-	vs = Float64.(lm["vs"])
-	rho = Float64.(lm["rho"])
+	# The bond is `nothing` until a browser has rendered the widget: use its defaults.
+	lm_s = lm isa AbstractDict ? lm : Base.get(LayeredMediumInput(; show_vp=false))
+	b = Float64.(lm_s["boundaries"])
+	vs = Float64.(lm_s["vs"])
+	rho = Float64.(lm_s["rho"])
 	n = length(vs)
 	thickness = [i < n ? (i == 1 ? b[1] : b[i] - b[i-1]) : 0.0 for i in 1:n]
 	finite_layers = [Layer(thickness[i], 1.73 * vs[i], vs[i], rho[i], 1000.0, 1000.0) for i in 1:n]
@@ -1135,6 +1162,29 @@ layers = let
 	le = finite_layers[end]
 	vcat(finite_layers[1:end-1], Layer(1000.0, le.vp, le.vs, le.rho, 1000.0, 1000.0), le)
 end
+
+# ╔═╡ 227742dd-3cc0-4615-bde2-09dc7b890095
+md"""
+### Observed dispersion overlay
+
+Phase file: $(@bind observed_phase_file FilePicker())
+
+Group file: $(@bind observed_group_file FilePicker())
+"""
+
+# ╔═╡ 46e9bdbf-8618-4937-b789-c03fbe5396f7
+observed_dispersion = merge_observed_dispersion(
+	load_observed_dispersion(observed_phase_file; kind=:phase),
+	load_observed_dispersion(observed_group_file; kind=:group),
+)
+
+# ╔═╡ 7e9acd7c-9cf5-45e0-8892-77c77a1fd983
+md"""
+Maximum period: $(@bind period_max Slider(20.0:5.0:200.0, default=100.0, show_value=true)) s
+"""
+
+# ╔═╡ 756e06e3-4f25-4f55-b242-26a45a1b7dd3
+periods = collect(range(5.0, stop=period_max, length=64))
 
 # ╔═╡ 45579d35-df74-454f-91d4-03542f77e1ac
 # ╠═╡ show_logs = false
@@ -1154,6 +1204,12 @@ This notebook is inspired by the classical implementation of surface wave theory
 Herrmann, R. B. (2013), *Computer Programs in Seismology*.
 
 The Julia code here provides a **clean reimplementation** of some of the ideas behind CPS, designed for **interactive exploration**.
+"""
+
+# ╔═╡ 9628e7c5-190f-4606-b35f-7629ba1ddd8c
+md"""
+## Eigenfunctions
+For a solved period and phase velocity, `compute_love_eigenfunctions` returns the depth profiles of displacement and traction. It shoots *upward* from the half-space, starting exactly on the decaying solution, because shooting downward through many evanescent layers amplifies the growing branch until the computation blows up. Long periods reach deeper, which is why they sense faster rock and travel faster.
 """
 
 # ╔═╡ a882824a-a4da-11f0-8360-85b7e5471cb3
@@ -1264,7 +1320,7 @@ end
 md"""
 ## Synthetic Seismogram Generation
 
-Generate synthetic Love wave seismograms using modal summation with the computed eigenfunctions:
+`generate_love_synthetic_seismogram` builds a fundamental-mode Love-wave seismogram by modal summation. Each period contributes a term ``U(z_s)\,U(0)\,\cos(kx - \omega t)/\sqrt{I_1 k x}``, where ``U`` is the eigenfunction, ``z_s`` the source depth and ``I_1`` the mode's energy integral, weighted by a Gaussian source spectrum. Because every period travels at its own phase velocity, the sum produces a dispersed wave train on its own: no separate group-velocity bookkeeping is needed.
 """
 
 # ╔═╡ 3cce396c-a4db-11f0-bc5a-e107cd4639d6
@@ -1380,19 +1436,21 @@ Roots = "~2.2.10"
 PLUTO_MANIFEST_TOML_CONTENTS = """
 # This file is machine-generated - editing it directly is not advised
 
-julia_version = "1.12.4"
-manifest_format = "2.0"
+julia_version = "1.13.1"
+manifest_format = "2.1"
 project_hash = "fa2e0e97fe1a9d6484a9c31a05331e65b8bcab0a"
 
 [[deps.AbstractPlutoDingetjes]]
 deps = ["Pkg"]
 git-tree-sha1 = "6e1d2a35f2f90a4bc7c2ed98079b2ba09c35b83a"
+registries = "General"
 uuid = "6e696c72-6542-2067-7265-42206c756150"
 version = "1.3.2"
 
 [[deps.Accessors]]
 deps = ["CompositionsBase", "ConstructionBase", "Dates", "InverseFunctions", "MacroTools"]
 git-tree-sha1 = "3b86719127f50670efe356bc11073d84b4ed7a5d"
+registries = "General"
 uuid = "7d9f7c33-5ae7-4f3b-8dc6-eff91059b697"
 version = "0.1.42"
 
@@ -1429,6 +1487,7 @@ version = "1.11.0"
 [[deps.ColorTypes]]
 deps = ["FixedPointNumbers", "Random"]
 git-tree-sha1 = "67e11ee83a43eb71ddc950302c53bf33f0690dfe"
+registries = "General"
 uuid = "3da002f7-5984-5a60-b8a6-cbb66c0b333f"
 version = "0.12.1"
 weakdeps = ["StyledStrings"]
@@ -1438,16 +1497,18 @@ weakdeps = ["StyledStrings"]
 
 [[deps.CommonSolve]]
 git-tree-sha1 = "0eee5eb66b1cf62cd6ad1b460238e60e4b09400c"
+registries = "General"
 uuid = "38540f10-b2f7-11e9-35d8-d573e4eb0ff2"
 version = "0.2.4"
 
 [[deps.CompilerSupportLibraries_jll]]
 deps = ["Artifacts", "Libdl"]
 uuid = "e66e0078-7015-5450-92f7-15fbd957f2ae"
-version = "1.3.0+1"
+version = "1.5.5+2"
 
 [[deps.CompositionsBase]]
 git-tree-sha1 = "802bb88cd69dfd1509f6670416bd4434015693ad"
+registries = "General"
 uuid = "a33af91c-f02d-484b-be07-31d278c5ca2b"
 version = "0.1.2"
 weakdeps = ["InverseFunctions"]
@@ -1457,6 +1518,7 @@ weakdeps = ["InverseFunctions"]
 
 [[deps.ConstructionBase]]
 git-tree-sha1 = "b4b092499347b18a015186eae3042f72267106cb"
+registries = "General"
 uuid = "187b0558-2788-49d3-abe0-74a17ed4e7c9"
 version = "1.6.0"
 
@@ -1487,24 +1549,28 @@ version = "1.11.0"
 [[deps.FixedPointNumbers]]
 deps = ["Statistics"]
 git-tree-sha1 = "05882d6995ae5c12bb5f36dd2ed3f61c98cbb172"
+registries = "General"
 uuid = "53c48c17-4a7d-5ca2-90c5-79b7896eea93"
 version = "0.8.5"
 
 [[deps.Hyperscript]]
 deps = ["Test"]
 git-tree-sha1 = "179267cfa5e712760cd43dcae385d7ea90cc25a4"
+registries = "General"
 uuid = "47d2ed2b-36de-50cf-bf87-49c2cf4b8b91"
 version = "0.0.5"
 
 [[deps.HypertextLiteral]]
 deps = ["Tricks"]
 git-tree-sha1 = "7134810b1afce04bbc1045ca1985fbe81ce17653"
+registries = "General"
 uuid = "ac1192a8-f4b3-4bfe-ba22-af5b92cd3ab2"
 version = "0.9.5"
 
 [[deps.IOCapture]]
 deps = ["Logging", "Random"]
 git-tree-sha1 = "b6d6bfdd7ce25b0f9b2f6b3dd56b2673a66c8770"
+registries = "General"
 uuid = "b5f81e59-6552-4d32-b1f0-c071b021bf89"
 version = "0.2.5"
 
@@ -1515,6 +1581,7 @@ version = "1.11.0"
 
 [[deps.InverseFunctions]]
 git-tree-sha1 = "a779299d77cd080bf77b97535acecd73e1c5e5cb"
+registries = "General"
 uuid = "3587e190-3f89-42d0-90ee-14403ec27112"
 version = "0.1.17"
 weakdeps = ["Dates", "Test"]
@@ -1526,6 +1593,7 @@ weakdeps = ["Dates", "Test"]
 [[deps.JSON]]
 deps = ["Dates", "Mmap", "Parsers", "Unicode"]
 git-tree-sha1 = "31e996f0a15c7b280ba9f76636b3ff9e2ae58c9a"
+registries = "General"
 uuid = "682c06a0-de6a-54ab-a142-c8b1cf79cde6"
 version = "0.21.4"
 
@@ -1537,12 +1605,12 @@ version = "1.12.0"
 [[deps.LibCURL]]
 deps = ["LibCURL_jll", "MozillaCACerts_jll"]
 uuid = "b27032c2-a3e7-50c8-80cd-2d36dbcbfd21"
-version = "0.6.4"
+version = "1.0.0"
 
 [[deps.LibCURL_jll]]
-deps = ["Artifacts", "LibSSH2_jll", "Libdl", "OpenSSL_jll", "Zlib_jll", "nghttp2_jll"]
+deps = ["Artifacts", "CompilerSupportLibraries_jll", "LibSSH2_jll", "Libdl", "OpenSSL_jll", "Zlib_jll", "Zstd_jll", "nghttp2_jll"]
 uuid = "deac9b47-8bc7-5906-a0fe-35ac56dc84c0"
-version = "8.15.0+0"
+version = "8.18.0+1"
 
 [[deps.LibGit2]]
 deps = ["LibGit2_jll", "NetworkOptions", "Printf", "SHA"]
@@ -1550,14 +1618,14 @@ uuid = "76f85450-5226-5b5a-8eaa-529ad045b433"
 version = "1.11.0"
 
 [[deps.LibGit2_jll]]
-deps = ["Artifacts", "LibSSH2_jll", "Libdl", "OpenSSL_jll"]
+deps = ["Artifacts", "CompilerSupportLibraries_jll", "LibSSH2_jll", "Libdl", "OpenSSL_jll", "PCRE2_jll", "Zlib_jll"]
 uuid = "e37daf67-58a4-590a-8e99-b0245dd2ffc5"
-version = "1.9.0+0"
+version = "1.9.1+0"
 
 [[deps.LibSSH2_jll]]
-deps = ["Artifacts", "Libdl", "OpenSSL_jll"]
+deps = ["Artifacts", "CompilerSupportLibraries_jll", "Libdl", "OpenSSL_jll", "Zlib_jll"]
 uuid = "29816b5a-b9ab-546f-933c-edad1886dfa8"
-version = "1.11.3+1"
+version = "1.11.104+0"
 
 [[deps.Libdl]]
 uuid = "8f399da3-3557-5675-b5ff-fb832c97cbdb"
@@ -1566,7 +1634,7 @@ version = "1.11.0"
 [[deps.LinearAlgebra]]
 deps = ["Libdl", "OpenBLAS_jll", "libblastrampoline_jll"]
 uuid = "37e2e46d-f89d-539d-b4ee-838fcccc9c8e"
-version = "1.12.0"
+version = "1.13.0"
 
 [[deps.Logging]]
 uuid = "56ddb016-857b-54e1-b83d-db4d58db5568"
@@ -1574,11 +1642,13 @@ version = "1.11.0"
 
 [[deps.MIMEs]]
 git-tree-sha1 = "c64d943587f7187e751162b3b84445bbbd79f691"
+registries = "General"
 uuid = "6c6e2e6c-3030-632d-7369-2d6c69616d65"
 version = "1.1.0"
 
 [[deps.MacroTools]]
 git-tree-sha1 = "1e0228a030642014fe5cfe68c2c0a818f9e3f522"
+registries = "General"
 uuid = "1914dd2f-81c6-5fcd-8719-6d5c9610ff09"
 version = "0.5.16"
 
@@ -1593,7 +1663,7 @@ version = "1.11.0"
 
 [[deps.MozillaCACerts_jll]]
 uuid = "14a3606d-f60d-562e-9121-12d972cd8159"
-version = "2025.11.4"
+version = "2026.8.13"
 
 [[deps.NetworkOptions]]
 uuid = "ca575930-c2e3-43a9-ace4-1e988b2c1908"
@@ -1602,23 +1672,29 @@ version = "1.3.0"
 [[deps.OpenBLAS_jll]]
 deps = ["Artifacts", "CompilerSupportLibraries_jll", "Libdl"]
 uuid = "4536629a-c528-5b80-bd46-f80d51c5b363"
-version = "0.3.29+0"
+version = "0.3.30+0"
 
 [[deps.OpenSSL_jll]]
 deps = ["Artifacts", "Libdl"]
 uuid = "458c3c95-2e84-50aa-8efc-19380b2a3a95"
-version = "3.5.4+0"
+version = "3.5.6+0"
+
+[[deps.PCRE2_jll]]
+deps = ["Artifacts", "Libdl"]
+uuid = "efcefdf7-47ab-520b-bdef-62a2eaa19f15"
+version = "10.46.0+0"
 
 [[deps.Parsers]]
 deps = ["Dates", "PrecompileTools", "UUIDs"]
 git-tree-sha1 = "7d2f8f21da5db6a806faf7b9b292296da42b2810"
+registries = "General"
 uuid = "69de0a69-1ddd-5017-9359-2bf0b02dc9f0"
 version = "2.8.3"
 
 [[deps.Pkg]]
-deps = ["Artifacts", "Dates", "Downloads", "FileWatching", "LibGit2", "Libdl", "Logging", "Markdown", "Printf", "Random", "SHA", "TOML", "Tar", "UUIDs", "p7zip_jll"]
+deps = ["Artifacts", "Dates", "Downloads", "FileWatching", "LibGit2", "Libdl", "Logging", "Markdown", "Printf", "Random", "SHA", "TOML", "Tar", "UUIDs", "Zstd_jll", "p7zip_jll"]
 uuid = "44cfe95a-1eb2-52ea-b672-e2afdf69b78f"
-version = "1.12.1"
+version = "1.13.0"
 
     [deps.Pkg.extensions]
     REPLExt = "REPL"
@@ -1629,18 +1705,21 @@ version = "1.12.1"
 [[deps.PlutoUI]]
 deps = ["AbstractPlutoDingetjes", "Base64", "ColorTypes", "Dates", "Downloads", "FixedPointNumbers", "Hyperscript", "HypertextLiteral", "IOCapture", "InteractiveUtils", "JSON", "Logging", "MIMEs", "Markdown", "Random", "Reexport", "URIs", "UUIDs"]
 git-tree-sha1 = "f53232a27a8c1c836d3998ae1e17d898d4df2a46"
+registries = "General"
 uuid = "7f904dfe-b85e-4ff6-b463-dae2292396a8"
 version = "0.7.72"
 
 [[deps.PrecompileTools]]
 deps = ["Preferences"]
 git-tree-sha1 = "5aa36f7049a63a1528fe8f7c3f2113413ffd4e1f"
+registries = "General"
 uuid = "aea7be01-6a6a-4083-8856-8a6e6704d82a"
 version = "1.2.1"
 
 [[deps.Preferences]]
 deps = ["TOML"]
 git-tree-sha1 = "0f27480397253da18fe2c12a4ba4eb9eb208bf3d"
+registries = "General"
 uuid = "21216c6a-2e73-6563-6e65-726566657250"
 version = "1.5.0"
 
@@ -1656,12 +1735,14 @@ version = "1.11.0"
 
 [[deps.Reexport]]
 git-tree-sha1 = "45e428421666073eab6f2da5c9d310d99bb12f9b"
+registries = "General"
 uuid = "189a3867-3050-52da-a836-e630ba90ab69"
 version = "1.2.2"
 
 [[deps.Roots]]
 deps = ["Accessors", "CommonSolve", "Printf"]
 git-tree-sha1 = "8a433b1ede5e9be9a7ba5b1cc6698daa8d718f1d"
+registries = "General"
 uuid = "f2b01f46-fcfa-551c-844a-d8ac1e96c665"
 version = "2.2.10"
 
@@ -1683,7 +1764,7 @@ version = "2.2.10"
 
 [[deps.SHA]]
 uuid = "ea8e919c-243c-51af-8825-aaa63cd721ce"
-version = "0.7.0"
+version = "1.0.0"
 
 [[deps.Serialization]]
 uuid = "9e88b42a-f829-5b0c-bbe9-9e923198166b"
@@ -1692,6 +1773,7 @@ version = "1.11.0"
 [[deps.Statistics]]
 deps = ["LinearAlgebra"]
 git-tree-sha1 = "ae3bb1eb3bba077cd276bc5cfc337cc65c3075c0"
+registries = "General"
 uuid = "10745b16-79ce-11e8-11f9-7d13ad32a3b2"
 version = "1.11.1"
 
@@ -1722,11 +1804,13 @@ version = "1.11.0"
 
 [[deps.Tricks]]
 git-tree-sha1 = "372b90fe551c019541fafc6ff034199dc19c8436"
+registries = "General"
 uuid = "410a4b4d-49e4-4fbc-ab6d-cb71b17b3775"
 version = "0.1.12"
 
 [[deps.URIs]]
 git-tree-sha1 = "bef26fb046d031353ef97a82e3fdb6afe7f21b1a"
+registries = "General"
 uuid = "5c2747f8-b7ea-4ff2-ba2e-563bfd36b1d4"
 version = "1.6.1"
 
@@ -1744,24 +1828,34 @@ deps = ["Libdl"]
 uuid = "83775a58-1f1d-513f-b197-d71354ab007a"
 version = "1.3.1+2"
 
+[[deps.Zstd_jll]]
+deps = ["CompilerSupportLibraries_jll", "Libdl"]
+uuid = "3161d3a3-bdf6-5164-811a-617609db77b4"
+version = "1.5.7+1"
+
 [[deps.libblastrampoline_jll]]
 deps = ["Artifacts", "Libdl"]
 uuid = "8e850b90-86db-534c-a0d3-1478176c7d93"
 version = "5.15.0+0"
 
 [[deps.nghttp2_jll]]
-deps = ["Artifacts", "Libdl"]
+deps = ["Artifacts", "CompilerSupportLibraries_jll", "Libdl"]
 uuid = "8e850ede-7688-5339-a07c-302acd2aaf8d"
-version = "1.64.0+1"
+version = "1.67.1+0"
 
 [[deps.p7zip_jll]]
 deps = ["Artifacts", "CompilerSupportLibraries_jll", "Libdl"]
 uuid = "3f19e933-33d8-53b3-aaab-bd5110c3b7a0"
-version = "17.7.0+0"
+version = "17.8.2+0"
+
+[registries.General]
+url = "https://github.com/JuliaRegistries/General.git"
+uuid = "23338594-aafe-5451-b93e-139f81909106"
 """
 
 # ╔═╡ Cell order:
 # ╠═ee482657-fd34-4c92-95cd-0bf8e254676c
+# ╟─0e5deadf-c09e-4c03-af47-cee77a7fdf71
 # ╟─d3bc6646-b22f-4e22-87a8-da37a9aa1d1a
 # ╟─1af153bc-e471-4608-984b-61f1116dfa16
 # ╟─7bce51e0-9191-42eb-8fe3-cc68f9b2681f
@@ -1770,6 +1864,7 @@ version = "17.7.0+0"
 # ╟─227742dd-3cc0-4615-bde2-09dc7b890095
 # ╠═46e9bdbf-8618-4937-b789-c03fbe5396f7
 # ╟─6e696382-0a37-46f1-8209-0bf5d7dbc82f
+# ╟─e4c3449c-4645-4055-8976-d1e1f7627a5e
 # ╠═d2c48242-92ce-11f0-01e6-cb1b8fe1fecb
 # ╠═6c766c4b-8a1c-4f8b-9467-fec5a91fcd05
 # ╟─7e9acd7c-9cf5-45e0-8892-77c77a1fd983
@@ -1788,10 +1883,11 @@ version = "17.7.0+0"
 # ╠═5a43781a-b3e4-4bac-86d1-bd822c169804
 # ╠═05d910d2-527c-416f-9d63-c259fbe8a45d
 # ╟─fc1fd90c-020a-4f2d-aedd-66115ac6a287
-# ╠═a882824a-a4da-11f0-8360-85b7e5471cb3
+# ╟─9628e7c5-190f-4606-b35f-7629ba1ddd8c
+# ╟─a882824a-a4da-11f0-8360-85b7e5471cb3
 # ╠═a8828434-a4da-11f0-ae4f-7707dd8da2ef
-# ╠═3cce37c8-a4db-11f0-8445-2b16c3968493
-# ╠═3cce396c-a4db-11f0-bc5a-e107cd4639d6
+# ╟─3cce37c8-a4db-11f0-8445-2b16c3968493
+# ╟─3cce396c-a4db-11f0-bc5a-e107cd4639d6
 # ╠═3cce3a82-a4db-11f0-9333-3da6f5a8cb24
 # ╠═3cce3aca-a4db-11f0-aedc-edcc81a83eeb
 # ╠═3cce3bd8-a4db-11f0-baab-cf3610efa1c8

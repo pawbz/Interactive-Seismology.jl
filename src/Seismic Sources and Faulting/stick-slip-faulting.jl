@@ -31,6 +31,29 @@ end
 # ╔═╡ 7f48d81c-5664-459a-bf10-c265462d57a0
 PlutoUI.TableOfContents(include_definitions=true)
 
+# ╔═╡ 106353b7-506a-482f-95de-7c2f7f6765c9
+# App shell: the Expt / Theory / Code / Help frame shared by every notebook, loaded
+# from src/assets/app-shell/. Without that folder (a lone downloaded .jl) this cell just
+# shows the help text and the notebook stays a plain notebook.
+let
+	help = md"""
+	- **Presets** load a locked fault, a creeping fault and other scenarios; **Play** animates the block and the time series.
+	- The sliders set the friction parameters (a, b − a, D_c), the loading rate, the normal stress, the damping and the spring stiffness k.
+	- The right panel shows slip rate (log scale) and friction against time; the inset is the phase portrait. The badge compares k with the critical stiffness.
+
+	**Try this:** start from the Locked fault preset and raise k past the critical stiffness: the earthquakes stop.
+	"""
+	dir = joinpath(@__DIR__, "..", "assets", "app-shell")
+	if isfile(joinpath(dir, "app-shell.js"))
+		HTML(string(
+			"<style>", read(joinpath(dir, "app-shell.css"), String), "</style>",
+			"<template class=\"app-help\">", repr(MIME"text/html"(), help), "</template>",
+			"<script>", read(joinpath(dir, "app-shell.js"), String), "</script>"))
+	else
+		help
+	end
+end
+
 # ╔═╡ 1103da07-e3f7-408b-937e-5ee0a1563ac7
 md"""
 # Stick-Slip: Why a Locked Fault Doesn't Creep Smoothly
@@ -60,6 +83,23 @@ against time. Press **Play** to watch loading turn into a slip event.
 	then the sudden spike. Then switch to **Creeping fault**: same friction law, same
 	loading, but the sign of ``b-a`` alone changes the outcome completely.
 """
+
+# ╔═╡ e22c0ca4-43c7-4c3b-a12f-27794ac48616
+"""
+    bounded(raw, key, default, lo, hi)
+
+Read one finite control value from the widget's bound state and clip it to the physical
+range used by the demonstration, so a malformed or missing browser value cannot create a
+non-finite or sign-flipped parameter downstream.
+"""
+function bounded(raw, key, default, lo, hi)
+    candidate = try
+        raw isa AbstractDict ? Float64(get(raw, key, default)) : default
+    catch
+        default
+    end
+    isfinite(candidate) ? clamp(candidate, lo, hi) : default
+end
 
 # ╔═╡ d723bd18-4389-445e-b747-fab5684f85a7
 md"""
@@ -128,6 +168,8 @@ md"""
 ## Appendix
 
 ### Stick-Slip: A Loaded Spring on a Frictional Surface
+
+`rate_state_friction` is the rate-and-state law ``\mu(v,\theta)``, and `spring_slider_rhs` the two coupled rates ``(\dot v, \dot\theta)`` of the force balance, written in logarithmic variables. `critical_stiffness` is the stability threshold ``k_c``. `rk4_step` and `integrate_adaptive` advance the system with a step size that shrinks during the fast slip phase and grows again while the fault is locked. `classify_regime` labels the result as stable creep, periodic stick-slip or something in between, and `integrate_spring_slider` runs the whole simulation for the experiment's parameters. The cells after it push the time series to the widget.
 
 Every function below is plain Julia, documented and — where the result is a genuine physical
 claim rather than bookkeeping — checked numerically against a known limit. The widget itself
@@ -382,6 +424,7 @@ end
 # ╔═╡ 331f1292-1115-444f-931f-ac46bf88943f
 md"""
 ### Verifying the Spring-Slider Model
+The checks below confirm the two "aha"s numerically: a velocity-strengthening patch (``b \le a``) creeps steadily whatever its stiffness, and a velocity-weakening one switches from stable sliding to stick-slip as ``k`` drops below ``k_c``.
 """
 
 # ╔═╡ e63b931a-94d9-42f1-a6c6-e8143faa0911
@@ -466,7 +509,7 @@ begin
     """
     function Base.show(io::IO, ::MIME"text/html", w::StickSlipInput)
         write(io, """
-<div id="ss-widget">
+<div id="ss-widget" class="app-widget">
   <style>
     pluto-cell:has(#ss-widget){width:min(80vw,1500px)!important;margin-left:calc((100% - min(80vw,1500px))/2)!important}
     #ss-widget{width:100%;box-sizing:border-box;font:14px sans-serif;color:#d1d5db;background:#000;padding:12px;border-radius:7px}
@@ -501,12 +544,17 @@ begin
     #ss-widget .ss-metric b.ss-badge-near{color:#f59e0b}
     #ss-widget select{width:100%;background:#111827;color:#f3f4f6;border:1px solid #4b5563;border-radius:4px;padding:6px;font-size:14px}
     @media(max-width:700px){#ss-widget .ss-workspace{grid-template-columns:1fr}#ss-widget canvas{height:260px}}
+    /* App shell Expt view: both panels fill the stage and their canvases its height. */
+    html[data-sa-mode="expt"] #ss-widget .ss-workspace{grid-template-rows:minmax(0,1fr);align-items:stretch!important;justify-content:stretch!important;align-content:stretch}
+    html[data-sa-mode="expt"] #ss-widget .ss-panel{display:flex;flex-direction:column;min-height:0}
+    html[data-sa-mode="expt"] #ss-widget .ss-panel > canvas{flex:1 1 auto;height:auto;min-height:0}
+    @media(max-width:820px){html[data-sa-mode="expt"] #ss-widget .ss-workspace{grid-template-rows:none}html[data-sa-mode="expt"] #ss-widget .ss-panel > canvas{flex:none;height:260px}}
   </style>
-  <div class="ss-title">
+  <div class="ss-title app-title">
     <div class="ss-title-desc">A spring-loaded block on a frictional surface: will it creep, or lock and slip?</div>
     <div class="ss-title-hint">Drag the friction/stiffness sliders or pick a preset &middot; press Play to watch loading turn into a slip event</div>
   </div>
-  <div class="ss-workspace">
+  <div class="ss-workspace app-stage">
     <section class="ss-panel">
       <div class="ss-panel-title">Spring-slider model</div>
       <div class="ss-canvas-wrap">
@@ -530,7 +578,7 @@ begin
       </div>
     </section>
   </div>
-  <div class="ss-controls">
+  <div class="ss-controls app-controls">
     <section class="ss-group">
       <div class="ss-control-title">Rate-and-state friction</div>
       <div class="ss-row"><label for="ss-a">direct effect a</label><input id="ss-a" type="range" min="0.002" max="0.03" step="0.0005" value="$(w.a)"><span id="ss-av" class="ss-value"></span></div>
@@ -764,23 +812,6 @@ end
 begin
     _ss_ready
     WideCell(@bind ss_state StickSlipInput(); max_width=1500)
-end
-
-# ╔═╡ e22c0ca4-43c7-4c3b-a12f-27794ac48616
-"""
-    bounded(raw, key, default, lo, hi)
-
-Read one finite control value from the widget's bound state and clip it to the physical
-range used by the demonstration, so a malformed or missing browser value cannot create a
-non-finite or sign-flipped parameter downstream.
-"""
-function bounded(raw, key, default, lo, hi)
-    candidate = try
-        raw isa AbstractDict ? Float64(get(raw, key, default)) : default
-    catch
-        default
-    end
-    isfinite(candidate) ? clamp(candidate, lo, hi) : default
 end
 
 # ╔═╡ e446deb7-e077-435c-a178-b5a0c8b35190
@@ -1303,6 +1334,7 @@ uuid = "23338594-aafe-5451-b93e-139f81909106"
 # ╔═╡ Cell order:
 # ╠═32526135-0ec9-4865-bc05-fa81450ff3a3
 # ╠═7f48d81c-5664-459a-bf10-c265462d57a0
+# ╟─106353b7-506a-482f-95de-7c2f7f6765c9
 # ╟─1103da07-e3f7-408b-937e-5ee0a1563ac7
 # ╟─8417cf97-4555-44c6-9f44-a6a32799bde8
 # ╟─45405706-2ca9-466b-b67a-8b8f387c3423

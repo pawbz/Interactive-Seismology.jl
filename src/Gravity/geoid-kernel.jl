@@ -33,6 +33,30 @@ using Symbolics
 # ╔═╡ 5c3f2e62-3c4d-4e7f-a01b-2c3d4e5f6071
 TableOfContents(include_definitions=true)
 
+# ╔═╡ 354df6f8-2466-4c84-9fc2-b4b2c3478318
+# App shell: the Expt / Theory / Code / Help frame shared by every notebook, loaded
+# from src/assets/app-shell/. Without that folder (a lone downloaded .jl) this cell just
+# shows the help text and the notebook stays a plain notebook.
+let
+	help = md"""
+	- **Paint** dense (or light) blobs into the mantle on the globe; the geoid and topography maps respond.
+	- **Viscosity ratio** sets how much stiffer the lower mantle is; **degree ℓ** picks the spherical-harmonic degree of the kernel.
+	- **Direct only** shows just the attraction of the blob, without the flow-induced surface and CMB deflections.
+	- Drag to rotate the globe; the slice shows the blob, the flow and the kernel in cross-section.
+
+	**Try this:** with a dense blob at mid-mantle depth, raise the viscosity ratio and watch the geoid above it flip from low to high.
+	"""
+	dir = joinpath(@__DIR__, "..", "assets", "app-shell")
+	if isfile(joinpath(dir, "app-shell.js"))
+		HTML(string(
+			"<style>", read(joinpath(dir, "app-shell.css"), String), "</style>",
+			"<template class=\"app-help\">", repr(MIME"text/html"(), help), "</template>",
+			"<script>", read(joinpath(dir, "app-shell.js"), String), "</script>"))
+	else
+		help
+	end
+end
+
 # ╔═╡ 7e514084-5e6f-4091-c23d-4e5f60718293
 md"---"
 
@@ -340,7 +364,7 @@ end
 let
     attenuation_at_ell2 = round((B_CMB / A_EARTH)^4, digits=3)
     Markdown.parse(raw"""
-## Why Does a Dense Blob Make a Geoid *Low*?
+# Why Does a Dense Blob Make a Geoid *Low*?
 
 Drop a dense lump into the mantle. Ask a student what happens to the geoid — the shape of
 sea level — directly above it, and almost everyone says the same thing: *more mass means
@@ -437,7 +461,7 @@ begin
 
     function Base.show(io::IO, ::MIME"text/html", w::GeoidGlobeInput)
         write(io, """
-<div id="gkwidget" style="display:flex;flex-direction:column;align-items:center;width:100%;color:#9ca3af">
+<div id="gkwidget" class="app-widget" style="display:flex;flex-direction:column;align-items:center;width:100%;color:#9ca3af">
   <style>
     /* PlutoUI's wide-cell wrapper hard-caps itself around 1000px regardless of
        viewport size. Override it for this specific cell so the widget can actually
@@ -468,7 +492,7 @@ begin
       #gkwidget .gk-controls{grid-template-columns:1fr;width:660px;max-width:100%}
     }
   </style>
-  <div class="gk-title">
+  <div class="gk-title app-title">
     <div class="gk-title-desc">A density anomaly deforms the surface and core&ndash;mantle boundary as the mantle flows around it &mdash; the geoid is the sum of all three effects.</div>
     <div class="gk-title-hint">drag to rotate the globe &middot; click a cut face to place a density anomaly</div>
   </div>
@@ -1370,12 +1394,14 @@ end
 
 # ╔═╡ f6d9c866-d6a7-4819-4a75-485960718293
 begin
-    gk_blobs_raw = get(_gk, "blobs", Vector{Float64}[])
-    gk_visc = Float64(get(_gk, "visc_ratio", 1.0))
-    gk_ell = Int(round(Float64(get(_gk, "ell", 2))))
-    gk_direct = Bool(get(_gk, "direct_only", false))
-    gk_showflow = Bool(get(_gk, "show_flow", false))
-    _cs = Float64(get(_gk, "cut_start", 0.9))
+    # The bond is `nothing` until a browser has rendered the widget: use its defaults.
+    _gk_safe = _gk isa AbstractDict ? _gk : Base.get(GeoidGlobeInput())
+    gk_blobs_raw = get(_gk_safe, "blobs", Vector{Float64}[])
+    gk_visc = Float64(get(_gk_safe, "visc_ratio", 1.0))
+    gk_ell = Int(round(Float64(get(_gk_safe, "ell", 2))))
+    gk_direct = Bool(get(_gk_safe, "direct_only", false))
+    gk_showflow = Bool(get(_gk_safe, "show_flow", false))
+    _cs = Float64(get(_gk_safe, "cut_start", 0.9))
     gk_cutfaces = (_cs, _cs + pi / 2)
 
     # The globe hands back (θ, φ, r_fraction, amplitude, angular_width).
@@ -2258,6 +2284,12 @@ let
       window.dispatchEvent(new CustomEvent('geoid-results', {detail: $(repr(payload))}));
     </script>""")
 end
+
+# ╔═╡ 1ffb7fb7-7053-423c-a076-53848852c333
+md"""
+## Appendix
+Everything below is implementation, in the order of the computational pipeline: the physical constants, the analytic building blocks of the Stokes problem, the geoid kernel, and the step from a painted picture to a geoid map, each with its own validation. The widget's definition comes last.
+"""
 
 # ╔═╡ 00000000-0000-0000-0000-000000000001
 PLUTO_PROJECT_TOML_CONTENTS = """
@@ -3157,6 +3189,7 @@ version = "17.7.0+0"
 
 # ╔═╡ Cell order:
 # ╠═5c3f2e62-3c4d-4e7f-a01b-2c3d4e5f6071
+# ╟─354df6f8-2466-4c84-9fc2-b4b2c3478318
 # ╟─6d403f73-4d5e-4f80-b12c-3d4e5f607182
 # ╟─e5c8b756-c5b6-4708-3964-374859607182
 # ╟─7e514084-5e6f-4091-c23d-4e5f60718293
@@ -3179,6 +3212,7 @@ version = "17.7.0+0"
 # ╠═c3a69539-a3b4-45e6-1782-930415263748
 # ╟─d4b7a64a-b4c5-46f7-2893-041526374859
 # ╟─e5c8b75b-c5d6-4708-3904-152637485960
+# ╟─1ffb7fb7-7053-423c-a076-53848852c333
 # ╟─90736206-7081-42b3-e45f-607182930415
 # ╠═a1847317-8192-43c4-f560-718293041526
 # ╟─f6d9c86c-d6e7-4819-4a15-263748596071

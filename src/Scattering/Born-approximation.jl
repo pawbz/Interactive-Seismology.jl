@@ -34,6 +34,29 @@ end
 # ╔═╡ 44d58ae7-f626-4bf6-a8ac-9dae63f2d9d6
 TableOfContents()
 
+# ╔═╡ a19b2a06-65dd-4388-8bdb-204743c120f0
+# App shell: the Expt / Theory / Code / Help frame shared by every notebook, loaded
+# from src/assets/app-shell/. Without that folder (a lone downloaded .jl) this cell just
+# shows the help text and the notebook stays a plain notebook.
+let
+	help = md"""
+	- **Paint** scatterers on the model panel (faster or slower than the background); the scattered wavefield, the shot gather and the migration image update.
+	- Place or delete **sources** and **receivers** with the mode buttons; choose which source's gather to view.
+	- **v₀** sets the background velocity and **f** the source's peak frequency.
+
+	**Try this:** paint one small scatterer, then add sources around the model and watch the migration image sharpen.
+	"""
+	dir = joinpath(@__DIR__, "..", "assets", "app-shell")
+	if isfile(joinpath(dir, "app-shell.js"))
+		HTML(string(
+			"<style>", read(joinpath(dir, "app-shell.css"), String), "</style>",
+			"<template class=\"app-help\">", repr(MIME"text/html"(), help), "</template>",
+			"<script>", read(joinpath(dir, "app-shell.js"), String), "</script>"))
+	else
+		help
+	end
+end
+
 # ╔═╡ 2f429d1f-ecd1-4b97-b46d-b4714144e24f
 md"""
 # Born Approximation
@@ -45,7 +68,7 @@ that second effect tractable: treat the scattered field as a small, *linear* cor
 the background field, valid as long as the heterogeneity is weak enough that multiply-scattered
 energy is negligible.
 
-This notebook derives that linearization, then hands you a widget where you **paint scatterers
+This notebook derives that linearization, then hands you an experiment where you **paint scatterers
 directly onto a subsurface model** and watch three things update live: the scattered wavefield
 propagating away from what you painted, the data it produces at a receiver array, and -- the real
 payoff -- the **migration image**, the cheapest possible linear inverse, which tries to recover
@@ -76,7 +99,7 @@ L(U, m_0) = F(\omega)\,\delta(\mathbf x - \mathbf x_s).
 ```
 
 The **perturbed** state -- what you get once you paint scatterers -- adds a small `` \delta m(\mathbf x) ``
-(what the widget's brush actually paints) and the wavefield responds with a correction
+(what the experiment's brush actually paints) and the wavefield responds with a correction
 `` \delta U ``:
 
 ```math
@@ -144,11 +167,13 @@ cell) combination.
 # ╔═╡ 689dd440-942d-449d-9b75-825ad3b052af
 md"""
 ## Appendix
+The acquisition and grid, the 2-D Green's function, the source spectrum, the forward (Born) and adjoint (migration) operators with a check that they really are adjoints, and the cells that compute the fields for the experiment.
 """
 
 # ╔═╡ e4de01e7-6d0a-4211-b83c-c292984c76f3
 md"""
 ### Acquisition & Grid
+The model grid, the painting resolution and the default source and receiver positions shared with the widget.
 """
 
 # ╔═╡ 7a4b1527-e09d-4393-bba1-69f7f7048e6e
@@ -169,6 +194,7 @@ end
 # ╔═╡ 65a857c3-d6ab-4f9a-8839-1f829c4621c4
 md"""
 ### 2-D Green's Function
+`G0` is the frequency-domain Green's function of the 2-D acoustic wave equation in a homogeneous background, a Hankel function of the distance between two points, and `rad` is that distance.
 """
 
 # ╔═╡ 4ba10533-065c-44b0-8295-2363fb99a8ea
@@ -203,6 +229,7 @@ end
 # ╔═╡ dff8cb60-4cbd-47bc-a803-9efbb71ee47b
 md"""
 ### Source Spectrum
+`source_spectrum` gives the spectrum of the source wavelet with the chosen peak frequency, and `acoustic_medium` sets the background velocity, density and frequency grid.
 """
 
 # ╔═╡ db3a4cb2-a525-46b2-aaf5-9a7d9078119f
@@ -238,6 +265,7 @@ end
 # ╔═╡ 856ee675-dff3-4d61-9b13-efd83f85cfc3
 md"""
 ### Forward Modeling
+`get_forward_operator` discretizes the Born integral: for one source it builds the matrix that maps a squared-slowness perturbation on the grid to scattered data at every receiver and frequency, ``-\omega^2 G(\mathbf x, \mathbf x_r)\,U(\mathbf x, \mathbf x_s)\,dV``. `get_reference_wavefield` is the direct wave from source to receivers. `get_scattered_wavefield` applies the forward operator to the painted ``\delta m``.
 """
 
 # ╔═╡ fc2711fe-68d2-4432-9ed8-e511c7fa71fe
@@ -302,6 +330,7 @@ end
 # ╔═╡ 90fcf549-8982-4bde-895d-eb9df3b32a41
 md"""
 ### Migration (Imaging)
+`get_migration_image` applies the adjoint, the conjugate transpose of the forward operator, to the scattered data. That back-propagates the data into the model and gives the migration image.
 """
 
 # ╔═╡ cd5c240c-db82-4307-8d5b-702a0b49a946
@@ -358,11 +387,13 @@ end
 # ╔═╡ 08d196f8-86cb-4c0f-8050-811003182671
 md"""
 ### Computing the Fields
+The cells below read the widget's state (background velocity, peak frequency, sources, receivers and the painted perturbation, with defaults when no browser is attached), build one forward operator per source, and compute the reference and scattered gathers and the migration image stacked over all sources. Only the cheap steps rerun when you repaint.
 """
 
 # ╔═╡ 38cd5bf1-203f-49ce-810b-7ed60e88c705
 md"""
 ### The Interactive Widget
+`BornScatteringInput` sends the background velocity, the peak frequency, the source and receiver positions, which source to view, and the painted perturbation grid back to Julia. It draws the model, the migration image and the shot gather from what Julia pushes back.
 """
 
 # ╔═╡ 59b5207f-7af0-4508-bb22-465ac206a10d
@@ -412,7 +443,7 @@ begin
 
     function Base.show(io::IO, ::MIME"text/html", w::BornScatteringInput)
         write(io, """
-        <div id="bswidget">
+        <div id="bswidget" class="app-widget">
         <style>
         pluto-cell:has(#bswidget) { width: min(80vw, 1500px) !important;
           margin-left: calc((100% - min(80vw, 1500px)) / 2) !important; }
@@ -442,7 +473,7 @@ begin
         #bswidget .bs-cbar{cursor:default;display:block;margin:0 auto}
         </style>
 
-        <div class="bs-title">
+        <div class="bs-title app-title">
           <div class="bs-title-desc">Click to place scatterers, sources, and receivers; see the data they produce and whether migration recovers what you placed.</div>
           <div class="bs-title-hint">pick a mode below &middot; click empty ground to place &middot; drag an existing marker to move it &middot; Delete mode + click to remove</div>
         </div>
@@ -1562,6 +1593,7 @@ version = "17.7.0+0"
 
 # ╔═╡ Cell order:
 # ╠═44d58ae7-f626-4bf6-a8ac-9dae63f2d9d6
+# ╟─a19b2a06-65dd-4388-8bdb-204743c120f0
 # ╟─2f429d1f-ecd1-4b97-b46d-b4714144e24f
 # ╟─24fab919-51b8-4ca3-ac6c-cdf2c4dbb407
 # ╟─b313a158-3384-490f-8cdf-6786cd3facd4

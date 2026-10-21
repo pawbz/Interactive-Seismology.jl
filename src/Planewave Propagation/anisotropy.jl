@@ -39,6 +39,30 @@ ChooseDisplayMode()
 # ╔═╡ 6e9dc83f-5d4f-4f21-a495-d43bc64f6041
 TableOfContents()
 
+# ╔═╡ 764a8e00-d974-43d6-9786-b486336e8536
+# App shell: the Expt / Theory / Code / Help frame shared by every notebook, loaded
+# from src/assets/app-shell/. Without that folder (a lone downloaded .jl) this cell just
+# shows the help text and the notebook stays a plain notebook.
+let
+	help = md"""
+	- **Drag** inside the 3-D view to orbit; the amber, blue and cyan surfaces are qP, qS₁ and qS₂.
+	- **Phase / Group** switches between the phase-velocity surface and the ray (energy) surface.
+	- **A, C, F, L, N** set the five VTI Love constants; **Time** and **Density** scale the surfaces.
+	- **Plunge** and **Trend** tilt the crystal's symmetry axis; turn on the crystal-axis legend item to see it.
+
+	**Try this:** set A = C and L = N: all three surfaces become spheres, the isotropic limit.
+	"""
+	dir = joinpath(@__DIR__, "..", "assets", "app-shell")
+	if isfile(joinpath(dir, "app-shell.js"))
+		HTML(string(
+			"<style>", read(joinpath(dir, "app-shell.css"), String), "</style>",
+			"<template class=\"app-help\">", repr(MIME"text/html"(), help), "</template>",
+			"<script>", read(joinpath(dir, "app-shell.js"), String), "</script>"))
+	else
+		help
+	end
+end
+
 # ╔═╡ 17942206-4ea3-11ed-30fa-d38c9c47f282
 md"""
 # Anisotropy
@@ -47,14 +71,13 @@ It is important to consider deviations from isotropy when imaging the Earth. Alt
 * __Lattice-preferred anisotropy (LPO)__: homogeneous material, but there is preferred crystal orientation, e.g., olivine.
 * __Shape-preferred anisotropy (SPO)__: a stack of rock layers with different isotropic properties cause seismic velocities to differ in different directions, or preferred orientation of cracks in the medium.
 
-It is often difficult to distinguish the effects of anisotropy and those of medium heterogeneity. The presence of anisotropy results in non-circular wavefronts, even though the elastic constants are homogeneous. We can visualize wavefronts after projecting them along different planes by interacting with the plot below.
+It is often difficult to distinguish the effects of anisotropy and those of medium heterogeneity. The presence of anisotropy results in non-circular wavefronts, even though the elastic constants are homogeneous. The experiment shows the full 3-D wavefront of such a medium.
 
 ##### [Interactive Seismology Notebooks](https://pawbz.github.io/Interactive-Seismology.jl/)
 
 Instructor: *Pawan Bharadwaj*,
 Indian Institute of Science, Bengaluru, India
 """
-
 
 # ╔═╡ e28c94fd-f04d-442c-8b19-be84d565d5c7
 nothing
@@ -69,7 +92,7 @@ end
 md"""
 ## Read the velocity surface
 
-The widget draws the full 3-D wavefront of a homogeneous VTI medium as one
+The experiment draws the full 3-D wavefront of a homogeneous VTI medium as one
 rotatable surface: qP (amber), qS₁ (blue) and qS₂ (cyan) are drawn together,
 radius equal to velocity times the chosen travel time. Drag inside the canvas
 to orbit; a sphere would mean speed is independent of direction, so any
@@ -99,23 +122,38 @@ Two more things worth toggling:
 
 # ╔═╡ 3bfab7cf-8b35-408d-8d25-ce6a37a0f19e
 md"""
-| **Love Constant** | **Equivalent \(c_{ij}\)** | **Physical Meaning** |
+| **Love Constant** | **Equivalent** ``c_{ij}`` | **Physical Meaning** |
 |--------------------|---------------------------|----------------------|
-| \(A\) | \(c_{11}\) | P-wave modulus in the horizontal (x–y) plane |
-| \(C\) | \(c_{33}\) | P-wave modulus along the symmetry axis (z) |
-| \(F\) | \(c_{13}\) | Coupling between vertical and horizontal strain |
-| \(L\) | \(c_{44}\) | Shear modulus for SV motion in the x–z plane |
-| \(N\) | \(c_{66}\) | Shear modulus for SH motion in the x–y plane |
+| ``A`` | ``c_{11}`` | P-wave modulus in the horizontal (x–y) plane |
+| ``C`` | ``c_{33}`` | P-wave modulus along the symmetry axis (z) |
+| ``F`` | ``c_{13}`` | Coupling between vertical and horizontal strain |
+| ``L`` | ``c_{44}`` | Shear modulus for SV motion in the x–z plane |
+| ``N`` | ``c_{66}`` | Shear modulus for SH motion in the x–y plane |
 """
 
 # ╔═╡ d2027f44-361b-4d00-9efb-86fe2c7e9b68
-aside(tip(md"**Shear-wave splitting** As the two quasi-shear waves travel with different speeds in the case of an anisotropic medium, it leads to shear-wave splitting. Which means, the two orthogonal components of the shear wave reach at slightly different times."))
+md"""
+!!! tip "Shear-wave splitting"
+	The two quasi-shear waves travel at different speeds in an anisotropic medium, so a shear wave splits: its two orthogonal components arrive at slightly different times.
+"""
 
 # ╔═╡ 7d5bcebe-3f1c-485a-a094-78eb3b976352
 md"""
 ## Transverse Anisotropy; Voigt Notation
-A transversely anisotropic material can be characterized by five independent elastic constants. The Voigt matrix is a six-dimensional symmetric matrix denoted using `C`.
-We follow the Love convention, where the elastic constants are represented using the following symbols.
+A transversely anisotropic material is characterized by five independent elastic constants. Writing stress and strain as six-component vectors (Voigt notation, ``11\to1``, ``22\to2``, ``33\to3``, ``23\to4``, ``13\to5``, ``12\to6``), the stiffness becomes a symmetric ``6\times6`` matrix. In the Love convention, with the symmetry axis along ``z``,
+
+```math
+C = \begin{pmatrix}
+A & A-2N & F & 0 & 0 & 0\\
+A-2N & A & F & 0 & 0 & 0\\
+F & F & C & 0 & 0 & 0\\
+0 & 0 & 0 & L & 0 & 0\\
+0 & 0 & 0 & 0 & L & 0\\
+0 & 0 & 0 & 0 & 0 & N
+\end{pmatrix},
+```
+
+built symbolically below as `Ctrans`. The isotropic medium is the special case ``A = C = \lambda + 2\mu``, ``F = \lambda``, ``L = N = \mu`` (`Ciso`).
 """
 
 # ╔═╡ bba0ec5e-32bd-4ab1-84d1-76e18c88dc5a
@@ -140,18 +178,18 @@ md"""
 md"""
 In global seismology, SKS splitting is the most common measurement:
 * The incoming SKS wave (nearly vertically incident) passes through azimuthal anisotropy (often HTI-like) in the upper mantle.
-* Fast polarization direction \phi → indicates mantle fabric / flow direction.
-* Delay time \delta t → measures strength of anisotropy or layer thickness.
+* The fast polarization direction ``\phi`` indicates the mantle fabric or flow direction.
+* The delay time ``\delta t`` measures the strength of the anisotropy or the thickness of the anisotropic layer.
 """
 
 # ╔═╡ 1724771c-d1ef-4c1c-93dc-e889a74d80e9
 md"""
 | **Observable** | **Measured from** | **Related Constant** |
 |-----------------|-------------------|----------------------|
-| \(V_{P0}\) | Vertical P-wave | \(C\) |
-| \(V_{S0}\) | Vertical S-wave | \(L\) |
-| \(V_{PH}\) | Horizontal P-wave | \(A\) |
-| \(V_{SHH}\) | Horizontal SH-wave | \(N\) |
+| ``V_{P0} = \sqrt{C/\rho}`` | Vertical P-wave | ``C`` |
+| ``V_{S0} = \sqrt{L/\rho}`` | Vertical S-wave | ``L`` |
+| ``V_{PH} = \sqrt{A/\rho}`` | Horizontal P-wave | ``A`` |
+| ``V_{SH} = \sqrt{N/\rho}`` | Horizontal SH-wave | ``N`` |
 """
 
 # ╔═╡ 846457f5-d684-470f-bba5-144b41f8dd14
@@ -167,23 +205,30 @@ md"""
 @variables A::Real N::Real F::Real C::Real L::Real
 
 # ╔═╡ 70ebdd20-3a02-4493-a0d6-718fa5b51675
-md"In the case of transverse anisotropy, with rock layers oriented along in the $xy$-plane, the Love constants can be used from the Voigt matrix as follows. In this case, the axis of symmetry is along $z$."
+md"""
+For transverse anisotropy with the rock layers in the ``xy``-plane, the symmetry axis is ``z`` and the Love constants fill the Voigt matrix as shown above. The five symbols are declared first, then the matrix itself.
+"""
 
 # ╔═╡ 4f7b0a05-004a-417d-81d2-e4b1176909d6
 Ctrans = [[A, A - 2N, F, 0, 0, 0];; [A - 2N, A, F, 0, 0, 0];; [F, F, C, 0, 0, 0];; [0, 0, 0, L, 0, 0];; [0, 0, 0, 0, L, 0];; [0, 0, 0, 0, 0, N]]
 
 # ╔═╡ 1de3540c-6e07-4e4e-b411-7a5667b5c742
-aside(tip(md"For layered rocks, the seismic waves travel faster in the direction parallel to the layers, as opposed to the perpendicular direction. This is because the waves can *choose* to travel in the fast layers in the former case."))
+md"""
+!!! tip "Why layering makes waves faster along the layers"
+	For layered rocks, seismic waves travel faster parallel to the layers than perpendicular to them, because along the layers a wave can travel mostly within the fast layers.
+"""
 
 # ╔═╡ f5f78c1e-9062-4a5b-8bc3-4efb0f1883ca
-md"As an example of LPO, we now construct the Voigt matrix for olivine, where the constants are in $(u\"GPa\")."
+md"""
+As an example of lattice-preferred orientation, we now write the Voigt matrix of olivine, with the constants in GPa (`Colivine`). Unlike the VTI matrix above, it has nine independent constants (orthorhombic symmetry).
+"""
 
 # ╔═╡ 5c3cea52-3154-4aa3-824c-5be50a302be5
 Colivine = [[192, 66, 60, 0, 0, 0];; [66, 160, 56, 0, 0, 0];; [60, 56, 272, 0, 0, 0];; [0, 0, 0, 60, 0, 0];; [0, 0, 0, 0, 62, 0];; [0, 0, 0, 0, 0, 49]]
 
 # ╔═╡ 88fb688e-d768-4895-8fe9-822f5db335b0
 md"""
-For an isotropic medium, there are only two independent elastic constants $\lambda$ and $\mu$. In this case, the Voigt matrix can be derived using the following substitutions.
+For an isotropic medium there are only two independent elastic constants, ``\lambda`` and ``\mu``, and the Voigt matrix follows from the substitutions above.
 """
 
 # ╔═╡ b64d6d57-c38c-4f54-b86f-0d254d27c3ed
@@ -197,7 +242,7 @@ end
 # ╔═╡ 12a42fbb-bfb7-4852-a638-2dec237c032d
 md"""
 ## Elastic tensor `cijkl`
-The Voigt matrix is not a tensor and no longer preserves the mathematical properties of the elastic tensor. Given the elements of the Voigt matrix, we can construct the tensor `cijkl`, for both isotropic and transverse anisotropy cases, using the following method. 
+The Voigt matrix is a bookkeeping device, not a tensor: it no longer transforms like one under rotation. `get_cijkl` rebuilds the full fourth-rank tensor ``c_{ijkl}`` from it by inverting the Voigt index map (a pair ``ij`` becomes ``i`` if ``i = j`` and ``9 - i - j`` otherwise), for the isotropic (`ciso`), transversely anisotropic (`ctrans`) and olivine (`colivine`) cases.
 """
 
 # ╔═╡ 0ea0a70c-72b2-47da-902d-00cd6279fbb5
@@ -218,7 +263,9 @@ ctrans = get_cijkl(Ctrans); # for transverse anisotropy
 colivine = get_cijkl(Colivine); # for anisotropy
 
 # ╔═╡ 0028f23a-0a92-42d8-9077-cc5fd585cce6
-md"Let's take a moment to realize the power of our notation using `Symbolics` and `Einsum` packages. We shall now write down something that we were familiar in the isotropic world: the stress-strain relation."
+md"""
+With the full tensor, the stress-strain relation is a single contraction, ``\sigma_{ij} = c_{ijkl}\,e_{kl}``, written below with Einsum.jl (`σiso`). It reproduces the familiar isotropic Hooke's law.
+"""
 
 # ╔═╡ 8aa7f639-3e76-4db4-bd44-37b78f7f3781
 @variables e[1:3, 1:3] # strain tensor
@@ -228,7 +275,7 @@ md"Let's take a moment to realize the power of our notation using `Symbolics` an
 
 # ╔═╡ 183cc6c5-a4ae-47c6-8c48-2c8ff2e1cbc6
 md"""
-Doesn't it look easy? If you were confused about the Voigt matrix above, we can simply understand it by writing the stress-strain relation in the transversely anisotropic medium.
+The same contraction with `ctrans` (and with `colivine`) shows what the Voigt matrix encodes: each stress component now depends on the strain components with direction-dependent weights.
 """
 
 # ╔═╡ 4af3c346-f657-4b59-9a79-ee9ff0b79bbd
@@ -243,7 +290,19 @@ Doesn't it look easy? If you were confused about the Voigt matrix above, we can 
 # ╔═╡ f940ed1a-1f89-4f7b-bb41-05615e2351a0
 md"""
 ## Planewaves in Anisotropic Media
-It is important to realize that we are going to work with homogeneous media, where all the elastic constants in `cikjl` don't vary with spatial coordinates. We shall now analyze plane wave solutions.
+The medium is homogeneous: the constants ``c_{ijkl}`` do not vary in space. The equation of motion without body forces is
+
+```math
+\rho\,\ddot u_i = c_{ijkl}\,\partial_j\partial_l u_k ,
+```
+
+and we try a plane wave with amplitude (polarization) vector ``\mathbf g``, unit slowness direction ``\hat{\mathbf s}`` and slowness magnitude ``p = 1/v``:
+
+```math
+\mathbf u = \mathbf g\,\exp\big[i\omega\,(t - p\,\hat{\mathbf s}\cdot\mathbf x)\big]
+```
+
+(`utrail`). The cells below apply the stiffness side (`uddot_trail1`) and the inertia side (`uddot_trail2`) to this trial solution.
 """
 
 # ╔═╡ 54657fec-e8e7-4040-8108-a29ae8df1c24
@@ -289,7 +348,15 @@ utrail = Symbolics.scalarize(g .* utrail1)
 @einsum uddot_trail2[i] := expand_derivatives(Dt(Dt(utrail[i]))) * ρ
 
 # ╔═╡ 2a2fc196-10a9-4c97-b1c1-e2a68e21119e
-md"The equation of motion is satisfied only when the following two expressions are equal to each other."
+md"""
+Dividing both sides by the common exponential factor and by ``\omega^2 p^2`` leaves the condition the plane wave must satisfy,
+
+```math
+c_{ijkl}\,\hat s_j \hat s_l\, g_k = \rho\, v^2\, g_i ,
+```
+
+whose two sides are `ga` and `gb` below.
+"""
 
 # ╔═╡ 77f96830-e81b-438d-b5ae-4ac59cb031df
 ga = simplify_fractions.(uddot_trail1 ./ utrail1 ./ ω^2 ./ ı^2 / p^2)
@@ -300,11 +367,13 @@ gb = simplify_fractions.(uddot_trail2 ./ utrail1 ./ ω^2 ./ ı^2 * v^2)
 # ╔═╡ 366ee997-e2fc-4b48-bb6e-33b666ea38f5
 md"""
 ## Christoffel Matrix `M`
-Now we would like to work towards the construction of a transformation matrix `M` such that `ga=M*g`. Notice that `gb` is already in the direction of the amplitude vector, so once we construct `M`, all we need to solve is an eigenvalue problem
+The left-hand side is a matrix acting on ``\mathbf g``: the **Christoffel matrix** ``M_{ik} = c_{ijkl}\,\hat s_j\hat s_l``. The plane-wave condition is the eigenvalue problem
+
 ```math
-M*g = ρv^2*g,
+M\,\mathbf g = \rho v^2\,\mathbf g ,
 ```
-where the eigenvalues will give us the phase velocities. Note that `M` depends on the direction of the slowness vector `s`, therefore leading to anisotropy. As `M` is symmetric, we have three solutions for general anisotropic case: a single quasi-P wave (qP) and two quasi-S waves (qS).
+
+so the eigenvalues give the phase velocities and the eigenvectors the polarizations. ``M`` depends on the propagation direction ``\hat{\mathbf s}``, which is what makes the speed directional. Because ``M`` is symmetric there are three solutions in general: a quasi-P wave and two quasi-S waves with mutually orthogonal polarizations. Below, ``M`` is assembled column by column from `ga` (`M1`, `M2`, `M3`).
 """
 
 # ╔═╡ f6675c52-740c-4098-98d6-9c9038b4f6f4
@@ -330,12 +399,14 @@ M = ([M1;; M2;; M3]) # concat all the columns to get the Christoffel matrix
 
 # ╔═╡ b5997b61-2ca2-4c2f-acd6-16c121f0aa13
 md"""
-We shall now analyze plane waves traveling along the cartesian axis individually. Towards that end, we will make necessary substitutions for the slowness vector.
-The Chistoffel matrices for plane waves traveling in `x[1]`, `x[2]`, and `x[3]` directions are given by the following expressions respectively.
+For plane waves along the coordinate axes, substituting ``\hat{\mathbf s}`` makes ``M`` diagonal for the VTI medium. Along ``x`` the three eigenvalues ``\rho v^2`` are ``A`` (P), ``N`` (SH) and ``L`` (SV); along ``z`` they are ``C`` (P) and ``L`` twice (the two S waves travel at the same speed, so there is no splitting along the symmetry axis). The cells below show ``M`` for propagation along ``x``, along ``y``, and at 45° in the ``yz``-plane, where the P and SV motions couple.
 """
 
 # ╔═╡ 2bdba346-7a64-4de6-9b71-7034b9d68986
-aside(correct(md"For an isotropic medium, note that the Christoffel matrices didn't change with the direction of the slowness vector. Obviously. Its eigenvalues correspond to P, SV and SH waves."))
+md"""
+!!! correct "The isotropic limit"
+	For an isotropic medium the Christoffel matrix does not change with the direction of the slowness vector. Its eigenvalues, ``\lambda + 2\mu`` once and ``\mu`` twice, are the P, SV and SH waves.
+"""
 
 # ╔═╡ 78449122-6762-4191-9a8d-b1f8bee69bd8
 map(M) do x
@@ -359,7 +430,10 @@ md"""
 	"""
 
 # ╔═╡ ebf4953d-abc5-4530-af51-8b68096a0113
-md"## Appendix"
+md"""
+## Appendix
+The packages, the model's scope, and the functions that sample the velocity surfaces for the experiment.
+"""
 
 # ╔═╡ 0989b0f0-06c6-4353-9933-ec713563f0c6
 md"""
@@ -579,7 +653,7 @@ begin
 
     function Base.show(io::IO, ::MIME"text/html", w::VTIWavefrontInput)
         write(io, """
-        <div id="ani-widget"><style>
+        <div id="ani-widget" class="app-widget"><style>
         #ani-widget{width:100%;max-width:1400px;margin:auto;color:#e5e7eb;font:14px system-ui,sans-serif}#ani-widget *{box-sizing:border-box}
         #ani-widget .ani-title{padding:10px 14px;margin-bottom:10px;text-align:center;background:#0a0f18;border:1px solid #3b5c85;border-radius:6px}#ani-widget .ani-title b{font-size:17px}#ani-widget .ani-hint{margin-top:3px;color:#9ca3af;font-size:13px}
         #ani-widget .ani-workspace{display:block}#ani-widget .ani-panel,#ani-widget .ani-group{min-width:0;padding:10px;background:#050505;border:1px solid #2f3744;border-radius:6px}
@@ -589,8 +663,14 @@ begin
         #ani-widget .ani-seg{display:inline-flex;border:1px solid #4b5563;border-radius:4px;overflow:hidden;margin-left:auto}#ani-widget .ani-seg button{border:none;background:#111827;color:#9ca3af;padding:5px 10px;font-size:12.5px;cursor:pointer}#ani-widget .ani-seg button.active{background:#3b5c85;color:#fff}
         #ani-widget .ani-controls{display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:8px;margin-top:10px}#ani-widget .ani-group-title{margin-bottom:7px;font-size:16px;font-weight:700}#ani-widget .ani-row{display:grid;grid-template-columns:minmax(70px,115px) minmax(70px,1fr) minmax(42px,62px);gap:7px;align-items:center;margin:7px 0;color:#d1d5db}#ani-widget input[type=range]{width:100%;min-width:0;accent-color:#f59e0b}#ani-widget .ani-value{color:#fbbf24;text-align:right;font-variant-numeric:tabular-nums}#ani-widget button.ani-btn{border:1px solid #9ca3af;border-radius:4px;padding:6px 12px;background:#606060;color:#f3f4f6;font-size:14px;cursor:pointer}#ani-widget .ani-status{margin-top:8px;color:#9ca3af;font-size:13px}
         @media(max-width:760px){#ani-widget canvas{height:340px}}
-        </style><div class="ani-title"><b>Directional stiffness turns a spherical wavefront into a velocity surface.</b><div class="ani-hint">Drag the 3-D view to orbit &middot; tilt the crystal &middot; compare phase and ray (group) velocity surfaces</div></div>
-        <div class="ani-workspace"><section class="ani-panel"><div class="ani-panel-title">3-D wavefront</div><div class="ani-caption" id="ani-caption">radius = velocity &times; time, in the direction shown</div><canvas id="ani-3d"></canvas>
+        /* App shell Expt view: the 3-D panel fills the stage and its canvas the stage height. */
+        html[data-sa-mode="expt"] #ani-widget{max-width:none}
+        html[data-sa-mode="expt"] #ani-widget .ani-workspace{align-items:stretch!important;justify-content:stretch!important;display:flex}
+        html[data-sa-mode="expt"] #ani-widget .ani-panel{flex:1 1 auto;display:flex;flex-direction:column;min-height:0}
+        html[data-sa-mode="expt"] #ani-widget canvas{flex:1 1 auto;height:auto;min-height:0}
+        @media(max-width:820px){html[data-sa-mode="expt"] #ani-widget canvas{flex:none;height:340px}}
+        </style><div class="ani-title app-title"><b>Directional stiffness turns a spherical wavefront into a velocity surface.</b><div class="ani-hint">Drag the 3-D view to orbit &middot; tilt the crystal &middot; compare phase and ray (group) velocity surfaces</div></div>
+        <div class="ani-workspace app-stage"><section class="ani-panel"><div class="ani-panel-title">3-D wavefront</div><div class="ani-caption" id="ani-caption">radius = velocity &times; time, in the direction shown</div><canvas id="ani-3d"></canvas>
         <div class="ani-legend">
         <label class="ani-key" id="ani-key-qP" style="color:#f59e0b"><input type="checkbox" id="ani-show-qP" checked><i class="ani-dot"></i>qP</label>
         <label class="ani-key" id="ani-key-qS1" style="color:#60a5fa"><input type="checkbox" id="ani-show-qS1" checked><i class="ani-dot"></i>qS&#8321;</label>
@@ -600,7 +680,7 @@ begin
         <div class="ani-seg" id="ani-seg-surface"><button data-v="phase" class="active">Phase velocity</button><button data-v="group">Group velocity (ray)</button></div>
         </div>
         </section></div>
-        <div class="ani-controls">
+        <div class="ani-controls app-controls">
         <section class="ani-group"><div class="ani-group-title">Propagation</div><label class="ani-row"><span>Time</span><input id="ani-time" type="range" min="0.2" max="1.2" step="0.1" value="$(w.time)"><span id="ani-time-v" class="ani-value"></span></label><label class="ani-row"><span>Density</span><input id="ani-density" type="range" min="2.5" max="5" step="0.1" value="$(w.density)"><span id="ani-density-v" class="ani-value"></span></label></section>
         <section class="ani-group"><div class="ani-group-title">P-wave Love constants</div><label class="ani-row"><span>A</span><input id="ani-A" type="range" min="50" max="300" step="1" value="$(w.A)"><span id="ani-A-v" class="ani-value"></span></label><label class="ani-row"><span>C</span><input id="ani-C" type="range" min="50" max="300" step="1" value="$(w.C)"><span id="ani-C-v" class="ani-value"></span></label><label class="ani-row"><span>F</span><input id="ani-F" type="range" min="-100" max="150" step="1" value="$(w.F)"><span id="ani-F-v" class="ani-value"></span></label></section>
         <section class="ani-group"><div class="ani-group-title">Shear Love constants</div><label class="ani-row"><span>L</span><input id="ani-L" type="range" min="20" max="140" step="1" value="$(w.L)"><span id="ani-L-v" class="ani-value"></span></label><label class="ani-row"><span>N</span><input id="ani-N" type="range" min="20" max="140" step="1" value="$(w.N)"><span id="ani-N-v" class="ani-value"></span></label></section>
@@ -808,6 +888,11 @@ begin
         });
         window.addEventListener('ani-results', e=>{ data = e.detail ? JSON.parse(e.detail) : null; draw(); });
         window.addEventListener('resize', draw);
+        // Redraw when the canvas itself changes size (app-shell tab switches); stop only once
+        // the widget has left the page -- Pluto can resolve `invalidation` while keeping the DOM.
+        { const cv = document.querySelector('#ani-widget canvas');
+          const fitRO = new ResizeObserver(() => { if(!cv.isConnected){ fitRO.disconnect(); return; } draw(); });
+          fitRO.observe(cv); }
         labels(); draw();
         })();
         </script></div>
@@ -846,6 +931,18 @@ let
       window.dispatchEvent(new CustomEvent('ani-results', {detail: $(repr(message))}));
     </script>""")
 end
+
+# ╔═╡ 7af962b2-6c75-46b2-bac9-a46c94a6c3fb
+md"""
+### Sampling the velocity surfaces
+`vti_wavefront_payload_3d` solves the Christoffel problem on a ``(\theta, \phi)`` grid of directions for the experiment's constants, after rotating each direction into the crystal frame tilted by the plunge and trend. It returns the three phase-velocity surfaces, the matching group-velocity (ray) surfaces from the construction ``\mathbf U = v\,\hat{\mathbf n} + \nabla_S v``, sampled polarization arrows, and the crystal axes. `ani_push_message` flattens this into the JSON the widget reads.
+"""
+
+# ╔═╡ 131f4c40-50d8-4e50-ae57-7537383b9a1c
+md"""
+### The Interactive Widget
+`VTIWavefrontInput` sends the five Love constants, the density, the travel time and the crystal plunge and trend back to Julia. The cell after the widget clips them (`ani_A`, …, with defaults when no browser is attached), and the cell after that calls `vti_wavefront_payload_3d` and pushes the result with an `ani-results` event. Orbiting the 3-D view, switching between phase and group velocity, and toggling legend items are handled in the browser.
+"""
 
 # ╔═╡ 00000000-0000-0000-0000-000000000001
 PLUTO_PROJECT_TOML_CONTENTS = """
@@ -1996,6 +2093,7 @@ version = "17.7.0+0"
 # ╔═╡ Cell order:
 # ╠═b48fc46c-47b2-4090-83fb-710b1974c2a2
 # ╠═6e9dc83f-5d4f-4f21-a495-d43bc64f6041
+# ╟─764a8e00-d974-43d6-9786-b486336e8536
 # ╟─17942206-4ea3-11ed-30fa-d38c9c47f282
 # ╟─fbe96b0a-84f8-4cae-905c-ba093b1b4340
 # ╟─109f4df4-aa1b-400c-b9d4-ff3604afa7d3
@@ -2066,8 +2164,10 @@ version = "17.7.0+0"
 # ╟─ebf4953d-abc5-4530-af51-8b68096a0113
 # ╠═5f12d3e9-4d5c-434c-bdef-bcc74b79705e
 # ╟─0989b0f0-06c6-4353-9933-ec713563f0c6
+# ╟─7af962b2-6c75-46b2-bac9-a46c94a6c3fb
 # ╠═aa111111-1111-4111-8111-111111111111
 # ╠═aa333333-3333-4333-8333-333333333333
+# ╟─131f4c40-50d8-4e50-ae57-7537383b9a1c
 # ╠═aa222222-2222-4222-8222-222222222222
 # ╟─00000000-0000-0000-0000-000000000001
 # ╟─00000000-0000-0000-0000-000000000002

@@ -15,7 +15,8 @@ sections:
     live:
       - Basics/simple-harmonic-motion.jl
       - Basics/coupled_oscillations.jl
-      - Basics/Fourier-Dispersion.jl
+      - Basics/Fourier-Series-and-Transform.jl
+      - Basics/Wave-Dispersion.jl
       - Basics/Jacobi-Anger-expansion.jl
       - Basics/circular-wavefront-from-plane-waves.jl
       - Basics/Haas-effect-seismology-audio.jl
@@ -34,7 +35,6 @@ sections:
       - Planewave Propagation/reflection-P-SV-free-surface.jl
       - Planewave Propagation/anisotropy.jl
     static:
-      - Planewave Propagation/boundary-conditions.jl
       - Planewave Propagation/intrinsic-attenuation.jl
 
   - name: Surface Waves

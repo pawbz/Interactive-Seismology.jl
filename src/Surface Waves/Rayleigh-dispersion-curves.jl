@@ -34,6 +34,29 @@ using LinearAlgebra
 # ╔═╡ 6e3d880e-82d5-45b0-a823-b2df7d8be6f0
 TableOfContents(include_definitions=true)
 
+# ╔═╡ dbdb8c59-1541-4e0c-b6ee-bdf3b6255289
+# App shell: the Expt / Theory / Code / Help frame shared by every notebook, loaded
+# from src/assets/app-shell/. Without that folder (a lone downloaded .jl) this cell just
+# shows the help text and the notebook stays a plain notebook.
+let
+	help = md"""
+	- **Drag a boundary line** to resize a layer; **drag a marker** on the Vp, Vs or ρ track to change that layer (Vp is kept above Vs).
+	- **Click empty space** to add a layer; **drag a boundary onto its neighbour** to delete it.
+	- **Click a period** on the dispersion panel to see the eigenfunctions there; set the distance and source, then **Generate** a synthetic seismogram.
+
+	**Try this:** add a slow sediment layer at the top and watch the short-period phase velocity drop.
+	"""
+	dir = joinpath(@__DIR__, "..", "assets", "app-shell")
+	if isfile(joinpath(dir, "app-shell.js"))
+		HTML(string(
+			"<style>", read(joinpath(dir, "app-shell.css"), String), "</style>",
+			"<template class=\"app-help\">", repr(MIME"text/html"(), help), "</template>",
+			"<script>", read(joinpath(dir, "app-shell.js"), String), "</script>"))
+	else
+		help
+	end
+end
+
 # ╔═╡ c3a8bd5e-41c3-46f4-bfb5-773eadfb67ee
 md"""
 # Rayleigh Wave Dispersion Curves
@@ -41,10 +64,10 @@ This notebook provides an interactive environment to explore the dispersion of R
 
 Rayleigh waves involve both vertical and horizontal ground motion and are sensitive to the elastic properties and layering of the crust and upper mantle. Their dispersion (variation of phase velocity with period) reveals information about subsurface structure.
 
-Here, you can:
+In the experiment you can:
 
-- Build a layered Earth model interactively by adjusting thickness, P-wave velocity (Vp), S-wave velocity (Vs), and density (ρ) for each layer;
-- Compute and visualize Rayleigh-wave dispersion curves, observing how changes in the model affect the shape of the curve and the inferred Earth properties.
+- build a layered Earth model by dragging its thickness, P-wave velocity (Vp), S-wave velocity (Vs) and density (ρ) directly on the depth profile;
+- watch the Rayleigh-wave dispersion curves, the eigenfunctions at a chosen period, and a synthetic seismogram respond to the model.
 
 
 ##### [Interactive Seismology Notebooks](https://pawbz.github.io/Interactive-Seismology.jl/)
@@ -898,10 +921,16 @@ observed_dispersion = merge_observed_dispersion(
 )
 
 # ╔═╡ 2c205b96-d934-4302-a107-ee6aab03c522
-md"## Appendix"
+md"""
+## Appendix
+The packages, the layered-model editor, and the Gutenberg reference model used as its default.
+"""
 
 # ╔═╡ 18995223-af32-4f4a-bbaf-a69c4801fb88
-md"### The Layered-Medium Widget"
+md"""
+### The Layered-Medium Widget
+`LayeredMediumInput` sends the layer boundaries, ``V_p``, ``V_s`` and ``\rho`` of every layer, the selected period, and the seismogram settings (distance, source depth, source frequency, duration and a generation counter) back to Julia. Three push cells return the dispersion curves (`lm-results`), the eigenfunctions at the selected period, and the synthetic seismogram (`lm-synth-results`). The seismogram is recomputed only when **Generate** is clicked.
+"""
 
 # ╔═╡ 7e919f31-04b3-447c-a5c0-3d03362fb11a
 const GUTENBERG_MODEL = [
@@ -1069,7 +1098,7 @@ begin
 	    presets_js = "{gutenberg:$(_lm_preset_js(presets["gutenberg"])),crust2:$(_lm_preset_js(presets["crust2"])),uniform:$(_lm_preset_js(presets["uniform"]))}"
 	    tracks_js = w.show_vp ? "['vp','vs','rho']" : "['vs','rho']"
 	    write(io, """
-	    <div id="lmwidget">
+	    <div id="lmwidget" class="app-widget">
 	    <style>
 	    #lmwidget{font-family:sans-serif;color:#d1d5db;position:relative}
 	    #lmwidget .lm-titlebar{background:#0a0f18;border:1px solid #3b5c85;border-radius:6px;padding:12px 16px;margin-bottom:14px;text-align:center}
@@ -1094,7 +1123,7 @@ begin
 	    #lmwidget #lm-tooltip{position:absolute;display:none;background:#0b0b0b;border:1px solid #4b5563;border-radius:4px;padding:4px 8px;font-size:12px;color:#e5e7eb;pointer-events:none;z-index:10;white-space:nowrap}
 	    </style>
 
-	    <div class="lm-titlebar">
+	    <div class="lm-titlebar app-title">
 	      <div class="lm-titlebar-headline">Build a layered Earth model by dragging directly on the depth profile.</div>
 	      <div class="lm-titlebar-sub">drag a boundary line to resize a layer &middot; drag a track's marker to change Vp/Vs/&rho; &middot; click empty space to add a layer &middot; drag a boundary onto its neighbor to delete it &middot; hover a marker for its value &middot; click the phase-velocity curve to see eigenfunctions at that period</div>
 	    </div>
@@ -1686,10 +1715,10 @@ end
 
 # ╔═╡ 863ca41a-959c-49b4-af0d-1876165a64a5
 layers = let
-	b = Float64.(lm["boundaries"])
-	vp = Float64.(lm["vp"])
-	vs = Float64.(lm["vs"])
-	rho = Float64.(lm["rho"])
+	b = Float64.(lm_s["boundaries"])
+	vp = Float64.(lm_s["vp"])
+	vs = Float64.(lm_s["vs"])
+	rho = Float64.(lm_s["rho"])
 	n = length(vp)
 	thickness = [i < n ? (i == 1 ? b[1] : b[i] - b[i-1]) : 0.0 for i in 1:n]
 	[Layer(thickness[i], vp[i], vs[i], rho[i], 1000.0, 1000.0) for i in 1:n]
@@ -1713,7 +1742,7 @@ end
 # ╔═╡ 89e2a2b5-0d1d-435f-8cc0-8d490bb35e7d
 begin
 	_lm_eigen_msg = let
-		sel = lm["selectedPeriod"]
+		sel = lm_s["selectedPeriod"]
 		if sel === nothing
 			"{\"depths\":[],\"ur\":[],\"uz\":[]}"
 		else
@@ -1728,11 +1757,11 @@ end
 
 # ╔═╡ 49d3d0ac-7ef7-4888-ada1-dac21863ee3a
 begin
-	lm["seismogramGenerationId"]  # re-run only when Generate is clicked
+	lm_s["seismogramGenerationId"]  # re-run only when Generate is clicked
 	_lm_synth_msg = let
-		distance = Float64(lm["distance"])
+		distance = Float64(lm_s["distance"])
 		synth = generate_rayleigh_synthetic_seismogram(layers, (periods=periods, phase_velocities=fundamental_phase), distance;
-			source_depth=Float64(lm["sourceDepth"]), source_freq=Float64(lm["sourceFreq"]), duration=Float64(lm["duration"]))
+			source_depth=Float64(lm_s["sourceDepth"]), source_freq=Float64(lm_s["sourceFreq"]), duration=Float64(lm_s["duration"]))
 		valid_g = findall(isfinite, fundamental_group)
 		if isempty(valid_g)
 			lm_synth_payload(synth, NaN, NaN)
@@ -1752,6 +1781,23 @@ This notebook is inspired by the classical implementation of surface wave theory
 Herrmann, R. B. (2013), *Computer Programs in Seismology*.
 
 The Julia code here provides a **clean reimplementation** of some of the ideas behind CPS, designed for **interactive exploration**.
+"""
+
+# ╔═╡ 8fe5a39d-d6e1-4add-8bf5-97eab4d0cb22
+# The bond is `nothing` until a browser has rendered the widget: use its defaults.
+lm_s = lm isa AbstractDict ? lm : Base.get(LayeredMediumInput())
+
+# ╔═╡ 12c82a61-b8d3-471e-96be-734e12ed34f3
+md"""
+## From Layers to a Dispersion Curve
+
+Rayleigh waves are coupled P–SV motion, so each layer carries a four-component stress-displacement vector ``(u_x, u_z, \sigma_{xz}, \sigma_{zz})``. It is propagated through the stack with ``4\times4`` layer matrices (Thomson–Haskell). The free surface requires both tractions to vanish, and the half-space must contain only waves decaying with depth. Matching the two leaves a determinant, the **secular function**, whose zeros at each period are the Rayleigh modes (`rayleigh_secular`).
+
+Multiplying raw ``4\times4`` propagators through thick or high-frequency layers overflows, because the growing evanescent terms swamp the decaying ones. The code therefore follows Herrmann's *Computer Programs in Seismology* and works with Dunkin's ``5\times5`` compound matrices: the minors of the propagator (`dnka`, built from the trigonometric and hyperbolic pieces in `varmat`). The running product is rescaled after every layer (`normc`).
+
+`solve_phase_velocity_rayleigh` scans the secular function for sign changes between half the slowest ``V_s`` and 1.2 times the fastest ``V_p``. `compute_rayleigh_dispersion` repeats this at every period, `fundamental_phase_velocities` picks out the fundamental branch, and `group_velocity_from_phase` gives ``U = c/(1 + (T/c)\,dc/dT)``.
+
+For the eigenfunctions, `layer_matrix_PSV` builds each layer's ``4\times4`` propagator by diagonalising it in the basis of up- and down-going P and SV waves (`modal_basis_psv`). `compute_rayleigh_eigenfunctions` shoots *upward* from the half-space's decaying solution, which keeps the computation stable. `generate_rayleigh_synthetic_seismogram` sums the fundamental mode over periods, weighted by the eigenfunctions and a Gaussian source spectrum, to build the vertical-component seismogram.
 """
 
 # ╔═╡ 00000000-0000-0000-0000-000000000001
@@ -2093,13 +2139,16 @@ version = "1.64.0+1"
 
 # ╔═╡ Cell order:
 # ╠═6e3d880e-82d5-45b0-a823-b2df7d8be6f0
+# ╟─dbdb8c59-1541-4e0c-b6ee-bdf3b6255289
 # ╟─c3a8bd5e-41c3-46f4-bfb5-773eadfb67ee
 # ╟─59e635d1-33aa-4917-9e03-7c579ef8518c
+# ╟─8fe5a39d-d6e1-4add-8bf5-97eab4d0cb22
 # ╟─863ca41a-959c-49b4-af0d-1876165a64a5
 # ╟─fa019722-6bca-11f1-9c8d-9ffc56627241
 # ╠═dc65b138-737c-44df-a866-74ff223c8489
 # ╠═89e2a2b5-0d1d-435f-8cc0-8d490bb35e7d
 # ╠═49d3d0ac-7ef7-4888-ada1-dac21863ee3a
+# ╟─12c82a61-b8d3-471e-96be-734e12ed34f3
 # ╟─b21471fd-f2f7-4715-b354-48ddd7aa0207
 # ╠═5c136747-07b4-454e-9a75-0998a24560df
 # ╠═48f94773-cfea-46d5-b341-ae57fbe43e55

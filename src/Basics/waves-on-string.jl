@@ -28,6 +28,30 @@ using PlutoUI
 # ╔═╡ 46dca275-df8b-4060-b81d-841428142791
 TableOfContents()
 
+# ╔═╡ 7355833e-beaa-498a-9cb4-aa352e6e78aa
+# App shell: the Expt / Theory / Code / Help frame shared by every notebook, loaded
+# from src/assets/app-shell/. Without that folder (a lone downloaded .jl) this cell just
+# shows the help text and the notebook stays a plain notebook.
+let
+	help = md"""
+	- **Drag** the white interface line on the main panel to move the density jump; edit the green **density-ratio box** on the plot.
+	- **Courant** sets the time step relative to the grid spacing; above 1 the scheme blows up.
+	- **Boundary** switches both ends between free (σ = 0) and fixed (v = 0).
+	- **Play** and the time slider step through the simulated frames; the top panel shows the staggered grid.
+
+	**Try this:** play with a free boundary, then switch to fixed and watch the reflected pulse come back inverted.
+	"""
+	dir = joinpath(@__DIR__, "..", "assets", "app-shell")
+	if isfile(joinpath(dir, "app-shell.js"))
+		HTML(string(
+			"<style>", read(joinpath(dir, "app-shell.css"), String), "</style>",
+			"<template class=\"app-help\">", repr(MIME"text/html"(), help), "</template>",
+			"<script>", read(joinpath(dir, "app-shell.js"), String), "</script>"))
+	else
+		help
+	end
+end
+
 # ╔═╡ f3c52928-1450-4596-87b7-b6665a1b8f6a
 md"""
 # Waves On A String
@@ -74,7 +98,7 @@ for elastic wave propagation in 2-D and 3-D finite-difference seismic codes:
 
 Combining them eliminates ``\sigma`` and gives the familiar scalar wave
 equation ``\partial_t^2 v_y = c^2\,\partial_x^2 v_y`` with speed
-``c=\sqrt{\mu/\rho}`` -- but the widget below solves the *coupled first-order*
+``c=\sqrt{\mu/\rho}`` -- but the experiment solves the *coupled first-order*
 pair directly, not the second-order equation, because that's what lets
 ``\rho`` and ``\mu`` vary independently in space (a real seismic medium)
 without ever needing a second spatial derivative of a discontinuous
@@ -85,7 +109,7 @@ quantity.
 md"""
 ## The Staggered Grid
 
-The widget's top panel is a schematic of the grid the solver actually uses:
+The experiment's top panel is a schematic of the grid the solver actually uses:
 ``v_y`` lives on integer grid nodes ``x_i``, and ``\sigma`` lives on the
 *half*-grid nodes ``x_{i+1/2}`` sitting exactly between them. One leapfrog
 time step does two things, in order:
@@ -121,7 +145,7 @@ medium for ``v_{\max}``). Every explicit finite-difference wave solver you'll
 meet later in this course has some version of this same limit.
 
 !!! warning "Try it"
-	Push the **Courant** slider above `1` in the widget above and watch the
+	Push the **Courant** slider above `1` in the experiment and watch the
 	string blow up within a few steps -- that's the scheme amplifying its own
 	rounding error every iteration once the stability condition is violated,
 	not a bug.
@@ -195,7 +219,12 @@ Earth's upper mantle.
 μ0 = 82.0e9 * 1.0e3     # ≈ 82 GPa (upper-mantle shear modulus), expressed in kg·km⁻¹·s⁻²
 
 # ╔═╡ 858ed5e1-5881-4bb9-927f-ebe22afc3e5c
-md"### Forward Modeling"
+md"""
+### Forward Modeling
+`step_string!` advances the staggered-grid fields by one leapfrog step: ``\sigma`` on the half-nodes from the centred difference of ``v_y``, then ``v_y`` on the interior nodes from the centred difference of ``\sigma``, and finally the chosen boundary condition at both ends (``v_y = 0`` for fixed, ``\sigma = 0`` for free). `simulate_string` builds the medium (density ``\rho_0`` times `density_ratio` left of the interface, ``\rho_0`` to the right, uniform ``\mu_0``), derives ``dt`` from the Courant number and the fastest wave speed, launches a Gaussian velocity bump at ``x = -50`` km, runs the steps, and keeps down-sampled frames plus the impedance-based ``R`` and ``T``. If the field grows past a threshold (a violated Courant condition), the run stops early and is flagged as unstable.
+
+The two cells after these functions run the simulation for the experiment's current settings (`wos_result`) and push its frames to the browser with a `wos-results` event; playback never returns to Julia.
+"""
 
 # ╔═╡ 134bee99-e691-4e4c-beba-45d3c541bd4a
 """
@@ -391,7 +420,10 @@ let
 end
 
 # ╔═╡ e091f4b2-d23d-4ad1-8820-793368159ec6
-md"### The Interactive Widget"
+md"""
+### The Interactive Widget
+`WaveOnStringInput` sends four physics inputs back to Julia: the Courant number, the density ratio, the interface position and the boundary type. The cell after the widget unpacks them (with defaults when no browser is attached), and any change re-runs `simulate_string`. The time slider, Play and the drawing of each frame are client-side, using the frames already pushed.
+"""
 
 # ╔═╡ ff461695-5ea8-4f6d-8de9-3fa5204b5794
 begin
@@ -422,7 +454,7 @@ begin
 
     function Base.show(io::IO, ::MIME"text/html", w::WaveOnStringInput)
         write(io, """
-<div id="wos-root" style="display:flex;flex-direction:column;align-items:center;width:100%;color:#9ca3af">
+<div id="wos-root" class="app-widget" style="display:flex;flex-direction:column;align-items:center;width:100%;color:#9ca3af">
   <style>
     #wos-root { width: 100%; box-sizing: border-box; color: #d1d5db; font: 14px sans-serif; }
     #wos-root .wos-title { width: 100%; box-sizing: border-box; text-align: center; margin-bottom: 10px;
@@ -451,11 +483,11 @@ begin
       pointer-events: auto; background: #0b0b0b; color: #e5e7eb; border: 1px solid #4ade80; border-radius: 3px;
       padding: 2px; font-variant-numeric: tabular-nums; }
   </style>
-  <div class="wos-title">
+  <div class="wos-title app-title">
     <div class="wos-title-desc">Drag the interface line and edit the density-ratio box directly on the plot; Courant and boundary type control everything else.</div>
     <div class="wos-title-hint">push Courant above 1 to see it blow up &middot; press Play to watch the pulse split, reflect, and transmit</div>
   </div>
-  <div class="wos-workspace">
+  <div class="wos-workspace app-stage">
     <div class="wos-panel-title">Staggered grid (schematic)</div>
     <canvas id="wos-schem"></canvas>
     <div class="wos-panel-title">String velocity v_y(x) -- drag the white interface line, edit the density-ratio box</div>
@@ -466,7 +498,7 @@ begin
       </div>
     </div>
   </div>
-  <div class="wos-controls">
+  <div class="wos-controls app-controls">
     <div class="wos-control-group">
       <div class="wos-control-title">Numerics</div>
       <label class="wos-control-row"><span>Courant C</span><input type="range" id="wos-courant" min="0.05" max="1.3" step="0.05" value="$(w.courant)"><span id="wos-courant-v" class="wos-value">$(w.courant)</span></label>
@@ -489,8 +521,11 @@ begin
 </div>
 <script>
   const par = currentScript.previousElementSibling
-  const availW = Math.min(window.innerWidth*0.86, par.clientWidth || window.innerWidth*0.86, 1400)
-  const totalW = Math.max(700, availW)
+  // Canvas width totalW and main-panel height MCH are refit by layout() whenever the stage
+  // changes size: width-only in the plain notebook, width and height in the app shell's
+  // Expt view (signalled by the stage's --sa-fit-height, see src/assets/app-shell/).
+  const stage = par.querySelector('.app-stage')
+  let totalW = 0
   const DPR = Math.min(window.devicePixelRatio || 1, 2)
 
   let courant = $(w.courant), densityRatio = $(w.density_ratio), interfaceX = $(w.interface_x)
@@ -508,9 +543,25 @@ begin
     cv.style.width = w+'px'; cv.style.height = h+'px'
     cx.setTransform(DPR,0,0,DPR,0,0)
   }
-  const SCH = 100, MCH = 380
-  hidpi(schemCvs, sctx, totalW, SCH)
-  hidpi(mainCvs, mctx, totalW, MCH)
+  const SCH = 100
+  let MCH = 380
+  function layout(){
+    const cs = getComputedStyle(stage)
+    const w = (stage.clientWidth || Math.min(window.innerWidth*0.86, 1400)) - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight)
+    const fitH = cs.getPropertyValue('--sa-fit-height').trim() === '1'
+    const W = fitH ? Math.max(320, Math.floor(w - 2)) : (w < 700 ? Math.max(320, Math.floor(w - 2)) : Math.min(Math.floor(w), 1400))
+    let H = 380
+    if(fitH){
+      const h = stage.clientHeight - parseFloat(cs.paddingTop) - parseFloat(cs.paddingBottom)
+      H = Math.max(200, Math.floor(h - SCH - 60))   // 60 = the two panel titles and gaps
+    }
+    if(W === totalW && H === MCH) return false
+    totalW = W; MCH = H
+    hidpi(schemCvs, sctx, totalW, SCH)
+    hidpi(mainCvs, mctx, totalW, MCH)
+    return true
+  }
+  layout()
 
   // Shared main-panel coordinate transform -- used by both drawMain and the
   // interface-drag mouse handlers so a click and its own drawn line always
@@ -794,6 +845,14 @@ begin
     drawMain(); updateTimeSlider()
   })
 
+  // Refit on every stage resize (app-shell tab switches included); stop only once the
+  // widget has left the page -- Pluto can resolve `invalidation` while keeping the DOM.
+  const fitRO = new ResizeObserver(()=>{
+    if(!par.isConnected){ fitRO.disconnect(); if(rafId) cancelAnimationFrame(rafId); return }
+    if(layout()){ drawSchematic(); drawMain() }
+  })
+  fitRO.observe(stage)
+
   syncBoundaryButtons()
   drawSchematic(); drawMain(); emit()
 </script>
@@ -819,10 +878,13 @@ begin
     # all physics inputs -- each one triggers the Julia recompute below.
     # Which already-computed frame is on screen (Play/pause, the scrub slider)
     # is pure client-side state inside the widget; see its docstring.
-    wos_courant = Float64(_wos["courant"])
-    wos_density_ratio = Float64(_wos["density_ratio"])
-    wos_interface_x = Float64(_wos["interface_x"])
-    wos_boundary = String(_wos["boundary"])
+    # The bond is `nothing` until a browser has rendered the widget: use its defaults.
+    _wos_safe = _wos isa AbstractDict ? _wos : Base.get(WaveOnStringInput())
+    wos_courant = Float64(_wos_safe["courant"])
+    wos_density_ratio = Float64(_wos_safe["density_ratio"])
+    wos_interface_x = Float64(_wos_safe["interface_x"])
+    wos_boundary = String(_wos_safe["boundary"])
+    nothing
 end
 
 # ╔═╡ b19d0fbf-d0ae-4472-aaca-89369188d6a3
@@ -1100,11 +1162,10 @@ version = "1.64.0+1"
 
 # ╔═╡ Cell order:
 # ╠═46dca275-df8b-4060-b81d-841428142791
+# ╟─7355833e-beaa-498a-9cb4-aa352e6e78aa
 # ╟─f3c52928-1450-4596-87b7-b6665a1b8f6a
 # ╟─bc9056a7-6c7f-4664-8167-d6ab9792563c
 # ╠═c6cd50d4-b42a-4aec-a6b1-b16d88940d9f
-# ╠═b19d0fbf-d0ae-4472-aaca-89369188d6a3
-# ╟─4188a0d9-101a-474a-b9d5-69eb8808e24a
 # ╟─f69bc5a5-d354-41b6-8d12-61a04ef1c43d
 # ╟─7676054a-2e9a-43f4-ac46-af162541e269
 # ╟─d0be7679-5df5-4ad0-93d1-8df6f94ba299
@@ -1118,6 +1179,8 @@ version = "1.64.0+1"
 # ╟─858ed5e1-5881-4bb9-927f-ebe22afc3e5c
 # ╠═134bee99-e691-4e4c-beba-45d3c541bd4a
 # ╠═806c8e93-15fb-402a-bab4-c58cae7dd6d2
+# ╠═b19d0fbf-d0ae-4472-aaca-89369188d6a3
+# ╟─4188a0d9-101a-474a-b9d5-69eb8808e24a
 # ╟─ddeef9e3-ba88-4db9-9e53-025b0e9bde36
 # ╠═149cbe37-8c4f-4cd2-82e7-c938d6865963
 # ╟─97527c8d-70f6-4665-b0e4-0e7be62a80a4

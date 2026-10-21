@@ -28,6 +28,30 @@ using PlutoUI
 # ╔═╡ cc1d2a64-0a0e-4e46-b23e-89b4eab36db2
 TableOfContents()
 
+# ╔═╡ 36d53bc4-cf2a-4c6e-a99e-1b3dbcd525aa
+# App shell: the Expt / Theory / Code / Help frame shared by every notebook, loaded
+# from src/assets/app-shell/. Without that folder (a lone downloaded .jl) this cell just
+# shows the help text and the notebook stays a plain notebook.
+let
+	help = md"""
+	- **Drag** the fault's two endpoints on the ground plane to set its position, length and strike; drag the on-fault arrow to set the slip direction (rake).
+	- The **depth**, **dip**, **width** and **slip** sliders set the rest; **presets** load classic scenarios.
+	- The field checkboxes switch between vertical GPS, horizontal motion and InSAR fringes; drag empty space to rotate the 3-D view.
+	- The beachball shows the focal mechanism for the current strike, dip and rake.
+
+	**Try this:** compare the Shallow and Deep source presets: deeper faults give broader, weaker surface deformation.
+	"""
+	dir = joinpath(@__DIR__, "..", "assets", "app-shell")
+	if isfile(joinpath(dir, "app-shell.js"))
+		HTML(string(
+			"<style>", read(joinpath(dir, "app-shell.css"), String), "</style>",
+			"<template class=\"app-help\">", repr(MIME"text/html"(), help), "</template>",
+			"<script>", read(joinpath(dir, "app-shell.js"), String), "</script>"))
+	else
+		help
+	end
+end
+
 # ╔═╡ 3262a56e-a44b-42b5-98b3-68f191cceb39
 md"""
 # Faulting and the Surface
@@ -36,7 +60,7 @@ An earthquake is, mechanically, nothing more exotic than a crack that slips. Put
 patch of slip inside an elastic half-space, and everything you can measure at the surface — the
 GPS offsets, the InSAR fringes — is the response of the surrounding elastic medium to that one
 buried event. This notebook builds the whole class around a single concrete question, then hands
-you a widget to answer it by hand.
+you an experiment to answer it by hand.
 
 The half-space is $z\le0$ (depth positive down). The fault living inside it is a rectangle,
 parameterized by its center location, depth, size, and orientation:
@@ -105,7 +129,7 @@ notebook is quietly solving everywhere except right on the fault:
 \boxed{\mu\,\nabla^2\mathbf u + (\lambda+\mu)\,\nabla(\nabla\cdot\mathbf u) = 0}
 ```
 
-By the time you reach the widget below, you've seen the full chain: displacement → strain →
+By the time you reach the experiment, you've seen the full chain: displacement → strain →
 stress → force balance.
 
 ### Why Ignore Inertia? The Quasi-Static Limit
@@ -114,7 +138,7 @@ Dropping `` \rho\,\ddot{\mathbf u} `` above deserves a real justification, not j
 "static." Two length scales are in play, and everything hinges on comparing them.
 
 The source sets a *spatial* scale — the fault length `` L `` (the same `` L `` you'll be
-dragging in the widget below), which is roughly the distance over which the surface
+dragging in the experiment), which is roughly the distance over which the surface
 displacement field varies. Separately, any process with characteristic timescale `` T `` has an
 associated *wavelength*,
 
@@ -297,6 +321,7 @@ break the remaining ambiguity — a single fringe map alone can't do it.
 # ╔═╡ fcddbcd9-5018-424f-b0be-8301cbf4d3a8
 md"""
 ## Appendix
+Okada's closed-form surface displacement and its check against Okada's published example, the seismic moment, the sampling of the surface field for the 3-D view, the focal-mechanism beachball with its own checks, and the widget.
 """
 
 # ╔═╡ ea0ea1c3-1073-49ce-aa6a-12e3011d2538
@@ -490,6 +515,7 @@ end
 # ╔═╡ 504186a7-eb86-4e0c-81ac-7564aa966ba9
 md"""
 ### Seismic Moment
+`seismic_moment(L, W, U1, U2)` returns ``M_0 = \mu A D``, with ``A = LW`` and ``D`` the slip magnitude, and the moment magnitude ``M_w = \tfrac{2}{3}(\log_{10}M_0 - 9.1)``.
 """
 
 # ╔═╡ cdb34e89-4c64-4713-b289-7511be357d91
@@ -511,6 +537,7 @@ end
 # ╔═╡ eb3d526c-19c7-43bf-8a1c-eccd82bc15ce
 md"""
 ### Sampling the Surface
+`okada_surface_field` evaluates `okada_surface_displacement` on an East–North grid around the fault for the experiment's geometry and slip. It returns the three displacement components, the horizontal magnitude, and the line-of-sight displacement with its InSAR fringes for the chosen orbit and radar wavelength.
 """
 
 # ╔═╡ c3396aa7-69a9-4ec1-ae16-b4922ff636e7
@@ -678,6 +705,7 @@ end
 # ╔═╡ 95675036-9d86-4e0e-805e-aeda098e6265
 md"""
 ### Verifying the Beachball
+For a vertical strike-slip fault the two nodal planes lie exactly along strike and perpendicular to it at every take-off angle, and for any double couple the P amplitude is unchanged when the ray direction is reversed, which is why one hemisphere of the beachball loses no information. The checks below assert both.
 """
 
 # ╔═╡ d5187ff2-9f2a-4ba9-91d9-117c3a807439
@@ -800,7 +828,7 @@ begin
 
     function Base.show(io::IO, ::MIME"text/html", w::FaultDislocationInput)
         write(io, """
-        <div id="fdwidget">
+        <div id="fdwidget" class="app-widget">
         <style>
         #fdwidget{font-family:sans-serif;color:#e5e7eb;width:100%;box-sizing:border-box}
         #fdwidget .fd-title{width:100%;box-sizing:border-box;text-align:center;margin-bottom:10px;
@@ -824,7 +852,7 @@ begin
         #fdwidget button{border-radius:4px;border:1px solid #9ca3af;background:#606060;color:#f3f4f6;padding:6px 12px;font-size:13px;cursor:pointer;margin-top:4px}
         </style>
 
-        <div class="fd-title">
+        <div class="fd-title app-title">
           <div class="fd-title-desc">Drag a rectangular slipping fault under an elastic half-space.</div>
           <div class="fd-title-hint">drag the yellow handles to move the fault &middot; drag the yellow arrow to set slip direction &middot; drag the orange dot to change depth &middot; drag the teal diamond to change dip/width &middot; drag empty space to rotate the view</div>
         </div>
@@ -1740,6 +1768,7 @@ uuid = "23338594-aafe-5451-b93e-139f81909106"
 
 # ╔═╡ Cell order:
 # ╟─cc1d2a64-0a0e-4e46-b23e-89b4eab36db2
+# ╟─36d53bc4-cf2a-4c6e-a99e-1b3dbcd525aa
 # ╟─3262a56e-a44b-42b5-98b3-68f191cceb39
 # ╟─62575fc9-6613-421e-a3d6-9d287c913fb9
 # ╟─c1aa8808-793f-4e87-98ab-27588b832dc4

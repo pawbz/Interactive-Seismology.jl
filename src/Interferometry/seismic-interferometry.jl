@@ -36,15 +36,34 @@ using LaTeXStrings
 # ╔═╡ f986cb42-7cbe-11ee-22de-cbc3714ed81d
 TableOfContents(include_definitions=true)
 
+# ╔═╡ 8c6e0d93-1a0f-4d2f-a274-93876a0c5f4d
+# App shell: the Expt / Theory / Code / Help frame shared by every notebook, loaded
+# from src/assets/app-shell/. Without that folder (a lone downloaded .jl) this cell just
+# shows the help text and the notebook stays a plain notebook.
+let
+	help = md"""
+	- **Click** the canvas to place noise sources, **drag** them, or load a **preset** distribution; **Clear** removes them.
+	- **d** sets the receiver spacing, **T** and the bandwidth the wavelet; the threshold fades out sources that contribute little.
+	- The comparison panel shows the averaged cross-correlation (orange) against the true virtual-source response (blue); click the legend to show either alone.
+
+	**Try this:** put sources only on one side of the receivers and watch one branch of the correlation disappear.
+	"""
+	dir = joinpath(@__DIR__, "..", "assets", "app-shell")
+	if isfile(joinpath(dir, "app-shell.js"))
+		HTML(string(
+			"<style>", read(joinpath(dir, "app-shell.css"), String), "</style>",
+			"<template class=\"app-help\">", repr(MIME"text/html"(), help), "</template>",
+			"<script>", read(joinpath(dir, "app-shell.js"), String), "</script>"))
+	else
+		help
+	end
+end
+
 # ╔═╡ bd04a8af-7666-47b7-87cc-a212ec8adcbd
 md"""
-## Seismic Interferometry Demo
-The notebook is an interactive sandbox for seismic interferometry with ambient noise sources. The main source/receiver canvas lets you control the geometry: two receivers sit on the horizontal axis, and you can place, clear, drag, or preset distributions of sources around them. The controls change receiver spacing d, wave period T, bandwidth, source distance scale, spray width, and a stationary-zone threshold. As these change, the notebook regenerates synthetic seismograms, cross-correlates receiver records, and averages selected source contributions.
-The top comparison panel shows the recovered interstation response against the ideal “true” virtual-source response. The orange trace is the averaged cross-correlation, and the blue trace is the true reference response. The legend labels are clickable, so you can inspect either trace alone or both together. Markers show zero lag and expected positive/negative arrivals, making it easy to see whether the causal and acausal branches line up with the physical receiver travel time.
-The source colors show which sources contribute strongly to the recovered response. With the stationary-zone threshold, weak or geometrically poor contributors are faded out, while stronger contributors are colored by contribution strength. This helps demonstrate the central idea of interferometry: not every noise source helps equally, and source geometry controls whether the cross-correlation reconstructs a clean Green’s-function-like response.
-The metrics panel quantifies the two branches separately. For both causal and acausal arrivals, it estimates group velocity U, phase velocity c, phase mismatch Δφ, three-station residuals R3U and R3c, and a mode-consistency residual Rmode. Invalid or too-weak branches are shown as --, using the relative amplitude gate we added so tiny tails or numerical leakage do not produce misleading numbers.
-There is also an optional phase correction mode. When enabled, the notebook estimates the phase mismatch between the averaged trace and the reference trace near the expected arrival windows, then rotates valid branches accordingly before reporting measurements. If a branch is too weak, it is not phase-corrected and its phase-related output stays invalid, which keeps the UI honest rather than inventing metrics from noise.
-Overall, the notebook is meant to make the full interferometry workflow visible: choose source geometry, generate receiver records, cross-correlate, average, compare to the ideal response, and evaluate whether the recovered causal/acausal branches are physically meaningful.
+# Seismic Interferometry
+
+Two seismometers record nothing but noise: waves from storms, traffic and the ocean, arriving from everywhere at random. Cross-correlate the two records and average over enough noise, and out of the randomness emerges a clean signal: the seismogram one station would have recorded if the other had been a source. This is **seismic interferometry**, the basis of ambient-noise tomography. In the experiment you place the noise sources yourself and watch which of them actually build that virtual seismogram.
 
 ##### [Interactive Seismology Notebooks](https://pawbz.github.io/Interactive-Seismology.jl/)
 
@@ -86,6 +105,7 @@ end
 # ╔═╡ 1bc0ce25-4de0-4628-a308-8106544fc0ec
 md"""
 ## Cross-Correlation
+The cells below compute the true virtual-source response and compare the averaged correlation with it, keeping only the contributions above the threshold (`average_selected_cross_correlations`).
 """
 
 # ╔═╡ 5427df02-9278-41c9-9b3b-b5d1ab5b4c24
@@ -94,6 +114,7 @@ stationary_phase_source_distance = 1000.0
 # ╔═╡ e0ae191c-b674-46c7-bf05-bfecade313a5
 md"""
 ## Generate Wavelets
+Each source emits a Gaussian-windowed wavelet with the experiment's period and bandwidth (`gaussian_wavelet`); `delaywav` shifts it by a travel time with sub-sample accuracy.
 """
 
 # ╔═╡ 9a74489f-8e6d-45ce-ab57-464ee36d3316
@@ -124,11 +145,13 @@ end
 # ╔═╡ 577d411c-88b5-495d-a49a-d2379336f533
 md"""
 ## Generate Random Source Locations
+The source positions placed in the experiment are converted from canvas pixels to kilometres and scaled by the source-distance factor.
 """
 
 # ╔═╡ 8d45d812-fb70-45c5-a123-4f93844fef6d
 md"""
 ## Receivers
+The two receivers sit at ``\pm d/2`` on the horizontal axis, in a homogeneous medium of speed `vel`. `generate_seismograms` records every source at both receivers (straight-ray travel times, `get_traveltime`). `cross_correlations` correlates the two records source by source, and `source_contributions` scores each correlation by how well it matches the true response in its causal or acausal branch.
 """
 
 # ╔═╡ 3b144853-0d82-46e2-a4ee-301516f3ce10
@@ -229,7 +252,10 @@ function source_contributions(cross, ref, tgrid)
 end
 
 # ╔═╡ d483d881-11c4-495f-a103-2d2dd6371ca3
-md"## Appendix"
+md"""
+## Appendix
+The time grids, the wavelet, the plotting helpers, the FFT-based cross-correlation, and the branch measurements: the analytic-signal phase, the group and phase velocity of each branch, and the three-station and mode-consistency residuals reported in the metrics panel.
+"""
 
 # ╔═╡ e059662c-69af-460c-aada-408a365d0ff7
 default_plotly_template(:plotly_dark)
@@ -475,7 +501,7 @@ begin
 
     function Base.show(io::IO, ::MIME"text/html", w::CanvasSourceInput)
         write(io, """
-<div id="siwidget" style="display:flex;flex-direction:column;align-items:center;width:100%;color:#9ca3af">
+<div id="siwidget" class="app-widget" style="display:flex;flex-direction:column;align-items:center;width:100%;color:#9ca3af">
   <style>
     /* PlutoUI's wide-cell wrapper hard-caps itself around 1000px regardless of
        viewport size. Override it for this specific cell so the widget can actually
@@ -517,7 +543,7 @@ begin
       #siwidget .si-controls{grid-template-columns:1fr;width:640px;max-width:100%}
     }
   </style>
-  <div class="si-title">
+  <div class="si-title app-title">
     <div class="si-title-desc">Cross-correlating ambient noise from many sources recovers the causal and acausal Green's function between two receivers.</div>
     <div class="si-title-hint">drag a receiver or a source to move it &middot; click empty space to paint a source &middot; try a preset below</div>
   </div>
@@ -1325,8 +1351,8 @@ end
 
 # ╔═╡ ca1b63bf-c868-4200-80f0-f8d6e40d9a6c
 begin
-    f0              = _canvas_widget["f0"]
-    bw_perc         = _canvas_widget["bw_perc"]
+    f0              = _canvas_safe["f0"]
+    bw_perc         = _canvas_safe["bw_perc"]
     source_distance = stationary_phase_source_distance
 end
 
@@ -1342,9 +1368,9 @@ end
 
 # ╔═╡ c71bc2d6-cc33-4cae-8195-5fe26ec39d7f
 begin
-    srcloc_pixels = _canvas_widget["sources"]
-    d_receiver = Float64(_canvas_widget["d"])
-    source_distance_scale = Float64(get(_canvas_widget, "source_distance_scale", 1.0))
+    srcloc_pixels = _canvas_safe["sources"]
+    d_receiver = Float64(_canvas_safe["d"])
+    source_distance_scale = Float64(get(_canvas_safe, "source_distance_scale", 1.0))
     rec1 = Float64[-d_receiver / 2, 0.0]
     rec_origin = Float64[0.0, 0.0]
     rec2 = Float64[ d_receiver / 2, 0.0]
@@ -1452,7 +1478,7 @@ end
 
 # ╔═╡ a0c7145b-cb4c-4648-a989-b6a5f88fd32a
 begin
-    _subsamp_threshold = Float64(get(_canvas_widget, "subsample_threshold", 0.0))
+    _subsamp_threshold = Float64(get(_canvas_safe, "subsample_threshold", 0.0))
     gren = average_selected_cross_correlations(cross, contributions, _subsamp_threshold)
     plot_line(tgrid_xcorr, [normalize_trace(gren[:, 1]), normalize_trace(true_virtual_response)], names=["Averaged cross-correlation", "True virtual source response"], title="C---")
 end
@@ -1753,8 +1779,8 @@ function mode_residuals(measurements, trace, tgrid, dt, distance, vref, f0, bw_p
 
 # ╔═╡ a57e060f-73b6-4989-a742-553631cdd873
 begin
-    apply_phase_correction = Bool(get(_canvas_widget, "apply_phase_correction", false))
-    phase_branch = Int(round(Float64(get(_canvas_widget, "phase_branch", 0))))
+    apply_phase_correction = Bool(get(_canvas_safe, "apply_phase_correction", false))
+    phase_branch = Int(round(Float64(get(_canvas_safe, "phase_branch", 0))))
     _phase_corrected = phase_correct_trace(gren[:, 1], true_virtual_response, tgrid_xcorr, d_interstation, vel, f0)
     comparison_trace = apply_phase_correction ? _phase_corrected.trace : gren[:, 1]
     ac_measurements = branch_velocity_measurements(comparison_trace, tgrid_xcorr, d_interstation, vel, f0, phase_branch)
@@ -1833,6 +1859,45 @@ let
       window.dispatchEvent(new CustomEvent('seismic-comparison', {detail: window._seismic_comparison}));
     </script>""")
 end
+
+# ╔═╡ 763dce13-d7a0-40ef-a72a-16ec2e24b238
+# The bond is `nothing` until a browser has rendered the widget: use its defaults.
+_canvas_safe = _canvas_widget isa AbstractDict ? _canvas_widget : Base.get(CanvasSourceInput(vel))
+
+# ╔═╡ ce7b4b6b-d2b7-404b-bb1d-34252d8facd9
+md"""
+## How to read the experiment
+
+Two receivers sit on the horizontal axis. Place, clear or drag sources around them, or load a preset distribution. The controls set the receiver spacing ``d``, the wave period ``T`` and bandwidth, the source-distance scale, the spray width and a stationary-zone threshold. Every change regenerates the synthetic records, cross-correlates them and averages the selected contributions.
+
+The comparison panel shows the recovered interstation response (orange) against the true virtual-source response (blue). Markers show zero lag and the expected arrivals at ``\pm d/v``. Sources are coloured by how strongly they contribute; with the threshold, weak or badly placed contributors fade out. The metrics panel estimates, for the causal and acausal branches separately, the group velocity ``U``, the phase velocity ``c``, the phase mismatch ``\Delta\phi``, three-station residuals and a mode-consistency residual. Branches too weak to measure are shown as `--`. An optional phase correction rotates valid branches before measuring.
+"""
+
+# ╔═╡ 23b4cba2-cd51-4319-b4fc-91abedf00bd4
+md"""
+## Why Cross-Correlation Recovers the Green's Function
+
+A source at ``\mathbf x_s`` emitting a wavelet ``w(t)`` is recorded at the two receivers as ``u_1(t) = G(\mathbf r_1, \mathbf x_s, t) * w(t)`` and ``u_2(t) = G(\mathbf r_2, \mathbf x_s, t) * w(t)``. Their cross-correlation,
+
+```math
+C_{12}(\tau) = \int u_2(t + \tau)\,u_1(t)\,dt ,
+```
+
+peaks at the lag ``\tau = t_2 - t_1``, the *difference* of the two travel times. Summed over sources surrounding the receivers, the contributions from most directions interfere destructively, and what survives is
+
+```math
+\sum_s C_{12}(\tau) \;\propto\; \big[\,G(\mathbf r_2, \mathbf r_1, \tau) + G(\mathbf r_2, \mathbf r_1, -\tau)\,\big] * \big(w \star w\big)(\tau) ,
+```
+
+the interstation Green's function (causal branch, positive lag) and its time-reversed copy (acausal branch, negative lag), convolved with the wavelet's autocorrelation. Both branches arrive at ``|\tau| = d/v``, the travel time between the receivers.
+"""
+
+# ╔═╡ 425f622b-0dee-4dd6-a9b6-357e916b355d
+md"""
+## Stationary Phase: Which Sources Matter
+
+The difference of travel times ``t_2 - t_1`` changes with the source position, except near the line through the two receivers. There it is **stationary**, equal to ``\pm d/v``. Sources in these two *stationary-phase zones* all add their correlations at the same lag and build the arrival. Sources elsewhere produce correlations at scattered lags that cancel on average. That is why the colouring in the experiment lights up the sources behind each receiver, why one-sided source distributions recover only one branch, and why real ambient-noise studies need sources (or long averages) in the stationary zones. The ratio ``d/\lambda`` matters too: the receivers must be at least a wavelength or so apart for the two branches to separate from zero lag.
+"""
 
 # ╔═╡ 00000000-0000-0000-0000-000000000001
 PLUTO_PROJECT_TOML_CONTENTS = """
@@ -2825,10 +2890,15 @@ version = "17.7.0+0"
 
 # ╔═╡ Cell order:
 # ╠═f986cb42-7cbe-11ee-22de-cbc3714ed81d
+# ╟─8c6e0d93-1a0f-4d2f-a274-93876a0c5f4d
 # ╟─bd04a8af-7666-47b7-87cc-a212ec8adcbd
 # ╟─d59342b1-cb2a-4472-9717-b82fa12335f9
+# ╟─763dce13-d7a0-40ef-a72a-16ec2e24b238
 # ╟─3c5fd716-5b57-4e6a-aa8a-022a1cb476c4
 # ╟─4a592f7e-fa42-4724-8281-1534333816d0
+# ╟─ce7b4b6b-d2b7-404b-bb1d-34252d8facd9
+# ╟─23b4cba2-cd51-4319-b4fc-91abedf00bd4
+# ╟─425f622b-0dee-4dd6-a9b6-357e916b355d
 # ╠═b8671b46-d45b-4ec7-99f2-b1a2cb0aee12
 # ╠═b933216e-203a-47a1-b4f1-901fa5b38f70
 # ╠═a0c7145b-cb4c-4648-a989-b6a5f88fd32a

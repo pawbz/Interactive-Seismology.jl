@@ -16,6 +16,26 @@ using Symbolics, SymbolicUtils, LinearAlgebra, ChainRules, PlutoUI, PlutoTeachin
 # ╔═╡ 69e5bc3b-494e-4b7d-9fea-ded035d544cc
 TableOfContents()
 
+# ╔═╡ 4ebb3ecb-e383-49d3-8c09-c9e21247b11d
+# App shell: the Expt / Theory / Code / Help frame shared by every notebook, loaded
+# from src/assets/app-shell/. Without that folder (a lone downloaded .jl) this cell just
+# shows the help text and the notebook stays a plain notebook.
+let
+	help = md"""
+	- This notebook has no experiment: read **Theory** for the derivation and **Code** for the symbolic computation.
+	- In Code, each symbolic cell shows the discrete equations it builds; the Appendix checks the gradient formulas.
+	"""
+	dir = joinpath(@__DIR__, "..", "assets", "app-shell")
+	if isfile(joinpath(dir, "app-shell.js"))
+		HTML(string(
+			"<style>", read(joinpath(dir, "app-shell.css"), String), "</style>",
+			"<template class=\"app-help\">", repr(MIME"text/html"(), help), "</template>",
+			"<script>", read(joinpath(dir, "app-shell.js"), String), "</script>"))
+	else
+		help
+	end
+end
+
 # ╔═╡ b739d0b0-5119-49c7-9fbb-15651ea8b901
 @variables q
 
@@ -34,8 +54,10 @@ Instructor: Pawan Bharadwaj, Indian Institute of Science, Bengaluru, India
 """
 
 # ╔═╡ 35909f2f-3787-4c6a-9e74-f284d5eea635
-md"## Medium
-Created two symbolic variables ρ and μ⁻¹ which can be used to represent the density and inverse of the shear modulus of the medium as functions of position x."
+md"""
+## Medium
+The medium is a 1-D elastic string sampled at a few grid points: density ``\rho(x)`` and shear compliance ``\mu^{-1}(x)``, the inverse of the shear modulus (`ρ`, `μ⁻¹`). These are the parameters whose gradients we want.
+"""
 
 # ╔═╡ d6188561-19ae-4006-b03e-9cf8e4f5e081
 @variables ρ[1:3] μ⁻¹[1:3]
@@ -44,7 +66,9 @@ Created two symbolic variables ρ and μ⁻¹ which can be used to represent the
 md"## State Variables"
 
 # ╔═╡ b4e9aa30-a16c-4b3a-a7be-c2fcf28f0904
-md"In the velocity-stress formulation, the seismic wavefield is described in terms of two variables: the particle velocity and the stress. Two symbolic variables `v(x, t)` and `σ(x, t)` representing velocity and stress, respectively, as functions of space (`x`) and time (`t`)."
+md"""
+In the velocity-stress formulation the wavefield is described by two first-order variables: the particle velocity ``v(x, t)`` and the shear stress ``\sigma(x, t)`` (`v`, `σ`).
+"""
 
 # ╔═╡ 857a5e06-2960-4ed4-826c-6bf3291387f0
 @syms v(x, t) σ(x, t)
@@ -59,7 +83,9 @@ collect(x)
 v(x[1], t[1])
 
 # ╔═╡ 76fd526b-450a-4db1-bf9a-bc7ae59b895c
-md"As the velocity and stress fields are staggered in time, we create corresponding vectors at each time value in t and t̂, respectively."
+md"""
+The two fields live on **staggered** grids: ``v`` at the integer times ``t_n`` and nodes ``x_i``, ``\sigma`` at the half times ``\hat t_n`` and half nodes ``\hat x_i``. The matrices `V` and `Σ` collect every discrete unknown of a short simulation.
+"""
 
 # ╔═╡ 4aec990b-338c-418b-a02d-39cec0cfc2c9
 V = hcat(collect(broadcast(x -> collect(map(t -> v(x, t), vcat(t₀, t, T))), x))...) # velocity in the discrete world
@@ -71,7 +97,9 @@ V = hcat(collect(broadcast(x -> collect(map(t -> v(x, t), vcat(t₀, t, T))), x)
 md"## Forcing"
 
 # ╔═╡ 61505a55-fc9e-4077-8365-8e166871b482
-md"The symbol `f` represents the body force density, which is a quantity that describes the force per unit volume acting on a material."
+md"""
+The body-force density ``f(x, t)`` (`f`, sampled as `F` on the stress times) drives the wavefield.
+"""
 
 # ╔═╡ 93ce7686-a297-438f-bfab-9ad1f9e9be10
 @syms f(x, t)
@@ -87,7 +115,13 @@ md"## Momentum Equation"
 
 # ╔═╡ 33871626-5b9b-4718-a974-d94d7b048582
 md"""
-This line defines the initial momentum of the system, which is equal to the difference between the initial velocity of the particle v(x, t̂[1]) and its velocity at time t=0 (which is zero in this case) multiplied by the density of the medium ρ(x) and then subtracting the force acting on the particle at time t=0 f(0, x). It represents the balance of forces and momentum of the system at the initial time.
+The continuous momentum equation is ``\rho\,\partial_t v = \partial_x\sigma + f``. Discretized with centred differences on the staggered grid, with ``\delta_t = 1/\Delta t`` and ``\delta_x = 1/\Delta x`` (`δₜ`, `δₓ`), every interior equation reads
+
+```math
+\rho_i\,\delta_t\big(v_i^{\,n+1} - v_i^{\,n}\big) - \delta_x\big(\sigma^{\,n}_{i+1/2} - \sigma^{\,n}_{i-1/2}\big) - f_i^{\,n} = 0 ,
+```
+
+with the density averaged onto the velocity grid (`avx`). `Meqs` collects all of them.
 """
 
 # ╔═╡ 3cb20104-2872-4bfe-95a7-86d2b1bb6b0f
@@ -98,7 +132,7 @@ dΣdx = diff(Σ, dims=2) * δₓ
 
 # ╔═╡ 84d8f063-2aad-4d57-9bdf-d44e37f173c7
 md"""
-We will now construct a vector that represents the time derivative of the velocity field. The first few elements can be computed using the `diff()` function applied to the `V` array. The last element is the time derivative of `v(x, t)` evaluated at the final time `T`, which is computed as the difference between `v(x, T)` and `v(x, last(t̂))`.
+The cells below form the time difference of the velocity (`dVdt`) and the space difference of the stress (`dΣdx`) used in these equations.
 """
 
 # ╔═╡ 201ebc60-90d6-40a1-8d1f-e371057af060
@@ -123,14 +157,22 @@ avx(ρt)
 Meqs ~ 0
 
 # ╔═╡ c5e41f1c-a734-4502-a60f-4ec0f9819e89
-md"## Constitutive Relations
-In linear elasticity, for example, the constitutive relation is given by Hooke's law, which states that stress is proportional to strain. "
+md"""
+## Constitutive Relations
+Hooke's law for the string, ``\sigma = \mu\,\partial_x u``, differentiated in time and written with the compliance, is
+
+```math
+\mu^{-1}\,\partial_t\sigma - \partial_x v = 0 .
+```
+"""
 
 # ╔═╡ 39570793-d23b-4c88-9c3b-c58690eb4ae8
 ∂V∂x = diff(V, dims=2) * δₓ
 
 # ╔═╡ fc20c71d-a23d-44be-8bf2-099a2400921b
-md"Similar to velocity, we will construct a vector that represents the time derivative of the stress field."
+md"""
+Its discrete version uses the time difference of the stress (`∂Σ∂t`) and the space difference of the velocity (`∂V∂x`).
+"""
 
 # ╔═╡ 7343a50f-9835-4e10-97ed-5b213069044a
 ∂Σ∂t = diff(Σ, dims=1) * δₜ
@@ -139,7 +181,9 @@ md"Similar to velocity, we will construct a vector that represents the time deri
 μ⁻¹t = repeat(reshape(μ⁻¹, 1, :), 3, 1)
 
 # ╔═╡ b2562463-09d0-40fc-9802-b49e105f946c
-md"This equation states that the time derivative of stress minus the gradient of the stress scaled by the shear modulus is equal to zero. This is a simplified form of the constitutive relation."
+md"""
+Every interior equation ``\mu^{-1}_{i+1/2}\,\delta_t\big(\sigma^{\,n+1}_{i+1/2} - \sigma^{\,n}_{i+1/2}\big) - \delta_x\big(v^{\,n+1}_{i+1} - v^{\,n+1}_{i}\big) = 0`` is collected in `Ceqs`.
+"""
 
 # ╔═╡ a0886a56-c027-4bae-99ff-e7be53ba4a1f
 Ceqs = ∂Σ∂t .* μ⁻¹t - ∂V∂x[2:end-1, :];
@@ -157,13 +201,23 @@ md"The leap-frog scheme updates the values of the velocity and stress components
 md"## Objective Function"
 
 # ╔═╡ e301bd11-efb6-431f-a1fd-45b9a2922350
-md"Variable to define an observed velocity field, which is a function of space and time."
+md"""
+The observed velocity ``v_0(x, t)`` (`v₀`) is what a real experiment would record.
+"""
 
 # ╔═╡ 6332d014-79e2-451f-b65c-6a5179b7f85c
 @syms v₀(x, t);
 
 # ╔═╡ 110c5485-51c1-4837-89da-18854267ed7c
-md"This defines a simple quadratic objective function that measures the difference between the model-predicted velocity field v and the observed velocity field v₀. Squaring the difference ensures that all differences are positive and also gives more weight to larger differences. The goal is to minimize this objective function to find the velocity field that best matches the observed data."
+md"""
+The misfit is the sum of squared differences between the modelled and observed velocities,
+
+```math
+J = \sum_{n,i} \big(v_i^{\,n} - v_{0,i}^{\,n}\big)^2 ,
+```
+
+built from the pointwise `obj(v, v₀)`.
+"""
 
 # ╔═╡ d5963693-e1c5-49f6-9c07-9187e893cd97
 V₀ = hcat(collect(broadcast(x -> collect(map(t -> v₀(x, t), vcat(t))), x))...)
@@ -172,14 +226,18 @@ V₀ = hcat(collect(broadcast(x -> collect(map(t -> v₀(x, t), vcat(t))), x))..
 obj(v, v₀) = (v - v₀)^2
 
 # ╔═╡ 65cc4d98-7cc8-400e-a41f-0c2cef5bde9e
-md"The final value of the objective function."
+md"""
+Summed over every interior sample, this is `J`.
+"""
 
 # ╔═╡ e7536b06-2454-496b-8872-aec29edb37f6
 J = sum(map(obj, V[2:end-1, :], V₀))
 
 # ╔═╡ 80c1040c-88d2-45b5-89e1-b3cb8d6abaf7
-md"## Adjoint State Variables
-Adjoint state variables are introduced in the context of optimization problems. In this case, these variables are used to find gradients of an objective function with respect to the parameters mass density and shear modulus."
+md"""
+## Adjoint State Variables
+We want ``\partial J/\partial\rho`` and ``\partial J/\partial\mu^{-1}`` without differentiating the whole simulation. The adjoint-state method treats the discrete wave equations as constraints and attaches one Lagrange multiplier to each: ``u`` to every momentum equation and ``\tau`` to every constitutive equation (`u`, `τ`). These multipliers are the **adjoint state**.
+"""
 
 # ╔═╡ 28a345b9-d911-486c-a715-7d32a4ea41e8
 @syms u(x, t) τ(x, t)
@@ -188,7 +246,9 @@ Adjoint state variables are introduced in the context of optimization problems. 
 size(Meqs)
 
 # ╔═╡ d447a8bf-2d42-4f93-a27e-9eed76050348
-md"One multiplier for each of Meqs⋯"
+md"""
+One multiplier ``u`` for each momentum equation in `Meqs`:
+"""
 
 # ╔═╡ 59d380f3-1bc0-41b4-a0e5-2cfbb0eaa333
 U = hcat(collect(broadcast(x -> collect(map(t -> u(x, t), vcat(t̂, T̂))), x[2:end-1]))...)
@@ -197,7 +257,9 @@ U = hcat(collect(broadcast(x -> collect(map(t -> u(x, t), vcat(t̂, T̂))), x[2:
 size(Ceqs)
 
 # ╔═╡ 723e81cd-36e1-44ea-99bf-b4cae2be03a2
-md"One multiplier for each Ceqs⋯"
+md"""
+and one multiplier ``\tau`` for each constitutive equation in `Ceqs`:
+"""
 
 # ╔═╡ 1bf0a983-9592-4a72-a10e-af61316ce6e4
 𝛕 = hcat(collect(broadcast(x -> collect(map(t -> τ(x, t), vcat([t[end-1], t[end]], T))), x̂))...)
@@ -209,36 +271,57 @@ md"## Lagrangian"
 Meqs |> size, U|> size
 
 # ╔═╡ e1048e24-e389-4e95-8157-00702f1b41a3
-md"The Lagrangian component, for momentum equations `Meqs`, is given by"
+md"""
+The Lagrangian adds the constraints, weighted by their multipliers, to the misfit. The momentum part is ``L_1 = \sum u \cdot \text{Meqs}``,
+"""
 
 # ╔═╡ fee19d3e-2235-4382-82d6-5a3cb452d317
 L₁ = sum((U .* Meqs))
 
 # ╔═╡ c2967e07-5d8b-4205-bb8b-add323494d86
-md"The Lagrangian component, for constitutive equations `Ceqs`, is given by"
+md"""
+the constitutive part is ``L_2 = \sum \tau \cdot \text{Ceqs}``,
+"""
 
 # ╔═╡ 55c08fb9-e29d-4500-84e7-46de7979639e
 L₂ = sum(𝛕 .* Ceqs)
 
 # ╔═╡ 911c9966-e983-46fd-8ca0-8ca06ab42bf0
-md"Adding all the components of the Lagrangian together gives"
+md"""
+and together ``L = J + L_1 + L_2``. Whenever ``v`` and ``\sigma`` solve the wave equations, the constraints vanish and ``L = J`` for any choice of the multipliers.
+"""
 
 # ╔═╡ 3b8a80a7-4ab5-4b74-9aaa-3603e0ecccb5
 L = L₁ + L₂ + J
 
 # ╔═╡ 66ed7bf9-c5b7-4c27-a021-28bb5675c85f
-md"## Adjoint State Equations"
+md"""
+## Adjoint State Equations
+Choosing the multipliers so that ``L`` is stationary with respect to every state variable, ``\partial L/\partial v = 0`` and ``\partial L/\partial\sigma = 0``, removes every dependence of the gradient on how the wavefield changes. These conditions are the **adjoint equations**: the same staggered leap-frog system run backward in time, driven by the data residual ``2(v - v_0)`` acting as a source.
+"""
 
 # ╔═╡ bfd6f8e4-ea3e-4c87-b7f7-eba889e751fd
-md"## Final Condition (Time Reversal)
-To obtain the final condition, we shall compute the gradient of the Lagrangian with respect to `v(x, T)`."
+md"""
+## Final Condition (Time Reversal)
+Stationarity with respect to the last velocity sample ``v(x, T)`` fixes the adjoint field at the final time, so the adjoint equations are solved from ``t = T`` backward to ``t = 0``.
+"""
 
 # ╔═╡ 09c11c95-a82d-48e0-85ba-6db4a8c03f29
-md"The solution of these adjoint equations is often obtained by using a time-reversed version of the original numerical solver, known as the backpropagation."
+md"""
+This is why the adjoint system is solved by running the forward solver in reverse: **backpropagation** of the residuals. The diagram shows the order of the backward updates.
+"""
 
 # ╔═╡ be1c590d-d70b-40f1-8370-bc294fb29c09
-md"## Parameter Gradients
-Lets compute the gradient of L with respect to ρ and μ."
+md"""
+## Parameter Gradients
+With the adjoint fields in hand, the gradients follow from differentiating ``L`` with respect to the parameters alone. For the density this gives a zero-lag correlation of the adjoint velocity with the time difference of the forward velocity,
+
+```math
+\frac{\partial J}{\partial\rho_i} = \sum_n u_i^{\,n}\,\delta_t\big(v_i^{\,n+1} - v_i^{\,n}\big) ,
+```
+
+and for the compliance the analogous correlation of ``\tau`` with the time difference of ``\sigma``. One forward and one backward simulation give the gradient with respect to *every* model parameter at once. The Appendix checks these correlation forms against the symbolic derivatives `∇ρ` and `∇μ⁻¹`.
+"""
 
 # ╔═╡ 7e56d621-a572-4077-83be-d3b002f4e808
 # gradient w.r.t. mass density
@@ -249,13 +332,20 @@ Lets compute the gradient of L with respect to ρ and μ."
 ∇μ⁻¹ = Differential(μ⁻¹[2])(L) |> expand_derivatives #, [σ(x, 0) => 0, τ(x, T) => 0])
 
 # ╔═╡ 3b2d5624-d365-4595-b95b-52825bc980d0
-md"## Appendix"
+md"""
+## Appendix
+The symbolic variables, the derivatives of the Lagrangian that produce the adjoint equations and the final condition, the correlation forms of the gradients checked against the symbolic results, and the TikZ helpers for the diagrams.
+"""
 
 # ╔═╡ 5f6a1560-b22d-4e47-b6ee-7a306b0bc2d1
-md"### Variables"
+md"""
+### Variables
+"""
 
 # ╔═╡ ec3bf735-5fff-44e6-8a79-a03d6eb4538f
-md"These commands create three symbolic time variables `t`, and staggered time variables `t̂` and space variable `x`. We will consider three time steps for the leap-frog scheme. The `@syms` macro is used in the `Symbolics.jl` package to declare symbolic variables."
+md"""
+Three time samples ``t`` and their staggered counterparts ``\hat t`` (enough for a few leap-frog steps), the final times ``T`` and ``\hat T``, the initial time ``t_0``, and the space samples ``x`` and ``\hat x`` are declared as Symbolics.jl symbols.
+"""
 
 # ╔═╡ c9324a48-8cb8-45e1-909a-950333048d28
 @variables t[1:3] t̂[1:3] # t̂ is staggered
@@ -309,7 +399,10 @@ end;
 ∂L∂VT ~ 0
 
 # ╔═╡ 8d67dc24-a8b1-4a4f-9811-f46e7b09fc08
-md"### Gradient Expressions"
+md"""
+### Gradient Expressions
+The density gradient written as an explicit time correlation (`∇ρ1`), accumulated in reverse time, is compared with the symbolic derivative `∇ρ`. Likewise two correlation forms of the compliance gradient (`∇μ⁻¹1`, `∇μ⁻¹2`) are compared with `∇μ⁻¹`. Each difference should simplify to zero.
+"""
 
 # ╔═╡ a5d63b00-4520-4f0c-a2f2-bf6476c4a1a2
 nt = 3
@@ -365,7 +458,10 @@ end
 ∇μ⁻¹ - ∇μ⁻¹2
 
 # ╔═╡ 38257847-5ae7-4a5a-a937-22a6729a3640
-md"### Tikz"
+md"""
+### Tikz
+`plot_state_tikz` and `plot_adjstate_tikz` draw the forward and adjoint update orders on the staggered time grid.
+"""
 
 # ╔═╡ 8e514e64-0172-4b47-974d-efaa8e1f4990
 tikz_default_options = raw"""
@@ -1863,6 +1959,7 @@ version = "0.13.1+0"
 
 # ╔═╡ Cell order:
 # ╠═69e5bc3b-494e-4b7d-9fea-ded035d544cc
+# ╟─4ebb3ecb-e383-49d3-8c09-c9e21247b11d
 # ╠═b739d0b0-5119-49c7-9fbb-15651ea8b901
 # ╟─33a3705c-1660-4df6-bfae-23225a55bdc6
 # ╟─35909f2f-3787-4c6a-9e74-f284d5eea635

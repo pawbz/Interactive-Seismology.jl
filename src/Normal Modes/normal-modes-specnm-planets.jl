@@ -28,6 +28,29 @@ using PlutoUI
 # ╔═╡ cd3c5ff7-7992-41f7-9a5e-29934a1355ca
 PlutoUI.TableOfContents(include_definitions=true)
 
+# ╔═╡ 76574aca-68de-4a77-bba4-d610c87e9252
+# App shell: the Expt / Theory / Code / Help frame shared by every notebook, loaded
+# from src/assets/app-shell/. Without that folder (a lone downloaded .jl) this cell just
+# shows the help text and the notebook stays a plain notebook.
+let
+	help = md"""
+	- **Body** picks Earth, Mars, the Moon or Europa; its precomputed modes load instantly.
+	- **Click** a point in the spectrum (angular degree l against frequency, coloured by overtone n) to see that mode's eigenfunctions against depth.
+	- **Spheroidal / Toroidal** switches mode family; click legend entries to hide components or model curves.
+
+	**Try this:** compare the toroidal modes of Earth and the Moon, and look for where they vanish in the fluid core.
+	"""
+	dir = joinpath(@__DIR__, "..", "assets", "app-shell")
+	if isfile(joinpath(dir, "app-shell.js"))
+		HTML(string(
+			"<style>", read(joinpath(dir, "app-shell.css"), String), "</style>",
+			"<template class=\"app-help\">", repr(MIME"text/html"(), help), "</template>",
+			"<script>", read(joinpath(dir, "app-shell.js"), String), "</script>"))
+	else
+		help
+	end
+end
+
 # ╔═╡ bdae265d-3a96-4ecc-a6dd-c166357e801c
 md"""
 # 🌍 Exploring Free Oscillations
@@ -37,7 +60,7 @@ disturbance (e.g. a giant earthquake), the same way a bell rings after being str
 This notebook browses those modes for four bodies, computed ahead of time by
 **`specnm`**, a spectral-element solver for the radial gravito-elastic ODEs.
 
-Picking a body below only *loads* its result -- nothing solves live in this notebook.
+Picking a body in the experiment only *loads* its result -- nothing solves live in this notebook.
 Every mode was solved once, offline, up to `fmax = 0.01` Hz, by
 `scripts/precompute_specnm.py`; re-run that script (not this notebook) if a model
 file changes or a different `fmax` is needed.
@@ -79,7 +102,10 @@ mode samples the planet.
 """
 
 # ╔═╡ 9b0a9a80-e65f-4385-a377-372e408b19ad
-md"## Appendix"
+md"""
+## Appendix
+The list of precomputed bodies, the loader that reads a body's modes from disk, and the browser widget. Nothing here solves an eigenproblem: `specnm` did that offline.
+"""
 
 # ╔═╡ dc1c3b73-27d9-40cd-a33d-604ac6990daf
 """
@@ -90,19 +116,25 @@ browse here -- must match that script's `DEFAULT_MODELS` and the JSON files unde
 const SPECNM_PRECOMPUTED_MODELS = ["prem_ani", "mars", "vpremoon", "europa"]
 
 # ╔═╡ 297386a9-d8e1-4da9-9bed-aca3ef653a11
-md"### Loading Precomputed Results"
+md"""
+### Loading Precomputed Results
+`model_name` is the body chosen in the experiment. The loader reads that body's JSON file from `src/assets/data/specnm_precomputed/` as text, already in the shape the widget expects (spheroidal and toroidal modes with their eigenfunctions, plus the body's radial model). The push cell hands it to the browser unchanged.
+"""
 
 # ╔═╡ 383d55aa-01cb-4068-8140-39f52a5d7884
-md"### The Interactive Widgets"
+md"""
+### The Interactive Widgets
+`SpecnmBrowseView` is the experiment: its Body menu is the only value sent back to Julia. Choosing spheroidal or toroidal modes, hovering and clicking modes in the spectrum, and toggling legend entries all index the pushed arrays in the browser.
+"""
 
 # ╔═╡ 12b77c6d-5a9e-43b7-a34c-8de94eb6003d
 begin
     """
         SpecnmModelPicker(; model="prem_ani")
 
-    Picks which precomputed body to browse. There's no Compute gate here (unlike
-    the live-solving widget this replaces) -- loading a body is just a file read,
-    so every change to the dropdown commits immediately.
+    A stand-alone body picker, superseded by the Body menu inside
+    [`SpecnmBrowseView`](@ref) (which is now the notebook's single bound widget). Kept
+    because it defines `SPECNM_MODEL_LABELS`, the display names that menu uses.
     """
     struct SpecnmModelPicker
         model::String
@@ -163,8 +195,8 @@ end
 
 # ╔═╡ 3508d355-720a-410a-bbd1-50e3779e77ee
 begin
-	_spm_ready
-	@bind spm_pick SpecnmModelPicker()
+	_sbv_ready
+	@bind spm_pick SpecnmBrowseView()
 end
 
 # ╔═╡ 473e3e64-609c-41d2-ac77-b17943011eb2
@@ -206,11 +238,18 @@ begin
     selected mode's eigenfunction(s) vs depth, and the solved body's density/
     velocity profile vs depth.
     """
-    struct SpecnmBrowseView end
+    struct SpecnmBrowseView
+        model::String
+    end
+
+    SpecnmBrowseView(; model="prem_ani") = SpecnmBrowseView(model)
+
+    Base.get(w::SpecnmBrowseView) = Dict{String,Any}("model" => w.model)
 
     function Base.show(io::IO, ::MIME"text/html", w::SpecnmBrowseView)
+        body_options = join(["""<option value="$m"$(m == w.model ? " selected" : "")>$(get(SPECNM_MODEL_LABELS, m, m))</option>""" for m in SPECNM_PRECOMPUTED_MODELS], "")
         write(io, """
-<div id="sbvwidget" style="display:flex;flex-direction:column;align-items:center;width:100%;color:#9ca3af">
+<div id="sbvwidget" class="app-widget" style="display:flex;flex-direction:column;align-items:center;width:100%;color:#9ca3af">
   <style>
     pluto-cell:has(#sbvwidget){width:min(90vw,1400px)!important;margin-left:calc((100% - min(90vw,1400px))/2)!important}
     #sbvwidget{width:100%;box-sizing:border-box;color:#d1d5db;font:14px sans-serif}
@@ -225,9 +264,9 @@ begin
     #sbvwidget .sbv-actions{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
     #sbvwidget label{color:#d1d5db}
   </style>
-  <div class="sbv-title">
-    <div class="sbv-title-desc">Every mode from the last Compute, browsed for free -- no re-solve needed.</div>
-    <div class="sbv-title-hint">click a point in the spectrum to see its eigenfunction &middot; hover to identify a mode &middot; toggle spheroidal/toroidal</div>
+  <div class="sbv-title app-title">
+    <div class="sbv-title-desc">A planet rings at a discrete ladder of frequencies, each with its own pattern of motion through the interior.</div>
+    <div class="sbv-title-hint">pick a body &middot; click a point in the spectrum to see its eigenfunction &middot; hover to identify a mode &middot; toggle spheroidal/toroidal</div>
   </div>
   <div class="sbv-workspace">
     <canvas id="sbvspectrum" width="440" height="440"></canvas>
@@ -235,6 +274,10 @@ begin
     <canvas id="sbvmodel" width="260" height="440"></canvas>
   </div>
   <div class="sbv-controls">
+    <div class="sbv-control-group">
+      <div class="sbv-control-title">Body</div>
+      <select id="sbv-model" style="width:100%;background:#111827;color:#e5e7eb;border:1px solid #374151;border-radius:4px;padding:6px;font-size:14px">$(body_options)</select>
+    </div>
     <div class="sbv-control-group">
       <div class="sbv-control-title">Mode Family</div>
       <div class="sbv-actions">
@@ -536,6 +579,14 @@ begin
   par.querySelector('#sbv-type-s').addEventListener('change', ()=>{ curType='spheroidal'; selIdx=-1; hoverIdx=-1; eigenHidden.clear(); redraw() })
   par.querySelector('#sbv-type-t').addEventListener('change', ()=>{ curType='toroidal'; selIdx=-1; hoverIdx=-1; eigenHidden.clear(); redraw() })
 
+  // The Body menu is the widget's only bond value: picking a body asks Julia to load its
+  // precomputed modes, which arrive back through the 'specnm-browse-data' push below.
+  par.value = {model: "$(w.model)"}
+  par.querySelector('#sbv-model').addEventListener('change', e=>{
+    par.value = {model: e.target.value}
+    par.dispatchEvent(new CustomEvent('input'))
+  })
+
   window.addEventListener('specnm-browse-data', e=>{
     data = JSON.parse(e.detail)
     par.querySelector('#sbv-status').textContent = 'body: ' + (data.model_name||'') + '  (' + data.spheroidal.l.length + ' spheroidal, ' + data.toroidal.l.length + ' toroidal modes)'
@@ -545,10 +596,9 @@ begin
 </script>
 """)
     end
-end
 
-# ╔═╡ bf3349da-ad56-4c4b-9b5c-c2e138abd1c0
-SpecnmBrowseView()
+    const _sbv_ready = true
+end
 
 # ╔═╡ 00000000-0000-0000-0000-000000000001
 PLUTO_PROJECT_TOML_CONTENTS = """
@@ -790,10 +840,10 @@ version = "1.64.0+1"
 
 # ╔═╡ Cell order:
 # ╠═cd3c5ff7-7992-41f7-9a5e-29934a1355ca
+# ╟─76574aca-68de-4a77-bba4-d610c87e9252
 # ╟─bdae265d-3a96-4ecc-a6dd-c166357e801c
 # ╟─f2a1c3d4-7e6b-4a5c-9d8e-1b2c3d4e5f6a
 # ╟─3508d355-720a-410a-bbd1-50e3779e77ee
-# ╟─bf3349da-ad56-4c4b-9b5c-c2e138abd1c0
 # ╟─9b0a9a80-e65f-4385-a377-372e408b19ad
 # ╠═9f419394-528a-4bde-98a5-d62787c17fa8
 # ╠═dc1c3b73-27d9-40cd-a33d-604ac6990daf

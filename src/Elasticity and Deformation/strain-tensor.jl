@@ -29,6 +29,30 @@ using PlutoUI
 # ╔═╡ 3f1bc2d1-2327-48cc-984a-df09c936da87
 TableOfContents()
 
+# ╔═╡ b19493d6-936d-450d-a674-70afaadbd88c
+# App shell: the Expt / Theory / Code / Help frame shared by every notebook, loaded
+# from src/assets/app-shell/. Without that folder (a lone downloaded .jl) this cell just
+# shows the help text and the notebook stays a plain notebook.
+let
+	help = md"""
+	- Two experiments: switch between **Configuration and mass** and **Strain decomposition** in the rail.
+	- **Configuration and mass:** drag a numbered particle to deform the region; the readouts show area, mass and density.
+	- **Strain decomposition:** drag a corner of the square (or edit J) to deform it; the four small panels isolate strain, rotation, dilatation and deviatoric strain.
+	- Drag the marker on the **Mohr circle** to pick a cut plane; the presets jump to classic deformations.
+
+	**Try this:** pick a pure rotation and check that both principal strains are zero even though the square has visibly turned.
+	"""
+	dir = joinpath(@__DIR__, "..", "assets", "app-shell")
+	if isfile(joinpath(dir, "app-shell.js"))
+		HTML(string(
+			"<style>", read(joinpath(dir, "app-shell.css"), String), "</style>",
+			"<template class=\"app-help\">", repr(MIME"text/html"(), help), "</template>",
+			"<script>", read(joinpath(dir, "app-shell.js"), String), "</script>"))
+	else
+		help
+	end
+end
+
 # ╔═╡ fd14256d-8c69-4d8a-91b5-924a32479866
 md"""
 # Strain Tensor
@@ -81,7 +105,7 @@ tracking properties at fixed spatial points as different particles pass through 
 *Eulerian* description: more natural for fluids in motion than for a solid Earth we mostly care
 about at rest between earthquakes.)
 
-The widget below drags **a part of the body** — a small region of four labeled particles — from
+The first experiment, **Configuration and mass**, drags **a part of the body** — a small region of four labeled particles — from
 its reference configuration to any deformed configuration you like, by hand. Two things to watch
 as you drag:
 
@@ -162,7 +186,7 @@ md"""
 ## Strain Tensor
 We use a strain tensor to analyze the distortion of the medium, whether it is solid or fluid,
 elastic or inelastic. The Jacobian ``J=\nabla\mathbf{u}`` above is completely general — it holds
-for any displacement field. The interactive widget below explores one important special case: a
+for any displacement field. The second experiment, **Strain decomposition**, explores one important special case: a
 **spatially-uniform** ``J`` (every particle in the square is stretched/rotated by the *same*
 constant matrix), which is exactly what a small enough neighborhood of *any* smooth displacement
 field looks like.
@@ -180,7 +204,7 @@ different things: ``e\,\delta\mathbf{x}`` stretches/shears ``\delta\mathbf{x}`` 
 rotation (it's the part responsible for elastic restoring forces), while
 ``\Omega\,\delta\mathbf{x}`` is a pure infinitesimal *rotation* of ``\delta\mathbf{x}`` with *no*
 change in length at all — a rigid spin that costs a deforming solid nothing. Splitting ``J`` this
-way is exactly what lets the widget below decompose a general deformation into rotation,
+way is exactly what lets the experiment decompose a general deformation into rotation,
 dilatation, and deviatoric strain.
 """
 
@@ -200,7 +224,7 @@ at an angle ``\theta_p = \tfrac12\operatorname{atan2}(2e_{12},\, e_{11}-e_{22})`
 ``x``-axis. Geometrically, a unit circle of material points deforms into an **ellipse**
 under ``e`` alone, and the principal axes are exactly that ellipse's own major/minor axes —
 this is the classic structural-geology **strain ellipse**, drawn on the "Strain only" panel
-in the widget above, with the two principal strain values reported in the Readouts panel.
+in the experiment, with the two principal strain values reported in the Readouts panel.
 Drag towards **pure rotation** and watch both principal strains go to zero (a rotation has
 no eigenvector with real, non-trivial stretch); drag towards **isotropic dilation** and
 watch the ellipse become a circle again, just a bigger or smaller one — the ellipse only
@@ -218,7 +242,7 @@ direction, with zero shape change. Subtracting that isotropic part back out of `
 the **deviatoric strain**: shape change at *exactly* constant area/volume, zero dilatation
 by construction. This is the split behind P waves (which involve dilatation — a volume
 oscillation) versus S waves (purely deviatoric — a shape oscillation with no volume change
-at all): the "Dilatation only" and "Deviatoric only" panels in the widget above show these
+at all): the "Dilatation only" and "Deviatoric only" panels in the experiment show these
 in isolation, and the **Δ** readout is exactly ``\operatorname{tr}(e)``.
 
 We can check this claim numerically: deform a unit square by a purely isotropic matrix
@@ -242,7 +266,7 @@ centered at ``(\Delta/2,\, 0)`` with radius
 crosses the (zero-shear) horizontal axis are exactly the principal strains from the section
 above.
 
-Drag the marker on the Mohr-circle panel in the widget: the matching cut-plane line on the
+Drag the marker on the Mohr-circle panel in the experiment: the matching cut-plane line on the
 main square updates with it — a dashed line at the *reference* (undeformed) orientation, and
 a solid cyan line showing how that same material fiber looks after the full deformation
 (rotation included). The Mohr circle itself deliberately plots only the **strain** part
@@ -272,11 +296,15 @@ Coseismic strain drop ``\Delta\epsilon`` (per event): $(@bind log_drop Slider(-5
 
 # ╔═╡ 6f33c7ed-e8a8-440d-a771-84789ee1f397
 md"""
-#### Appendix
+## Appendix
+The two experiments are self-contained browser widgets: the decomposition of the dragged Jacobian, the principal strains and the Mohr circle are evaluated in their scripts. The Julia functions below support the checks and the recurrence estimate in the narrative above.
 """
 
 # ╔═╡ ca079784-f5ac-4e9b-9d10-8501564c47f0
-md"### Layer 1: Area-Change Helper"
+md"""
+### Layer 1: Area-Change Helper
+`calculate_area` returns the area of a quadrilateral from its four corners with the shoelace formula. The **Dilatation vs. Distortion** check above uses it to compare the area of the unit square after a purely isotropic, a general symmetric and a purely rotational deformation.
+"""
 
 # ╔═╡ 962355bc-2e2e-4bba-b293-aefdca8f3627
 """
@@ -330,7 +358,10 @@ let
 end
 
 # ╔═╡ 3f45f0c5-e672-4780-a2c6-006e49fecfb8
-md"### Layer 2: Earthquake Recurrence"
+md"""
+### Layer 2: Earthquake Recurrence
+`recurrence_years(coseismic_drop, strain_rate)` is the ratio ``T = \Delta\epsilon/\dot\epsilon``: the time the tectonic loading needs to rebuild the strain released in one earthquake. The two sliders in **Earthquake Recurrence** feed it on a logarithmic scale.
+"""
 
 # ╔═╡ 3f7a0102-597e-49cc-978b-39ad7fcb3015
 recurrence_years(coseismic_drop, strain_rate) = coseismic_drop / strain_rate
@@ -349,7 +380,10 @@ let
 end
 
 # ╔═╡ 6b829564-d656-4c81-885f-212d1b8d6d91
-md"### The Configuration Widget"
+md"""
+### The Configuration Widget
+`ConfigurationInput` draws a four-particle region in its reference and deformed configurations. The numbered handles are draggable, and the readouts give the current area ``A``, the fixed mass ``M = \rho_0 A_0`` and the resulting density ``\rho = M/A``. The reference density ``\rho_0`` is a slider. Everything is computed in the browser; nothing downstream reads its value.
+"""
 
 # ╔═╡ 0168e21c-7af1-491d-be1b-7b3f458f9ad3
 begin
@@ -379,7 +413,7 @@ begin
 
     function Base.show(io::IO, ::MIME"text/html", w::ConfigurationInput)
         write(io, """
-<div id="cfgwidget" style="display:flex;flex-direction:column;align-items:center;width:100%;color:#9ca3af">
+<div id="cfgwidget" class="app-widget" data-app-name="Configuration and mass" style="display:flex;flex-direction:column;align-items:center;width:100%;color:#9ca3af">
   <style>
     pluto-cell:has(#cfgwidget){width:min(70vw,1100px)!important;margin-left:calc((100% - min(70vw,1100px))/2)!important}
     #cfgwidget .cfg-title{width:100%;box-sizing:border-box;text-align:center;margin-bottom:10px;background:#0a0f18;border:1px solid #3b5c85;border-radius:6px;padding:10px 14px}
@@ -394,7 +428,7 @@ begin
     #cfgwidget button{border-radius:4px;border:1px solid #9ca3af;background:#606060;color:#f3f4f6;padding:6px 12px;font-size:14px;cursor:pointer}
     #cfgwidget input[type=range]{width:100%}
   </style>
-  <div class="cfg-title">
+  <div class="cfg-title app-title">
     <div class="cfg-title-desc">A body's part (region) has a reference configuration and a deformed one &mdash; drag the labeled particles to deform it.</div>
     <div class="cfg-title-hint">drag a numbered handle &middot; labels are Lagrangian tags, fixed to the particle &middot; ρ&#8320; slider sets the reference density</div>
   </div>
@@ -534,7 +568,10 @@ begin
 end
 
 # ╔═╡ 906d8e1c-67c5-46ca-ad8d-0e087561690c
-md"### The Interactive Widget"
+md"""
+### The Interactive Widget
+`StrainTensorInput` holds the four entries of a uniform Jacobian ``J`` and a Mohr-circle cut angle. Dragging a corner of the square (or editing ``J``) updates ``J``. The script then splits it into ``e = (J+J^T)/2`` and ``\Omega = (J-J^T)/2``, and ``e`` further into its dilatational and deviatoric parts. It also computes the principal strains and the Mohr circle, and draws the main square, the Mohr panel and the four "only" panels. This is the same algebra as the formulas in the narrative, evaluated in the browser so that dragging is instant.
+"""
 
 # ╔═╡ e2c19bc6-e3df-4c93-aded-b9fda77247ec
 begin
@@ -567,7 +604,7 @@ begin
 
     function Base.show(io::IO, ::MIME"text/html", w::StrainTensorInput)
         write(io, """
-<div id="stwidget" style="display:flex;flex-direction:column;align-items:center;width:100%;color:#9ca3af">
+<div id="stwidget" class="app-widget" data-app-name="Strain decomposition" style="display:flex;flex-direction:column;align-items:center;width:100%;color:#9ca3af">
   <style>
     pluto-cell:has(#stwidget){width:min(80vw,1500px)!important;margin-left:calc((100% - min(80vw,1500px))/2)!important}
     #stwidget .st-title{width:100%;box-sizing:border-box;text-align:center;margin-bottom:10px;background:#0a0f18;border:1px solid #3b5c85;border-radius:6px;padding:10px 14px}
@@ -605,7 +642,7 @@ begin
       #stwidget .st-jcol{padding-top:0}
     }
   </style>
-  <div class="st-title">
+  <div class="st-title app-title">
     <div class="st-title-desc">A uniform deformation splits exactly into rotation, dilatation, and shape-changing shear &mdash; drag to see how much of each.</div>
     <div class="st-title-hint">drag a corner handle, or edit J directly, to deform &middot; drag the Mohr circle's marker to pick a cut plane &middot; pick a preset below</div>
   </div>
@@ -1246,6 +1283,7 @@ version = "1.64.0+1"
 
 # ╔═╡ Cell order:
 # ╠═3f1bc2d1-2327-48cc-984a-df09c936da87
+# ╟─b19493d6-936d-450d-a674-70afaadbd88c
 # ╟─fd14256d-8c69-4d8a-91b5-924a32479866
 # ╟─4d860dc6-4944-44da-81f2-14b4aa018694
 # ╟─11966694-3009-4016-be5b-2a4eb1be6be2

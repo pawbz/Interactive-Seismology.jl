@@ -1,15 +1,17 @@
 ---
 name: pluto-notebook-writing
-description: "Content and prose conventions for this repo's Pluto notebooks (reference: src/misc/geoid-kernel.jl): how the notebook is organized around its interactive widget (intro before, intuition after, all Julia implementation pushed to a categorized Appendix at the end), how functions are documented with docstrings, and how to write LaTeX math inside md strings without hitting Julia's string-interpolation syntax. Use this whenever writing or restructuring the explanatory text, section order, or function documentation of a notebook under src/ -- especially when adding math, writing a docstring, or reorganizing a notebook to put an interactive widget in the middle of a narrative. For the widget's own HTML/CSS/JS, use the pluto-widget-style skill instead -- this one is about everything else in the notebook."
+description: "Content and structure conventions for this repo's Pluto notebooks. Every notebook is an app with four views of the same .jl file -- Expt (the hero widget, full screen), Theory (every markdown cell, written to explain both the physics and the code), Code (every code cell, docstrings included) and Help (short how-to) -- provided by the shared app shell in src/assets/app-shell/ (reference: src/Planewave Propagation/reflection-transmission-SH.jl). Covers the shell cell, how to write markdown that works as a standalone Theory view, section order (intro, widget, explanation, categorized Appendix), docstrings, and LaTeX inside md strings without hitting Julia's string interpolation. Use this whenever writing, restructuring or converting a notebook under src/ -- adding math, writing a docstring, adding the app shell, or rewriting a notebook's prose. For the widget's own HTML/CSS/JS, use the pluto-widget-style skill instead."
 ---
 
 # Pluto notebook writing conventions
 
 This is the companion to `pluto-widget-style` (which covers the interactive canvas widget's HTML/CSS/JS).
-This skill covers everything else in the notebook: how the prose and the widget relate to each other, how
-Julia functions are documented, and how to write LaTeX math that actually survives being embedded inside a
-Julia string. `src/misc/geoid-kernel.jl` is the reference — go read the actual notebook when this doc
-doesn't cover your specific case.
+This skill covers everything else in the notebook: the four-view app structure every notebook follows, how
+the prose and the widget relate to each other, how Julia functions are documented, and how to write LaTeX
+math that actually survives being embedded inside a Julia string.
+`src/Planewave Propagation/reflection-transmission-SH.jl` is the reference for the app structure and the
+Theory-view writing standard; `src/Gravity/geoid-kernel.jl` remains a good reference for Appendix
+organization and self-checks. Go read the actual notebooks when this doc doesn't cover your case.
 
 ## Repository workflow: experimental by default
 
@@ -71,7 +73,128 @@ because that is too rigid and would force the wrong notebooks onto the live serv
 The repo now reads the unified sectioned registry from `live-notebooks.yml`, preserving section names and
 flattening the nested `live:` / `static:` lists as it builds the final notebook list.
 
-## The shape of a notebook: narrative around the widget, implementation in an Appendix
+## Every notebook is an app: four views of one file
+
+Inspired by single-page teaching apps like [Boltzmannator](https://compphys.univie.ac.at/Boltzmannator/),
+every notebook on the site opens as an app with a left rail and four tabs. All four are **views of the same
+`.jl` file** — nothing is duplicated into a separate document, so the explanation can never drift from the
+code it explains:
+
+| Tab | Shows | Written as |
+|---|---|---|
+| **Expt** | The hero widget, full screen; its controls move into the rail. | The widget (see `pluto-widget-style`, "The app shell contract"). |
+| **Theory** | Every **markdown cell**, in notebook order, with no code. | `md"""..."""` cells and `Markdown.MD(Markdown.Admonition(...))` callouts. |
+| **Code** | Every **code cell**: input unfolded, output shown, docstrings included. No markdown. | Ordinary Julia cells, documented with docstrings (below). |
+| **Help** | A popover with a few bullets on how to drive the experiment. | The `help` text inside the notebook's shell cell. |
+
+Theory is **not** the lecture notes. The lecture notes are separate LaTeX documents; Theory is the
+notebook's own prose. Don't embed or link PDFs into it.
+
+The views work identically in the Pluto editor, on the live slider server and in the static HTML export,
+because all three render the same `<pluto-cell>` DOM and the shell is pure CSS/JS on top of it. The shell
+**never edits the notebook**: Code unfolds code with CSS only, so the fold state saved in the `.jl` (the
+`╠═`/`╟─` prefixes) is untouched.
+
+### How cells are sorted into Theory and Code
+
+Purely by what the cell *outputs*, with CSS `:has()` selectors in `src/assets/app-shell/app-shell.css`:
+
+- **Theory** = a cell whose output is a rendered Markdown block (`pluto-output > .raw-html-wrapper >
+  .markdown`). That covers `md"..."`, `md"""..."""`, `Markdown.parse(...)` and `Markdown.MD(...)` admonitions.
+- **Code** = every other cell. Function docstrings render as `.pluto-docs-binding`, not `.markdown`, so a
+  documented function stays in Code with its docstring. That's where function documentation belongs.
+- The `TableOfContents()` cell is kept in Theory for navigation and hidden in Code. The widget's own
+  output is hidden in Code, because the widget lives in Expt.
+- **Markdown cells with controls belong in Code.** A cell like `md"Maximum period: $(@bind T Slider(...))"`
+  is shown in Code, next to the plot it drives, and hidden from Theory. Theory stays pure prose. Better
+  still, fold such controls into the hero widget so they appear in Expt too.
+- **Static illustrations belong in Theory.** A figure drawn by a code cell (an `HTML("""<figure ...>""")`
+  sketch or an inline SVG) would otherwise land in Code. Give the figure's root element
+  `class="app-theory"`. The shell then shows it in Theory and hides it from Code. Use this only for
+  illustrations, not for anything that computes.
+
+Two consequences to design around:
+
+- **A code cell whose value is Markdown counts as Theory.** For example, a cell that computes a number and
+  returns a `md"..."` readout. Its code is then invisible in both views. Keep computation out of such cells,
+  or return a non-Markdown value.
+- **Prose that isn't a markdown cell is invisible in Theory.** A long `#` comment block or a string literal
+  is Code. If it explains something a reader needs, it belongs in a markdown cell.
+
+### The shell cell (one per notebook, copy it verbatim)
+
+The shell's CSS and JS live once, in `src/assets/app-shell/app-shell.css` and `app-shell.js`. Editing them
+restyles every notebook. Each notebook loads them with one folded cell, placed right after
+`TableOfContents()` in the Cell order block (`# ╟─<uuid>`). Copy it from the reference notebook and change
+only the `help` text:
+
+```julia
+# App shell: the Expt / Theory / Code / Help frame shared by every notebook, loaded
+# from src/assets/app-shell/. Without that folder (a lone downloaded .jl) this cell just
+# shows the help text and the notebook stays a plain notebook.
+let
+	help = md"""
+	- **Drag** on the polar plot (left) to set the angle of incidence. The wavefield (right) follows.
+	- **Layer 1 / Layer 2** sliders set `β` and `ρ` above and below the interface.
+
+	**Try this:** make `β₂ > β₁` and find the critical angle, where `|Reflection|` reaches 1.
+	"""
+	dir = joinpath(@__DIR__, "..", "assets", "app-shell")
+	if isfile(joinpath(dir, "app-shell.js"))
+		HTML(string(
+			"<style>", read(joinpath(dir, "app-shell.css"), String), "</style>",
+			"<template class=\"app-help\">", repr(MIME"text/html"(), help), "</template>",
+			"<script>", read(joinpath(dir, "app-shell.js"), String), "</script>"))
+	else
+		help
+	end
+end
+```
+
+Rules for this cell, each learned the hard way:
+
+- **No `import` or `using`, not even of a standard library.** Pluto turns any `import` into a package-
+  environment operation. In the SH pilot, a one-line `import Base64` cost an hour of re-precompiling the
+  Symbolics environment and left the live session demanding a restart even after the import was removed.
+  The cell above needs nothing beyond Base and `Markdown`, which Pluto always provides.
+- `../assets/app-shell` assumes the notebook sits exactly one folder below `src/`, which every registered
+  notebook does. A downloaded single `.jl` falls back to showing just the help text.
+- **Help text:** 3–6 bullets, each starting with the gesture in bold, plus at most one **Try this:**. It is
+  displayed outside Pluto's math renderer, so **no LaTeX**. Use Unicode (`β₂`, `θ`) and backticks. The
+  widget's own `title-desc` line is shown automatically as the Help card's subtitle; don't repeat it.
+- The notebook's first `# ` heading becomes the app title in the rail. Make it the real title.
+
+### Writing markdown that works as a standalone Theory view
+
+This is the real work when converting a notebook, and the standard is strict: **a reader who never opens
+Code must be able to follow the whole argument, and know which code implements each step.** The SH
+notebook was rewritten to this standard; compare it with `git log -p` if you need a before/after.
+
+- **Every key equation appears in the markdown, in LaTeX.** Don't rely on a code cell's output (a
+  Symbolics expression, a printed number) to carry a step of the argument. Theory doesn't show those
+  outputs. If a symbolic cell derives the result, state the result in the markdown next to it, for
+  example the final ``A_r``/``A_t`` formulas after the Symbolics solve. Check that the stated result matches
+  what the code actually produces.
+- **Name the code that implements each step**, in backticks, at the point where the math introduces it:
+  "implemented as `plane(p, η, A)`", "(`eq_traction`)", "`sh_interface_coefficients` evaluates ...". This is
+  the bridge between the two views: a reader in Theory knows what to look for in Code.
+- **No stub cells.** "Differential operators." or "Spatial coordinates, time, and angular frequency." only
+  make sense with the code cell underneath; in Theory they read as fragments. Every markdown cell should be
+  complete sentences that make sense on their own.
+- **The Appendix needs prose too.** Theory includes the Appendix's markdown. Under each Appendix heading,
+  say what the functions compute physically, why the numerical form exists (for example "the symbolic
+  expression is too slow to re-evaluate at every angle of the sweep"), what each `### Verifying ...` check
+  asserts, and, under `## The Interactive Widget`, how data flows: which values go back to Julia, what gets
+  pushed to the browser, and what stays client-side.
+- **Delete or rewrite stale callouts.** An admonition that refers to a plot or example that no longer
+  exists ("the 70° reference example") is worse than none.
+- **Put callouts where the reader needs them**, in Cell order, next to the step they qualify. For example,
+  the sign-convention note goes right after the function whose sign it explains, not in a pile at the end.
+- **Interpret, don't just derive.** After a result, add one or two sentences on what controls it and what
+  happens at the interesting limits (critical angle, normal incidence, zero contrast). That's what a
+  reader came to Theory for.
+
+## Section order: narrative around the widget, implementation in an Appendix
 
 The read-through experience and the file's cell order are two different things in Pluto, and that's what
 makes this structure possible: **Pluto resolves cells by dependency graph, not by their physical position
@@ -80,13 +203,15 @@ controls *display* order, independent of where a cell's `# ╔═╡ <uuid>` def
 means the code that *defines* the widget (the `struct`, `Base.get`, `Base.show` triad) can live at the very
 bottom of the file while the cell that *instantiates and displays* it (`@bind gk_blobs GeoidGlobeInput(...)`)
 sits near the top of the reading order — Pluto doesn't care that the definition comes later in the file,
-only that it exists somewhere. Use this to get the read-through order you actually want:
+only that it exists somewhere. Theory and Code both follow this one display order (each filtered to its own
+cells), so getting it right serves both views at once:
 
 1. **Introduction** — why this question, what the reader is about to explore, pitched *before* they've
    touched anything. This is where you build the motivation (see geoid-kernel's opening "Why Does a Dense
    Blob Make a Geoid *Low*?" — it states the naive-but-wrong intuition first, then says why the notebook
    exists to correct it).
-2. **The interactive widget**, displayed here even though its code lives at the bottom (see above).
+2. **The interactive widget**, displayed here even though its code lives at the bottom (see above). In the
+   app it is shown full screen in Expt; this position only matters for the plain-notebook reading.
 3. **Detailed explanation and intuition**, written to build on what the reader just did with their hands —
    not a repeat of the introduction. This is where the real derivations, the governing equations, and the
    "aha" sections live (geoid-kernel's "Where the Geoid Comes From", "The Governing Equations", "Aha #3:
@@ -96,10 +221,14 @@ only that it exists somewhere. Use this to get the read-through order you actual
    subsections that tell the story of the computational pipeline rather than generic buckets. Don't call a
    section "Helper functions" — call it what it *does*: geoid-kernel uses `## Physical Constants`,
    `## Layer 1: The Analytic Building Blocks`, `## The Geoid Kernel`, `## Layer 3: From a Painted Picture
-   to a Geoid`. Each category can (and in geoid-kernel does) end in its own small `### Verifying the ...`
-   / `### Validating the ...` subsection with a visible numerical self-check — printed residuals, an
-   assertion, a comparison table — so trust in the implementation is built the same way trust in the
-   physics was built in the narrative above: by showing the check, not asserting correctness.
+   to a Geoid`; the SH notebook uses `## Numerical Coefficients: the Moho Example`. Function-definition
+   cells belong here, not inline in the narrative: their outputs ("generic function with 1 method",
+   rendered docstrings) are noise in a reading order. Each category can end in its own small
+   `### Verifying the ...` / `### Validating the ...` subsection with a visible numerical self-check —
+   printed residuals, an assertion, a comparison table — so trust in the implementation is built the same
+   way trust in the physics was built in the narrative above: by showing the check, not asserting
+   correctness. Each subsection opens with the markdown described under "Writing markdown that works as a
+   standalone Theory view".
 5. **The widget's own definition** (`struct`/`Base.get`/`Base.show`) is the **last thing in the Appendix**
    — after every other category of function. It's still just another subsection (e.g. `## The Interactive
    Widget`), it just comes last because everything else in the Appendix is a dependency of it or of the
@@ -107,11 +236,13 @@ only that it exists somewhere. Use this to get the read-through order you actual
 
 Don't force this order if a notebook doesn't have a widget, or has the widget as the *entire point* with
 little supporting derivation — this is the shape for a notebook built around one hero interactive demo
-with real physics/math underneath it, not a rule for every notebook in the repo.
+with real physics/math underneath it, not a rule for every notebook in the repo. A notebook with no
+`.app-widget` still gets the shell: Expt then shows the plain notebook, and Theory/Code/Help work as usual.
 
 ## Documenting functions
 
-Give every function that does real work a docstring — skip it only for genuine one-liners
+Docstrings are the documentation the **Code** view shows, so they carry the per-function detail the Theory
+prose deliberately leaves out. Give every function that does real work a docstring — skip it only for genuine one-liners
 (`Lof(ℓ) = ℓ * (ℓ + 1)`) where the name already says everything. The shape, straight from geoid-kernel:
 
 ```julia
@@ -200,6 +331,13 @@ bs_safe = bs isa AbstractDict ? bs : Dict{String,Any}("vp0" => 2500.0, ...)
 _bs_viewSrc = clamp(round(Int, bs_safe["viewSrc"]), 1, NSRC)   # Julia refuses to index with a Float64
 _bs_dm = permutedims(reshape(Float64.(bs_safe["pert"]), NX, NZ)) ./ 100 ./ bs_safe["vp0"]^2
 ```
+
+The bond is `nothing` (not a dict) until a browser has rendered the widget: a re-run with no client
+attached, a static export. Without the `isa` fallback the unpack cell errors and takes every dependent
+cell with it. This happened on the SH notebook the first time its widget cell re-ran with nobody watching.
+The simplest fallback reuses the widget's own defaults, so they can't drift apart:
+`_sh_safe = _sh isa AbstractDict ? _sh : Base.get(SHWidgetInput())`. End the unpack cell with `nothing`
+so it doesn't print a stray value into the notebook.
 
 **Rule:** coerce every field out of the bond dict to its real type (`Float64.(...)`, `round(Int, ...)`)
 in the cell that first reads it, then never touch the raw `Any`-typed dict again downstream — every

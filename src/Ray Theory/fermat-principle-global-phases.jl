@@ -32,6 +32,29 @@ end
 # ╔═╡ 95c66aa1-b555-4f38-a3a6-c79746262c87
 TableOfContents()
 
+# ╔═╡ d221393d-8248-4fa8-a426-f2464bdc5da6
+# App shell: the Expt / Theory / Code / Help frame shared by every notebook, loaded
+# from src/assets/app-shell/. Without that folder (a lone downloaded .jl) this cell just
+# shows the help text and the notebook stays a plain notebook.
+let
+	help = md"""
+	- **Drag a dashed ring** (Moho, 400, 670, CMB, ICB) to change Vp or Vs right at that discontinuity; **drag a dotted ring** to reshape the gradient inside a layer.
+	- **Drag from the yellow star** to aim a ray fan, then release to shoot it along the computed curved paths.
+	- The **P / S** toggle chooses which velocity field is shown and edited; the travel-time panel plots T(Δ) for every ray that returns.
+
+	**Try this:** drag the CMB ring to remove the velocity drop and watch the P shadow zone close.
+	"""
+	dir = joinpath(@__DIR__, "..", "assets", "app-shell")
+	if isfile(joinpath(dir, "app-shell.js"))
+		HTML(string(
+			"<style>", read(joinpath(dir, "app-shell.css"), String), "</style>",
+			"<template class=\"app-help\">", repr(MIME"text/html"(), help), "</template>",
+			"<script>", read(joinpath(dir, "app-shell.js"), String), "</script>"))
+	else
+		help
+	end
+end
+
 # ╔═╡ e785f801-df99-4fb7-ad1e-34861320c9bf
 md"""
 # Fermat's Principle and Global Seismic Phases
@@ -56,9 +79,58 @@ Instructor: *Pawan Bharadwaj*,
 Indian Institute of Science, Bengaluru, India
 """
 
+# ╔═╡ ba74aa7f-3867-48ea-b836-4d478a8f2526
+md"""
+## Fermat's Principle on a Sphere
+
+Fermat's principle says that a ray's travel time ``T = \int ds/v`` is **stationary** with respect to small changes of the path: a minimum, a maximum, or a saddle. It does not have to be the shortest time. In a spherically symmetric Earth this has a compact consequence: every ray keeps a constant **ray parameter**
+
+```math
+p = \frac{r\sin i}{v(r)} ,
+```
+
+with ``r`` the radius, ``i`` the angle from the vertical and ``v`` the local speed. That is Snell's law for a sphere. Velocity increases with depth through most of the mantle, so ``\sin i`` grows as a ray descends until it turns back at the radius where ``r/v(r) = p``. Neighbouring rays then land at neighbouring distances ``\Delta``, and the travel-time curve has slope
+
+```math
+\frac{dT}{d\Delta} = p .
+```
+
+Everything the experiment shows follows from these two statements once the velocity profile has jumps and changes of gradient.
+"""
+
+# ╔═╡ b4f668d2-f55f-4a64-a55c-e9df4f6a7d7e
+md"""
+## The Shadow Zone
+
+At the core–mantle boundary the P velocity drops abruptly, from about 13.7 to 8.1 km/s. Rays that just graze the core are bent sharply *down* into it instead of turning back up. As the take-off angle steepens past the grazing ray, the landing distance jumps from about 100° to beyond 140°. Between them is a band of the surface that no direct P ray reaches: the **P shadow zone**. Drag the CMB ring in the experiment to remove the velocity drop and watch the shadow close.
+
+For S waves the fluid outer core is opaque (``v_s = 0``), so direct S has a shadow that covers the whole far side of the core.
+"""
+
+# ╔═╡ f3c2b6ff-8f5d-42e8-9adb-b734ca69808e
+md"""
+## Triplications: More Than One Stationary Path
+
+Near 400 and 670 km depth the velocity rises steeply. A small change of take-off angle there changes the turning depth a lot, and the landing distance can briefly run *backwards* as the take-off angle steepens. Over a range of distances (roughly 15–25° for PREM), three different rays arrive at the same receiver at three different times, and the travel-time curve folds into a **triplication**. Each branch is a genuine stationary-time path: one minimum and two others that are not minima. This is Fermat's principle at work: every stationary path is a ray, not only the fastest one.
+"""
+
+# ╔═╡ 3024fbbd-497c-492d-ad04-41a98c4a68e3
+md"""
+## SKS: A Ray That Changes Type
+
+An S wave reaching the CMB cannot continue as S into a fluid. It converts to P, crosses the outer core as K, and can convert back to S on the way out: **SKS**. Snell's law still holds across each conversion, with the same ``p``, using the S speed on one side and the P speed on the other. The self-check in the Appendix confirms that the computed ``p`` survives the conversion. Because the core leg travels at P speed, SKS overtakes direct S beyond about 80°.
+"""
+
+# ╔═╡ 38fd8b35-6129-4347-9de7-41db7cf07c08
+md"""
+## Appendix
+The exact PREM model, the circular ray tracer with explicit interface events, an independent Eikonal cross-check, the ray tracer's self-checks, and the widget.
+"""
+
 # ╔═╡ 5be71c78-0c91-4d72-aa5d-da8763ea02c1
 md"""
 ## The Exact PREM Model
+`load_prem_profile` reads the Preliminary Reference Earth Model (Dziewonski & Anderson, 1981) from the repository's card-deck file. Every real discontinuity is kept as two rows at the same radius, and the fluid outer core keeps ``v_s = 0`` exactly. `prem_discontinuities` lists those jumps (Moho, 400, 670, CMB and ICB among them), with the values on either side.
 """
 
 # ╔═╡ fa8a8574-165b-42a4-a14f-7ad7fb4b32f1
@@ -420,6 +492,12 @@ end
 # ╔═╡ 199e63bd-a95e-4fb9-bc26-1ca0c05dd12e
 md"""
 ### Verifying the Ray Tracer
+Five independent checks:
+1. In a homogeneous Earth a ray is a straight chord, and its accumulated time matches distance over speed.
+2. Along a P ray through real PREM, the locally measured ``r\sin i/v`` stays equal to the take-off ``p`` across the discontinuities.
+3. Around ``\Delta \approx 50°``, on the smooth mantle branch, the finite-difference slope ``dT/d\Delta`` of a ray fan matches each ray's ``p``.
+4. At a ray's turning point, the traced time agrees with Eikonal.jl's fast-sweep solution to within 5%.
+5. An S ray that converts to P at the CMB keeps the same ``p`` across the conversion, and the full S→P→S (SKS) round trip returns to the surface cleanly.
 """
 
 # ╔═╡ 86bf927a-b3c9-4edb-888d-8ca18afa299a
@@ -556,7 +634,7 @@ Every drag happens directly on the velocity-model disk itself:
 
 Whichever field the P/S toggle currently has on screen is the one a ring drag edits, so what's
 plotted is what's editable. Nothing recomputes until you release. This is enough to reproduce every
-phenomenon below — drag the CMB ring together to close the shadow zone, drag the 670 ring apart to
+phenomenon described above — drag the CMB ring together to close the shadow zone, drag the 670 ring apart to
 sharpen the triplication, pull the lower-mantle bump down to exaggerate the mantle's continuous
 refraction, flatten everything to see straight chords.
 """
@@ -652,7 +730,7 @@ begin
         bump_depths = [b.center for b in bump_specs]
         bump_labels = [b.label for b in bump_specs]
         write(io, """
-        <div id="fermatwidget">
+        <div id="fermatwidget" class="app-widget">
         <style>
         #fermatwidget{font-family:sans-serif;color:#e5e7eb;width:100%;box-sizing:border-box}
         #fermatwidget .fw-title{width:100%;box-sizing:border-box;text-align:center;margin-bottom:10px;
@@ -683,7 +761,7 @@ begin
         #fermatwidget .fw-zoom-level{min-width:3.2rem;color:#d1d5db;font-size:12px;text-align:center}
         </style>
 
-        <div class="fw-title">
+        <div class="fw-title app-title">
           <div class="fw-title-desc">Drag directly on the velocity model to reshape the real PREM structure and aim the ray fan, and watch shadow zones, triplications, and mode-converted phases appear.</div>
           <div class="fw-title-hint">drag a dashed ring = edit a real discontinuity &middot; drag a dotted ring = reshape a smooth layer, boundaries stay fixed &middot; drag the star = aim the fan &middot; editing Vp or Vs follows the P/S toggle below &middot; release to shoot &middot; zoom and drag empty space to pan</div>
         </div>
@@ -1399,6 +1477,80 @@ begin
     WideCell(@bind fermat_bond FermatGlobalPhasesInput(); max_width=1500)
 end
 
+# ╔═╡ 15c5334a-f850-43b9-a25e-69b2eb6ff2b0
+begin
+    """
+    	FermatPush(rays, profile, wavetype0)
+
+    A push-only widget: its `Base.show` emits nothing but a `<script>` that finds the already-
+    mounted `FermatGlobalPhasesInput` widget by id and dispatches a `fermat-push` `CustomEvent`
+    carrying the freshly computed ray fan and velocity-vs-radius lookup tables. Mirrors the
+    `RayPaintInput`/`CwPush` pattern used elsewhere in this repo -- the widget is never
+    re-rendered, only its already-drawn panels are updated in place. The source is fixed at the
+    surface, so unlike earlier versions of this push there is no source depth/radius to carry --
+    the JS side already knows `R_EARTH`.
+    """
+    struct FermatPush
+        rays::Vector{Any}
+        lutR::Vector{Float64}
+        lutVp::Vector{Float64}
+        lutVs::Vector{Float64}
+        wavetype0::String
+    end
+
+    function Base.show(io::IO, ::MIME"text/html", p::FermatPush)
+        flat_x = Float64[]
+        flat_z = Float64[]
+        flat_t = Float64[]
+        for ray in p.rays
+            append!(flat_x, ray.x)
+            push!(flat_x, NaN)
+            append!(flat_z, ray.z)
+            push!(flat_z, NaN)
+            append!(flat_t, [wt == :P ? 0.0 : 1.0 for wt in ray.wavetype])
+            push!(flat_t, NaN)
+        end
+        deltas = [r.delta_deg === nothing ? NaN : r.delta_deg for r in p.rays]
+        times = [r.landed ? r.t[end] : NaN for r in p.rays]
+        write(io, """
+        <script>
+        {
+        const w = document.getElementById('fermatwidget');
+        if(w){
+          w.dispatchEvent(new CustomEvent('fermat-push', { detail: {
+            flatX: $(flat_x), flatZ: $(flat_z), flatType: $(flat_t),
+            deltas: $(deltas), times: $(times),
+            lutR: $(p.lutR), lutVp: $(p.lutVp), lutVs: $(p.lutVs),
+            wavetype0: "$(p.wavetype0)",
+          }}));
+        }
+        }
+        </script>
+        """)
+    end
+end
+
+# ╔═╡ 2b54656d-3150-4b15-8f37-d6cfbd13b810
+"""
+	blend_edited_boundary!(v, orig_v, idx, direction; nblend=8)
+
+After overwriting `v[idx]` with a new discontinuity value, the very next raw PREM sample points
+in `direction` (`+1` deeper, `-1` shallower) still hold their *original* values -- for a jump this
+notebook has deliberately shrunk (e.g. "no core contrast"), that leaves an unrealistic near-cliff
+sitting immediately beside the edited boundary, which bends rays almost as much as the original
+jump did and defeats the whole point of editing it. This linearly tapers the next `nblend` samples
+from the new value back to their own original PREM value, so the edit fades in over a short but
+genuine depth range instead of leaving that hidden cliff.
+"""
+function blend_edited_boundary!(v, orig_v, idx, direction; nblend=8)
+    for step in 1:nblend
+        j = idx + direction * step
+        (j < 1 || j > length(v)) && break
+        t = step / (nblend + 1)
+        v[j] = (1 - t) * v[idx] + t * orig_v[j]
+    end
+end
+
 # ╔═╡ 31be046e-f288-4376-932b-50ce5817204c
 begin
     _fb = fermat_bond isa AbstractDict ? fermat_bond : Base.get(FermatGlobalPhasesInput())
@@ -1456,86 +1608,12 @@ begin
     "ray fan recomputed"
 end
 
-# ╔═╡ 15c5334a-f850-43b9-a25e-69b2eb6ff2b0
-begin
-    """
-    	FermatPush(rays, profile, wavetype0)
-
-    A push-only widget: its `Base.show` emits nothing but a `<script>` that finds the already-
-    mounted `FermatGlobalPhasesInput` widget by id and dispatches a `fermat-push` `CustomEvent`
-    carrying the freshly computed ray fan and velocity-vs-radius lookup tables. Mirrors the
-    `RayPaintInput`/`CwPush` pattern used elsewhere in this repo -- the widget is never
-    re-rendered, only its already-drawn panels are updated in place. The source is fixed at the
-    surface, so unlike earlier versions of this push there is no source depth/radius to carry --
-    the JS side already knows `R_EARTH`.
-    """
-    struct FermatPush
-        rays::Vector{Any}
-        lutR::Vector{Float64}
-        lutVp::Vector{Float64}
-        lutVs::Vector{Float64}
-        wavetype0::String
-    end
-
-    function Base.show(io::IO, ::MIME"text/html", p::FermatPush)
-        flat_x = Float64[]
-        flat_z = Float64[]
-        flat_t = Float64[]
-        for ray in p.rays
-            append!(flat_x, ray.x)
-            push!(flat_x, NaN)
-            append!(flat_z, ray.z)
-            push!(flat_z, NaN)
-            append!(flat_t, [wt == :P ? 0.0 : 1.0 for wt in ray.wavetype])
-            push!(flat_t, NaN)
-        end
-        deltas = [r.delta_deg === nothing ? NaN : r.delta_deg for r in p.rays]
-        times = [r.landed ? r.t[end] : NaN for r in p.rays]
-        write(io, """
-        <script>
-        {
-        const w = document.getElementById('fermatwidget');
-        if(w){
-          w.dispatchEvent(new CustomEvent('fermat-push', { detail: {
-            flatX: $(flat_x), flatZ: $(flat_z), flatType: $(flat_t),
-            deltas: $(deltas), times: $(times),
-            lutR: $(p.lutR), lutVp: $(p.lutVp), lutVs: $(p.lutVs),
-            wavetype0: "$(p.wavetype0)",
-          }}));
-        }
-        }
-        </script>
-        """)
-    end
-end
-
 # ╔═╡ cfeabbec-d52e-44ef-8cd8-ca9429ab3a1c
 let
     lut_r = collect(range(0.0, R_EARTH; length=200))
     lut_vp = [segment_velocity(_fb_r, _fb_vp, r)[1] for r in lut_r]
     lut_vs = [segment_velocity(_fb_r, _fb_vs, r)[1] for r in lut_r]
     FermatPush(_fb_rays, lut_r, lut_vp, lut_vs, string(_fb_wavetype0))
-end
-
-# ╔═╡ 2b54656d-3150-4b15-8f37-d6cfbd13b810
-"""
-	blend_edited_boundary!(v, orig_v, idx, direction; nblend=8)
-
-After overwriting `v[idx]` with a new discontinuity value, the very next raw PREM sample points
-in `direction` (`+1` deeper, `-1` shallower) still hold their *original* values -- for a jump this
-notebook has deliberately shrunk (e.g. "no core contrast"), that leaves an unrealistic near-cliff
-sitting immediately beside the edited boundary, which bends rays almost as much as the original
-jump did and defeats the whole point of editing it. This linearly tapers the next `nblend` samples
-from the new value back to their own original PREM value, so the edit fades in over a short but
-genuine depth range instead of leaving that hidden cliff.
-"""
-function blend_edited_boundary!(v, orig_v, idx, direction; nblend=8)
-    for step in 1:nblend
-        j = idx + direction * step
-        (j < 1 || j > length(v)) && break
-        t = step / (nblend + 1)
-        v[j] = (1 - t) * v[idx] + t * orig_v[j]
-    end
 end
 
 # ╔═╡ 00000000-0000-0000-0000-000000000001
@@ -3094,8 +3172,14 @@ uuid = "23338594-aafe-5451-b93e-139f81909106"
 # ╔═╡ Cell order:
 # ╠═875d305b-6fa0-441f-b4ea-673e1053c669
 # ╠═95c66aa1-b555-4f38-a3a6-c79746262c87
+# ╟─d221393d-8248-4fa8-a426-f2464bdc5da6
 # ╟─e785f801-df99-4fb7-ad1e-34861320c9bf
 # ╟─6b807f1d-2b0c-423e-9074-3df06dfe5ae4
+# ╟─ba74aa7f-3867-48ea-b836-4d478a8f2526
+# ╟─b4f668d2-f55f-4a64-a55c-e9df4f6a7d7e
+# ╟─f3c2b6ff-8f5d-42e8-9adb-b734ca69808e
+# ╟─3024fbbd-497c-492d-ad04-41a98c4a68e3
+# ╟─38fd8b35-6129-4347-9de7-41db7cf07c08
 # ╟─5be71c78-0c91-4d72-aa5d-da8763ea02c1
 # ╠═fa8a8574-165b-42a4-a14f-7ad7fb4b32f1
 # ╠═11042f31-3dbb-4a2a-89b4-598f6e72df47

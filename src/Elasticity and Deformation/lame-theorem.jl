@@ -32,6 +32,30 @@ end
 # ╔═╡ cbc8f361-986c-424d-a649-6e841c072e72
 TableOfContents()
 
+# ╔═╡ 4d381dc9-2d25-43a6-a377-d40a44fc16ee
+# App shell: the Expt / Theory / Code / Help frame shared by every notebook, loaded
+# from src/assets/app-shell/. Without that folder (a lone downloaded .jl) this cell just
+# shows the help text and the notebook stays a plain notebook.
+let
+	help = md"""
+	- **Drag** the force arrow to point the force; **drag** the receiver dot to move the station; the seismogram updates.
+	- The **P**, **S** and **near-field** toggles show each term on its own; the **period** slider sets the source pulse.
+	- **Source type** switches to a moment tensor: edit the matrix or use strike, dip and rake for a double couple.
+	- The ratio readout ωr/α tells you whether you are in the near or far field.
+
+	**Try this:** move the receiver close to the source with a long period and watch the near field dominate the seismogram.
+	"""
+	dir = joinpath(@__DIR__, "..", "assets", "app-shell")
+	if isfile(joinpath(dir, "app-shell.js"))
+		HTML(string(
+			"<style>", read(joinpath(dir, "app-shell.css"), String), "</style>",
+			"<template class=\"app-help\">", repr(MIME"text/html"(), help), "</template>",
+			"<script>", read(joinpath(dir, "app-shell.js"), String), "</script>"))
+	else
+		help
+	end
+end
+
 # ╔═╡ dfaa5e67-7d3d-492a-8b56-a66bd0cd3970
 md"""
 # Lamé's Theorem
@@ -41,8 +65,8 @@ it radiates two, a longitudinal P wave and a transverse S wave, from the same so
 instant. Lamé's theorem is the reason: any displacement field solving the elastic wave equation
 splits, exactly, into a curl-free part and a divergence-free part, and those two parts turn out
 to obey their *own* simple scalar/vector wave equations at speeds `` \alpha `` and `` \beta ``.
-This notebook builds the complete time-domain solution for a single point force and hands you a
-widget to explore it: drag the force direction, drag a receiver, and watch the near-field,
+This notebook builds the complete time-domain solution for a single point force and hands you an
+experiment to explore it: drag the force direction, drag a receiver, and watch the near-field,
 far-field-P, and far-field-S terms trade off as you move.
 
 ##### [Interactive Seismology Notebooks](https://pawbz.github.io/Interactive-Seismology.jl/)
@@ -76,7 +100,7 @@ md"""
 md"""
 ## P Radiation
 
-Drag the receiver dot around the widget above while watching the **P** field. Its displacement
+In the experiment, drag the receiver dot around while watching the **P** field. Its displacement
 always points exactly along the line from the source to the receiver — push in the direction the
 force points, pull behind it:
 
@@ -124,11 +148,11 @@ The P and S terms above both decay as `` 1/r `` — pure geometric spreading. Bu
 whole story: there is a third term, the **near field**, that decays as `` 1/r^3 `` (through a time
 integral of the source rather than a simple time-shift) and carries *both* P- and S-type motion
 at once. It falls off much faster with distance, so it only matters close to the source — drag the
-receiver toward the source in the widget above and watch the near-field contribution (toggle it
+receiver toward the source in the experiment and watch the near-field contribution (toggle it
 off/on with the checkbox) grow relative to the far-field terms.
 
 The crossover is set by comparing the receiver distance `` r `` to a wavelength: the **ratio**
-readout in the widget is `` \omega r/\alpha ``, using the pulse's characteristic frequency
+readout in the experiment is `` \omega r/\alpha ``, using the pulse's characteristic frequency
 `` \omega = 2\pi/T ``, where `` T `` is the **period** slider -- i.e. `` 2\pi\times `` the
 number of wavelengths between source and receiver. Drag it to see the crossover shift: a short
 period (high frequency) pushes the far field to dominate close in; a long period keeps the near
@@ -176,7 +200,7 @@ push or pull, exactly like `` \cos\theta `` was for the point force. `` \vec{R}^
 vector, lying in the plane perpendicular to `` \hat\gamma `` (still purely tangential, still
 divergence-free).
 
-Switch the widget above to **Moment Tensor** mode (the Source type control) to explore this: edit
+Switch the experiment to **Moment Tensor** mode (the Source type control) to explore this: edit
 the matrix directly, or drag the strike/dip/rake sliders to generate a pure double-couple — the
 mechanism of an ordinary shear-slip earthquake, and exactly the four-lobed "beachball" pattern
 seismologists read a fault's orientation from. The receiver and seismogram carry over from Point
@@ -201,18 +225,19 @@ never needed this second component).
 
 # ╔═╡ 7c2e4a91-5f3d-4a12-9e6c-8b1d2a3f4c50
 md"""
-`MtSeisPush` carries [`moment_tensor_seismogram`](@ref)'s three time series to the same widget,
-via the same reused source-derivative wave table -- the moment-tensor analogue of `PfrPush`.
+The experiment's moment tensor `_mt_M` comes from whichever input was touched last: the matrix cells, or strike/dip/rake through `double_couple_matrix`. `moment_tensor_seismogram` then evaluates the receiver's radial, ``\hat\theta`` and ``\hat\varphi`` components on a time grid, and `MtSeisPush` carries them to the widget, the moment-tensor analogue of `PfrPush`.
 """
 
 # ╔═╡ ad81924a-96a4-486c-a24e-34fe50ca9fd3
 md"""
 ## Appendix
+Every seismogram and radiation pattern shown in the experiment is computed by the Julia functions below and pushed to the widget. The sections follow the pipeline: angular patterns, source time functions, the closed-form displacement terms, sampling them into seismograms, the moment-tensor extension, and finally the widget.
 """
 
 # ╔═╡ b32d43d5-7b7e-4c90-8660-a0328ef6bb60
 md"""
 ### Geometry & Angular Patterns
+`radial_pattern` and `transverse_pattern`, each dispatched on `Val(:P)`, `Val(:S)` and `Val(:Near)`, give the angular factors of the three displacement terms as functions of the angle ``\theta`` between the receiver direction and the force: ``\cos\theta`` (radial) for far-field P, ``\sin\theta`` (transverse) for far-field S, and both components for the near field.
 """
 
 # ╔═╡ 9d59cfce-5ac4-46d9-bf66-4defb8a03546
@@ -250,6 +275,7 @@ end
 # ╔═╡ 0b0ea15d-957e-467a-beea-961284f67c63
 md"""
 ### Source Time Functions
+`sourcewave` is the unit Gaussian force history ``X_0(t) = e^{-t^2/\sigma^2}`` and `sourcewave_deriv` its time derivative ``\dot X_0``. The far-field terms use the derivative, as the check below confirms. `nearfield_kernel` evaluates the near field's time integral ``\int_{r/\alpha}^{r/\beta}\tau X_0(t-\tau)\,d\tau`` in closed form for the Gaussian.
 """
 
 # ╔═╡ cbc35a5e-0cc7-4ece-aac0-8520759d70fa
@@ -313,6 +339,7 @@ end
 # ╔═╡ 18b1d5bd-de79-41a4-9324-963d17a145f7
 md"""
 ### Displacement Green's Functions
+`period_to_sigma2` converts the widget's period slider to the Gaussian width. `pfar_displacement`, `sfar_displacement` and `near_displacement` are the three boxed terms of the narrative: far-field P along the ray at speed ``\alpha``, far-field S across it at speed ``\beta``, and the ``1/r^3`` near field, all for a point force in a whole space with density `RHO`.
 """
 
 # ╔═╡ 153caeb6-34d2-4fa6-a0f5-7c76f101a04a
@@ -415,6 +442,7 @@ end
 # ╔═╡ 54313d17-0de1-4d94-a9ed-948eadff5cf2
 md"""
 ### Field Sampling
+`pointforce_seismogram` evaluates the three terms on a time grid at the receiver chosen in the experiment, returning each term separately so the widget can switch them on and off without another Julia call. The cells after it read the receiver, period and wave speeds from the widget (`sr_safe`) and push the result as a `PfrPush`.
 """
 
 # ╔═╡ 6787dae7-467b-4bf6-a643-5f318b109a32
@@ -517,6 +545,7 @@ _pfr_sourcetype = Val(:gaussian)
 # ╔═╡ 321aa3aa-d29e-481a-bdcc-aa0655a72bda
 md"""
 ### Moment Tensor Radiation
+`mt_radial_pattern(M, γ)` and `mt_transverse_vector(M, γ)` are the far-field patterns ``R^P = \hat\gamma^\top M\hat\gamma`` and ``\vec R^S = M\hat\gamma - R^P\hat\gamma`` from the narrative. `double_couple_matrix(strike, dip, rake)` builds the traceless moment tensor of a shear-slip source, normalised to unit Frobenius norm.
 """
 
 # ╔═╡ c6616a5c-225d-4415-9155-c1f769c14eea
@@ -857,6 +886,7 @@ end
 # ╔═╡ 1f36f0f5-7692-434e-bc9b-bed27f6c5bf4
 md"""
 ### The Unified Source-Radiation Widget
+`SourceRadiationInput` carries the source type (point force or moment tensor), the force direction or the moment tensor (as matrix entries or strike/dip/rake), the receiver direction and distance, the wave speeds and the period. Julia computes the seismograms and pushes them back (`PfrPush`, `MtSeisPush`). The radiation lobes, the beachball and the wavefront animation are drawn in the browser from closed-form angular patterns.
 """
 
 # ╔═╡ 81421235-9cd9-428a-8629-03000f640a3d
@@ -907,7 +937,7 @@ begin
 
     function Base.show(io::IO, ::MIME"text/html", w::SourceRadiationInput)
         write(io, """
-        <div id="srwidget">
+        <div id="srwidget" class="app-widget">
         <style>
         pluto-cell:has(#srwidget) { width: min(80vw, 1500px) !important;
           margin-left: calc((100% - min(80vw, 1500px)) / 2) !important; }
@@ -959,7 +989,7 @@ begin
         #sr-beach-inset .sr-beach-label{font-size:10px;color:#6b7280;margin-top:2px}
         </style>
 
-        <div class="sr-title">
+        <div class="sr-title app-title">
           <div class="sr-title-desc" id="sr-title-desc"></div>
           <div class="sr-title-hint" id="sr-title-hint"></div>
         </div>
@@ -2499,6 +2529,7 @@ uuid = "23338594-aafe-5451-b93e-139f81909106"
 # ╔═╡ Cell order:
 # ╠═021492fb-0d1a-4f6e-a656-bdf6a8e74a90
 # ╠═cbc8f361-986c-424d-a649-6e841c072e72
+# ╟─4d381dc9-2d25-43a6-a377-d40a44fc16ee
 # ╟─dfaa5e67-7d3d-492a-8b56-a66bd0cd3970
 # ╟─f80221b6-eec6-4044-896b-68cca2bfcb6d
 # ╟─40f2f5d6-1f06-4828-aaa7-ef7b7e42d90e
@@ -2508,18 +2539,12 @@ uuid = "23338594-aafe-5451-b93e-139f81909106"
 # ╟─b954f277-9840-465e-926e-5c4963751487
 # ╟─fc71ba84-35f3-4269-b8c9-3308782ae9df
 # ╟─7f488eb9-9372-41b4-95ec-69abb753ef96
-# ╟─ae12217e-0d9c-4156-8d36-3c7d8274cc34
-# ╠═7c2e4a91-5f3d-4a12-9e6c-8b1d2a3f4c50
-# ╠═7c2e4a91-5f3d-4a12-9e6c-8b1d2a3f4c51
-# ╠═7c2e4a91-5f3d-4a12-9e6c-8b1d2a3f4c52
-# ╠═7c2e4a91-5f3d-4a12-9e6c-8b1d2a3f4c53
-# ╠═7c2e4a91-5f3d-4a12-9e6c-8b1d2a3f4c54
 # ╟─ad81924a-96a4-486c-a24e-34fe50ca9fd3
 # ╟─b32d43d5-7b7e-4c90-8660-a0328ef6bb60
 # ╠═9d59cfce-5ac4-46d9-bf66-4defb8a03546
 # ╟─0b0ea15d-957e-467a-beea-961284f67c63
 # ╠═cbc35a5e-0cc7-4ece-aac0-8520759d70fa
-# ╠═9b7a2e1c-4c1a-4a6e-8f3a-6a8c1d2f5e01
+# ╟─9b7a2e1c-4c1a-4a6e-8f3a-6a8c1d2f5e01
 # ╠═9b7a2e1c-4c1a-4a6e-8f3a-6a8c1d2f5e02
 # ╟─18b1d5bd-de79-41a4-9324-963d17a145f7
 # ╠═153caeb6-34d2-4fa6-a0f5-7c76f101a04a
@@ -2542,12 +2567,18 @@ uuid = "23338594-aafe-5451-b93e-139f81909106"
 # ╠═5606eb83-7ee5-4589-885c-e35f04c3f944
 # ╟─a9a7cebc-ee46-4884-9a06-0b30f335a613
 # ╠═420d095f-c215-4e3f-800f-3e2ea2692321
-# ╠═6a1f9e0a-2b4c-4d5e-8f6a-1b2c3d4e5f60
+# ╟─6a1f9e0a-2b4c-4d5e-8f6a-1b2c3d4e5f60
 # ╠═6a1f9e0a-2b4c-4d5e-8f6a-1b2c3d4e5f61
-# ╠═6a1f9e0a-2b4c-4d5e-8f6a-1b2c3d4e5f62
+# ╟─6a1f9e0a-2b4c-4d5e-8f6a-1b2c3d4e5f62
 # ╠═6a1f9e0a-2b4c-4d5e-8f6a-1b2c3d4e5f63
 # ╠═6a1f9e0a-2b4c-4d5e-8f6a-1b2c3d4e5f64
 # ╠═6a1f9e0a-2b4c-4d5e-8f6a-1b2c3d4e5f65
+# ╟─ae12217e-0d9c-4156-8d36-3c7d8274cc34
+# ╟─7c2e4a91-5f3d-4a12-9e6c-8b1d2a3f4c50
+# ╠═7c2e4a91-5f3d-4a12-9e6c-8b1d2a3f4c51
+# ╠═7c2e4a91-5f3d-4a12-9e6c-8b1d2a3f4c52
+# ╠═7c2e4a91-5f3d-4a12-9e6c-8b1d2a3f4c53
+# ╠═7c2e4a91-5f3d-4a12-9e6c-8b1d2a3f4c54
 # ╟─1f36f0f5-7692-434e-bc9b-bed27f6c5bf4
 # ╠═81421235-9cd9-428a-8629-03000f640a3d
 # ╟─00000000-0000-0000-0000-000000000001

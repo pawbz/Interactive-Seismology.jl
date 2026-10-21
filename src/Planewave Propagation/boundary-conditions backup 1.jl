@@ -87,6 +87,12 @@ this 2D cross-section. The **Detailed Look** section below restates every condit
 widget enforces in the fully general 3D form, for an arbitrary `` \mathbf{n} ``.
 """
 
+# ╔═╡ 159c6430-0478-4b9d-83a4-6ee8ba3edd11
+begin
+	_bc_ready
+	WideCell(@bind bc BoundaryConditionInput(); max_width=1250)
+end
+
 # ╔═╡ adbec4f1-f939-40da-a0c1-054ada342c21
 md"""
 ## Detailed Look at Each Interface Type
@@ -331,9 +337,39 @@ vectors). This section turns that into the traction vectors and pass/fail verdic
 back to the widget as a `CustomEvent`.
 """
 
+# ╔═╡ 7eea3fc3-dbc8-42c2-a850-f3d392844306
+bc_safe = bc isa AbstractDict ? bc : Dict{String,Any}(
+	"itype" => "welded", "s1tt" => 0.3, "s1tn" => 0.4, "s1nn" => 1.0, "p1" => 1.0,
+	"s2tt" => -0.3, "s2tn" => 0.4, "s2nn" => 1.0,
+	"u1t" => 0.3, "u1n" => -0.2, "u2t" => 0.3, "u2n" => -0.2)
+
+# ╔═╡ 0dbd33d9-886a-4e77-8b28-01bd10ee3efe
+_bc_itype = Symbol(bc_safe["itype"])
+
 # ╔═╡ b06f333a-ac4b-4bc9-8deb-271578cd4d6d
 # the widget's own fixed local frame -- n points out of medium 2, into medium 1
 _bc_n̂ = (0.0, 1.0)
+
+# ╔═╡ ba569904-7fdb-4e92-860c-f66d78e963a4
+# medium 1 is forced isotropic (a real fluid) whenever the interface type says it's a fluid
+_bc_σ1 = _bc_itype == :fluid ? fluid_stress(Float64(bc_safe["p1"])) :
+	(Float64(bc_safe["s1tt"]), Float64(bc_safe["s1tn"]), Float64(bc_safe["s1nn"]))
+
+# ╔═╡ f084c2ce-3aa2-49f4-9fe0-806f2e9f6909
+_bc_σ2 = (Float64(bc_safe["s2tt"]), Float64(bc_safe["s2tn"]), Float64(bc_safe["s2nn"]))
+
+# ╔═╡ 42d92b46-016a-4e3c-823e-4e1639d82131
+_bc_t1 = traction_2d(_bc_σ1..., _bc_n̂)
+
+# ╔═╡ 176d3c95-15ee-40f8-8c36-f096df519daa
+_bc_t2 = traction_2d(_bc_σ2..., _bc_n̂)
+
+# ╔═╡ 6f22682b-8967-4c35-968f-9522ea24c6a3
+_bc_u1t, _bc_u1n, _bc_u2t, _bc_u2n = Float64(bc_safe["u1t"]), Float64(bc_safe["u1n"]),
+Float64(bc_safe["u2t"]), Float64(bc_safe["u2n"])
+
+# ╔═╡ 5c8d43be-e06d-4523-9055-5b1cae7d8c10
+_bc_result = interface_check(_bc_itype, _bc_t1..., _bc_t2..., _bc_u1t, _bc_u1n, _bc_u2t, _bc_u2n)
 
 # ╔═╡ 605c8c08-ce05-4c5c-adbc-9fb19398026e
 md"""
@@ -377,6 +413,11 @@ begin
 		""")
 	end
 end
+
+# ╔═╡ d4792547-8d8b-4268-a6ab-90a041a5a032
+BcPush(_bc_t1[1], _bc_t1[2], _bc_t2[1], _bc_t2[2], _bc_u1t, _bc_u1n, _bc_u2t, _bc_u2n,
+	_bc_result.kin_normal_ok, _bc_result.kin_tangential_ok, _bc_result.kin_tangential_free,
+	_bc_result.dyn_normal_ok, _bc_result.dyn_tangential_ok)
 
 # ╔═╡ 3e1bb6d0-9c2b-4af2-9e18-c187ae808ccf
 md"""
@@ -506,9 +547,8 @@ begin
       </div>
     </div>
   </div>
-</div>
 
-<script>
+  <script>
   {
     const par = currentScript.previousElementSibling;
 
@@ -783,8 +823,7 @@ begin
       const d2 = Math.hypot(mx-p2x, my-p2y);
       const best = Math.min(d1, d2);
       if(best > 16) return;
-      // medium 2's dot is drawn last (on top), so an exact tie should grab it, not u1
-      dragU = (d1 < d2) ? 'u1' : 'u2';
+      dragU = (d1 <= d2) ? 'u1' : 'u2';
     });
     window.addEventListener('mousemove', e => {
       if(!dragU) return;
@@ -815,52 +854,12 @@ begin
     syncModeUI(); draw();
   }
   </script>
+</div>
 """)
 	end
 
 	const _bc_ready = true
 end
-
-# ╔═╡ 159c6430-0478-4b9d-83a4-6ee8ba3edd11
-begin
-	_bc_ready
-	WideCell(@bind bc BoundaryConditionInput(); max_width=1250)
-end
-
-# ╔═╡ 7eea3fc3-dbc8-42c2-a850-f3d392844306
-bc_safe = bc isa AbstractDict ? bc : Dict{String,Any}(
-	"itype" => "welded", "s1tt" => 0.3, "s1tn" => 0.4, "s1nn" => 1.0, "p1" => 1.0,
-	"s2tt" => -0.3, "s2tn" => 0.4, "s2nn" => 1.0,
-	"u1t" => 0.3, "u1n" => -0.2, "u2t" => 0.3, "u2n" => -0.2)
-
-# ╔═╡ 0dbd33d9-886a-4e77-8b28-01bd10ee3efe
-_bc_itype = Symbol(bc_safe["itype"])
-
-# ╔═╡ ba569904-7fdb-4e92-860c-f66d78e963a4
-# medium 1 is forced isotropic (a real fluid) whenever the interface type says it's a fluid
-_bc_σ1 = _bc_itype == :fluid ? fluid_stress(Float64(bc_safe["p1"])) :
-	(Float64(bc_safe["s1tt"]), Float64(bc_safe["s1tn"]), Float64(bc_safe["s1nn"]))
-
-# ╔═╡ 42d92b46-016a-4e3c-823e-4e1639d82131
-_bc_t1 = traction_2d(_bc_σ1..., _bc_n̂)
-
-# ╔═╡ f084c2ce-3aa2-49f4-9fe0-806f2e9f6909
-_bc_σ2 = (Float64(bc_safe["s2tt"]), Float64(bc_safe["s2tn"]), Float64(bc_safe["s2nn"]))
-
-# ╔═╡ 176d3c95-15ee-40f8-8c36-f096df519daa
-_bc_t2 = traction_2d(_bc_σ2..., _bc_n̂)
-
-# ╔═╡ 6f22682b-8967-4c35-968f-9522ea24c6a3
-_bc_u1t, _bc_u1n, _bc_u2t, _bc_u2n = Float64(bc_safe["u1t"]), Float64(bc_safe["u1n"]),
-Float64(bc_safe["u2t"]), Float64(bc_safe["u2n"])
-
-# ╔═╡ 5c8d43be-e06d-4523-9055-5b1cae7d8c10
-_bc_result = interface_check(_bc_itype, _bc_t1..., _bc_t2..., _bc_u1t, _bc_u1n, _bc_u2t, _bc_u2n)
-
-# ╔═╡ d4792547-8d8b-4268-a6ab-90a041a5a032
-BcPush(_bc_t1[1], _bc_t1[2], _bc_t2[1], _bc_t2[2], _bc_u1t, _bc_u1n, _bc_u2t, _bc_u2n,
-	_bc_result.kin_normal_ok, _bc_result.kin_tangential_ok, _bc_result.kin_tangential_free,
-	_bc_result.dyn_normal_ok, _bc_result.dyn_tangential_ok)
 
 # ╔═╡ 00000000-0000-0000-0000-000000000001
 PLUTO_PROJECT_TOML_CONTENTS = """
@@ -868,7 +867,7 @@ PLUTO_PROJECT_TOML_CONTENTS = """
 PlutoUI = "7f904dfe-b85e-4ff6-b463-dae2292396a8"
 
 [compat]
-PlutoUI = "~0.7.83"
+PlutoUI = "~0.7.72"
 """
 
 # ╔═╡ 00000000-0000-0000-0000-000000000002
@@ -877,12 +876,13 @@ PLUTO_MANIFEST_TOML_CONTENTS = """
 
 julia_version = "1.12.4"
 manifest_format = "2.0"
-project_hash = "40c9f1cac973d64f8ca3ef3a09f769ff947e80f3"
+project_hash = "a018daf6b56c73c6f6c6df354a0d9d22d2cab1c6"
 
 [[deps.AbstractPlutoDingetjes]]
-git-tree-sha1 = "6c3913f4e9bdf6ba3c08041a446fb1332716cbc2"
+deps = ["Pkg"]
+git-tree-sha1 = "6e1d2a35f2f90a4bc7c2ed98079b2ba09c35b83a"
 uuid = "6e696c72-6542-2067-7265-42206c756150"
-version = "1.4.0"
+version = "1.3.2"
 
 [[deps.ArgTools]]
 uuid = "0dad84c5-d112-42e6-8d28-ef12dabb789f"
@@ -926,10 +926,10 @@ uuid = "7b1f6079-737a-58dc-b8bc-7a2ca5c1b5ee"
 version = "1.11.0"
 
 [[deps.FixedPointNumbers]]
-deps = ["Random", "Statistics"]
-git-tree-sha1 = "59af96b98217c6ef4ae0dfe065ac7c20831d1a84"
+deps = ["Statistics"]
+git-tree-sha1 = "05882d6995ae5c12bb5f36dd2ed3f61c98cbb172"
 uuid = "53c48c17-4a7d-5ca2-90c5-79b7896eea93"
-version = "0.8.6"
+version = "0.8.5"
 
 [[deps.Hyperscript]]
 deps = ["Test"]
@@ -939,20 +939,26 @@ version = "0.0.5"
 
 [[deps.HypertextLiteral]]
 deps = ["Tricks"]
-git-tree-sha1 = "d1a86724f81bcd184a38fd284ce183ec067d71a0"
+git-tree-sha1 = "7134810b1afce04bbc1045ca1985fbe81ce17653"
 uuid = "ac1192a8-f4b3-4bfe-ba22-af5b92cd3ab2"
-version = "1.0.0"
+version = "0.9.5"
 
 [[deps.IOCapture]]
 deps = ["Logging", "Random"]
-git-tree-sha1 = "0ee181ec08df7d7c911901ea38baf16f755114dc"
+git-tree-sha1 = "b6d6bfdd7ce25b0f9b2f6b3dd56b2673a66c8770"
 uuid = "b5f81e59-6552-4d32-b1f0-c071b021bf89"
-version = "1.0.0"
+version = "0.2.5"
 
 [[deps.InteractiveUtils]]
 deps = ["Markdown"]
 uuid = "b77e0a4c-d291-57a0-90e8-8db25a27a240"
 version = "1.11.0"
+
+[[deps.JSON]]
+deps = ["Dates", "Mmap", "Parsers", "Unicode"]
+git-tree-sha1 = "31e996f0a15c7b280ba9f76636b3ff9e2ae58c9a"
+uuid = "682c06a0-de6a-54ab-a142-c8b1cf79cde6"
+version = "0.21.4"
 
 [[deps.JuliaSyntaxHighlighting]]
 deps = ["StyledStrings"]
@@ -969,6 +975,16 @@ deps = ["Artifacts", "LibSSH2_jll", "Libdl", "OpenSSL_jll", "Zlib_jll", "nghttp2
 uuid = "deac9b47-8bc7-5906-a0fe-35ac56dc84c0"
 version = "8.15.0+0"
 
+[[deps.LibGit2]]
+deps = ["LibGit2_jll", "NetworkOptions", "Printf", "SHA"]
+uuid = "76f85450-5226-5b5a-8eaa-529ad045b433"
+version = "1.11.0"
+
+[[deps.LibGit2_jll]]
+deps = ["Artifacts", "LibSSH2_jll", "Libdl", "OpenSSL_jll"]
+uuid = "e37daf67-58a4-590a-8e99-b0245dd2ffc5"
+version = "1.9.0+0"
+
 [[deps.LibSSH2_jll]]
 deps = ["Artifacts", "Libdl", "OpenSSL_jll"]
 uuid = "29816b5a-b9ab-546f-933c-edad1886dfa8"
@@ -977,11 +993,6 @@ version = "1.11.3+1"
 [[deps.Libdl]]
 uuid = "8f399da3-3557-5675-b5ff-fb832c97cbdb"
 version = "1.11.0"
-
-[[deps.LinearAlgebra]]
-deps = ["Libdl", "OpenBLAS_jll", "libblastrampoline_jll"]
-uuid = "37e2e46d-f89d-539d-b4ee-838fcccc9c8e"
-version = "1.12.0"
 
 [[deps.Logging]]
 uuid = "56ddb016-857b-54e1-b83d-db4d58db5568"
@@ -997,6 +1008,15 @@ deps = ["Base64", "JuliaSyntaxHighlighting", "StyledStrings"]
 uuid = "d6f4376e-aef5-505a-96c1-9c027394607a"
 version = "1.11.0"
 
+[[deps.MbedTLS_jll]]
+deps = ["Artifacts", "Libdl"]
+uuid = "c8ffd9c3-330d-5841-b78e-0817d7145fa1"
+version = "2.28.6+0"
+
+[[deps.Mmap]]
+uuid = "a63ad114-7e13-5084-954f-fe012c677804"
+version = "1.11.0"
+
 [[deps.MozillaCACerts_jll]]
 uuid = "14a3606d-f60d-562e-9121-12d972cd8159"
 version = "2025.11.4"
@@ -1005,21 +1025,45 @@ version = "2025.11.4"
 uuid = "ca575930-c2e3-43a9-ace4-1e988b2c1908"
 version = "1.3.0"
 
-[[deps.OpenBLAS_jll]]
-deps = ["Artifacts", "CompilerSupportLibraries_jll", "Libdl"]
-uuid = "4536629a-c528-5b80-bd46-f80d51c5b363"
-version = "0.3.29+0"
-
 [[deps.OpenSSL_jll]]
 deps = ["Artifacts", "Libdl"]
 uuid = "458c3c95-2e84-50aa-8efc-19380b2a3a95"
 version = "3.5.4+0"
 
+[[deps.Parsers]]
+deps = ["Dates", "PrecompileTools", "UUIDs"]
+git-tree-sha1 = "7d2f8f21da5db6a806faf7b9b292296da42b2810"
+uuid = "69de0a69-1ddd-5017-9359-2bf0b02dc9f0"
+version = "2.8.3"
+
+[[deps.Pkg]]
+deps = ["Artifacts", "Dates", "Downloads", "FileWatching", "LibGit2", "Libdl", "Logging", "Markdown", "Printf", "Random", "SHA", "TOML", "Tar", "UUIDs", "p7zip_jll"]
+uuid = "44cfe95a-1eb2-52ea-b672-e2afdf69b78f"
+version = "1.12.1"
+
+    [deps.Pkg.extensions]
+    REPLExt = "REPL"
+
+    [deps.Pkg.weakdeps]
+    REPL = "3fa0cd96-eef1-5676-8a61-b3b8758bbffb"
+
 [[deps.PlutoUI]]
-deps = ["AbstractPlutoDingetjes", "Base64", "ColorTypes", "Dates", "Downloads", "FixedPointNumbers", "Hyperscript", "HypertextLiteral", "IOCapture", "InteractiveUtils", "Logging", "MIMEs", "Markdown", "Random", "Reexport", "URIs", "UUIDs"]
-git-tree-sha1 = "e189d0623e7ce9c37389bac17e80aac3b0302e75"
+deps = ["AbstractPlutoDingetjes", "Base64", "ColorTypes", "Dates", "Downloads", "FixedPointNumbers", "Hyperscript", "HypertextLiteral", "IOCapture", "InteractiveUtils", "JSON", "Logging", "MIMEs", "Markdown", "Random", "Reexport", "URIs", "UUIDs"]
+git-tree-sha1 = "f53232a27a8c1c836d3998ae1e17d898d4df2a46"
 uuid = "7f904dfe-b85e-4ff6-b463-dae2292396a8"
-version = "0.7.83"
+version = "0.7.72"
+
+[[deps.PrecompileTools]]
+deps = ["Preferences"]
+git-tree-sha1 = "5aa36f7049a63a1528fe8f7c3f2113413ffd4e1f"
+uuid = "aea7be01-6a6a-4083-8856-8a6e6704d82a"
+version = "1.2.1"
+
+[[deps.Preferences]]
+deps = ["TOML"]
+git-tree-sha1 = "0f27480397253da18fe2c12a4ba4eb9eb208bf3d"
+uuid = "21216c6a-2e73-6563-6e65-726566657250"
+version = "1.5.0"
 
 [[deps.Printf]]
 deps = ["Unicode"]
@@ -1044,21 +1088,24 @@ version = "0.7.0"
 uuid = "9e88b42a-f829-5b0c-bbe9-9e923198166b"
 version = "1.11.0"
 
-[[deps.Statistics]]
-deps = ["LinearAlgebra"]
-git-tree-sha1 = "ae3bb1eb3bba077cd276bc5cfc337cc65c3075c0"
-uuid = "10745b16-79ce-11e8-11f9-7d13ad32a3b2"
-version = "1.11.1"
-
-    [deps.Statistics.extensions]
-    SparseArraysExt = ["SparseArrays"]
-
-    [deps.Statistics.weakdeps]
-    SparseArrays = "2f01184e-e22b-5df5-ae63-d93ebab69eaf"
+[[deps.Sockets]]
+uuid = "6462fe0b-24de-5631-8697-dd941f90decc"
+version = "1.11.0"
 
 [[deps.StyledStrings]]
+deps = ["Markdown"]
 uuid = "f489334b-da3d-4c2e-b8f0-e476e12c162b"
 version = "1.11.0"
+
+[[deps.TOML]]
+deps = ["Dates"]
+uuid = "fa267f1f-6049-4f14-aa54-33bafae1ed76"
+version = "1.0.3"
+
+[[deps.Tar]]
+deps = ["ArgTools", "SHA"]
+uuid = "a4e569a6-e804-4fa4-b0f3-eef7a1d5b7c2"
+version = "1.10.0"
 
 [[deps.Test]]
 deps = ["InteractiveUtils", "Logging", "Random", "Serialization"]
@@ -1066,14 +1113,14 @@ uuid = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
 version = "1.11.0"
 
 [[deps.Tricks]]
-git-tree-sha1 = "311349fd1c93a31f783f977a71e8b062a57d4101"
+git-tree-sha1 = "6cae795a5a9313bbb4f60683f7263318fc7d1505"
 uuid = "410a4b4d-49e4-4fbc-ab6d-cb71b17b3775"
-version = "0.1.13"
+version = "0.1.10"
 
 [[deps.URIs]]
-git-tree-sha1 = "908fec9df6c5de98548ead82a468c95ccf6cd263"
+git-tree-sha1 = "24bd5edd05e37c92a44d5ff9c0fc6d1b1b9d6bad"
 uuid = "5c2747f8-b7ea-4ff2-ba2e-563bfd36b1d4"
-version = "1.7.0"
+version = "1.6.1"
 
 [[deps.UUIDs]]
 deps = ["Random", "SHA"]
@@ -1092,12 +1139,17 @@ version = "1.3.1+2"
 [[deps.libblastrampoline_jll]]
 deps = ["Artifacts", "Libdl"]
 uuid = "8e850b90-86db-534c-a0d3-1478176c7d93"
-version = "5.15.0+0"
+version = "5.11.0+0"
 
 [[deps.nghttp2_jll]]
 deps = ["Artifacts", "Libdl"]
 uuid = "8e850ede-7688-5339-a07c-302acd2aaf8d"
-version = "1.64.0+1"
+version = "1.63.0+0"
+
+[[deps.p7zip_jll]]
+deps = ["Artifacts", "Libdl"]
+uuid = "3f19e933-33d8-53b3-aaab-bd5110c3b7a0"
+version = "17.4.0+2"
 """
 
 # ╔═╡ Cell order:

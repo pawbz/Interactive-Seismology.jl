@@ -28,6 +28,30 @@ using PlutoUI, Interpolations, DelimitedFiles
 # ╔═╡ 98f30e60-f1e5-4102-8539-2c6600c3de90
 TableOfContents(include_definitions=true)
 
+# ╔═╡ 98f9981d-b8f3-46a4-9227-c6f416028771
+# App shell: the Expt / Theory / Code / Help frame shared by every notebook, loaded
+# from src/assets/app-shell/. Without that folder (a lone downloaded .jl) this cell just
+# shows the help text and the notebook stays a plain notebook.
+let
+	help = md"""
+	- Two experiments: switch between **Temperature, pressure and density** and **Tomography globe** in the rail.
+	- **Temperature:** the T surface, gradient, potential T and adiabatic-gradient sliders shape the geotherm; watch where it crosses the solidus.
+	- **Globe:** drag on the globe to draw a section from pin A to pin B (right-drag rotates); the section on the right follows the great circle.
+	- The **parameter** menu switches between tomography models and PREM profiles; the **preset** menu jumps to well-known plumes and slabs.
+
+	**Try this:** pick the Hawaii preset and compare the plume in GyPSuM, S40RTS and GLAD-M25.
+	"""
+	dir = joinpath(@__DIR__, "..", "assets", "app-shell")
+	if isfile(joinpath(dir, "app-shell.js"))
+		HTML(string(
+			"<style>", read(joinpath(dir, "app-shell.css"), String), "</style>",
+			"<template class=\"app-help\">", repr(MIME"text/html"(), help), "</template>",
+			"<script>", read(joinpath(dir, "app-shell.js"), String), "</script>"))
+	else
+		help
+	end
+end
+
 # ╔═╡ 169e2164-b62f-4b76-bf12-bec1a6aba243
 md"""
 # What's Inside the Earth?
@@ -43,9 +67,9 @@ We cannot drill there — the deepest hole ever bored (the Kola Superdeep) reach
 12 km, barely a scratch on a 6371 km radius. Instead, this notebook builds up pressure and
 temperature the way seismologists actually do: from a density profile constrained by how
 seismic waves travel through the planet, combined with the physics of hydrostatic
-equilibrium. **The interactive panel below lets you explore how temperature — the part we
-understand least — changes the picture; the panel after it shows that the Earth's interior
-is not even spherically symmetric, using a real seismic tomography model.**
+equilibrium. **The first experiment lets you explore how temperature — the part we understand least —
+changes the picture; the second shows that the Earth's interior is not even spherically
+symmetric, using real seismic tomography models.**
 """
 
 # ╔═╡ 98788e51-80d7-4a50-adf8-f0731d99f2b0
@@ -105,7 +129,7 @@ interesting one, because heat moves through the Earth by two different mechanism
 
 - **Conduction**, near the surface, where the lithosphere is too rigid and cold to convect.
   Temperature rises roughly *linearly* with depth here — the `T surface` and `gradient`
-  sliders above control this.
+  sliders of the first experiment control this.
 - **Convection**, through most of the mantle, where hot rock physically rises and cold rock
   sinks. A convecting fluid's temperature profile is close to an **adiabat**: nearly
   constant potential temperature, rising only slowly with depth as pressure compresses it.
@@ -113,7 +137,7 @@ interesting one, because heat moves through the Earth by two different mechanism
 
 Where the geotherm crosses the **solidus** — the temperature at which rock starts to melt —
 is where partial melting begins: the mechanism behind mid-ocean-ridge basalts and the
-low-viscosity asthenosphere. Watch for that crossing in the zoomed temperature panel above.
+low-viscosity asthenosphere. Watch for that crossing in the experiment's zoomed temperature panel.
 
 !!! danger "The solidus line is real physics, but only shallow"
 	The solidus curve comes from a real experimental fit (Hirschmann, 2000), not a toy
@@ -132,7 +156,7 @@ density and pressure, but a poor one for temperature: subducting slabs are colde
 their surroundings, rising plumes are hotter, and both leave a fingerprint in how fast
 seismic waves travel through them.
 
-The panel below shows a real global seismic tomography model instead of the 1-D profile
+The second experiment, **Tomography globe**, shows a real global seismic tomography model instead of the 1-D profile
 above — but it can also show density, pressure, or seismic velocity from PREM, switched
 with the **parameter** menu. Three independent tomography models are on offer there too:
 **GyPSuM** (Simmons et al. 2010), **S40RTS** (Ritsema et al. 2011), and **GLAD-M25** (Lei et
@@ -182,7 +206,10 @@ models, the tomography data loading, and finally the two interactive widgets' ow
 """
 
 # ╔═╡ e2493968-3488-4a46-b0c1-222010c6dcb9
-md"### The PREM Density Profile"
+md"""
+### The PREM Density Profile
+The cell below parses PREM's density and seismic velocities at every published radius from the repository's model file, replaces the oceanic crust with a simple continental column, and builds the interpolants `interp_rho`, `interp_vp` and `interp_vs` used everywhere else.
+"""
 
 # ╔═╡ 67a3d0fe-0a8c-4163-9d79-5e9a511ddab0
 begin
@@ -232,7 +259,10 @@ begin
 end
 
 # ╔═╡ 0defc265-fe5a-42c6-a876-5e5e16cde7fb
-md"### Layer 1: Mass, Gravity, and Pressure"
+md"""
+### Layer 1: Mass, Gravity, and Pressure
+`enclosed_mass_at_r` integrates ``4\pi\rho r^2`` from the centre outward, `g_profile` turns the enclosed mass into ``g(r) = GM(r)/r^2``, and `pressure_profile` integrates ``dP/dr = -\rho g`` inward from zero pressure at the surface.
+"""
 
 # ╔═╡ f2e9afae-368b-4224-bfc9-7aa681e0d4e7
 begin
@@ -309,7 +339,10 @@ begin
 end
 
 # ╔═╡ bd4aff4f-a4af-4d01-967f-02d7acf2a098
-md"#### Validating hydrostatic equilibrium"
+md"""
+#### Validating hydrostatic equilibrium
+Three checks on the pipeline: the total enclosed mass matches the Earth's measured mass, surface gravity comes out near 9.8 m/s², and pressure decreases monotonically outward.
+"""
 
 # ╔═╡ 259dab7b-4d62-4a5a-aaee-de0de4fd86fb
 let
@@ -332,7 +365,10 @@ let
 end
 
 # ╔═╡ 7e1b745c-5174-4e36-90a0-51db489d4768
-md"### Layer 2: Geotherms, Adiabats, and the Solidus"
+md"""
+### Layer 2: Geotherms, Adiabats, and the Solidus
+`linear_geotherm` is the conductive near-surface profile, `adiabatic_profile` the convecting-mantle adiabat, and `peridotite_solidus` the Hirschmann (2000) melting curve, drawn only up to `P_MAX_GPA` = 10 GPa, where the fit is calibrated.
+"""
 
 # ╔═╡ 306d2112-cab7-4fdc-b441-e9228e243cdc
 begin
@@ -390,7 +426,10 @@ begin
 end
 
 # ╔═╡ 0fad939d-cb1e-43bf-80d1-bdd8957515f9
-md"### Layer 3: The Tomography Grid"
+md"""
+### Layer 3: The Tomography Grid
+`load_tomo_csv` reads a coarse ``(\text{lon}, \text{lat}, \text{depth})`` grid of ``dV_s\%`` for GyPSuM, S40RTS and GLAD-M25 from the repository's data folder. The check after it confirms that every depth layer has the right shape, that ``|dV_s| < 10\%`` everywhere, and that the depths are sorted.
+"""
 
 # ╔═╡ 1faacc81-f508-4832-9a31-148aa3e3c7cc
 begin
@@ -469,7 +508,10 @@ let
 end
 
 # ╔═╡ 4bef3d37-3bfd-4c7f-83c6-31b4318f9e5a
-md"### Layer 4: PREM Profiles on the Shared Depth Axis"
+md"""
+### Layer 4: PREM Profiles on the Shared Depth Axis
+PREM's density, velocities and pressure are sampled at the tomography models' depths, so the globe can switch between laterally varying and radially symmetric parameters on one depth axis.
+"""
 
 # ╔═╡ 7cb6d994-2002-44f2-bbc7-e73f146d1704
 begin
@@ -489,7 +531,10 @@ begin
 end
 
 # ╔═╡ 5c8a2f14-6e91-4b3a-9d27-8f41c0a9e6b2
-md"### Layer 4b: PREM Profiles at Full Depth Resolution (Surface to Centre)"
+md"""
+### Layer 4b: PREM Profiles at Full Depth Resolution (Surface to Centre)
+For the cross-section, PREM's parameters are also sampled finely all the way to the centre of the Earth, so a PREM section can be drawn as concentric shells below the core-mantle boundary, where the tomography models stop.
+"""
 
 # ╔═╡ d3f7b920-1a44-4e6c-8b19-2c5d9a7f0e33
 begin
@@ -511,7 +556,10 @@ begin
 end
 
 # ╔═╡ 3ac914f3-56e4-4025-81d1-9461a0bfc835
-md"### Layer 5: Coastlines"
+md"""
+### Layer 5: Coastlines
+Natural Earth coastlines, vendored offline, are drawn on the globe purely as a geographic reference.
+"""
 
 # ╔═╡ 9bebe536-3dc8-4e45-b27d-160dc0b4f608
 begin
@@ -530,7 +578,10 @@ begin
 end
 
 # ╔═╡ 8438fcce-2d66-4693-b747-641a4c2264b7
-md"### The Interactive Widgets"
+md"""
+### The Interactive Widgets
+`EarthProfileInput` sends the four temperature parameters to Julia's reactive cells. The density, gravity and pressure profiles are baked into it once, downsampled, from the pipeline above. `TomographyGlobeInput` sends the chosen parameter, depth and section endpoints. Its globe and great-circle section are drawn in the browser from the gridded data embedded in it.
+"""
 
 # ╔═╡ a41bd2f5-bce3-4a30-8f31-5b86c19e59fb
 begin
@@ -571,7 +622,7 @@ begin
 
     function Base.show(io::IO, ::MIME"text/html", w::EarthProfileInput)
         write(io, """
-<div id="epiwidget" style="display:flex;flex-direction:column;align-items:center;width:100%;color:#9ca3af">
+<div id="epiwidget" class="app-widget" data-app-name="Temperature, pressure and density" style="display:flex;flex-direction:column;align-items:center;width:100%;color:#9ca3af">
   <style>
     pluto-cell:has(#epiwidget){width:min(80vw,1500px)!important;margin-left:calc((100% - min(80vw,1500px))/2)!important}
     #epiwidget .epi-title{width:100%;box-sizing:border-box;text-align:center;margin-bottom:10px;background:#0a0f18;border:1px solid #3b5c85;border-radius:6px;padding:10px 14px}
@@ -593,7 +644,7 @@ begin
       #epiwidget .epi-controls{grid-template-columns:1fr;width:660px;max-width:100%}
     }
   </style>
-  <div class="epi-title">
+  <div class="epi-title app-title">
     <div class="epi-title-desc">Density and pressure grow steadily toward the center, but temperature depends on how heat moves &mdash; conduction near the surface, convection below.</div>
     <div class="epi-title-hint">drag the geotherm/adiabat sliders &middot; watch where the geotherm crosses the solidus in the zoomed temperature panel</div>
   </div>
@@ -832,7 +883,7 @@ begin
 
     function Base.show(io::IO, ::MIME"text/html", w::TomographyGlobeInput)
         write(io, """
-<div id="tgiwidget" style="display:flex;flex-direction:column;align-items:center;width:100%;color:#9ca3af">
+<div id="tgiwidget" class="app-widget" data-app-name="Tomography globe" style="display:flex;flex-direction:column;align-items:center;width:100%;color:#9ca3af">
   <style>
     pluto-cell:has(#tgiwidget){width:min(80vw,1500px)!important;margin-left:calc((100% - min(80vw,1500px))/2)!important}
     #tgiwidget .tgi-title{width:100%;box-sizing:border-box;text-align:center;margin-bottom:10px;background:#0a0f18;border:1px solid #3b5c85;border-radius:6px;padding:10px 14px}
@@ -859,7 +910,7 @@ begin
       #tgiwidget .tgi-col-globe, #tgiwidget .tgi-col-fan{width:100%;max-width:640px}
     }
   </style>
-  <div class="tgi-title">
+  <div class="tgi-title app-title">
     <div class="tgi-title-desc">Earth's interior isn't spherically symmetric &mdash; mantle plumes and slabs show up as lateral structure that a 1-D depth profile alone can't capture.</div>
     <div class="tgi-title-hint">drag empty globe to draw a new section &middot; drag a pin (A or B) to move it &middot; right-drag to rotate</div>
   </div>
@@ -2000,6 +2051,7 @@ version = "17.7.0+0"
 # ╔═╡ Cell order:
 # ╠═81b3647e-d741-11f0-b633-478f0d655f0b
 # ╠═98f30e60-f1e5-4102-8539-2c6600c3de90
+# ╟─98f9981d-b8f3-46a4-9227-c6f416028771
 # ╟─169e2164-b62f-4b76-bf12-bec1a6aba243
 # ╟─c8266e03-23be-43ea-9292-97359ab7aa41
 # ╟─98788e51-80d7-4a50-adf8-f0731d99f2b0
@@ -2022,7 +2074,7 @@ version = "17.7.0+0"
 # ╟─b8d8c763-ccf3-4c29-af91-3959a0b903eb
 # ╟─4bef3d37-3bfd-4c7f-83c6-31b4318f9e5a
 # ╠═7cb6d994-2002-44f2-bbc7-e73f146d1704
-# ╠═5c8a2f14-6e91-4b3a-9d27-8f41c0a9e6b2
+# ╟─5c8a2f14-6e91-4b3a-9d27-8f41c0a9e6b2
 # ╠═d3f7b920-1a44-4e6c-8b19-2c5d9a7f0e33
 # ╟─3ac914f3-56e4-4025-81d1-9461a0bfc835
 # ╠═9bebe536-3dc8-4e45-b27d-160dc0b4f608

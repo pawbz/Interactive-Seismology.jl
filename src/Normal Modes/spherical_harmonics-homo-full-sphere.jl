@@ -36,18 +36,41 @@ using ForwardDiff
 # ╔═╡ ca388aaf-f515-4c8e-8b39-a7173641dca0
 TableOfContents()
 
+# ╔═╡ 6c46972f-8a7c-49a1-9c32-b3f873d54610
+# App shell: the Expt / Theory / Code / Help frame shared by every notebook, loaded
+# from src/assets/app-shell/. Without that folder (a lone downloaded .jl) this cell just
+# shows the help text and the notebook stays a plain notebook.
+let
+	help = md"""
+	- **l** sets the degree (how many nodal lines) and **m** the order (how the lobes split between latitude and longitude).
+	- **R / S / T** chooses the radial, poloidal or toroidal motion field drawn on the sphere.
+	- **ω** changes the radial shape j_l(ωr/c) in the radial panel. Drag the sphere to rotate it.
+
+	**Try this:** keep l fixed and step m from 0 to l: latitude bands turn into orange-slice lobes.
+	"""
+	dir = joinpath(@__DIR__, "..", "assets", "app-shell")
+	if isfile(joinpath(dir, "app-shell.js"))
+		HTML(string(
+			"<style>", read(joinpath(dir, "app-shell.css"), String), "</style>",
+			"<template class=\"app-help\">", repr(MIME"text/html"(), help), "</template>",
+			"<script>", read(joinpath(dir, "app-shell.js"), String), "</script>"))
+	else
+		help
+	end
+end
+
 # ╔═╡ 2a7c4b45-0153-4095-a67d-b48f8f343d6a
 md"""
 # Visualization of Spherical Harmonics
 
-Spherical harmonics are fundamental mathematical functions used to describe **wave phenomena** on a sphere. They appear in seismology while modeling Earth's free oscillations. 
+Spherical harmonics are the natural building blocks of patterns on a sphere, the way sines and cosines are on a line. They describe the shapes of the Earth's free oscillations, the geoid and the gravity field. In the experiment you can pick a degree and order, see the pattern on the sphere, the particle motion of the three vector fields built from it, and the radial shape of a mode in a uniform sphere.
 
 ##### [Interactive Seismology Notebooks](https://pawbz.github.io/Interactive-Seismology.jl/)
 
 
 Instructor: *Pawan Bharadwaj*,
 Indian Institute of Science, Bengaluru, India
-    """
+"""
 
 # ╔═╡ 866c00fd-bf69-460b-90b2-79ecf1f72d66
 md"""
@@ -85,7 +108,10 @@ md"## Appendix"
 c = 5.0 # in km/s
 
 # ╔═╡ 4c892f32-ffa3-4b45-a840-6f1a165293b3
-md"### Surface Spherical Harmonics "
+md"""
+### Surface Spherical Harmonics
+`Y_lm(l, m, θ, φ)` evaluates ``Y_l^m``; `spherical_harmonics` wraps it and returns zero for the invalid combinations ``|m| > l`` that a slider can pass through.
+"""
 
 # ╔═╡ 186c6279-4573-4fda-8589-5fabcbc1cc0e
 """
@@ -131,7 +157,10 @@ function spherical_harmonics(l, m, θ, φ)
 end
 
 # ╔═╡ 79fa4c7b-5f93-44f9-bf33-311f5efecf32
-md"### Vector Spherical Harmonics"
+md"""
+### Vector Spherical Harmonics
+`spherical_harmonic_gradient` differentiates the real and imaginary parts of ``Y_l^m`` with ForwardDiff, and `vector_spherical_harmonics` assembles the ``\mathbf R``, ``\mathbf S`` or ``\mathbf T`` field from it, as spherical components ``(r, \theta, \varphi)``.
+"""
 
 # ╔═╡ ea0d2403-03ea-4c42-a452-59f830c22a16
 """
@@ -184,7 +213,10 @@ function vector_spherical_harmonics(l, m, θ, φ, mode_type)
 end
 
 # ╔═╡ 433d799f-9243-4140-ab1f-006feeaf8816
-md"### Grids"
+md"""
+### Grids
+A ``(\theta, \varphi)`` grid kept just off the poles (where ``1/\sin\theta`` diverges) carries the pattern, the sphere mesh bulged by ``Y_l^m``, and a subsampled set of motion vectors. A radial grid to 6000 km carries ``j_l(\omega r/c)``. The last cell pushes all three to the widget.
+"""
 
 # ╔═╡ 7100ad22-5762-465c-a6a4-bbb06e11ac2f
 begin
@@ -202,7 +234,10 @@ radius_max = 6000 # in km
 radius_grid = range(0., radius_max, length=1000);
 
 # ╔═╡ ee3ca7fd-327b-408f-918f-55a387e9cb7c
-md"### The Interactive Widget"
+md"""
+### The Interactive Widget
+`SphericalHarmonicInput` sends the degree ``l``, the order ``m``, the angular frequency ``\omega`` and the vector field (R, S or T) back to Julia, which recomputes the grids and pushes them. Rotating the sphere and animating the motion happen in the browser.
+"""
 
 # ╔═╡ e2bb7ecd-bcad-4b61-9eae-020c2a507435
 begin
@@ -232,7 +267,7 @@ begin
 
     function Base.show(io::IO, ::MIME"text/html", w::SphericalHarmonicInput)
         write(io, """
-<div id="shwwidget" style="display:flex;flex-direction:column;align-items:center;width:100%;color:#9ca3af">
+<div id="shwwidget" class="app-widget" style="display:flex;flex-direction:column;align-items:center;width:100%;color:#9ca3af">
   <style>
     pluto-cell:has(#shwwidget){width:min(80vw,1400px)!important;margin-left:calc((100% - min(80vw,1400px))/2)!important}
     #shwwidget .shw-title{width:100%;box-sizing:border-box;text-align:center;margin-bottom:10px;background:#0a0f18;border:1px solid #3b5c85;border-radius:6px;padding:10px 14px}
@@ -256,7 +291,7 @@ begin
       #shwwidget .shw-controls{grid-template-columns:1fr;width:660px;max-width:100%}
     }
   </style>
-  <div class="shw-title">
+  <div class="shw-title app-title">
     <div class="shw-title-desc">Degree `l`, order `m` shape the pattern; R/S/T picks which motion field is drawn on top of it.</div>
     <div class="shw-title-hint">drag the sphere to rotate &middot; slide l/m/&omega; to change the mode &middot; toggle motion vectors on/off</div>
   </div>
@@ -587,6 +622,27 @@ let
       window.dispatchEvent(new CustomEvent('shw-results', {detail: $(repr(payload))}));
     </script>""")
 end
+
+# ╔═╡ 6cb636d4-1c39-417d-9aeb-9b40b58a170d
+md"""
+##### The formulas behind the panels
+
+On the unit sphere, with colatitude ``\theta`` and longitude ``\varphi``, the fully normalized surface spherical harmonic is
+
+```math
+Y_l^m(\theta, \varphi) = \bar P_l^{|m|}(\cos\theta)\,e^{im\varphi}, \qquad \int |Y_l^m|^2\,d\Omega = 1 ,
+```
+
+where ``\bar P_l^{m}`` is the normalized associated Legendre function (`Y_lm`, using AssociatedLegendrePolynomials.jl). The three vector fields of the experiment are built from it and its surface gradient ``\nabla_1 Y = (\partial_\theta Y,\ \partial_\varphi Y/\sin\theta)`` (`spherical_harmonic_gradient`, by automatic differentiation):
+
+```math
+\mathbf R = Y\,\hat{\mathbf r}, \qquad
+\mathbf S = \frac{\nabla_1 Y}{\sqrt{l(l+1)}}, \qquad
+\mathbf T = \frac{-\hat{\mathbf r}\times\nabla_1 Y}{\sqrt{l(l+1)}}
+```
+
+(`vector_spherical_harmonics`). ``\mathbf S`` points along the gradient and ``\mathbf T`` is the same field rotated by 90° in the tangent plane, so it has no divergence and no radial part. In a uniform sphere with wave speed ``c``, the radial dependence of a mode at frequency ``\omega`` is the spherical Bessel function ``j_l(\omega r/c)``.
+"""
 
 # ╔═╡ 00000000-0000-0000-0000-000000000001
 PLUTO_PROJECT_TOML_CONTENTS = """
@@ -1150,10 +1206,12 @@ version = "17.7.0+0"
 
 # ╔═╡ Cell order:
 # ╠═ca388aaf-f515-4c8e-8b39-a7173641dca0
+# ╟─6c46972f-8a7c-49a1-9c32-b3f873d54610
 # ╟─2a7c4b45-0153-4095-a67d-b48f8f343d6a
 # ╟─5b7a1c40-8e91-4a2a-9a2c-2f1c0f6a9a01
 # ╟─2c9e8a11-4f2b-4a7e-9a1a-5b6c7d8e9f01
 # ╟─866c00fd-bf69-460b-90b2-79ecf1f72d66
+# ╟─6cb636d4-1c39-417d-9aeb-9b40b58a170d
 # ╟─4d6aed73-9b2f-47c6-a161-38e2633cb8db
 # ╟─6750df2d-459b-4467-b405-1bd8177bee42
 # ╠═348240ee-f35f-11ef-01ab-d11599b51ca1

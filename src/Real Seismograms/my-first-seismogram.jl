@@ -55,6 +55,30 @@ begin
     PlutoUI.TableOfContents(include_definitions=true)
 end
 
+# ╔═╡ 9b82a66c-5460-45b7-bf85-98e448c72ec6
+# App shell: the Expt / Theory / Code / Help frame shared by every notebook, loaded
+# from src/assets/app-shell/. Without that folder (a lone downloaded .jl) this cell just
+# shows the help text and the notebook stays a plain notebook.
+let
+	help = md"""
+	- **Left map:** drag a box, set a minimum magnitude and press **Search**; click a dot to select that earthquake.
+	- **Right map:** **Search** finds GSN stations that were operating during the event; click one to select it.
+	- **Download** fetches the waveform; **channel**, **duration** and **frequency band** then re-slice and re-filter it locally.
+	- Predicted body-wave arrival times (P, S, PP, ...) are marked on the trace; the surface waves follow them.
+
+	**Try this:** switch between a 1 Hz band and a 50 s band and watch the body waves and the surface waves trade places.
+	"""
+	dir = joinpath(@__DIR__, "..", "assets", "app-shell")
+	if isfile(joinpath(dir, "app-shell.js"))
+		HTML(string(
+			"<style>", read(joinpath(dir, "app-shell.css"), String), "</style>",
+			"<template class=\"app-help\">", repr(MIME"text/html"(), help), "</template>",
+			"<script>", read(joinpath(dir, "app-shell.js"), String), "</script>"))
+	else
+		help
+	end
+end
+
 # ╔═╡ 5a72389a-1277-4e18-a532-ce81a4b18c74
 md"""
 # My First Seismogram
@@ -83,8 +107,8 @@ md"""
 ## Pick an Earthquake, Pick a Station, See the Seismogram
 
 Not every earthquake makes a useful teaching example -- too small and the signal is buried in
-noise at a global station, too close and there's no interesting wave propagation to see. On
-the **left** map, drag a box to a region you're curious about, set a minimum magnitude, and
+noise at a global station, too close and there's no interesting wave propagation to see. In
+the experiment, on the **left** map, drag a box to a region you're curious about, set a minimum magnitude, and
 hit **Search**; click any dot to select that earthquake (dot size scales with magnitude).
 
 A station only gives you a seismogram for this earthquake if it was actually **operating**
@@ -109,10 +133,16 @@ md"""
 """
 
 # ╔═╡ 6a1e0001-0000-4000-8000-00000000000c
-md"### Package Imports"
+md"""
+### Package Imports
+ObsPy runs through PythonCall in a managed Python environment, pinned below Python 3.14 because of a known crash with PythonCall in Pluto's worker process.
+"""
 
 # ╔═╡ 6a1e0001-0000-4000-8000-00000000000d
-md"### FDSN Clients"
+md"""
+### FDSN Clients
+Two FDSN web-service clients: the earthquake catalog from USGS (`event_client`), and station metadata and waveforms from EarthScope (`waveform_client`), since EarthScope retired its event service. The certificate setup lets PythonCall's embedded Python make HTTPS requests. `taup_model` is iasp91, used for the phase-arrival overlay.
+"""
 
 # ╔═╡ 6a1e0001-0000-4000-8000-00000000000e
 obspy = pyimport("obspy")
@@ -159,7 +189,10 @@ end
 taup_model = taup.TauPyModel(model="iasp91")
 
 # ╔═╡ 6a1e0001-0000-4000-8000-000000000014
-md"### Layer 1: Flat-Map Projection & Coastlines"
+md"""
+### Layer 1: Flat-Map Projection & Coastlines
+Natural Earth coastlines are drawn on both maps in a flat equirectangular projection; `coast_js_literal` packs them for the browser.
+"""
 
 # ╔═╡ 6a1e0001-0000-4000-8000-000000000015
 begin
@@ -192,7 +225,10 @@ function coast_js_literal(line_id, lon, lat)
 end
 
 # ╔═╡ 6a1e0001-0000-4000-8000-000000000017
-md"### Layer 2: Earthquake & Station Search"
+md"""
+### Layer 2: Earthquake & Station Search
+`SeismogramExplorerInput` sends one action at a time (earthquake search, earthquake selection, station search, station selection or download) with its parameters. The dispatch cell after it runs the matching FDSN query, or downloads and filters the waveform, and pushes the result back. `selected_earthquake_details` and `selected_station_details` keep the current choices for the readouts above.
+"""
 
 # ╔═╡ 6a1e0001-0000-4000-8000-000000000018
 begin
@@ -257,7 +293,7 @@ begin
 
     function Base.show(io::IO, ::MIME"text/html", w::SeismogramExplorerInput)
         write(io, """
-<div id="sexwidget" style="display:flex;flex-direction:column;align-items:center;width:100%;color:#9ca3af">
+<div id="sexwidget" class="app-widget" style="display:flex;flex-direction:column;align-items:center;width:100%;color:#9ca3af">
   <style>
     pluto-cell:has(#sexwidget){width:min(80vw,1500px)!important;margin-left:calc((100% - min(80vw,1500px))/2)!important}
     #sexwidget .sex-title{width:100%;box-sizing:border-box;text-align:center;margin-bottom:10px;background:#0a0f18;border:1px solid #3b5c85;border-radius:6px;padding:10px 14px}
@@ -291,7 +327,7 @@ begin
       #sexwidget .sex-col{width:100%;max-width:560px}
     }
   </style>
-  <div class="sex-title">
+  <div class="sex-title app-title">
     <div class="sex-title-desc">My First Seismogram</div>
     <div class="sex-title-hint">drag a box &middot; Search &middot; click a dot &middot; Download &middot; channel/duration/band are free to explore</div>
   </div>
@@ -1242,7 +1278,10 @@ let
 end
 
 # ╔═╡ 6a1e0001-0000-4000-8000-00000000001f
-md"### Layer 4: Phase Arrivals"
+md"""
+### Layer 4: Phase Arrivals
+As soon as both an earthquake and a station are chosen, TauP computes the arrival times of the main phases for that depth and epicentral distance, so the overlay is ready before the waveform is downloaded.
+"""
 
 # ╔═╡ 95cc2dde-244a-407b-b4af-2fa5e9658926
 # Reactively depends on both `selected_earthquake_details` and `selected_station_details` --
@@ -1271,6 +1310,21 @@ let
     end
 end
 
+
+# ╔═╡ bb12ad95-3a6b-46f8-bd0f-f340efc80291
+md"""
+## What You Are Looking At
+
+A seismogram is ground motion against time at one station. For a distant earthquake the energy arrives in a predictable order, because each wave type travels at its own speed along its own path:
+
+- **P**, the compressional wave, arrives first. It is often clearest on the vertical channel (`BHZ`).
+- **S**, the shear wave, arrives later, at roughly ``\sqrt3`` times the P travel time for the same path, and is usually stronger on the horizontal channels.
+- **Surface waves** arrive last: Love waves on the horizontals, Rayleigh waves on the vertical. They are usually the largest motion at long periods and are spread out in time by dispersion.
+
+The predicted arrival times of the body-wave phases (P, S and their reflections and conversions) for this earthquake's depth and epicentral distance, computed with TauP in iasp91, are overlaid on the trace, so you can check which wiggle is which. The surface waves come after them, untimed.
+
+The frequency band matters as much as the station. Body waves carry most of their energy at periods of about a second, surface waves at tens of seconds. Filtering to a high band brings out P and S; filtering to a long-period band makes the surface-wave train dominate.
+"""
 
 # ╔═╡ 00000000-0000-0000-0000-000000000001
 PLUTO_PROJECT_TOML_CONTENTS = """
@@ -1712,11 +1766,13 @@ version = "0.63.2+0"
 
 # ╔═╡ Cell order:
 # ╠═ca9f95ec-71d2-11f0-2e94-7da041469cdf
+# ╟─9b82a66c-5460-45b7-bf85-98e448c72ec6
 # ╟─5a72389a-1277-4e18-a532-ce81a4b18c74
 # ╟─6a1e0001-0000-4000-8000-000000000001
 # ╟─6a1e0001-0000-4000-8000-000000000002
 # ╟─6a1e0001-0000-4000-8000-000000000003
 # ╟─6a1e0001-0000-4000-8000-000000000006
+# ╟─bb12ad95-3a6b-46f8-bd0f-f340efc80291
 # ╟─d2aba787-dae6-4da5-8f16-0cadfcc38371
 # ╟─6a1e0001-0000-4000-8000-00000000000c
 # ╠═2cc62eeb-edc2-4fcb-876b-010d8a180162

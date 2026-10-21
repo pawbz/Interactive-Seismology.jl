@@ -1,18 +1,23 @@
 ---
 name: pluto-widget-style
-description: "Design system and build recipe for the dark-themed canvas + control-panel interactive widgets used in this repo's Pluto notebooks (reference implementations are src/misc/geoid-kernel.jl and src/misc/seismic-interferometry.jl). Use this whenever building, restyling, or resizing a bespoke interactive demo (a custom canvas/JS visualization driven by an @bind'd Julia struct) in ANY notebook under src/, or when asked to make a notebook widget match the style of the geoid/interferometry ones, look good on a 16:9 laptop/projector, use more of the screen width, or avoid vertical scrolling during a lecture. Not needed for plain PlutoUI sliders/plots that don't have a custom canvas."
+description: "Design system and build recipe for the dark-themed canvas + control-panel interactive widgets used in this repo's Pluto notebooks, including the contract every widget follows to run full screen in the app shell's Expt view (.app-widget/.app-title/.app-stage/.app-controls classes, fit-to-stage canvas sizing; reference: src/Planewave Propagation/reflection-transmission-SH.jl). Use this whenever building, restyling, resizing, or converting to the app shell a bespoke interactive demo (a custom canvas/JS visualization driven by an @bind'd Julia struct) in ANY notebook under src/, or when asked to make a widget look good on a 16:9 laptop/projector, use the whole screen, or avoid scrolling during a lecture. Not needed for plain PlutoUI sliders/plots that don't have a custom canvas."
 ---
 
 # Pluto interactive-widget design system
 
 This repo has a house style for "hero" interactive widgets: a `Base.show(io, ::MIME"text/html", w::YourInput)`
 method that renders a dark-themed canvas (or canvases) plus a control panel, wired up with vanilla JS,
-and bound back into Julia via Pluto's `@bind`. `src/misc/geoid-kernel.jl` and
-`src/misc/seismic-interferometry.jl` are the two reference implementations — when in doubt, go read the
+and bound back into Julia via Pluto's `@bind`. `src/Gravity/geoid-kernel.jl` and
+`src/Interferometry/seismic-interferometry.jl` are the two reference implementations — when in doubt, go read the
 actual code there rather than trusting this doc to be exhaustive.
 
 Read this whole file before touching a widget's HTML/CSS/JS. It is short on purpose; the reference
 notebooks are the source of truth for anything not covered here.
+
+Every notebook now runs inside the shared **app shell** (Expt / Theory / Code / Help — see
+`pluto-notebook-writing`, "Every notebook is an app"). The widget is what the **Expt** tab shows full
+screen, so every widget must also follow "The app shell contract" below. The SH reflection notebook is the
+reference implementation of that contract.
 
 ## The shape of a widget
 
@@ -27,6 +32,120 @@ notebooks are the source of truth for anything not covered here.
 Copy this shape from whichever reference notebook is closer to what you're building, don't invent a new
 one. Keep the id prefix short and unique per widget (`gk-`, `si-`, pick your own two/three-letter prefix)
 so multiple widgets' CSS/JS never collide when several notebooks are open in the same browser session.
+
+## The app shell contract (Expt view)
+
+In the **Expt** tab the shell takes the cell containing your widget and fixes it to the viewport. It then
+lays the widget out as a grid:
+
+- your controls in the left rail, under the shell's title and tabs;
+- your title bar across the top of the stage;
+- your canvases in a dark card that fills the rest of the screen.
+
+A widget opts in with four classes, added *alongside* its own prefixed ones:
+
+| Class | On | Becomes in Expt |
+|---|---|---|
+| `app-widget` | the widget root: `<div id="xxwidget" class="app-widget">` | the grid container |
+| `app-title` | the title bar (`.{p}-title`) | header above the stage; its text is also the Help card's subtitle |
+| `app-stage` | the canvas row (`.{p}-workspace`) | the dark card, with a definite width *and height* |
+| `app-controls` | the controls container (`.{p}-controls`) | the rail column below the tabs, scrolling vertically |
+
+Use exactly one of each per widget, as **direct children** of the root, because the grid only places
+direct children. The layout CSS lives in `src/assets/app-shell/app-shell.css`, not in the widget, and
+applies only in Expt. Everywhere else (the plain notebook, the Code view, Pluto without the shell) the
+widget renders exactly as its own CSS says. So it must still look right there too.
+
+**Every control must live inside the widget.** In Expt the shell hides every other cell. A separate
+PlutoUI slider cell, or a dropdown in its own `@bind` cell, disappears, and the experiment can't be
+driven. Fold such controls into the widget's `.app-controls` and send their values through the widget's
+own bond.
+
+**One hero widget per notebook.** The shell looks for one `.app-widget`. Notebooks with several custom
+widgets aren't supported yet: decide per notebook which one is the experiment, or extend the shell with
+per-widget tabs, rather than tagging two roots.
+
+### Size the canvases from the stage, continuously
+
+The stage changes size whenever the user switches tabs, resizes the window or rotates a phone. The
+one-shot "measure `par.clientWidth` at script load" sizing in the older sections below is therefore not
+enough. Put the sizing in a function, run it from a `ResizeObserver` on the stage, and redraw whenever it
+changes anything. From the SH widget:
+
+```js
+const stage = par.querySelector('.app-stage')
+let SEC = 0
+function layout(){
+  const cs = getComputedStyle(stage)
+  const w = stage.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight)
+  // '1' only in Expt on a wide screen, where the stage has a definite height to fit into.
+  const fitH = cs.getPropertyValue('--sa-fit-height').trim() === '1'
+  const stacked = w < 600           // phones: one canvas per row
+  let side = stacked ? Math.floor(w - BORDER) : Math.floor((Math.max(w, 700) - GAP - 2*BORDER) / 2)
+  if(fitH && !stacked){
+    const h = stage.clientHeight - parseFloat(cs.paddingTop) - parseFloat(cs.paddingBottom)
+    side = Math.min(Math.floor((w - GAP - 2*BORDER) / 2), Math.floor(h - BORDER))
+  }
+  side = Math.max(stacked ? 200 : 260, side)
+  if(side === SEC) return false     // unchanged: stops a ResizeObserver feedback loop
+  SEC = side
+  hidpi(cvsA, ctxA, SEC, SEC); hidpi(cvsB, ctxB, SEC, SEC)
+  // ...recompute every geometry value derived from SEC (poles, radii, margins)
+  return true
+}
+layout()
+// Not invalidation.then(...): Pluto can resolve `invalidation` for a bond output while
+// keeping its DOM on the page, which silently freezes the canvas size.
+const fitRO = new ResizeObserver(()=>{
+  if(!par.isConnected){ fitRO.disconnect(); if(rafId) cancelAnimationFrame(rafId); return }
+  if(layout()) redraw()
+})
+fitRO.observe(stage)
+```
+
+- **`--sa-fit-height`.** The shell's CSS sets it to `1` on `.app-stage` only in Expt on screens wider than
+  820px. Read it rather than guessing the mode. When it isn't `1`, fit to width only, as the widget always
+  did.
+- **Return `false` when nothing changed.** In the plain notebook the stage's height follows the canvases,
+  so resizing them fires the observer again.
+- **Make derived geometry `let`, not `const`.** Anything computed from the canvas size has to be
+  recomputed inside `layout()`. If the widget sends *pixel* coordinates to Julia, the "pixel coordinates
+  baked into Julia" rule below still applies: keep the logical coordinate space fixed and scale with a
+  canvas transform instead.
+- **Give the canvas row `flex-wrap: wrap`**, so stacked canvases fall onto separate rows on a phone.
+
+### Design for a narrow controls column
+
+In Expt the control groups stack in one column about 310 px wide: the 340 px rail minus padding. Whatever
+multi-column grid `.{p}-controls` uses in the plain notebook, the shell turns it into a vertical flex
+column. So:
+
+- **Every `.{p}-control-group` must work at about 310 px.** Use `minmax()` columns in `.{p}-control-row`
+  and `min-width:0` on range inputs; it's the same trap described under "Making it wide" below.
+- **Order matters.** The rail scrolls, but the first screenful should hold the controls students reach for
+  most. Several short groups read better than one tall one.
+
+### What the shell already provides — don't duplicate it
+
+- **Page chrome.** The rail shows the notebook title (from its first `#` heading), the four tabs, a link
+  to the course site and the footer. Don't put a notebook title or instructor line inside the widget.
+- **The stage card.** The stage is already a dark rounded card (`#000` background, `#1f2937` border). Keep
+  the canvases' own borders, but don't wrap the canvas row in another card.
+- **Help.** The title bar's text becomes the Help card's subtitle, and the bullets come from the
+  notebook's shell cell. So the title bar's hint line can stay short.
+- **The cell-widening rule.** A widget's own `pluto-cell:has(#xxwidget){ width:... !important }` rule
+  (from "Making it wide" below) can stay for the plain view. The shell overrides it in Expt with a
+  higher-specificity selector: `:not(#sa-none)` adds ID weight, because an `#id` inside `:has()` counts
+  toward specificity. If you add any other cell-level override, check in the browser that it doesn't beat
+  the shell's in Expt.
+- **What the shell doesn't provide.** There's no global reset. Reset, Play and similar buttons stay in the
+  widget's controls.
+
+### Downstream cells must survive a missing bond
+
+In the static export, or when a cell re-runs with no browser attached, the bound value is `nothing`. The
+cell that unpacks it needs a fallback, `_x_safe = _x isa AbstractDict ? _x : Base.get(YourInput())`, or it
+errors and takes every dependent cell with it (see `pluto-notebook-writing`, "The `@bind` boundary").
 
 ## The one thing that will silently break on a fresh restart: bind-cell ordering
 
@@ -81,6 +200,10 @@ computed values in via `CustomEvent` instead — see below), this whole class of
 construction: nothing for the `@bind` cell to depend on but the struct itself.
 
 ## A simpler, official alternative to the hand-rolled wide-cell CSS
+
+*(For app-shell notebooks this and "Making it wide and scroll-free" below govern only the plain-notebook
+view; the Expt tab already gives the widget the whole screen. Sizing for Expt follows "The app shell
+contract" above.)*
 
 Everything in "Making it wide and scroll-free" below (the `pluto-cell:has(...)` override, the
 `availW`/`heightBudget` sizing math) was hand-rolled to reach ~80vw before this was discovered:
@@ -493,6 +616,9 @@ moved down into `title-hint`, where they belong. **Test it**: cover the widget a
 if it doesn't state the scientific question or relationship the demo answers, it's an instruction wearing a
 title's slot, not a title, no matter how true or useful that instruction is.
 
+Tag the title bar `class="{p}-title app-title"`: in Expt it becomes the header above the stage, and its
+text doubles as the Help card's subtitle (see "The app shell contract").
+
 This title bar adds real height — **fold it into the `heightBudget` reserve** (next section) or you'll
 reintroduce the exact overflow you fixed there. Don't estimate that height from "two lines of text plus a
 bit of margin": **measure it live**, `getBoundingClientRect().height` on `.{p}-title`, after your actual
@@ -506,6 +632,10 @@ look broken for reasons that have nothing to do with your CSS. Always reload aft
 trust a measurement.)
 
 ## Making it wide and scroll-free on a 16:9 screen
+
+*Superseded for the Expt view by "The app shell contract" above, which gives the widget the full viewport
+and refits it continuously. Keep this section for the plain-notebook rendering, and for its still-valid
+traps: shrinkable control rows, `min-width:0` on inputs, and pixel coordinates baked into Julia.*
 
 The ask that motivated this section: "make the widget use ~80% of the screen width, and don't make me
 scroll to see the whole thing during a lecture." Two independent problems, two independent fixes — do
@@ -796,3 +926,16 @@ sizes, which you have to actually measure in a live browser.
    `mousemove` events, so a plain click-and-drag test can pass or fail for the wrong reason.
 6. Check `read_console_messages` for JS errors and `pluto-collab status` for errored/stale cells after
    interacting.
+7. **App shell.** Switch through all four tabs, either by clicking or with
+   `window.__saShell.setMode('expt' | 'theory' | 'code')`, and check each one:
+   - **Expt at about 1440×860:** only the widget cell is visible; the stage is the full remaining area
+     (`.app-stage` rect); the canvases fill it without overflow; the controls sit in the rail below the tabs.
+   - **Expt at phone width (375×812):** the canvases stack and fit, and the page doesn't scroll sideways
+     (`document.documentElement.scrollWidth === innerWidth`).
+   - **Theory:** only `.markdown` cells and the table of contents are visible, with no code inputs.
+   - **Code:** no markdown cells; every code input is shown, including folded ones; the widget's output is
+     hidden.
+   - **Help:** opens with the notebook's bullets, and Esc closes it.
+   - **Static export:** download `/notebookexport?id=<id>&secret=<secret>`, serve it locally and open it.
+     It should open in Expt. Widgets render greyed out there; that's Pluto marking bonds it can't run
+     without a server, not a shell bug.

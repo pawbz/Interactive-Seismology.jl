@@ -31,6 +31,29 @@ end
 # ╔═╡ 4643b924-2b62-4970-8cc0-bff87395c309
 TableOfContents()
 
+# ╔═╡ 9bdde4dc-7730-493d-840b-28e754032263
+# App shell: the Expt / Theory / Code / Help frame shared by every notebook, loaded
+# from src/assets/app-shell/. Without that folder (a lone downloaded .jl) this cell just
+# shows the help text and the notebook stays a plain notebook.
+let
+	help = md"""
+	- **Drag across the spectrum** (left panel) to choose which orders n are summed: a click picks one order, a drag picks a band.
+	- The middle panel shows the selected terms; the right panel is the exact plane wave cos(kx) for comparison.
+	- **Array Scenario** picks a real aperture kr; the **kr** slider changes it freely. The dashed circle marks the aperture.
+
+	**Try this:** select the band 0:N and grow N: the disk where the sum already looks like a plane wave grows with N ≈ kr.
+	"""
+	dir = joinpath(@__DIR__, "..", "assets", "app-shell")
+	if isfile(joinpath(dir, "app-shell.js"))
+		HTML(string(
+			"<style>", read(joinpath(dir, "app-shell.css"), String), "</style>",
+			"<template class=\"app-help\">", repr(MIME"text/html"(), help), "</template>",
+			"<script>", read(joinpath(dir, "app-shell.js"), String), "</script>"))
+	else
+		help
+	end
+end
+
 # ╔═╡ a918feb0-4e91-4300-9fc3-8c18c0cfd21f
 md"""
 # How a Plane Wave Is Built From Cylindrical Waves
@@ -53,7 +76,7 @@ happen -- pinwheels in, straight stripes out -- is the point of this notebook.
 md"""
 ## Reading the Three Panels
 
-**Drag across the spectrum panel** (left) to choose which orders `n` get summed -- a click
+In the experiment, **drag across the spectrum panel** (left) to choose which orders `n` get summed -- a click
 selects one order, a drag selects a band `nLo:nHi`. Each stem's height is `` |J_n(kr)| ``,
 the natural amplitude of order `n` at the current aperture: this *is* the plane wave's
 "multipole spectrum," and its shape (rising, then collapsing once `n` exceeds `kr`) is
@@ -83,11 +106,15 @@ plane wave at all, converged or not; the low-order terms are doing real, specifi
 # ╔═╡ 5ab5ebd6-3223-4a8e-98be-bde38d7bd4bc
 md"""
 ## Appendix
+How the experiment computes what it shows: the partial sums and the spectrum come from Bessel functions evaluated in Julia; the browser only colours the grid it is sent.
 """
 
 # ╔═╡ ed0ee423-3a7d-4431-bf9a-d5f25cb94a77
 md"""
 ## Partial-Sum Physics
+`planewave_partial_sum(X, Y, nLo, nHi)` evaluates the real part of the Jacobi–Anger sum at one point ``(X, Y) = (kx, ky)``, restricted to the orders ``n_{\mathrm{Lo}} \le n \le n_{\mathrm{Hi}}`` together with their mirrors ``-n``. Each term is ``i^n J_n(\rho)\,e^{in\theta}`` with ``\rho = \sqrt{X^2+Y^2}``, using the Bessel functions from Bessels.jl. `spectrum_magnitudes(kr, nmax)` returns ``|J_n(kr)|`` for ``n = 0, \dots, n_{\max}``: the stems of the spectrum panel.
+
+The cell under the experiment evaluates the partial sum on a 140 × 140 grid covering the aperture with some margin, measures the largest difference from ``\cos(kx)`` inside the aperture, and pushes the grid, that error and the spectrum to the widget.
 """
 
 # ╔═╡ cf380bc3-e9e2-4a54-ba9c-c89d7e2f26e8
@@ -138,6 +165,7 @@ spectrum_magnitudes(kr, nmax) = [abs(besselj(n, kr)) for n in 0:nmax]
 # ╔═╡ be9945a3-d6dc-406c-b7e6-b13bfca30ec6
 md"""
 ### Verifying the Partial Sum
+Three checks. At a fixed point with ``\rho = 11.8``, the error of the band ``0{:}N`` must shrink monotonically as ``N`` grows through 5, 15, 25, 40 and fall below ``10^{-6}``. For ``N = 15``, a point well inside ``\rho \approx N`` must already be accurate while a point well outside must not: that is the growing disk of agreement. And an isolated band ``20{:}40`` must differ from ``0{:}40``, so the low orders do real work.
 """
 
 # ╔═╡ b51453e8-379b-4d45-a493-8836ac0db46f
@@ -172,6 +200,7 @@ end
 # ╔═╡ 4eaa243a-36a2-4955-898c-5d328589008f
 md"""
 ## Widget
+`JacobiAngerInput` sends the aperture ``kr`` and the selected band ``n_{\mathrm{Lo}}{:}n_{\mathrm{Hi}}`` back to Julia. The grid cell under the experiment recomputes and returns a `JaPush`, whose `show` method dispatches a `ja-results` event to the widget with the grid, the error and the spectrum. The preset menu only sets ``kr``; the spectrum drag only sets the band.
 """
 
 # ╔═╡ 92f754a7-27a2-45b2-9f32-45cfeee534f5
@@ -187,7 +216,7 @@ begin
 
     function Base.show(io::IO, ::MIME"text/html", w::JacobiAngerInput)
         write(io, """
-        <div id="jawidget">
+        <div id="jawidget" class="app-widget">
         <style>
         pluto-cell:has(#jawidget) { width: min(80vw, 1150px) !important;
           margin-left: calc((100% - min(80vw, 1150px)) / 2) !important; }
@@ -210,14 +239,17 @@ begin
         #jawidget .ja-control-row input[type=range]{width:100%;min-width:0}
         #jawidget .ja-value{font-size:13px;color:#e5e7eb;text-align:right;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
         #jawidget select{background:#0b0b0b;color:#e5e7eb;border:1px solid #374151;border-radius:4px;padding:4px;width:100%}
+        /* App shell Expt view: the controls column is narrow, so stack label above slider. */
+        html[data-sa-mode="expt"] #jawidget .ja-control-group{flex:none;max-width:none}
+        html[data-sa-mode="expt"] #jawidget .ja-control-row{grid-template-columns:minmax(70px,110px) minmax(0,1fr) 64px}
         </style>
 
-        <div class="ja-title">
+        <div class="ja-title app-title">
           <div class="ja-title-desc">Drag across the spectrum to sum a band of pinwheel terms, and watch straight wavefronts emerge.</div>
           <div class="ja-title-hint">dashed circle = the aperture (kr) &middot; pick a real array scenario below, or drag kr freely</div>
         </div>
 
-        <div class="ja-primary">
+        <div class="ja-primary app-stage">
           <div>
             <div class="ja-panel-title">Multipole Spectrum</div>
             <div class="ja-panel"><canvas id="ja-spectrum"></canvas></div>
@@ -234,7 +266,7 @@ begin
         </div>
         <div class="ja-caption" id="ja-caption"></div>
 
-        <div class="ja-controls-row">
+        <div class="ja-controls-row app-controls">
           <div class="ja-control-group">
             <div class="ja-control-title">Array Scenario</div>
             <div class="ja-control-row"><label>preset</label>
@@ -259,10 +291,12 @@ begin
         let commitInFlight = false;
         let specAnchor = null; // order index where a spectrum click/drag started, null when idle
 
-        const availW = Math.min(window.innerWidth*0.8, par.clientWidth || window.innerWidth*0.8, 1150);
-        const GAP = 14, PANEL_OVERHEAD = 18;
-        const PW = Math.max(220, Math.floor((availW - 2*GAP - 3*PANEL_OVERHEAD) / 3));
-        const PH = PW;
+        // Panel side PW (=PH) is refit by layout() whenever the stage changes size: width-only
+        // in the plain notebook, width and height in the app shell's Expt view (signalled by
+        // the stage's --sa-fit-height, see src/assets/app-shell/app-shell.css).
+        const stage = par.querySelector('.app-stage');
+        const GAP = 14, PANEL_OVERHEAD = 18, TEXT_OVERHEAD = 60;  // panel title + caption
+        let PW = 0, PH = 0;
         const DPR = window.devicePixelRatio || 1;
 
         function hidpi(canvas, ctx, w, h){
@@ -271,11 +305,28 @@ begin
           ctx.setTransform(DPR,0,0,DPR,0,0);
         }
         const spectrumCv = par.querySelector('#ja-spectrum'), spectrumCtx = spectrumCv.getContext('2d');
-        hidpi(spectrumCv, spectrumCtx, PW, PH);
         const partialCv = par.querySelector('#ja-partial'), partialCtx = partialCv.getContext('2d');
-        hidpi(partialCv, partialCtx, PW, PH);
         const exactCv = par.querySelector('#ja-exact'), exactCtx = exactCv.getContext('2d');
-        hidpi(exactCv, exactCtx, PW, PH);
+        function layout(){
+          const cs = getComputedStyle(stage);
+          const w = (stage.clientWidth || Math.min(window.innerWidth*0.8, 1150)) - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight);
+          const fitH = cs.getPropertyValue('--sa-fit-height').trim() === '1';
+          // Three square panels in a row; on a phone, one per row.
+          const perRow = w < 600 ? 1 : 3;
+          let side = Math.floor((Math.min(w, fitH ? w : 1150) - (perRow-1)*GAP - perRow*PANEL_OVERHEAD) / perRow);
+          if(fitH && perRow === 3){
+            const h = stage.clientHeight - parseFloat(cs.paddingTop) - parseFloat(cs.paddingBottom);
+            side = Math.min(side, Math.floor(h - PANEL_OVERHEAD - TEXT_OVERHEAD));
+          }
+          side = Math.max(perRow === 1 ? 200 : 220, side);
+          if(side === PW) return false;
+          PW = PH = side;
+          hidpi(spectrumCv, spectrumCtx, PW, PH);
+          hidpi(partialCv, partialCtx, PW, PH);
+          hidpi(exactCv, exactCtx, PW, PH);
+          return true;
+        }
+        layout();
 
         function emit(){
           commitInFlight = true;
@@ -443,6 +494,14 @@ begin
           draw();
         });
 
+        // Refit on every stage resize (app-shell tab switches included); stop only once the
+        // widget has left the page -- Pluto can resolve `invalidation` while keeping the DOM.
+        const fitRO = new ResizeObserver(() => {
+          if(!par.isConnected){ fitRO.disconnect(); return; }
+          if(layout()) draw();
+        });
+        fitRO.observe(stage);
+
         syncControls();
         draw();
         }
@@ -488,19 +547,21 @@ end
 
 # ╔═╡ b4bc0a91-dc47-49df-a5da-b2d0287e398f
 begin
-    local halfwidth = max(1.3 * ja["kr"], 10.0)
+    # The bond is `nothing` until a browser has rendered the widget: use its defaults.
+    local jas = ja isa AbstractDict ? ja : Base.get(JacobiAngerInput())
+    local halfwidth = max(1.3 * jas["kr"], 10.0)
     local ngrid = 140
     local xs = range(-halfwidth, halfwidth; length=ngrid)
-    local nLo, nHi = ja["selLo"], ja["selHi"]
+    local nLo, nHi = jas["selLo"], jas["selHi"]
     local grid = [planewave_partial_sum(x, y, nLo, nHi) for y in xs, x in xs]
     local maxerr = 0.0
     for (iy, y) in enumerate(xs), (ix, x) in enumerate(xs)
-        if x^2 + y^2 <= ja["kr"]^2
+        if x^2 + y^2 <= jas["kr"]^2
             maxerr = max(maxerr, abs(grid[iy, ix] - cos(x)))
         end
     end
     local nmax_spectrum = 120
-    local spectrum = spectrum_magnitudes(ja["kr"], nmax_spectrum)
+    local spectrum = spectrum_magnitudes(jas["kr"], nmax_spectrum)
     JaPush(halfwidth, join(vec(permutedims(grid)), ","), maxerr, join(spectrum, ","))
 end
 
@@ -785,6 +846,7 @@ uuid = "23338594-aafe-5451-b93e-139f81909106"
 # ╔═╡ Cell order:
 # ╟─22fcbc39-b1b8-4a22-9310-eb97923ab4b0
 # ╠═4643b924-2b62-4970-8cc0-bff87395c309
+# ╟─9bdde4dc-7730-493d-840b-28e754032263
 # ╟─a918feb0-4e91-4300-9fc3-8c18c0cfd21f
 # ╟─2e30cdbe-790b-457b-923a-e52348ac0140
 # ╟─81081809-9c45-420f-aba3-af1c07ed3e2a

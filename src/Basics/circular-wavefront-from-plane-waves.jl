@@ -31,6 +31,30 @@ end
 # ╔═╡ ffdeeaca-a54c-47a2-9525-6a8875368703
 TableOfContents()
 
+# ╔═╡ 84220ea6-c640-4c2b-bbb6-5dc2e2e32ee1
+# App shell: the Expt / Theory / Code / Help frame shared by every notebook, loaded
+# from src/assets/app-shell/. Without that folder (a lone downloaded .jl) this cell just
+# shows the help text and the notebook stays a plain notebook.
+let
+	help = md"""
+	- **N (directions)** sets how many evenly spaced plane waves are summed; the left panel shows their directions.
+	- **kr (aperture)** sets how many rings fit across the panels; the **Station-Array Scenario** menu picks a real aperture.
+	- The middle panel is the sum, the right panel the exact target J₀(kr); the dashed circle marks the aperture.
+	- **Play** animates the field in time; **Reset** returns to t = 0.
+
+	**Try this:** set N = 1 and press Play (a travelling wave), then raise N past kr: the pattern stops travelling and pulses in place.
+	"""
+	dir = joinpath(@__DIR__, "..", "assets", "app-shell")
+	if isfile(joinpath(dir, "app-shell.js"))
+		HTML(string(
+			"<style>", read(joinpath(dir, "app-shell.css"), String), "</style>",
+			"<template class=\"app-help\">", repr(MIME"text/html"(), help), "</template>",
+			"<script>", read(joinpath(dir, "app-shell.js"), String), "</script>"))
+	else
+		help
+	end
+end
+
 # ╔═╡ 70042daf-6ff4-49c1-b50a-d9e8df536776
 md"""
 # How a Circular Wavefront Is Built From Plane Waves
@@ -57,7 +81,7 @@ concentric rings.
 md"""
 ## Reading the Panels
 
-**Drag `N`** (how many evenly-spaced propagation directions are summed) and **`kr`** (the
+In the experiment, **drag `N`** (how many evenly-spaced propagation directions are summed) and **`kr`** (the
 aperture -- how many wavefront rings fit across the panel), or pick a station-array preset.
 
 The **left** panel shows exactly which `N` plane-wave directions are being summed -- `N` ticks
@@ -152,11 +176,15 @@ directly, alongside `` H_0^{(2)}=\overline{H_0^{(1)}} ``.
 # ╔═╡ 2e0c5129-76d4-4200-b2d3-471e404ef61b
 md"""
 ## Appendix
+How the experiment computes what it shows: the direction sums and the Bessel target are evaluated in Julia on a grid, and the browser only colours and animates what it is sent.
 """
 
 # ╔═╡ 3a1e3154-63b1-4661-ab44-601e47874271
 md"""
 ## Summing Plane Waves Over Direction
+`plane_wave_directions(N)` returns the ``N`` evenly spaced directions ``\phi_j = 2\pi j/N``. `summed_plane_wave_field_complex(X, Y, N)` averages the ``N`` unit plane waves ``e^{i(X\cos\phi_j + Y\sin\phi_j)}`` at one point of the ``k``-scaled plane, and `summed_plane_wave_field` takes its real part, the ``t = 0`` snapshot ``S_N``.
+
+The cell under the experiment evaluates the complex sum and ``J_0(kr)`` on a 140 × 140 grid, measures the largest difference inside the aperture, and pushes both the real and imaginary parts. The browser animates ``\mathrm{Re}[Z_N e^{-i\omega t}]`` from those two numbers per pixel, so no sum is recomputed frame to frame.
 """
 
 # ╔═╡ 57218488-7de4-487d-bb2f-6e94b4055458
@@ -216,6 +244,7 @@ summed_plane_wave_field(X, Y, N) = real(summed_plane_wave_field_complex(X, Y, N)
 # ╔═╡ 5fd8e68c-3302-4911-8831-8f65912c6e59
 md"""
 ### Verifying the Summation
+The check below confirms that the ``N``-direction average converges to ``J_0(kr)`` at a test point, with the residual bounded by the leading ``\pm N`` terms of the Jacobi–Anger series. That bound is the precise form of "the flower shrinks but never quite vanishes for finite ``N``".
 """
 
 # ╔═╡ 92c94385-480b-4bcb-9f0a-bb99a795e367
@@ -259,8 +288,7 @@ end
 md"""
 ## Standing Waves Are Half Outgoing, Half Incoming
 
-`` J_0 `` is not a third kind of circular wave alongside the outgoing and incoming ones -- it is
-*built* from them, exactly half of each.
+`` J_0 `` is not a third kind of circular wave alongside the outgoing and incoming ones: it is *built* from them, exactly half of each. The check below verifies ``J_0 = (H_0^{(1)} + H_0^{(2)})/2`` and ``H_0^{(2)} = \overline{H_0^{(1)}}`` at several arguments.
 """
 
 # ╔═╡ 2df09cda-c40f-4b8c-a254-c18a857c652e
@@ -284,6 +312,7 @@ end
 # ╔═╡ 3e7f180e-808c-4e66-b7cc-ee5d54213685
 md"""
 ## Widget
+`CircularWavefrontInput` sends the aperture ``kr`` and the number of directions ``N`` back to Julia. The grid cell under the experiment recomputes and returns a `CwPush`, whose `show` method dispatches a `cw-results` event with the summed field (real and imaginary parts), the exact target and the error. Play, Reset and the phase readout are purely client-side.
 """
 
 # ╔═╡ f88fd389-fc11-492b-b7c2-cb9708124baa
@@ -298,7 +327,7 @@ begin
 
     function Base.show(io::IO, ::MIME"text/html", w::CircularWavefrontInput)
         write(io, """
-        <div id="cwwidget">
+        <div id="cwwidget" class="app-widget">
         <style>
         pluto-cell:has(#cwwidget) { width: min(80vw, 1150px) !important;
           margin-left: calc((100% - min(80vw, 1150px)) / 2) !important; }
@@ -321,15 +350,18 @@ begin
         #cwwidget .cw-value{font-size:13px;color:#e5e7eb;text-align:right;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
         #cwwidget select{background:#0b0b0b;color:#e5e7eb;border:1px solid #374151;border-radius:4px;padding:4px;width:100%}
         #cwwidget .cw-controls-row{flex-wrap:wrap;gap:14px}
+        /* App shell Expt view: controls stack in the narrow rail. */
+        html[data-sa-mode="expt"] #cwwidget .cw-control-group{flex:none!important;max-width:none}
+        html[data-sa-mode="expt"] #cwwidget .cw-control-row{grid-template-columns:minmax(70px,110px) minmax(0,1fr) 64px}
         #cwwidget .cw-btn{border-radius:4px;border:1px solid #9ca3af;background:#606060;color:#f3f4f6;padding:6px 12px;font-size:14px;cursor:pointer}
         </style>
 
-        <div class="cw-title">
+        <div class="cw-title app-title">
           <div class="cw-title-desc">Drag N to sum more plane-wave directions, then press Play to watch it move.</div>
           <div class="cw-title-hint">dashed circle = the aperture (kr) &middot; N=1 travels, large N pulses in place &middot; pick a scenario below, or drag freely</div>
         </div>
 
-        <div class="cw-primary">
+        <div class="cw-primary app-stage">
           <div>
             <div class="cw-panel-title">Plane-Wave Directions</div>
             <div class="cw-panel"><canvas id="cw-directions"></canvas></div>
@@ -345,7 +377,7 @@ begin
         </div>
         <div class="cw-caption" id="cw-caption"></div>
 
-        <div class="cw-controls-row">
+        <div class="cw-controls-row app-controls">
           <div class="cw-control-group">
             <div class="cw-control-title">Station-Array Scenario</div>
             <div class="cw-control-row"><label>preset</label>
@@ -379,10 +411,12 @@ begin
         const OMEGA = 1.3; // rad/s of animated phase -- a full 2*pi cycle takes ~4.8s
         let animT = 0, playing = false, lastTs = null, rafId = null;
 
-        const availW = Math.min(window.innerWidth*0.8, par.clientWidth || window.innerWidth*0.8, 1150);
-        const GAP = 14, PANEL_OVERHEAD = 18;
-        const PW = Math.max(220, Math.floor((availW - 2*GAP - 3*PANEL_OVERHEAD) / 3));
-        const PH = PW;
+        // Panel side PW (=PH) is refit by layout() whenever the stage changes size: width-only
+        // in the plain notebook, width and height in the app shell's Expt view (signalled by
+        // the stage's --sa-fit-height, see src/assets/app-shell/app-shell.css).
+        const stage = par.querySelector('.app-stage');
+        const GAP = 14, PANEL_OVERHEAD = 18, TEXT_OVERHEAD = 30;  // panel title
+        let PW = 0, PH = 0;
         const DPR = window.devicePixelRatio || 1;
 
         function hidpi(canvas, ctx, w, h){
@@ -391,11 +425,28 @@ begin
           ctx.setTransform(DPR,0,0,DPR,0,0);
         }
         const dirCv = par.querySelector('#cw-directions'), dirCtx = dirCv.getContext('2d');
-        hidpi(dirCv, dirCtx, PW, PH);
         const summedCv = par.querySelector('#cw-summed'), summedCtx = summedCv.getContext('2d');
-        hidpi(summedCv, summedCtx, PW, PH);
         const exactCv = par.querySelector('#cw-exact'), exactCtx = exactCv.getContext('2d');
-        hidpi(exactCv, exactCtx, PW, PH);
+        function layout(){
+          const cs = getComputedStyle(stage);
+          const w = (stage.clientWidth || Math.min(window.innerWidth*0.8, 1150)) - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight);
+          const fitH = cs.getPropertyValue('--sa-fit-height').trim() === '1';
+          // Three square panels in a row; on a phone, one per row.
+          const perRow = w < 600 ? 1 : 3;
+          let side = Math.floor((Math.min(w, fitH ? w : 1150) - (perRow-1)*GAP - perRow*PANEL_OVERHEAD) / perRow);
+          if(fitH && perRow === 3){
+            const h = stage.clientHeight - parseFloat(cs.paddingTop) - parseFloat(cs.paddingBottom);
+            side = Math.min(side, Math.floor(h - PANEL_OVERHEAD - TEXT_OVERHEAD));
+          }
+          side = Math.max(perRow === 1 ? 200 : 220, side);
+          if(side === PW) return false;
+          PW = PH = side;
+          hidpi(dirCv, dirCtx, PW, PH);
+          hidpi(summedCv, summedCtx, PW, PH);
+          hidpi(exactCv, exactCtx, PW, PH);
+          return true;
+        }
+        layout();
 
         function emit(){
           commitInFlight = true;
@@ -534,6 +585,14 @@ begin
           draw();
         });
 
+        // Refit on every stage resize (app-shell tab switches included); stop only once the
+        // widget has left the page -- Pluto can resolve `invalidation` while keeping the DOM.
+        const fitRO = new ResizeObserver(() => {
+          if(!par.isConnected){ fitRO.disconnect(); if(rafId) cancelAnimationFrame(rafId); return; }
+          if(layout()) draw();
+        });
+        fitRO.observe(stage);
+
         syncControls();
         draw();
         }
@@ -581,17 +640,19 @@ end
 
 # ╔═╡ 5a574765-529e-49a6-a4ae-4a911e4bbc4a
 begin
-    local halfwidth = max(1.3 * cw["kr"], 10.0)
+    # The bond is `nothing` until a browser has rendered the widget: use its defaults.
+    local cws = cw isa AbstractDict ? cw : Base.get(CircularWavefrontInput())
+    local halfwidth = max(1.3 * cws["kr"], 10.0)
     local ngrid = 140
     local xs = range(-halfwidth, halfwidth; length=ngrid)
-    local N = round(Int, cw["N"])
+    local N = round(Int, cws["N"])
     local summed_c = [summed_plane_wave_field_complex(x, y, N) for y in xs, x in xs]
     local summed_re = real.(summed_c)
     local summed_im = imag.(summed_c)
     local exact = [besselj(0, hypot(x, y)) for y in xs, x in xs]
     local maxerr = 0.0
     for (iy, y) in enumerate(xs), (ix, x) in enumerate(xs)
-        if x^2 + y^2 <= cw["kr"]^2
+        if x^2 + y^2 <= cws["kr"]^2
             maxerr = max(maxerr, abs(summed_re[iy, ix] - exact[iy, ix]))
         end
     end
@@ -881,6 +942,7 @@ uuid = "23338594-aafe-5451-b93e-139f81909106"
 # ╔═╡ Cell order:
 # ╟─7e266e4d-e0fa-45f4-ad8b-b6c4f784a392
 # ╠═ffdeeaca-a54c-47a2-9525-6a8875368703
+# ╟─84220ea6-c640-4c2b-bbb6-5dc2e2e32ee1
 # ╟─70042daf-6ff4-49c1-b50a-d9e8df536776
 # ╟─fa29d377-b796-4489-95f1-76181f9d9159
 # ╟─931da2f3-774e-42b6-9f92-37ccb250479c
@@ -893,7 +955,7 @@ uuid = "23338594-aafe-5451-b93e-139f81909106"
 # ╠═27f7ef58-1d43-4bda-be5e-a455aee66bab
 # ╟─5fd8e68c-3302-4911-8831-8f65912c6e59
 # ╠═92c94385-480b-4bcb-9f0a-bb99a795e367
-# ╠═b4f123af-2e6e-46b4-a57e-ea7ff710d29c
+# ╟─b4f123af-2e6e-46b4-a57e-ea7ff710d29c
 # ╠═2df09cda-c40f-4b8c-a254-c18a857c652e
 # ╟─3e7f180e-808c-4e66-b7cc-ee5d54213685
 # ╠═f88fd389-fc11-492b-b7c2-cb9708124baa

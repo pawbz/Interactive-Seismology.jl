@@ -1,11 +1,11 @@
 ### A Pluto.jl notebook ###
-# v0.2.6
+# v1.0.3
 
 #> [frontmatter]
-#> title = "P-SV Free-surface Reflection"
-#> layout = "layout.jlhtml"
 #> tags = ["planewaves"]
+#> title = "P-SV Free-surface Reflection"
 #> description = "In this notebook, we shall investigate the interaction of plane P waves with Earth's free surface. "
+#> layout = "layout.jlhtml"
 
 using Markdown
 using InteractiveUtils
@@ -31,6 +31,30 @@ end
 # ╔═╡ 08429397-3964-4600-bc14-c45d22c915ec
 TableOfContents()
 
+# ╔═╡ 852db0c4-de92-4591-af42-0f3b9826cdf3
+# App shell: the Expt / Theory / Code / Help frame shared by every notebook, loaded
+# from src/assets/app-shell/. Without that folder (a lone downloaded .jl) this cell just
+# shows the help text and the notebook stays a plain notebook.
+let
+	help = md"""
+	- **Drag** on the polar plot (left) to set the angle of incidence. The wavefield (right) follows.
+	- **Hover** a curve to name it and read its value at the current angle.
+	- **Incident P / S** chooses the incident wave; the **Medium** sliders set `α`, `β` and `ρ`, and the coefficients are recomputed in Julia.
+	- **ω** only changes the wavelengths drawn; **Display** chooses which waves are drawn; **Play** animates the wavefield.
+
+	**Try this:** switch to an incident S wave and drag past the critical angle (sin j = β/α), where the converted P wave stops propagating.
+	"""
+	dir = joinpath(@__DIR__, "..", "assets", "app-shell")
+	if isfile(joinpath(dir, "app-shell.js"))
+		HTML(string(
+			"<style>", read(joinpath(dir, "app-shell.css"), String), "</style>",
+			"<template class=\"app-help\">", repr(MIME"text/html"(), help), "</template>",
+			"<script>", read(joinpath(dir, "app-shell.js"), String), "</script>"))
+	else
+		help
+	end
+end
+
 # ╔═╡ 32a757ff-aa7a-41d5-b8b3-6ac9e0125875
 md"""
 # P-SV Free-surface Reflection
@@ -45,7 +69,12 @@ Indian Institute of Science, Bengaluru, India
 """
 
 # ╔═╡ 4476bf78-39e3-4674-a152-db19fe80929a
-md"Spatial coordinates, time, and angular frequency."
+md"""
+## Symbols and Conventions
+P-SV motion lives in the vertical ``x``–``z`` plane: the displacement has components ``u_x`` and ``u_z``. All waves travel in a single elastic medium with P velocity ``\alpha``, S velocity ``\beta`` and density ``\rho``, i.e. Lamé parameters ``\mu = \rho\beta^2`` and ``\lambda = \rho(\alpha^2 - 2\beta^2)``. The medium is bounded by a free surface (vacuum) at ``z = 0``.
+
+The derivation is carried out symbolically with Symbolics.jl: ``x``, ``z``, ``t`` and ``\omega`` are real symbols, and the imaginary unit is a placeholder symbol `ı`, replaced by Julia's `im` only when numbers are needed.
+"""
 
 # ╔═╡ 927dcc43-202c-4ad2-a76c-837d41f1ed6c
 @syms x::Real z::Real ω::Real t::Real
@@ -54,7 +83,9 @@ md"Spatial coordinates, time, and angular frequency."
 @syms ı::Complex{Real} # imaginary unit, going to substitute with im later
 
 # ╔═╡ 0bea69f9-3ffa-4695-a5eb-6e962d2a81ce
-md"Differential operators."
+md"""
+Spatial derivatives are taken with Symbolics' `Differential` operators `Dx` and `Dz`: they turn potentials into displacements, and displacements into stresses.
+"""
 
 # ╔═╡ e8729ceb-e85f-4c21-89d2-f15ec69a840f
 begin
@@ -63,7 +94,13 @@ begin
 end
 
 # ╔═╡ 670d5198-f810-472e-8db8-b13385ca294a
-md"In 2D, a harmonic plane wave with an frequency `ω`, amplitude `A`, horizontal slowness `p` and vertical slowness `η` is defined below."
+md"""
+Rather than the displacement itself, each wave is described by a scalar potential. A harmonic plane-wave potential with angular frequency ``\omega``, amplitude ``A``, horizontal slowness ``p`` and vertical slowness ``\eta`` is
+```math
+\Phi = A\,\exp\big[\,i\omega\,(t - p\,x - \eta\,z)\big],
+```
+implemented as `plane(p, η, A)`. Flipping the sign of ``\eta`` reverses the wave's vertical direction of travel.
+"""
 
 # ╔═╡ 6043b904-6991-4776-bc1b-13eda3fcc936
 """
@@ -76,14 +113,18 @@ amplitude `A`, sharing the notebook-wide symbolic angular frequency `ω` and coo
 plane(p, η, A) = A * exp(ı * ω * (t - (p * x + η * z)))
 
 # ╔═╡ c7c52926-6e2e-4c4c-a01f-09f57c2ececd
-md"The horizontal slowness i.e., the ray parameter is denoted using `p`."
+md"""
+The horizontal slowness ``p`` is the **ray parameter**. The boundary conditions must hold at every ``x`` on the surface, so the incident and both reflected waves share the same ``p``. This is Snell's law, including the mode-converted wave: ``p = \sin i/\alpha = \sin j/\beta``, where ``i`` is the angle of the P leg and ``j`` that of the S leg.
+"""
 
 # ╔═╡ 33c6aa70-87cb-464a-88f7-b82d17476a2f
-md"The vertical component of the slowness vector in the first and second layer are denoted using `η` and `η_t`. These plane waves satisfy the scalar wave equation only if the dispersion relation
+md"""
+Each potential solves its own wave equation only if its vertical slowness satisfies the matching dispersion relation,
 ```math
-p^2 + η^2 = \frac{1}{β^2}
+p^2 + \eta_\alpha^2 = \frac{1}{\alpha^2} \quad \text{(P)}, \qquad p^2 + \eta_\beta^2 = \frac{1}{\beta^2} \quad \text{(S)}.
 ```
-is satisfied."
+In the code, `η₁` is the vertical slowness of the wave type of the incident wave and `η₂` that of the mode-converted wave. Since ``\beta < \alpha``, the S leg is always steeper (``j < i``) for P incidence. For S incidence the converted P leg becomes evanescent past the critical angle ``\sin j_c = \beta/\alpha``, where ``\eta_\alpha`` turns imaginary.
+"""
 
 # ╔═╡ fbc6cd6c-0b3b-44e9-b2a6-5edb0eeced1b
 @syms A A₁ A₂
@@ -96,12 +137,13 @@ is satisfied."
 
 # ╔═╡ aae7b893-4b33-44ae-b01c-6345a1180d0d
 md"""
-## Potentials : Incident P-wave, Reflected P-wave and Reflected SV-wave 
-For the P-SV system on a free surface, all the waves are traveling in the same medium. The velocity of the P-wave is denoted by `α` and the velocity of the S-wave is denoted by `β`. The plane waves representing potentials share the same horizontal slowness `p`.
-
-- Now, we create an incident wave using the `plane` function with parameters `p`, `η₁`, and `A`, representing the horizontal slowness, verticle slowness, and amplitude, respectively. 
-- Then, two reflected waves, `reflect1` and `reflect2`, are also defined using the `plane` function. The first reflected wave, `reflect1`, uses the parameters `p`, `-η₁`, and `A₁`, indicating a reflection with opposite vertical slowness and a different amplitude. 
-- Similarly, the second reflected wave, `reflect2`, is defined with `p`, `-η₂`, and `A₂`, representing another reflection with a different vertical slowness and amplitude. This setup models the behavior of P and S incident and reflected waves at a free surface.
+## Potentials: Incident Wave, Direct Reflection and Converted Reflection
+A wave hitting a free surface reflects as *two* waves: one of its own type, and one mode-converted to the other type. For an incident P wave, with P potential ``\phi`` and SV potential ``\psi``,
+```math
+\phi = A\,e^{i\omega(t - px - \eta_\alpha z)} + A_1\,e^{i\omega(t - px + \eta_\alpha z)}, \qquad
+\psi = A_2\,e^{i\omega(t - px + \eta_\beta z)},
+```
+built below as `incident = plane(p, η₁, A)`, `reflect1 = plane(p, -η₁, A₁)` (the direct reflection, same type, reversed vertical slowness) and `reflect2 = plane(p, -η₂, A₂)` (the converted reflection). For an incident S wave the roles of ``\phi`` and ``\psi`` swap.
 """
 
 # ╔═╡ f488f9f3-e73b-42ae-b3c2-2262661fd839
@@ -116,52 +158,63 @@ reflect2 = plane(p, -η₂, A₂)
 # ╔═╡ a1213dc4-3ea9-4b26-aa82-a15cc3e72401
 md"""
 ## Particle Displacements
-We now write expressions for particle displacements given plane wave potentials.
-Depending on whether the incident wave is P or S, these expressions change.
+The displacement follows from the two potentials as ``\mathbf{u} = \nabla\phi + \nabla\times(\psi\,\hat{\mathbf{y}})``:
+```math
+u_x = \frac{\partial\phi}{\partial x} - \frac{\partial\psi}{\partial z}, \qquad
+u_z = \frac{\partial\phi}{\partial z} + \frac{\partial\psi}{\partial x}.
+```
+The P potential gives compressional motion along the ray and the SV potential gives shear motion across it. The three cells below apply the matching operator to each wave (`UxInc`, `UzInc`, `UxRef1`, …), choosing the P or S form according to the incident wave type.
 """
 
 # ╔═╡ 52d2ba9b-826a-4805-9583-f1a80b10a926
 md"""
 ## Free-surface Condition
-At the free-surface i.e. z=0 , kinematic boundary condition does not exist.
-We have two dynamic boundary conditions `σ_{zz}=0` and `σ_{xz}=0` and two unknowns (`A_{1}`,`A_{2}`) to estimate (when assuming `A=1`).
+Nothing is attached above ``z = 0``, so there is no kinematic condition: the surface is free to move. The dynamic condition says the traction on the surface vanishes, ``\sigma_{zz} = \sigma_{xz} = 0``, with
+```math
+\sigma_{zz} = \lambda\Big(\frac{\partial u_x}{\partial x} + \frac{\partial u_z}{\partial z}\Big) + 2\mu\frac{\partial u_z}{\partial z}, \qquad
+\sigma_{xz} = \mu\Big(\frac{\partial u_z}{\partial x} + \frac{\partial u_x}{\partial z}\Big).
+```
+The stresses of the three waves are summed and evaluated at ``z = 0`` (`σzz_z0`, `σxz_z0`). Setting ``A = 1`` and cancelling the common phase factor ``e^{i\omega(t - px)}`` (by evaluating at ``t = x = 0``) leaves two linear equations, `σzz` and `σxz`, for the two unknowns ``A_1`` and ``A_2``. `sol` is their solution.
 """
 
 # ╔═╡ 7cf515f8-2496-4bde-b3b3-9d39d971764a
 @syms λ::Real μ::Real
 
+# ╔═╡ 602f13f9-6d14-41fd-9183-b8255d64399b
+Markdown.MD(Markdown.Admonition("note", "What the coefficients show",
+    [md"""
+- Every incident wave produces a mode-converted wave, except at normal incidence (``p = 0``), where P reflects only as P and S only as S.
+- For P incidence the reflected S leg is steeper than the reflected P leg, because ``\eta_\beta > \eta_\alpha``, and its wavelength is shorter (``\beta < \alpha``).
+- A negative real coefficient is a reflection with a phase change of π.
+- The direct and converted coefficients trade off against each other: energy that goes into the converted wave is missing from the direct reflection.
+- For S incidence beyond ``\sin j_c = \beta/\alpha`` the converted P wave is evanescent and the coefficients become complex: the reflected S wave is phase-shifted.
+"""]
+))
+
+# ╔═╡ dba7ea14-e0dd-4dc4-ad9c-4627fd16cc62
+md"""
+## Appendix
+The symbolic solution is the clearest statement of the result, but it is too slow to substitute and simplify at every angle of an interactive sweep. This Appendix re-implements it numerically for the medium chosen in the experiment, checks the numbers against normal incidence, and describes how the experiment is wired to them.
+"""
+
 # ╔═╡ 5729b459-b283-41ce-95be-c4d33a7c28c0
-md"## Example"
+md"""
+## Numerical Coefficients
+The medium (``\alpha``, ``\beta``, ``\rho``) and the incident wave type come from the experiment's controls, unpacked into `αin`, `βin`, `ρin` and `incident_waves`.
+"""
 
 # ╔═╡ 281cb873-760c-411f-98b5-1c64d218e7e9
 md"""
-We shall begin defining a function that computes the ray parameter, given the
-angle of incidence `θ`.
+For an incidence angle ``\theta``, the ray parameter is ``p = \sin\theta/\alpha`` for an incident P wave and ``p = \sin\theta/\beta`` for an incident S wave (`rp`).
 """
 
 # ╔═╡ 3d50985b-b79a-45ab-ba1f-5287936c56d9
 @syms θ::Real
 
 # ╔═╡ a7cb9cd5-7013-461b-960d-5da73db62aea
-md"We now compute the vertical component of the slowness vector for both the reflected waves using the 
-dispersion relation."
-
-# ╔═╡ 8c81ddb5-bf4d-4610-bfea-3d1a27ffd61f
 md"""
-We can finally update the expressions of reflection coefficients using input parameters and plot them.
+The vertical slownesses follow from the dispersion relations: `ηz1` for the wave type of the incident wave (always real for ``0 \le \theta \le 90°``) and `ηz2` for the converted wave. Both are complex square roots, so the converted leg turns imaginary past its critical angle without special-casing.
 """
-
-# ╔═╡ eeee5555-5555-5555-5555-555555555555
-md"""
-### Verifying the coefficients
-At normal incidence (`θ=0`), there is no mode conversion: a P wave striking the surface
-head-on reflects only as P (and likewise for S), so the mode-converted amplitude should
-vanish, and since a free surface reflects all incident energy, the direct reflection
-coefficient's magnitude should be exactly 1.
-"""
-
-# ╔═╡ dba7ea14-e0dd-4dc4-ad9c-4627fd16cc62
-md"## Appendix"
 
 # ╔═╡ ea3b7089-bda8-4694-8042-98534b1739bd
 Markdown.MD(Markdown.Admonition("warning", "Sign convention",
@@ -170,19 +223,22 @@ The sign of the vertical slowness in the transmitted field above is chosen to pr
 """]
 ))
 
-# ╔═╡ 602f13f9-6d14-41fd-9183-b8255d64399b
-Markdown.MD(Markdown.Admonition("note", "Observations",
-    [md"""
-- The angle of reflection of the S-wave is always less than that of the P-reflected wave. This is because the vertical slowness of the S-reflected wave (`η_β`) is always greater than that of the P-reflected wave.
-- The wavenumber of the S-reflected wave is higher than that of the P-wave. The wavenumber of the S-reflected wave increases as `β` becomes smaller compared to `α`.
-- When `β` is very small, the amplitude of the S-reflected wave is negligible.
-- A negative reflection coefficient indicates a phase change of the reflected wave by π.
-- The P-reflection coefficient and S-reflection coefficient follow the conservation of energy. The P-reflection coefficient is maximum when the S-reflection coefficient is minimum.
-"""]
-))
+# ╔═╡ 8c81ddb5-bf4d-4610-bfea-3d1a27ffd61f
+md"""
+`psv_traction` gives the ``(\sigma_{zz}, \sigma_{xz})`` contribution of one P or SV potential with ``\partial_x \to -i p`` and ``\partial_z \to -i\eta`` (the ``i\omega`` factors cancel). `psv_free_surface_coefficients` then solves the 2×2 traction-free system by Cramer's rule. `Avec` evaluates the two coefficients for the current medium and incident type.
+"""
+
+# ╔═╡ eeee5555-5555-5555-5555-555555555555
+md"""
+### Verifying the coefficients
+At normal incidence (``\theta = 0``) there is no mode conversion: a P wave striking the surface head-on reflects only as P, and likewise for S. So the converted amplitude must vanish, and because a free surface transmits nothing, the direct reflection coefficient must have magnitude exactly 1. The check below asserts both for the current medium.
+"""
 
 # ╔═╡ aaaa7777-7777-7777-7777-777777777777
-md"## The Interactive Widget"
+md"""
+## The Interactive Widget
+The experiment is a custom widget, `PSVWidgetInput`. Only the medium (``\alpha``, ``\beta``, ``\rho``) and the incident wave type are sent back to Julia. Each change re-runs the sweep cell, which evaluates `rp`, `ηz1`, `ηz2` and `psv_free_surface_coefficients` every 0.5° from 0° to 90° and pushes the arrays to the browser. The incidence angle, frequency, display toggles and animation never touch Julia: the wavefield panel draws the incident and reflected waves from the pushed coefficients at the selected angle.
+"""
 
 # ╔═╡ dddd4444-4444-4444-4444-444444444444
 begin
@@ -209,7 +265,7 @@ begin
 
     function Base.show(io::IO, ::MIME"text/html", w::PSVWidgetInput)
         write(io, """
-<div id="psvwidget" style="display:flex;flex-direction:column;align-items:center;width:100%;color:#9ca3af">
+<div id="psvwidget" class="app-widget" style="display:flex;flex-direction:column;align-items:center;width:100%;color:#9ca3af">
   <style>
     pluto-cell:has(#psvwidget) {
       width: min(80vw, 1100px) !important;
@@ -220,7 +276,7 @@ begin
       background: #0a0f18; border: 1px solid #3b5c85; border-radius: 6px; padding: 10px 14px; }
     #psvwidget .psv-title-desc { font-size: 17px; font-weight: 700; color: #e5e7eb; }
     #psvwidget .psv-title-hint { font-size: 13px; color: #9ca3af; margin-top: 3px; }
-    #psvwidget .psv-workspace { display: flex; gap: 12px; align-items: flex-start; justify-content: center;
+    #psvwidget .psv-workspace { display: flex; gap: 8px; align-items: flex-start; justify-content: center;
       width: 100%; flex-wrap: wrap; }
     #psvwidget .psv-controls { width: min(var(--totalw,900px),100%); margin-top: 10px; display: grid;
       grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 8px; font: 14px sans-serif; }
@@ -236,15 +292,15 @@ begin
       padding: 6px 12px; font-size: 14px; cursor: pointer; }
     #psvwidget label { color: #d1d5db; }
   </style>
-  <div class="psv-title">
+  <div class="psv-title app-title">
     <div class="psv-title-desc">Drag the angle axis on the coefficient plot to see how the reflected P and S waves change.</div>
     <div class="psv-title-hint">drag left/right on the coefficient plot &middot; hover a curve to identify it &middot; press play to animate</div>
   </div>
-  <div class="psv-workspace">
+  <div class="psv-workspace app-stage">
     <canvas id="psvrefl" style="background:#000;border:1px solid #374151;border-radius:6px;display:block"></canvas>
     <canvas id="psvwave" style="background:#000;border:1px solid #374151;border-radius:6px;display:block"></canvas>
   </div>
-  <div class="psv-controls">
+  <div class="psv-controls app-controls">
     <div class="psv-control-group">
       <div class="psv-control-title">Medium</div>
       <label class="psv-control-row"><span>α (km/s)</span><input type="range" id="psv-alpha" min="2" max="6" step="0.1" value="$(w.alpha)"><span id="psv-alpha-v" class="psv-value">$(w.alpha)</span></label>
@@ -273,11 +329,13 @@ begin
 </div>
 <script>
   const par = currentScript.previousElementSibling
-  const availW = Math.min(window.innerWidth*0.8, par.clientWidth || window.innerWidth*0.8, 1100)
-  const totalW = Math.max(700, availW)
-  par.style.setProperty('--totalw', Math.round(totalW)+'px')
-  const SEC = Math.round(Math.min(totalW/2 - 10, 380))
+  const stage = par.querySelector('.app-stage')
+  const GAP = 8, BORDER = 2   // BORDER = left+right 1px canvas borders
   const DPR = Math.min(window.devicePixelRatio || 1, 2)
+  // Canvas side SEC is refit by layout() whenever the stage changes size: width-only in the
+  // plain notebook, width and height in the app shell's full-screen Expt view (signalled
+  // by the stage's --sa-fit-height, see src/assets/app-shell/app-shell.css).
+  let SEC = 0
 
   let alpha = $(w.alpha), beta = $(w.beta), rho = $(w.rho), incidentType = "$(w.incident_type)"
   let thetaDeg = 40, omega = 0.3
@@ -292,16 +350,37 @@ begin
     cv.style.width = w+'px'; cv.style.height = h+'px'
     cx.setTransform(DPR,0,0,DPR,0,0)
   }
-  hidpi(reflCvs, rctx, SEC, SEC)
-  hidpi(waveCvs, wctx, SEC, SEC)
 
   // ---- reflectivity canvas: quarter-circle polar plot (angle 0-90deg sweeping
   // clockwise from "up"), matching the notebook's own Reference Plots section --
   // the radial axis is the diverging coefficient value itself, so the pole
   // (r=RVMIN) sits at the plot's inner corner and the outer arc is r=RVMAX.
-  const RPOLE = {x: 46, y: SEC-30}
+  const RPOLE = {x: 46, y: 0}
   const RVMIN = -2, RVMAX = 2
-  const RMAX = Math.max(60, Math.min(SEC-RPOLE.x-34, RPOLE.y-32))
+  let RMAX = 60
+
+  function layout(){
+    const cs = getComputedStyle(stage)
+    const w = stage.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight)
+    const fitH = cs.getPropertyValue('--sa-fit-height').trim() === '1'
+    // Phones: one canvas per row instead of two side by side.
+    const stacked = w < 600
+    let side = stacked ? Math.floor(w - BORDER) : Math.floor((Math.max(w, 700) - GAP - 2*BORDER) / 2)
+    if(fitH && !stacked){
+      const h = stage.clientHeight - parseFloat(cs.paddingTop) - parseFloat(cs.paddingBottom)
+      side = Math.min(Math.floor((w - GAP - 2*BORDER) / 2), Math.floor(h - BORDER))
+    }
+    side = Math.max(stacked ? 200 : 260, side)
+    if(side === SEC) return false
+    SEC = side
+    par.style.setProperty('--totalw', (2*SEC + GAP + 2*BORDER)+'px')
+    hidpi(reflCvs, rctx, SEC, SEC)
+    hidpi(waveCvs, wctx, SEC, SEC)
+    RPOLE.y = SEC-30
+    RMAX = Math.max(60, Math.min(SEC-RPOLE.x-34, RPOLE.y-32))
+    return true
+  }
+  layout()
   function angDir(thetaDeg){
     const rad = thetaDeg*Math.PI/180
     return [Math.sin(rad), -Math.cos(rad)]   // 0deg -> straight up, 90deg -> straight right
@@ -503,13 +582,27 @@ begin
     wctx.imageSmoothingEnabled = true
     wctx.drawImage(off, 0, 0, OFFW, OFFH, 0, 0, SEC, SEC)
 
-    // free-surface line + labels
-    wctx.strokeStyle = '#facc15'; wctx.lineWidth = 2
-    wctx.beginPath(); wctx.moveTo(0,1); wctx.lineTo(SEC,1); wctx.stroke()
-    wctx.fillStyle = '#facc15'; wctx.font = '12px sans-serif'
-    wctx.fillText('Free surface', SEC*0.55, 16)
-    wctx.fillStyle = '#e5e7eb'
-    wctx.fillText('(α,β,ρ)', 10, SEC-10)
+    // Labels sit in white boxes so black text stays legible over the red/blue field.
+    function labelBox(text, x, y){
+      wctx.font = '13px sans-serif'
+      const tw = wctx.measureText(text).width
+      wctx.fillStyle = 'rgba(255,255,255,0.92)'
+      wctx.fillRect(x-5, y-14, tw+10, 20)
+      wctx.strokeStyle = '#000000'; wctx.lineWidth = 1
+      wctx.strokeRect(x-5, y-14, tw+10, 20)
+      wctx.fillStyle = '#000000'
+      wctx.fillText(text, x, y)
+    }
+    wctx.strokeStyle = '#000000'; wctx.lineWidth = 5
+    wctx.beginPath(); wctx.moveTo(0,2); wctx.lineTo(SEC,2); wctx.stroke()
+    labelBox('Free surface', SEC*0.55, 30)
+
+    // Medium parameters in the widget's own units (km/s, g/cm^3; omega in rad/s over a
+    // km-scaled x axis, so lambda = 2*pi*v/omega is in km). String concatenation, not a
+    // JS template literal: a bare dollar-brace inside this Julia string parses as interpolation.
+    const lamP = (2*Math.PI*alpha/omega).toFixed(1), lamS = (2*Math.PI*beta/omega).toFixed(1)
+    labelBox('Medium:  \u03B1 = ' + alpha.toFixed(2) + ' km/s,  \u03B2 = ' + beta.toFixed(2) + ' km/s,  \u03C1 = ' + rho.toFixed(2) + ' g/cm\u00B3', 12, SEC-34)
+    labelBox('\u03BB_P = ' + lamP + ' km,  \u03BB_S = ' + lamS + ' km', 12, SEC-12)
   }
 
   function redraw(){ drawReflectivity(); drawWavefield() }
@@ -587,6 +680,14 @@ begin
     redraw()
   })
 
+  // Disconnect only once this widget has left the page: Pluto can resolve `invalidation`
+  // for a bond output while keeping its DOM, which would freeze the canvases' size.
+  const fitRO = new ResizeObserver(()=>{
+    if(!par.isConnected){ fitRO.disconnect(); if(rafId) cancelAnimationFrame(rafId); return }
+    if(layout()) redraw()
+  })
+  fitRO.observe(stage)
+
   redraw(); emit()
 </script>
 """)
@@ -612,12 +713,15 @@ begin
     # display toggles live entirely client-side inside the widget (see its
     # docstring for why: everything downstream of theta is pre-swept once and
     # pushed to the widget, so dragging theta never touches Julia at all).
-    αin = Float64(_psv["alpha"])
-    βin = Float64(_psv["beta"])
-    ρin = Float64(_psv["rho"])
-    incident_waves = String(_psv["incident_type"])
+    # The bond is `nothing` until a browser has rendered the widget (a re-run with no
+    # client attached, an export): fall back to the widget's own defaults.
+    _psv_safe = _psv isa AbstractDict ? _psv : Base.get(PSVWidgetInput())
+    αin = Float64(_psv_safe["alpha"])
+    βin = Float64(_psv_safe["beta"])
+    ρin = Float64(_psv_safe["rho"])
+    incident_waves = String(_psv_safe["incident_type"])
+    nothing
 end
-
 
 # ╔═╡ b4a603fb-5ee7-4c97-8e1d-fd0a89692503
 begin
@@ -1606,6 +1710,7 @@ version = "1.64.0+1"
 
 # ╔═╡ Cell order:
 # ╠═08429397-3964-4600-bc14-c45d22c915ec
+# ╟─852db0c4-de92-4591-af42-0f3b9826cdf3
 # ╟─32a757ff-aa7a-41d5-b8b3-6ac9e0125875
 # ╟─bbbb2222-2222-2222-2222-222222222222
 # ╟─afdb5b7d-d670-4a98-a91d-3ff638fb0294
@@ -1642,6 +1747,8 @@ version = "1.64.0+1"
 # ╠═64164ec7-a3cf-41d0-bcef-e55475eabeea
 # ╠═605195de-f4a1-4331-9b82-78e4a061f0a4
 # ╠═a95e361b-d195-4ec0-b2fd-cd9adb79efc5
+# ╟─602f13f9-6d14-41fd-9183-b8255d64399b
+# ╟─dba7ea14-e0dd-4dc4-ad9c-4627fd16cc62
 # ╟─5729b459-b283-41ce-95be-c4d33a7c28c0
 # ╟─281cb873-760c-411f-98b5-1c64d218e7e9
 # ╠═3d50985b-b79a-45ab-ba1f-5287936c56d9
@@ -1649,17 +1756,15 @@ version = "1.64.0+1"
 # ╟─a7cb9cd5-7013-461b-960d-5da73db62aea
 # ╠═a06affae-47c3-4dfa-a997-ee75b35ab122
 # ╠═23d62611-aeb5-4ed3-897d-822c0d17781c
+# ╟─ea3b7089-bda8-4694-8042-98534b1739bd
 # ╠═edb72f1f-6c99-48fb-b32d-fc4fe7d3328e
 # ╠═4c871d5c-1b62-4b1c-9c1e-37cae19cbe0e
 # ╟─8c81ddb5-bf4d-4610-bfea-3d1a27ffd61f
 # ╠═a089ab5b-4703-4d4d-a7ab-11197b4b907c
-# ╠═eeee5555-5555-5555-5555-555555555555
+# ╟─eeee5555-5555-5555-5555-555555555555
 # ╠═ffff6666-6666-6666-6666-666666666666
 # ╠═cccc3333-3333-3333-3333-333333333333
-# ╟─dba7ea14-e0dd-4dc4-ad9c-4627fd16cc62
-# ╟─ea3b7089-bda8-4694-8042-98534b1739bd
 # ╠═ab40f79c-3d8a-11ed-0697-a7b794dbba99
-# ╠═602f13f9-6d14-41fd-9183-b8255d64399b
 # ╟─aaaa7777-7777-7777-7777-777777777777
 # ╠═dddd4444-4444-4444-4444-444444444444
 # ╟─00000000-0000-0000-0000-000000000001

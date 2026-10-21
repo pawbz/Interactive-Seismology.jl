@@ -30,6 +30,30 @@ end
 # ╔═╡ 52597587-4c6b-4420-8242-6dbe166e280d
 TableOfContents()
 
+# ╔═╡ 36b9aa1f-abfb-43a4-932f-5101c77d1421
+# App shell: the Expt / Theory / Code / Help frame shared by every notebook, loaded
+# from src/assets/app-shell/. Without that folder (a lone downloaded .jl) this cell just
+# shows the help text and the notebook stays a plain notebook.
+let
+	help = md"""
+	- **Drag the handle** to pull the block and ease it back; the stress-strain graph keeps every cycle you trace.
+	- **Hold the handle still** to let simulated time run: the block creeps (pull mode) or its stress relaxes (Stretch & hold mode).
+	- **Scrub** the spring (stiffness), the dashpot (viscosity) or the bracing strip (Poisson's ratio) directly on the drawing to change the material.
+	- The timescale strip compares your loading time with the material's two clocks, the wave-crossing time and the Maxwell time.
+
+	**Try this:** pull past the yield point, release, and read the permanent strain where the unloading line meets zero stress.
+	"""
+	dir = joinpath(@__DIR__, "..", "assets", "app-shell")
+	if isfile(joinpath(dir, "app-shell.js"))
+		HTML(string(
+			"<style>", read(joinpath(dir, "app-shell.css"), String), "</style>",
+			"<template class=\"app-help\">", repr(MIME"text/html"(), help), "</template>",
+			"<script>", read(joinpath(dir, "app-shell.js"), String), "</script>"))
+	else
+		help
+	end
+end
+
 # ╔═╡ faf8d654-5c42-46a5-967d-93c3897273e1
 md"""
 # Why Does a Rod Stretch Proportionally -- and What Happens If You Pull Too Hard?
@@ -304,10 +328,16 @@ md"""
 """
 
 # ╔═╡ df3cccd7-5a20-452b-89e9-1f20b818808a
-md"## Appendix"
+md"""
+## Appendix
+Every curve in the experiment comes from the Julia functions below: the loading and release path, creep and relaxation, the lateral strain, the two clocks, and the lattice's Poisson's ratio. Each group ends with a numerical self-check.
+"""
 
 # ╔═╡ 6ab7bf3b-19e1-477a-b046-88df986855cb
-md"## Discovering Elastic and Plastic Response"
+md"""
+## Discovering Elastic and Plastic Response
+`elastoplastic_response(strain_path, E, sigma_y0; H)` turns a strain history into stress with a linear-hardening plasticity model: elastic with slope ``E`` until ``|\sigma|`` reaches the current yield stress, then plastic flow that raises the yield stress with modulus ``H``. Unloading always returns along the elastic slope, which leaves the permanent set. `strain_from_stress` is the inverse, force-controlled version used by free play: given the stress set by the handle, it returns the strain, capping the plastic strain so that a runaway pull stays drawable.
+"""
 
 # ╔═╡ 33fb6caf-2564-41bc-bd5f-8fba3670d887
 """
@@ -397,7 +427,10 @@ function strain_from_stress(stress_path, E, sigma_y0; H=0.0, plastic_cap=1.5)
 end
 
 # ╔═╡ 5e2c9a3f-1b6d-4f2a-9c0e-7a3f8d1b6e42
-md"### Why the Dashpot Only Feels a Third of the Pull"
+md"""
+### Why the Dashpot Only Feels a Third of the Pull
+`axial_maxwell_creep_rate(sigma, eta)` is the creep rate ``\sigma/(3\eta)`` of a uniaxially pulled Maxwell material: only the deviatoric two-thirds of a uniaxial stress shears the dashpot, which brings in the Trouton factor of 3. The check after it confirms the factor against an explicit deviatoric decomposition. `strain_from_stress_with_creep` adds this creep to `strain_from_stress` along a time history, which is what the hold gesture feeds with its stretched, log-scaled simulated time.
+"""
 
 # ╔═╡ 7f4a1d8e-2c5b-4e9f-a0d3-6b1c8e4f2a97
 """
@@ -480,7 +513,10 @@ function strain_from_stress_with_creep(stress_path, time_path, E, sigma_y0, eta;
 end
 
 # ╔═╡ f3a1b2c4-6d5e-4a8b-9c1f-2e7d4b6a8f01
-md"### Squeezing Instead of Pulling: Stress Relaxation Under Fixed Strain"
+md"""
+### Squeezing Instead of Pulling: Stress Relaxation Under Fixed Strain
+`axial_stress_relaxation_time(E, eta)` is ``\tau_{\rm relax} = 3\eta/E``, and `stress_from_strain_with_relaxation` integrates the stress decay along a strain-and-time history for the "Stretch & hold" mode. The check after them confirms the exponential decay ``\sigma_0 e^{-t/\tau_{\rm relax}}`` and its time constant.
+"""
 
 # ╔═╡ a7c3e9f1-4b2d-4e6a-8f19-3d5c7b9e1a02
 """
@@ -868,7 +904,10 @@ let
 end
 
 # ╔═╡ e76b20bd-28f7-418c-8fb3-42a40e710497
-md"## Two Independent Constants"
+md"""
+## Two Independent Constants
+`E_from_KG`, `nu_from_KG`, `K_from_Enu` and `G_from_Enu` convert between the bulk and shear moduli and Young's modulus with Poisson's ratio. `dilatation_strain`, `shear_strain` and `uniaxial_strains` give the strain each kind of load produces, and `vp`, `vs` the corresponding wave speeds. The check below runs three separate experiments (pure dilatation, pure shear and a uniaxial pull) on crust-like moduli. They recover ``K``, ``G``, ``E`` and ``\nu``, and the check confirms that ``V_p/V_s`` depends on ``\nu`` alone.
+"""
 
 # ╔═╡ 02d7acba-4408-4158-b67d-76516d239309
 begin
@@ -1188,7 +1227,10 @@ let
 end
 
 # ╔═╡ 00961e05-3259-494e-8123-38675b04dfcc
-md"## The Interactive Widget"
+md"""
+## The Interactive Widget
+`ElastoplasticLoadingInput` sends the stress (or strain) history traced by the handle, the hold durations and the material parameters (``E``, ``\sigma_y``, ``H``, ``\eta``, ``\nu``) back to Julia. The cell before the Two Independent Constants section runs the matching path function: creep under a held stress, or relaxation under a held strain. `EplPush` returns the resulting strain, stress and lateral-strain histories to the widget, which draws the lattice, the stress-strain graph and the timescale strip.
+"""
 
 # ╔═╡ 58011730-0491-400a-83a1-ebaf42c6b574
 begin
@@ -1245,7 +1287,7 @@ begin
     """
     function Base.show(io::IO, ::MIME"text/html", w::ElastoplasticLoadingInput)
         write(io, """
-        <div id="eplwidget">
+        <div id="eplwidget" class="app-widget">
         <style>
         pluto-cell:has(#eplwidget) { width: min(85vw, 1150px) !important;
           margin-left: calc((100% - min(85vw, 1150px)) / 2) !important; }
@@ -1286,7 +1328,7 @@ begin
         @media (max-width: 640px) { #eplwidget .epl-block-col{flex-basis:100%} #eplwidget .epl-graph-col{flex-basis:100%} }
         </style>
 
-        <div class="epl-title">
+        <div class="epl-title app-title">
           <div class="epl-title-desc">One block, three regimes -- elastic, viscoelastic, or viscous flow, depending on the clock you compare it to.</div>
           <div class="epl-title-hint">drag the handle by hand and watch &sigma;_y/plasticity respond -- hold the pull steady and simulated time sweeps from seconds to hundreds of millions of years, so real creep/relaxation shows up even though real &eta; won't visibly move in a few seconds of dragging &middot; drag the spring for stiffness, the dashpot for viscosity</div>
         </div>
@@ -2834,6 +2876,7 @@ version = "1.64.0+1"
 # ╔═╡ Cell order:
 # ╟─46fa4dc1-b407-4584-91bf-d136b77622bc
 # ╠═52597587-4c6b-4420-8242-6dbe166e280d
+# ╟─36b9aa1f-abfb-43a4-932f-5101c77d1421
 # ╟─faf8d654-5c42-46a5-967d-93c3897273e1
 # ╟─6444aa15-39e9-4f0f-9e90-809899dd19ff
 # ╟─199e5d68-391c-4c20-871e-bf1222f28b3f
@@ -2850,7 +2893,7 @@ version = "1.64.0+1"
 # ╠═7f4a1d8e-2c5b-4e9f-a0d3-6b1c8e4f2a97
 # ╠═3d8b6f21-9e4a-4c7d-b502-1f6a9d3e8c05
 # ╠═a0900587-c705-4fb9-99b6-002b4fe257c8
-# ╠═f3a1b2c4-6d5e-4a8b-9c1f-2e7d4b6a8f01
+# ╟─f3a1b2c4-6d5e-4a8b-9c1f-2e7d4b6a8f01
 # ╠═a7c3e9f1-4b2d-4e6a-8f19-3d5c7b9e1a02
 # ╠═b8d4f0a2-5c3e-4f7b-9a2d-4e6d8c0f2b13
 # ╠═c9e5a1b3-6d4f-4a8c-8b3e-5f7e9d1a3c24

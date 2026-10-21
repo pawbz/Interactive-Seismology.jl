@@ -58,6 +58,27 @@ using ImageFiltering
 # ╔═╡ 3c540889-49dc-415c-acbc-3494897b260c
 PlutoUI.TableOfContents(include_definitions=true)
 
+# ╔═╡ bfede415-93e3-4dd3-8097-82b18aebbb48
+# App shell: the Expt / Theory / Code / Help frame shared by every notebook, loaded
+# from src/assets/app-shell/. Without that folder (a lone downloaded .jl) this cell just
+# shows the help text and the notebook stays a plain notebook.
+let
+	help = md"""
+	- This notebook has no single experiment: the **sidebar** controls (sources and receivers, the true medium, the snapshot time) live in **Code**, next to the plots they drive.
+	- **Theory** walks through the SH wave equation, the forward and adjoint simulations, and the gradients.
+	- The finite-difference test at the end compares the adjoint gradient with brute-force derivatives; tick its checkbox in Code to run it.
+	"""
+	dir = joinpath(@__DIR__, "..", "assets", "app-shell")
+	if isfile(joinpath(dir, "app-shell.js"))
+		HTML(string(
+			"<style>", read(joinpath(dir, "app-shell.css"), String), "</style>",
+			"<template class=\"app-help\">", repr(MIME"text/html"(), help), "</template>",
+			"<script>", read(joinpath(dir, "app-shell.js"), String), "</script>"))
+	else
+		help
+	end
+end
+
 # ╔═╡ 9c32f5bc-f6d1-4048-903a-27224aaa1f40
 md"""
 # Full Waveform Inversion
@@ -103,11 +124,14 @@ Pseudo spectral method is applied for solving the seismic equation given the tru
 
 
 # ╔═╡ b572f855-db01-4c4f-8922-968bc0ef5fdf
-md"## Gradients"
+md"""
+## Gradients
+The panel above compares, at the time chosen in the sidebar, the forward wavefield, the adjoint wavefield, and the two gradients they produce: with respect to density ``\rho`` and to shear compliance ``\mu^{-1}``. The gradient is large where the forward and the back-propagated adjoint wavefields overlap in time, and that is where the reflector must be.
+"""
 
 # ╔═╡ 92d05447-6d0e-4ee0-a330-244b9c65c871
 md"""
-
+The rest of the notebook builds this picture step by step: the SH wave equation, the forward simulation, the data misfit, the adjoint simulation, and finally the gradients and a finite-difference check of them.
 """
 
 # ╔═╡ b3015aff-bdab-4c94-87da-8744c174263a
@@ -191,16 +215,34 @@ source_fpeak = 2f0  # in Hz
 source_fmax = 3f0 * source_fpeak # maximum useful frequency as 3*fpeak
 
 # ╔═╡ 8b5372ec-0742-48ea-81c4-d303b96f56c7
-md"## Inversion"
+md"""
+## Inversion
+FWI updates the medium to reduce the misfit between observed and modelled seismograms. Each update needs the gradient of the misfit with respect to every grid cell's density and compliance. The adjoint-state method (see the companion *Adjoint State Method* notebook) gives all of them from one forward and one adjoint simulation.
+"""
 
 # ╔═╡ 14c0cd30-a52c-4f93-9f7b-cae6328c0655
-md"### Generate Data"
+md"""
+### Generate Data
+The "observed" data `dobs` are simulated in the true medium with the reflector; the reference data `dref` are simulated in the starting medium without it.
+"""
 
 # ╔═╡ 439df138-5198-4737-915d-7bd2c157aa4b
-md"### Bundle Parameters "
+md"""
+### Bundle Parameters
+`fwi_param` collects everything a forward simulation needs (wavefields, grids, medium, acquisition, source) so the misfit `J(x)` can be written as a function of the model vector alone. The model vector ``x`` stores ``\chi(m) = \log(m/m_0)`` for density and compliance (`get_x`, `χ`), which keeps both parameters positive and comparably scaled.
+"""
 
 # ╔═╡ 0454ce0a-d6de-427f-bbdc-3bcec21327f2
-md"### Loss Function"
+md"""
+### Loss Function
+The misfit is the mean squared difference between observed and modelled seismograms inside a time window `t_window` (`mse_loss`), which selects the reflected arrival at each receiver:
+
+```math
+J(x) = \frac{1}{N}\sum_{t,\,r} w_{t,r}^2\big(d^{\mathrm{obs}}_{t,r} - d_{t,r}(x)\big)^2 .
+```
+
+`J(x)` updates the medium from ``x``, runs `propagate!` and returns this loss.
+"""
 
 # ╔═╡ f2fb92bb-33d6-4e15-8caf-b245e000ad69
 """
@@ -213,14 +255,20 @@ function mse_loss(observed::AbstractMatrix, modelled::AbstractMatrix, t_window::
 end
 
 # ╔═╡ a3a9deea-e2d6-4d58-90d7-5a54be176289
-md"### Adjoint Simulation"
+md"""
+### Adjoint Simulation
+The adjoint simulation swaps the roles of sources and receivers (`get_adj_ageom`): every receiver becomes a source.
+"""
 
 # ╔═╡ 1dc2ca10-5ba3-4efa-b6d9-d203cf91598b
-md"Deviation between the observed and modelled data is referred to as the data error and it acts as the forcing in the case of adjoint simulation."
+md"""
+Its source is the derivative of the loss with respect to the modelled data, the windowed data error, reversed in time (`get_adj_source`). Running the same solver with this source propagates the residuals back into the medium, backward in time.
+"""
 
 # ╔═╡ 66f9c698-61e3-4b61-aff3-dfc67eb2f6af
 md"""
 ### Gradients
+`reduce_gradients!` correlates the two simulations at every grid point. The density gradient accumulates the adjoint velocity times the time difference of the forward velocity; the compliance gradient does the same with the stresses. These are the discrete zero-lag correlations derived in the *Adjoint State Method* notebook.
 """
 
 # ╔═╡ 8d161f09-8339-4277-8739-ff76607f7abf
@@ -241,6 +289,7 @@ do_fd_tests && (xs = zeros(Float32, 3))
 # ╔═╡ fc49a6d7-a1b1-458a-a9ad-e120282bbabc
 md"""
 ## Appendix
+The sidebar controls, the Fourier derivatives, the acquisition geometry, the medium parametrization, absorbing boundaries, the leap-frog propagator, the gradient accumulation, the source wavelet and the plotting helpers.
 """
 
 # ╔═╡ a62839d5-837b-4c37-996f-33659c34911c
@@ -2637,6 +2686,7 @@ version = "17.4.0+2"
 
 # ╔═╡ Cell order:
 # ╠═3c540889-49dc-415c-acbc-3494897b260c
+# ╟─bfede415-93e3-4dd3-8097-82b18aebbb48
 # ╟─9c32f5bc-f6d1-4048-903a-27224aaa1f40
 # ╟─9605ad90-2ae2-41a8-84da-4b0c358a1166
 # ╟─b4e04cb6-d82d-4452-9d0a-22106ca6c507
